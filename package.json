@@ -1,0 +1,33 @@
+{
+  "name": "prospectos",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "next dev --hostname 0.0.0.0",
+    "build": "next build",
+    "start": "next start --hostname 0.0.0.0",
+    "test": "node --experimental-strip-types --test tests/*.test.ts",
+    "typecheck": "tsc --noEmit",
+    "test:db": "node tests/rls-runner.mjs",
+    "test:discovery-db": "node tests/discovery-db.mjs",
+    "test:all": "npm test && npm run test:db && npm run test:discovery-db && npm run typecheck"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "2.116.0",
+    "cheerio": "1.2.0",
+    "ipaddr.js": "2.3.0",
+    "next": "16.3.5",
+    "react": "19.2.4",
+    "react-dom": "19.2.4",
+    "robots-parser": "3.0.1",
+    "zod": "4.3.6"
+  },
+  "devDependencies": {
+    "@electric-sql/pglite": "0.5.8",
+    "@types/node": "24.10.1",
+    "@types/react": "19.2.7",
+    "@types/react-dom": "19.2.3",
+    "typescript": "5.9.3"
+  }
+}

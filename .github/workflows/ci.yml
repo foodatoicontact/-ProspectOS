@@ -1,0 +1,27 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+# No Supabase/production credentials are read anywhere in this workflow. Every check below runs
+# against an in-memory PGlite Postgres instance created fresh per test file — never a remote database,
+# never a service-role key, never a migration applied to any real project.
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+      - run: npm ci
+      - run: npm test
+      - run: npm run typecheck
+      - run: npm run build
+      - run: npm run test:discovery-db
+      - run: node tests/discovery-db-upsert-fix.mjs
+      - run: node tests/ai-quota-db.mjs

@@ -11,7 +11,8 @@
     "typecheck": "tsc --noEmit",
     "test:db": "node tests/rls-runner.mjs",
     "test:discovery-db": "node tests/discovery-db.mjs",
-    "test:all": "npm test && npm run test:db && npm run test:discovery-db && npm run typecheck"
+    "test:ai-quota-db": "node tests/ai-quota-db.mjs",
+    "test:all": "npm test && npm run test:db && npm run test:discovery-db && npm run test:ai-quota-db && npm run typecheck"
   },
   "dependencies": {
     "@supabase/supabase-js": "2.116.0",

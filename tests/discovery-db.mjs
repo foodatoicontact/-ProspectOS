@@ -12,6 +12,7 @@ const db = new PGlite();
 const schema = await readFile(new URL('../db/schema.sql', import.meta.url), 'utf8');
 const migration = await readFile(new URL('../db/migrations/002_discovery.sql', import.meta.url), 'utf8');
 const migrationGeneric = await readFile(new URL('../db/migrations/003_discovery_generic_criteria.sql', import.meta.url), 'utf8');
+const migrationUpsertFix = await readFile(new URL('../db/migrations/004_fix_observation_evidence_upsert.sql', import.meta.url), 'utf8');
 
 async function sql(text, params = []) { return db.query(text, params); }
 async function as(user, text, params = []) {
@@ -39,6 +40,7 @@ try {
   await db.exec(schema);
   await db.exec(migration);
   await db.exec(migrationGeneric);
+  await db.exec(migrationUpsertFix);
 
   const A = '00000000-0000-4000-8000-000000000001';
   const B = '00000000-0000-4000-8000-000000000002';

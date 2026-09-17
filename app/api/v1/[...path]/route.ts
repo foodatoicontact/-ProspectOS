@@ -2,7 +2,7 @@ import {handleDiscovery} from '../../../../src/discovery/api';
 import {projectCriteria} from '../../../../src/domain/relations';
 import {authenticatedDb} from '../../../../src/server/db';
 import {analyzeOffer} from '../../../../src/server/ai';
-import {FOODATOI_CRITERIA,STATUSES,validateCriteria,generateOutreach,scoreProspect,csv,safeLink} from '../../../../src/domain/core';
+import {DEFAULT_CRITERIA,STATUSES,validateCriteria,generateOutreach,scoreProspect,csv,safeLink} from '../../../../src/domain/core';
 export const runtime='nodejs';
 export const maxDuration=60;
 export const dynamic='force-dynamic';
@@ -27,7 +27,7 @@ async function handler(request:Request,context:{params:Promise<{path:string[]}>}
  if(request.method==='PATCH'&&id){if(typeof body.offer!=='string')return json({error:'Offre requise'},400);return json(await checked(db.from('projects').update({offer:body.offer.slice(0,4000)}).eq('id',id).select().single()))}
  }
  if(resource==='icps'&&request.method==='POST'){
- const criteria=body.criteria??FOODATOI_CRITERIA;try{validateCriteria(criteria)}catch{return json({error:'Critères invalides : poids total 100 requis'},400)}
+ const criteria=body.criteria??DEFAULT_CRITERIA;try{validateCriteria(criteria)}catch{return json({error:'Critères invalides : poids total 100 requis'},400)}
  const project=await checked(db.from('projects').select('*').eq('id',body.project_id).single());
  return json(await checked(db.from('icps').upsert({project_id:project.id,organization_id:project.organization_id,criteria},{onConflict:'project_id'}).select().single()));
  }

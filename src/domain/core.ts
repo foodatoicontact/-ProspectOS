@@ -14,6 +14,12 @@ export const FOODATOI_CRITERIA:Criterion[]=[
  {key:'audience',label:'Forte audience sociale documentée',weight:5},
  {key:'internal_delivery',label:'Livraison interne documentée',weight:5}
 ];
+export const DEFAULT_CRITERIA:Criterion[]=[
+ {key:'target_fit',label:'Correspond à la cible définie',weight:25},
+ {key:'need_fit',label:'Besoin correspondant à l’offre',weight:30},
+ {key:'commercial_signal',label:'Signal commercial observable',weight:25},
+ {key:'contactability',label:'Canal de contact professionnel documenté',weight:20}
+];
 export function safeLink(value:string):string|null {try {const u=new URL(value);return ['http:','https:'].includes(u.protocol)&&!u.username&&!u.password?u.href:null}catch{return null}}
 export function validateCriteria(criteria:Criterion[]) {if(!criteria.length||criteria.length>30||new Set(criteria.map(c=>c.key)).size!==criteria.length||criteria.some(c=>!c.key||!c.label||!Number.isFinite(c.weight)||c.weight<=0)||Math.abs(criteria.reduce((s,c)=>s+c.weight,0)-100)>0.001)throw Error('Les critères doivent être uniques et leurs poids totaliser 100.');}
 export function scoreProspect(criteria:Criterion[],evidence:Evidence[],now=new Date()) {
@@ -27,11 +33,13 @@ export function scoreProspect(criteria:Criterion[],evidence:Evidence[],now=new D
 }
 export function generateOutreach(name:string,offer:string,criteria:Criterion[],evidence:Evidence[],now=new Date()){
  const s=scoreProspect(criteria,evidence,now);const known=(key:string)=>s.breakdown.find(b=>b.key===key&&b.state==='TRUE');
- let hook='Je me permets de vous contacter au sujet de vos commandes à emporter.';let chosen:ReturnType<typeof known>;
+ let hook='Je me permets de vous contacter au sujet de votre activité.';let chosen:ReturnType<typeof known>;
  if((chosen=known('phone_orders')))hook='Votre site indique que vous prenez des commandes par téléphone.';
  else if((chosen=known('platforms')))hook='Votre page mentionne votre présence sur des plateformes de livraison.';
  else if((chosen=known('social_orders')))hook='Votre page propose de commander via vos réseaux sociaux.';
- const text=`Bonjour l’équipe ${name}, ${hook} ${offer.trim()||'Foodatoi permet de préparer un parcours de commande directe.'} Comment gérez-vous actuellement le retrait des commandes ? Seriez-vous ouvert à une courte démo ?`;
+ if(!chosen){const generic=s.breakdown.find(b=>b.state==='TRUE');if(generic){chosen=generic;hook=`J’ai relevé un signal pertinent concernant « ${generic.label} » dans vos informations publiques.`}}
+ const value=offer.trim()||'Je souhaite vous présenter notre offre et vérifier si elle correspond à vos besoins.';
+ const text=`Bonjour l’équipe ${name}, ${hook} ${value} Seriez-vous ouvert à un court échange ?`;
  return {text,evidence_ids:chosen?.evidence_ids??[],mode:'Modèle factuel',generated_at:now.toISOString()};
 }
 export function csv(rows:unknown[][]){return '\uFEFF'+rows.map(row=>row.map(value=>{let s=String(value??'');if(/^[\s]*[=+@\-]/.test(s))s="'"+s;return '"'+s.replaceAll('"','""')+'"'}).join(',')).join('\r\n')}

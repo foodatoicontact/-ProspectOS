@@ -12,6 +12,9 @@ export interface DiscoveryRepository {
  projectCriteria(projectId:string):Promise<Criterion[]>;
  consumeAnalysis(id:string):Promise<void>;
  saveObservations(id:string,observations:Observation[]):Promise<unknown[]>;
+ // Returns how many of `amount` candidate prospects the organization's commercial entitlement
+ // actually grants this period — 0..amount, never more. The caller must cap what it persists to this.
+ consumeProspects(projectId:string,amount:number):Promise<number>;
 }
 export type PageFetcher=(url:string)=>Promise<{url:string;html:string}>;
 export type SafeLogger=(event:Record<string,string|number|null>)=>void;
@@ -23,7 +26,12 @@ export class DiscoveryService {
  const input=DiscoveryInputSchema.parse(raw);const run=await this.repo.start(input,this.provider.id);const start=Date.now();
  try{const known=await this.repo.existing(input.project_id);const rawResults=await this.provider.searchCompanies(input);const candidates:Array<{candidate:Candidate;dedupe:ReturnType<DeduplicationService['match']>}>=[];const seen:Identity[]=[];
  for(const raw of rawResults.slice(0,input.max_results)){const candidate=this.provider.normalizeResult(raw);const dedupe=this.dedupe.match(candidate,known);const within=this.dedupe.match(candidate,seen);if(dedupe.status==='unique'&&within.status!=='unique'){dedupe.status='merge_review_required';dedupe.reason='Résultat similaire dans cette recherche : revue nécessaire'}candidates.push({candidate,dedupe});seen.push(candidate)}
- const results=await this.repo.saveResults(run,candidates);const metrics={provider:this.provider.id,duration_ms:Date.now()-start,results:results.length,ai_tokens:0,ai_cost_estimate:0};await this.repo.finish(run.id,results.length,metrics);this.log(metrics);return {...run,status:'completed',provider_mode:this.provider.mode,results,result_count:results.length};
+ // Commercial PROSPECT entitlement: a Discovery run may never persist more candidates than the
+ // organization's remaining monthly allowance — capped here, deterministically, before anything is
+ // written, never as an after-the-fact cleanup. 0 candidates needs no RPC round trip at all.
+ const granted=candidates.length?await this.repo.consumeProspects(input.project_id,candidates.length):0;
+ const capped=candidates.slice(0,granted);
+ const results=await this.repo.saveResults(run,capped);const metrics={provider:this.provider.id,duration_ms:Date.now()-start,results:results.length,ai_tokens:0,ai_cost_estimate:0};await this.repo.finish(run.id,results.length,metrics);this.log(metrics);return {...run,status:'completed',provider_mode:this.provider.mode,results,result_count:results.length,prospects_capped:candidates.length-capped.length};
  }catch{await this.repo.finish(run.id,0,{duration_ms:Date.now()-start},'DISCOVERY_FAILED');this.log({provider:this.provider.id,duration_ms:Date.now()-start,error:'DISCOVERY_FAILED'});throw Error('DISCOVERY_FAILED')}
  }
 }

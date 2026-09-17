@@ -6,7 +6,7 @@ import {projectCriteria as resolveProjectCriteria} from '../domain/relations.ts'
 // The original Postgres error (message/code) is kept as .cause for server-side logging only — the
 // thrown message itself is unchanged, so existing error-code routing and the user-facing text stay
 // exactly as before. Never exposed to the client: routes only ever return the generic mapped message.
-export async function checked(query:PromiseLike<any>){const {data,error}=await query;if(error){if(error.message?.includes('quota_exceeded'))throw Error('QUOTA_EXCEEDED');if(error.message?.includes('max_results'))throw Error('MAX_RESULTS_EXCEEDED');throw Error('DATABASE_REQUEST_FAILED',{cause:error})}return data}
+export async function checked(query:PromiseLike<any>){const {data,error}=await query;if(error){if(error.message?.includes('commercial_entitlement_exceeded'))throw Error('COMMERCIAL_ENTITLEMENT_EXCEEDED');if(error.message?.includes('quota_exceeded'))throw Error('QUOTA_EXCEEDED');if(error.message?.includes('max_results'))throw Error('MAX_RESULTS_EXCEEDED');throw Error('DATABASE_REQUEST_FAILED',{cause:error})}return data}
 // save_discovery_observations requires: UNKNOWN => value null; any other status with a non-null
 // criterion => a concrete boolean value (it creates/updates an Evidence row from it). A generic,
 // non-conclusive lexical candidate (status INFERRED, value null — see strategies/generic.ts) has no
@@ -18,7 +18,7 @@ export function toStorageSafeObservation(o:Observation):Observation{return o.sta
 export class SupabaseDiscoveryRepository implements DiscoveryRepository {
  db:SupabaseClient;
  constructor(db:SupabaseClient){this.db=db}
- async start(input:DiscoveryInput,provider:string){return checked(this.db.rpc('start_discovery',{p_project_id:input.project_id,p_query:input.query,p_location:input.location,p_categories:input.categories,p_provider:provider,p_max_results:input.max_results,p_filters:input.optional_filters}))}
+ async start(input:DiscoveryInput,provider:string){return checked(this.db.rpc('start_discovery_metered',{p_project_id:input.project_id,p_query:input.query,p_location:input.location,p_categories:input.categories,p_provider:provider,p_max_results:input.max_results,p_filters:input.optional_filters}))}
  async existing(projectId:string){const rows=await checked(this.db.from('prospects').select('id,name,website,city,channels(kind,value)').eq('project_id',projectId));return rows.map((p:any)=>({...p,phone:p.channels?.find((c:any)=>c.kind==='phone')?.value??null,address:null}))}
  async saveResults(run:DiscoveryRun,rows:Array<{candidate:Candidate;dedupe:ReturnType<DeduplicationService['match']>}>):Promise<DiscoveryResult[]>{
  const full=await checked(this.db.from('discovery_runs').select('*').eq('id',run.id).single());if(!rows.length)return [];
@@ -28,5 +28,6 @@ export class SupabaseDiscoveryRepository implements DiscoveryRepository {
  async prospect(id:string){return checked(this.db.from('prospects').select('id,website,organization_id,project_id').eq('id',id).single())}
  async projectCriteria(projectId:string){const project=await checked(this.db.from('projects').select('*,icps(*)').eq('id',projectId).single());return resolveProjectCriteria(project.icps)}
  async consumeAnalysis(id:string){await checked(this.db.rpc('consume_analysis_quota',{p_prospect_id:id}))}
+ async consumeProspects(projectId:string,amount:number){return checked(this.db.rpc('consume_prospect_entitlement',{p_project_id:projectId,p_amount:amount}))}
  async saveObservations(id:string,observations:Observation[]){return checked(this.db.rpc('save_discovery_observations',{p_prospect_id:id,p_observations:observations.map(toStorageSafeObservation)}))}
 }

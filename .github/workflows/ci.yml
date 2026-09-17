@@ -30,3 +30,4 @@ jobs:
       - run: npm run test:discovery-db
       - run: node tests/discovery-db-upsert-fix.mjs
       - run: node tests/ai-quota-db.mjs
+      - run: node tests/commercial-entitlements-db.mjs

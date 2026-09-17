@@ -25,6 +25,7 @@ class MemoryRepo implements DiscoveryRepository {
  async prospect(id:string){if(id!=='accepted')throw Error('NOT_FOUND');return {id,website:this.website,organization_id:'a',project_id:this.runProjectId||'p'}}
  async projectCriteria(){return this.criteria}
  async consumeAnalysis(){this.calls++}
+ async consumeProspects(_projectId:string,amount:number){return amount}
  async saveObservations(_id:string,obs:Observation[]){this.observations=obs;return obs}
  // Test-only helper mirroring accept_discovery_result's key guarantee: the created prospect
  // inherits the run's own project_id — never a different one. The SQL function itself (tenant

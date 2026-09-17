@@ -18,11 +18,21 @@
 -- evidence again — not its criterion/value, not its status, and (via the untouched evidence_guard
 -- trigger) never its verified_by. Such a row is returned completely unchanged.
 --
+-- review_status is NOT the only source of truth for that: evidence has its own `status`, directly
+-- writable by any authenticated tenant member via the generic PostgREST grant, entirely bypassing
+-- review_discovery_observation. So review_status can go stale relative to the evidence it points to
+-- (e.g. evidence.status='VERIFIED' while review_status is still 'NOT_VERIFIED'). The freeze check below
+-- therefore locks and inspects the linked evidence row's real status too, in the same lock order as
+-- review_discovery_observation (prospect_observations row, then evidence row) to avoid any deadlock,
+-- and freezes as soon as EITHER signal says VERIFIED/CONTRADICTED.
+--
 -- For a NOT_VERIFIED (or not-yet-human-reviewed) observation, the fix resolves evidence BEFORE writing
 -- the observation, in this order:
 --  1. Look up any existing observation for this exact (prospect_id, source_url, observation_type,
---     content_hash) dedup key, locked FOR UPDATE.
---  2. If it is already VERIFIED/CONTRADICTED, stop here and return it untouched — nothing else runs.
+--     content_hash) dedup key, locked FOR UPDATE; if it links an evidence row, lock that row too and
+--     read its real status.
+--  2. If review_status OR the linked evidence's real status is already VERIFIED/CONTRADICTED, stop here
+--     and return the observation untouched — nothing else runs, the evidence is never mutated.
 --  3. Otherwise, resolve the evidence side first:
 --     - no criterion in the new payload: any evidence the slot used to have is deleted (it was never
 --       human-reviewed, so nothing valuable is lost) and the slot goes evidence-less, exactly like a
@@ -39,7 +49,7 @@ create or replace function public.save_discovery_observations(p_prospect_id uuid
 language plpgsql security definer set search_path='' as $$
 declare
  tenant uuid; project uuid; item jsonb; obs public.prospect_observations; existing public.prospect_observations;
- existing_found boolean; evid uuid; old_evid uuid; target_evidence_status text;
+ existing_found boolean; evid uuid; old_evid uuid; target_evidence_status text; linked_status text;
  result jsonb:='[]'; criteria text[]; st text; crit text; val boolean;
 begin
  select organization_id,project_id into tenant,project from public.prospects where id=p_prospect_id;
@@ -72,8 +82,18 @@ begin
    for update;
   existing_found := found;
 
-  if existing_found and existing.review_status in ('VERIFIED','CONTRADICTED') then
-   -- A human already reviewed this exact observation. Freeze it completely: no field on the
+  -- Lock the linked evidence row (same order as review_discovery_observation: prospect_observations
+  -- first, then evidence — no deadlock possible) and read its REAL status before any freeze decision.
+  linked_status := null;
+  if existing_found and existing.evidence_id is not null then
+   select status into linked_status from public.evidence
+    where id=existing.evidence_id and prospect_id=p_prospect_id and organization_id=tenant
+    for update;
+  end if;
+
+  if existing_found and (existing.review_status in ('VERIFIED','CONTRADICTED') or linked_status in ('VERIFIED','CONTRADICTED')) then
+   -- A human already reviewed this observation, or its linked evidence is genuinely VERIFIED/
+   -- CONTRADICTED even though review_status is stale. Freeze it completely: no field on the
    -- observation or its evidence changes, and evidence_guard's verified_by is never re-touched.
    obs := existing;
   elsif existing_found then
@@ -86,7 +106,7 @@ begin
     target_evidence_status := case when st='INFERRED' then 'INFERRED_UNCONFIRMED' else 'NOT_VERIFIED' end;
     if old_evid is not null then
      update public.evidence set criterion=crit,value=val,status=target_evidence_status,source_url=item->>'source_url',excerpt=item->>'source_excerpt',observed_at=(item->>'collected_at')::timestamptz
-      where id=old_evid;
+      where id=old_evid and prospect_id=p_prospect_id and organization_id=tenant;
      evid := old_evid;
     else
      insert into public.evidence(organization_id,prospect_id,criterion,value,status,source_url,excerpt,observed_at)
@@ -100,7 +120,7 @@ begin
    where id=existing.id returning * into obs;
    -- Only delete the old evidence AFTER the observation no longer references it, so the composite FK
    -- (evidence_id,prospect_id,organization_id) -> evidence never dangles even for an instant.
-   if evid is null and old_evid is not null then delete from public.evidence where id=old_evid; end if;
+   if evid is null and old_evid is not null then delete from public.evidence where id=old_evid and prospect_id=p_prospect_id and organization_id=tenant; end if;
   else
    evid := null;
    if st<>'UNKNOWN' and crit is not null then
@@ -112,7 +132,7 @@ begin
    returning * into obs;
   end if;
 
-  result:=result||jsonb_build_array(to_jsonb(obs)); evid:=null; old_evid:=null; existing_found:=false;
+  result:=result||jsonb_build_array(to_jsonb(obs)); evid:=null; old_evid:=null; existing_found:=false; linked_status:=null;
  end loop;
  return result;
 end $$;

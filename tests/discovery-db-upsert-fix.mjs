@@ -232,6 +232,96 @@ try {
   assert.equal(scoreAfter.score, contactabilityWeight, 'TEST L: score equals exactly the ICP weight after confirmation');
   console.log('PASS L — score equals exactly the confirmed criterion\'s ICP weight');
 
+  // === TEST M1 — review_status desynced (NOT_VERIFIED) from a real VERIFIED evidence.status: a later
+  // automatic re-analysis with a criterion present must NOT downgrade the evidence or wipe verified_by ===
+  const pM1 = '40000000-0000-4000-8000-000000000011';
+  await newProspect(pM1, OA, PA);
+  const m1First = obsPayload({ content_hash: 'hash-m1', observation_type: 'PHONE_RAW', criterion: 'contactability', value: true, source_excerpt: '05 00 00 00 22', claim: 'initial' });
+  const savedM1 = await save(A, pM1, [m1First]);
+  const m1EvidenceId = savedM1[0].evidence_id;
+  assert.ok(m1EvidenceId, 'TEST M1 precondition: evidence linked');
+  // Simulate the desync: a direct authenticated UPDATE on evidence (bypassing review_discovery_observation)
+  // marks it VERIFIED — evidence_guard forces a real verified_by — while review_status stays NOT_VERIFIED.
+  await as(A, `update public.evidence set status='VERIFIED' where id=$1`, [m1EvidenceId]);
+  let m1Before = (await sql(`select * from public.evidence where id=$1`, [m1EvidenceId])).rows[0];
+  assert.equal(m1Before.status, 'VERIFIED'); assert.ok(m1Before.verified_by, 'TEST M1 precondition: verified_by set by evidence_guard');
+  assert.equal((await sql(`select review_status from public.prospect_observations where id=$1`, [savedM1[0].id])).rows[0].review_status, 'NOT_VERIFIED', 'TEST M1 precondition: review_status desynced (still NOT_VERIFIED)');
+  const m1Reanalysis = obsPayload({ content_hash: 'hash-m1', observation_type: 'PHONE_RAW', criterion: 'contactability', value: true, source_excerpt: '05 00 00 00 22', claim: 'REANALYSIS — must never overwrite' });
+  const savedM1After = await save(A, pM1, [m1Reanalysis]);
+  assert.equal(savedM1After[0].claim, m1First.claim, 'TEST M1: observation frozen, new automated claim never applied');
+  let m1After = (await sql(`select * from public.evidence where id=$1`, [m1EvidenceId])).rows[0];
+  assert.equal(m1After.status, 'VERIFIED', 'TEST M1: evidence still VERIFIED despite stale review_status');
+  assert.equal(m1After.verified_by, m1Before.verified_by, 'TEST M1: verified_by unchanged');
+  console.log('PASS M1 — desynced VERIFIED evidence (criterion present on re-analysis) is never downgraded');
+
+  // === TEST M2 — same desync, but the new payload has NO criterion: must NOT delete the VERIFIED evidence ===
+  const pM2 = '40000000-0000-4000-8000-000000000012';
+  await newProspect(pM2, OA, PA);
+  const m2First = obsPayload({ content_hash: 'hash-m2', observation_type: 'PHONE_RAW', criterion: 'contactability', value: true, source_excerpt: '05 00 00 00 33', claim: 'initial' });
+  const savedM2 = await save(A, pM2, [m2First]);
+  const m2EvidenceId = savedM2[0].evidence_id;
+  await as(A, `update public.evidence set status='VERIFIED' where id=$1`, [m2EvidenceId]);
+  const m2Reanalysis = obsPayload({ content_hash: 'hash-m2', observation_type: 'PHONE_RAW', criterion: null, value: null, claim: 'no longer mapped to a criterion' });
+  const savedM2After = await save(A, pM2, [m2Reanalysis]);
+  assert.equal(savedM2After[0].evidence_id, m2EvidenceId, 'TEST M2: observation still points at the VERIFIED evidence, not cleared');
+  const m2Evidence = (await sql(`select * from public.evidence where id=$1`, [m2EvidenceId])).rows[0];
+  assert.ok(m2Evidence, 'TEST M2: the VERIFIED evidence row was NOT deleted');
+  assert.equal(m2Evidence.status, 'VERIFIED'); assert.ok(m2Evidence.verified_by, 'TEST M2: verified_by unchanged');
+  console.log('PASS M2 — desynced VERIFIED evidence is never deleted, even when the re-analysis drops the criterion');
+
+  // === TEST M3 — same two scenarios with evidence.status = CONTRADICTED ===
+  const pM3 = '40000000-0000-4000-8000-000000000013';
+  await newProspect(pM3, OA, PA);
+  const m3First = obsPayload({ content_hash: 'hash-m3', observation_type: 'PHONE_RAW', criterion: 'contactability', value: true, source_excerpt: '05 00 00 00 44', claim: 'initial' });
+  const savedM3 = await save(A, pM3, [m3First]);
+  const m3EvidenceId = savedM3[0].evidence_id;
+  await as(A, `update public.evidence set status='CONTRADICTED' where id=$1`, [m3EvidenceId]);
+  const m3Reanalysis = obsPayload({ content_hash: 'hash-m3', observation_type: 'PHONE_RAW', criterion: null, value: null, claim: 'no longer mapped' });
+  const savedM3After = await save(A, pM3, [m3Reanalysis]);
+  assert.equal(savedM3After[0].evidence_id, m3EvidenceId, 'TEST M3: observation still points at the CONTRADICTED evidence');
+  const m3Evidence = (await sql(`select * from public.evidence where id=$1`, [m3EvidenceId])).rows[0];
+  assert.ok(m3Evidence, 'TEST M3: the CONTRADICTED evidence row was NOT deleted');
+  assert.equal(m3Evidence.status, 'CONTRADICTED');
+  console.log('PASS M3 — desynced CONTRADICTED evidence is never mutated nor deleted');
+
+  // === TEST M4 — normal case (both signals NOT_VERIFIED): automatic UPDATE/reuse must still work ===
+  const pM4 = '40000000-0000-4000-8000-000000000014';
+  await newProspect(pM4, OA, PA);
+  const m4First = obsPayload({ content_hash: 'hash-m4', observation_type: 'PHONE_RAW', criterion: 'contactability', value: true, source_excerpt: '05 00 00 00 55', claim: 'initial' });
+  const savedM4 = await save(A, pM4, [m4First]);
+  const m4EvidenceId = savedM4[0].evidence_id;
+  const m4Reanalysis = obsPayload({ content_hash: 'hash-m4', observation_type: 'PHONE_RAW', criterion: 'contactability', value: true, source_excerpt: '05 00 00 00 55', claim: 'updated claim' });
+  const savedM4After = await save(A, pM4, [m4Reanalysis]);
+  assert.equal(savedM4After[0].evidence_id, m4EvidenceId, 'TEST M4: same evidence reused, not replaced');
+  assert.equal(savedM4After[0].claim, 'updated claim', 'TEST M4: automatic update still applies when nothing is desynced');
+  assert.equal(Number((await sql(`select count(*) n from public.evidence where prospect_id=$1`, [pM4])).rows[0].n), 1, 'TEST M4: no duplicate evidence');
+  console.log('PASS M4 — normal NOT_VERIFIED/NOT_VERIFIED case remains fully mutable, automatic behavior unchanged');
+
+  // === TEST M5 — the desync fix does not reintroduce the historical orphaned-evidence bug ===
+  const pM5 = '40000000-0000-4000-8000-000000000015';
+  await newProspect(pM5, OA, PA);
+  const m5Old = obsPayload({ content_hash: 'hash-m5', observation_type: 'PHONE_RAW', criterion: null, value: null, source_excerpt: '05 00 00 00 66', claim: 'context' });
+  await save(A, pM5, [m5Old]);
+  const m5New = obsPayload({ content_hash: 'hash-m5', observation_type: 'PHONE_RAW', criterion: 'contactability', value: true, source_excerpt: '05 00 00 00 66', claim: 'enriched' });
+  const savedM5 = await save(A, pM5, [m5New]);
+  assert.ok(savedM5[0].evidence_id, 'TEST M5: evidence linked on enrichment');
+  const m5Orphans = (await sql(`
+    select e.id from public.evidence e where e.prospect_id=$1
+    and not exists (select 1 from public.prospect_observations o where o.evidence_id = e.id)
+  `, [pM5])).rows;
+  assert.equal(m5Orphans.length, 0, 'TEST M5: no orphaned evidence introduced by the desync fix');
+  console.log('PASS M5 — desync fix does not reintroduce the historical orphaned-evidence bug');
+
+  // === TEST M6 — idempotence: repeating the M1/M4 analyses again changes nothing further ===
+  const savedM1Repeat = await save(A, pM1, [m1Reanalysis]);
+  assert.equal(savedM1Repeat[0].evidence_id, m1EvidenceId);
+  const m1Repeat = (await sql(`select status,verified_by from public.evidence where id=$1`, [m1EvidenceId])).rows[0];
+  assert.equal(m1Repeat.status, 'VERIFIED'); assert.equal(m1Repeat.verified_by, m1Before.verified_by);
+  const savedM4Repeat = await save(A, pM4, [m4Reanalysis]);
+  assert.equal(savedM4Repeat[0].evidence_id, m4EvidenceId);
+  assert.equal(Number((await sql(`select count(*) n from public.evidence where prospect_id=$1`, [pM4])).rows[0].n), 1, 'TEST M6: still exactly 1 evidence row after repetition');
+  console.log('PASS M6 — repeating desynced and normal analyses stays idempotent');
+
   // === Section 7 — orphan check: every evidence row must be referenced by some prospect_observations.evidence_id ===
   const orphans = (await sql(`
     select e.id, e.prospect_id, e.criterion from public.evidence e
@@ -240,7 +330,7 @@ try {
   assert.equal(orphans.length, 0, `Expected 0 orphaned evidence rows, found ${orphans.length}: ${JSON.stringify(orphans)}`);
   console.log('PASS ORPHAN CHECK — 0 evidence rows exist without a prospect_observations.evidence_id referencing them');
 
-  console.log('PASS: migration 004 upsert/evidence-link fix — all scenarios A-L + orphan check');
+  console.log('PASS: migration 004 upsert/evidence-link fix — all scenarios A-L + M1-M6 desync fix + orphan check');
 } finally {
   await db.close();
 }

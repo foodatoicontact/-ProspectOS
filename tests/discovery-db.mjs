@@ -4,10 +4,12 @@ import { readFile } from 'node:fs/promises';
 import { PGlite } from '@electric-sql/pglite';
 import { ObservationService } from '../src/discovery/observations.ts';
 import { FIXTURE_HTML } from '../src/discovery/providers/fixture.ts';
+import { FOODATOI_CRITERIA, scoreProspect } from '../src/domain/core.ts';
 
 const db = new PGlite();
 const schema = await readFile(new URL('../db/schema.sql', import.meta.url), 'utf8');
 const migration = await readFile(new URL('../db/migrations/002_discovery.sql', import.meta.url), 'utf8');
+const migrationGeneric = await readFile(new URL('../db/migrations/003_discovery_generic_criteria.sql', import.meta.url), 'utf8');
 
 async function sql(text, params = []) { return db.query(text, params); }
 async function as(user, text, params = []) {
@@ -34,6 +36,7 @@ try {
   `);
   await db.exec(schema);
   await db.exec(migration);
+  await db.exec(migrationGeneric);
 
   const A = '00000000-0000-4000-8000-000000000001';
   const B = '00000000-0000-4000-8000-000000000002';
@@ -45,6 +48,8 @@ try {
   await sql(`insert into public.organizations(id,name,owner_id) values ($1,'A',$2),($3,'B',$4)`, [OA,A,OB,B]);
   await sql(`insert into public.memberships(organization_id,user_id,role) values ($1,$2,'owner'),($3,$4,'owner')`, [OA,A,OB,B]);
   await sql(`insert into public.projects(id,organization_id,name) values ($1,$2,'A project'),($3,$4,'B project')`, [PA,OA,PB,OB]);
+  // A's ICP is Foodatoi's own criteria — the generic engine must keep serving it from this real ICP, not a hardcoded fallback.
+  await sql(`insert into public.icps(project_id,organization_id,criteria) values ($1,$2,$3::jsonb)`, [PA,OA,JSON.stringify(FOODATOI_CRITERIA)]);
 
   const runA = (await as(A, `select public.start_discovery($1,'restaurants','Toulouse','["food"]','fixture',2,'{}') run`, [PA])).rows[0].run;
   const runB = (await as(B, `select public.start_discovery($1,'restaurants','Albi','[]','fixture',2,'{}') run`, [PB])).rows[0].run;
@@ -92,7 +97,7 @@ try {
   assert.equal(repeated[0].id,saved[0].id); assert.equal(repeated[0].evidence_id,saved[0].evidence_id);
   assert.equal(Number((await sql(`select count(*) n from public.prospect_observations where prospect_id=$1`,[accepted.id])).rows[0].n),2);
   assert.equal(Number((await sql(`select count(*) n from public.evidence where prospect_id=$1`,[accepted.id])).rows[0].n),1);
-  const extracted = new ObservationService().extract(FIXTURE_HTML,'https://analysis.fixture.example','test_fixture',new Date(now));
+  const extracted = new ObservationService().extract(FIXTURE_HTML,'https://analysis.fixture.example',FOODATOI_CRITERIA,'test_fixture',new Date(now));
   const phoneRaw = extracted.find(row=>row.observation_type==='PHONE_RAW');
   assert.ok(phoneRaw); assert.equal(phoneRaw.criterion,null); assert.equal(phoneRaw.value,null);
   extracted.push({...phoneRaw,observation_type:'OTHER_DELIVERY_PLATFORM',claim:'Autre plateforme contextuelle',source_excerpt:'Just Eat',content_hash:'hash-other-platform'});
@@ -120,7 +125,6 @@ try {
   await as(A,`select public.review_discovery_observation($1,'confirm')`,[saved[0].id]);
   evidence=(await sql(`select * from public.evidence where id=$1`,[saved[0].evidence_id])).rows[0];
   assert.equal(evidence.status,'VERIFIED'); assert.equal(evidence.verified_by,A);
-  const {FOODATOI_CRITERIA,scoreProspect}=await import('../src/domain/core.ts');
   assert.equal(scoreProspect(FOODATOI_CRITERIA,[evidence],new Date()).score,15);
   await as(A,`select public.review_discovery_observation($1,'contradict')`,[saved[0].id]);
   evidence=(await sql(`select * from public.evidence where id=$1`,[saved[0].evidence_id])).rows[0];
@@ -140,7 +144,36 @@ try {
   await rejects(as(B,`select public.consume_analysis_quota($1)`,[accepted.id]),/tenant member/i);
   await rejects(as(undefined,`select public.review_discovery_observation($1,'confirm')`,[saved[0].id]),/permission denied/i);
 
-  console.log('PASS: discovery lifecycle, scoring, tenant isolation, FK integrity, idempotency, validation, quotas, and RPC grants');
+  // --- Generic multi-sector ICP: B gets its own, non-restaurant, ICP — no vertical leaks across projects ---
+  const SAAS_CRITERIA = [
+    {key:'target_fit',label:'Correspond à la cible définie',weight:25},
+    {key:'need_fit',label:'Besoin correspondant à l’offre',weight:30},
+    {key:'commercial_signal',label:'Signal commercial observable',weight:25},
+    {key:'contactability',label:'Canal de contact professionnel documenté',weight:20}
+  ];
+  await sql("select set_config('request.jwt.claim.sub',$1,false)",[B]);
+  await sql(`insert into public.icps(project_id,organization_id,criteria) values ($1,$2,$3::jsonb)`, [PB,OB,JSON.stringify(SAAS_CRITERIA)]);
+  const prospectSaas = '40000000-0000-4000-8000-000000000003';
+  await sql(`insert into public.prospects(id,organization_id,project_id,name) values ($1,$2,$3,'SaaS prospect')`, [prospectSaas,OB,PB]);
+  const saasObservation = [{criterion:'commercial_signal',observation_type:'GENERIC_KEYWORD_MATCH',claim:'Mention en lien avec le critère',value:true,status:'OBSERVED',source_url:'https://saas.example',source_title:'Accueil',source_excerpt:'Nous documentons un signal commercial observable ici.',source_type:'official_website',confidence:.5,collected_at:now,expires_at:expires,content_hash:'hash-saas-ok'}];
+  const savedSaas = (await as(B, `select public.save_discovery_observations($1,$2::jsonb) rows`,[prospectSaas,JSON.stringify(saasObservation)])).rows[0].rows;
+  assert.equal(savedSaas.length,1); assert.ok(savedSaas[0].evidence_id);
+  // A criterion foreign to this ICP (Foodatoi's own 'food') is rejected outright — never silently accepted.
+  const foreignObservation = [{criterion:'food',observation_type:'FOOD_ACTIVITY',claim:'x',value:true,status:'OBSERVED',source_url:'https://saas.example',source_title:'Accueil',source_excerpt:'x',source_type:'official_website',confidence:.5,collected_at:now,expires_at:expires,content_hash:'hash-saas-foreign'}];
+  await rejects(as(B,`select public.save_discovery_observations($1,$2::jsonb)`,[prospectSaas,JSON.stringify(foreignObservation)]),/Evidence fields required/i);
+
+  // --- A project with no ICP row at all gets zero usable criteria — never a Foodatoi fallback ---
+  const orphanProjectId = '20000000-0000-4000-8000-000000000009';
+  await sql(`insert into public.projects(id,organization_id,name) values ($1,$2,'Orphan project')`, [orphanProjectId,OB]);
+  const orphanProspect = '40000000-0000-4000-8000-000000000004';
+  await sql(`insert into public.prospects(id,organization_id,project_id,name) values ($1,$2,$3,'Orphan prospect')`, [orphanProspect,OB,orphanProjectId]);
+  await rejects(as(B,`select public.save_discovery_observations($1,$2::jsonb)`,[orphanProspect,JSON.stringify([{...foreignObservation[0],content_hash:'hash-orphan-food'}])]),/Evidence fields required/i);
+  // Criterion-less contextual observations (e.g. a raw phone number) still work without any ICP.
+  const contextualOnly = [{criterion:null,observation_type:'PHONE_RAW',claim:'Numéro public présent',value:null,status:'OBSERVED',source_url:'https://saas.example',source_title:'Accueil',source_excerpt:'0500000009',source_type:'official_website',confidence:.9,collected_at:now,expires_at:expires,content_hash:'hash-orphan-phone'}];
+  const orphanSaved = (await as(B,`select public.save_discovery_observations($1,$2::jsonb) rows`,[orphanProspect,JSON.stringify(contextualOnly)])).rows[0].rows;
+  assert.equal(orphanSaved.length,1); assert.equal(orphanSaved[0].evidence_id,null);
+
+  console.log('PASS: discovery lifecycle, scoring, tenant isolation, FK integrity, idempotency, validation, quotas, RPC grants, and generic multi-sector ICP handling');
 } finally {
   await db.close();
 }

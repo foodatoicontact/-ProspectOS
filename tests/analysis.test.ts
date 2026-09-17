@@ -1,7 +1,10 @@
 import test from 'node:test';import assert from 'node:assert/strict';
 import {proposeEvidence} from '../src/domain/analysis.ts';
-import {scoreProspect,FOODATOI_CRITERIA} from '../src/domain/core.ts';
-test('extraction never verifies automatically',()=>{const rows=proposeEvidence('Notre restaurant à Toulouse prend vos commandes par téléphone.','https://example.com');assert.ok(rows.length>=2);assert.ok(rows.every(e=>e.status==='NOT_VERIFIED'));assert.equal(scoreProspect(FOODATOI_CRITERIA,rows).score,0)});
-test('no click collect absence inferred',()=>assert.ok(!proposeEvidence('Bienvenue au restaurant.','https://example.com').some(e=>e.criterion==='weak_collect')));
-test('source text preserved',()=>{const text='Commandez par téléphone au numéro indiqué.';assert.ok(proposeEvidence(text,'https://example.com').every(e=>text.includes(e.excerpt)))});
-test('unsafe source rejected',()=>assert.throws(()=>proposeEvidence('restaurant','javascript:alert(1)')));
+import {scoreProspect,FOODATOI_CRITERIA,DEFAULT_CRITERIA} from '../src/domain/core.ts';
+test('extraction never verifies automatically',()=>{const rows=proposeEvidence('Notre restaurant à Toulouse prend vos commandes par téléphone.','https://example.com',FOODATOI_CRITERIA);assert.ok(rows.length>=2);assert.ok(rows.every(e=>e.status==='NOT_VERIFIED'));assert.equal(scoreProspect(FOODATOI_CRITERIA,rows).score,0)});
+test('no click collect absence inferred',()=>assert.ok(!proposeEvidence('Bienvenue au restaurant.','https://example.com',FOODATOI_CRITERIA).some(e=>e.criterion==='weak_collect')));
+test('source text preserved',()=>{const text='Commandez par téléphone au numéro indiqué.';assert.ok(proposeEvidence(text,'https://example.com',FOODATOI_CRITERIA).every(e=>text.includes(e.excerpt)))});
+test('unsafe source rejected',()=>assert.throws(()=>proposeEvidence('restaurant','javascript:alert(1)',FOODATOI_CRITERIA)));
+test('restaurant patterns never fire for a non-restaurant ICP',()=>{const rows=proposeEvidence('Notre restaurant à Toulouse prend vos commandes par téléphone. Livraison Uber Eats.','https://example.com',DEFAULT_CRITERIA);assert.ok(!rows.some(e=>['food','region','phone_orders','platforms','social_orders'].includes(e.criterion)))});
+test('unknown-at-compile-time criterion still receives a proposal from its own ICP label',()=>{const criteria=[{key:'target_fit',label:'Correspond à la cible définie',weight:25},{key:'need_fit',label:'Besoin correspondant à l’offre',weight:30},{key:'commercial_signal',label:'Signal commercial observable',weight:25},{key:'contactability',label:'Canal de contact professionnel documenté',weight:20}];const rows=proposeEvidence('Nous documentons un signal commercial observable sur ce prospect.','https://example.com',criteria);assert.ok(rows.some(e=>e.criterion==='commercial_signal'))});
+test('a proposal never targets a key absent from the current ICP',()=>{const criteria=[{key:'target_fit',label:'Correspond à la cible définie',weight:100}];const rows=proposeEvidence('Restaurant Uber Eats Deliveroo Toulouse Occitanie téléphone Instagram.','https://example.com',criteria);assert.ok(rows.every(e=>e.criterion==='target_fit'))});

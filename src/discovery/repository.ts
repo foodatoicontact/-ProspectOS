@@ -2,6 +2,7 @@ import type {SupabaseClient} from '@supabase/supabase-js';
 import type {DiscoveryRepository} from './services.ts';
 import type {Candidate,DiscoveryInput,DiscoveryResult,DiscoveryRun,Observation} from './types.ts';
 import type {DeduplicationService} from './deduplication.ts';
+import {projectCriteria as resolveProjectCriteria} from '../domain/relations.ts';
 export async function checked(query:PromiseLike<any>){const {data,error}=await query;if(error){if(error.message?.includes('quota_exceeded'))throw Error('QUOTA_EXCEEDED');if(error.message?.includes('max_results'))throw Error('MAX_RESULTS_EXCEEDED');throw Error('DATABASE_REQUEST_FAILED')}return data}
 export class SupabaseDiscoveryRepository implements DiscoveryRepository {
  db:SupabaseClient;
@@ -14,6 +15,7 @@ export class SupabaseDiscoveryRepository implements DiscoveryRepository {
  }
  async finish(id:string,count:number,metrics:Record<string,unknown>,error?:string){await checked(this.db.from('discovery_runs').update({status:error?'failed':'completed',result_count:count,completed_at:new Date().toISOString(),metrics,error_message:error??null}).eq('id',id))}
  async prospect(id:string){return checked(this.db.from('prospects').select('id,website,organization_id,project_id').eq('id',id).single())}
+ async projectCriteria(projectId:string){const project=await checked(this.db.from('projects').select('*,icps(*)').eq('id',projectId).single());return resolveProjectCriteria(project.icps)}
  async consumeAnalysis(id:string){await checked(this.db.rpc('consume_analysis_quota',{p_prospect_id:id}))}
  async saveObservations(id:string,observations:Observation[]){return checked(this.db.rpc('save_discovery_observations',{p_prospect_id:id,p_observations:observations}))}
 }

@@ -1,4 +1,5 @@
 import {load} from 'cheerio';
+import type {Criterion} from '../domain/core.ts';
 import {DiscoveryInputSchema,ObservationSchema,type DiscoveryInput,type DiscoveryProvider,type Candidate,type Observation,type DiscoveryResult,type DiscoveryRun} from './types.ts';
 import {DeduplicationService,type Identity} from './deduplication.ts';
 import {ObservationService,EvidenceProposalService} from './observations.ts';
@@ -8,6 +9,7 @@ export interface DiscoveryRepository {
  saveResults(run:DiscoveryRun,candidates:Array<{candidate:Candidate;dedupe:ReturnType<DeduplicationService['match']>}>):Promise<DiscoveryResult[]>;
  finish(runId:string,resultCount:number,metrics:Record<string,unknown>,error?:string):Promise<void>;
  prospect(id:string):Promise<{id:string;website:string|null;organization_id:string;project_id:string}>;
+ projectCriteria(projectId:string):Promise<Criterion[]>;
  consumeAnalysis(id:string):Promise<void>;
  saveObservations(id:string,observations:Observation[]):Promise<unknown[]>;
 }
@@ -29,11 +31,13 @@ export class CompanyAnalysisService {
  repo:DiscoveryRepository;fetchPage:PageFetcher;log:SafeLogger;
  constructor(repo:DiscoveryRepository,fetchPage:PageFetcher,log:SafeLogger=noop){this.repo=repo;this.fetchPage=fetchPage;this.log=log}
  async analyze_company(prospectId:string,sourceType:Observation['source_type']='official_website'){
- const p=await this.repo.prospect(prospectId);if(!p.website)throw Error('OFFICIAL_WEBSITE_REQUIRED');await this.repo.consumeAnalysis(prospectId);const start=Date.now();
+ const p=await this.repo.prospect(prospectId);if(!p.website)throw Error('OFFICIAL_WEBSITE_REQUIRED');
+ const criteria=await this.repo.projectCriteria(p.project_id);
+ await this.repo.consumeAnalysis(prospectId);const start=Date.now();
  try{const page=await this.fetchPage(p.website);const pages=[page];const links=new Set<string>();const $=load(page.html);
  $('a[href]').each((_,element)=>{try{const href=$(element).attr('href')!;const url=new URL(href,page.url);url.hash='';if(url.origin===new URL(page.url).origin&&url.href!==page.url&&/menu|contact|carte|command|order|livraison/i.test(url.pathname+' '+$(element).text()))links.add(url.href)}catch{/* Invalid links are not fetched. */}});
  let failedPages=0;for(const url of [...links].slice(0,2)){try{pages.push(await this.fetchPage(url))}catch{failedPages++}}
- const observations=pages.flatMap(item=>new ObservationService().extract(item.html,item.url,sourceType)).map(o=>ObservationSchema.parse(o)).slice(0,40);const proposed=new EvidenceProposalService().propose(observations);const saved=await this.repo.saveObservations(prospectId,observations);this.log({provider:'http_html',duration_ms:Date.now()-start,pages:pages.length,failed_pages:failedPages,proposed_evidence:proposed.length,ai_tokens:0,ai_cost_estimate:0});return {observations:saved,pages_analyzed:pages.length,failed_pages:failedPages,proposals:proposed.length,ai_tokens:0,ai_cost_estimate:0};
+ const observations=pages.flatMap(item=>new ObservationService().extract(item.html,item.url,criteria,sourceType)).map(o=>ObservationSchema.parse(o)).slice(0,40);const proposed=new EvidenceProposalService().propose(observations,criteria);const saved=await this.repo.saveObservations(prospectId,observations);this.log({provider:'http_html',duration_ms:Date.now()-start,pages:pages.length,failed_pages:failedPages,proposed_evidence:proposed.length,ai_tokens:0,ai_cost_estimate:0});return {observations:saved,pages_analyzed:pages.length,failed_pages:failedPages,proposals:proposed.length,ai_tokens:0,ai_cost_estimate:0};
  }catch{this.log({provider:'http_html',duration_ms:Date.now()-start,pages:0,error:'ANALYSIS_FAILED'});throw Error('ANALYSIS_FAILED')}
  }
 }

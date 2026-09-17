@@ -6,6 +6,11 @@ on:
   push:
     branches: [main]
 
+# Least privilege: this workflow only reads the checked-out code and runs local checks — it never
+# needs to write to the repository, comment on PRs, or publish anything.
+permissions:
+  contents: read
+
 # No Supabase/production credentials are read anywhere in this workflow. Every check below runs
 # against an in-memory PGlite Postgres instance created fresh per test file — never a remote database,
 # never a service-role key, never a migration applied to any real project.

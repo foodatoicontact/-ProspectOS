@@ -175,3 +175,55 @@ test('a criterion whose label merely contains the word "contact" is never grante
  assert.equal(phoneObservation!.criterion,null,'not the known contactability vocabulary, so the phone stays contextual');
  assert.ok(!o.some(x=>x.criterion==='marketing_contact_list'&&x.status==='OBSERVED'&&x.value===true));
 });
+
+// --- Deterministic explicit-event -> commercial_signal mapping: cross-sector, ICP-driven, never a
+// bare-keyword guess. target_fit and need_fit get NO deterministic rule at all (see RENDU: the ICP
+// model has no structured attribute to check them against), so they must stay UNKNOWN/INFERRED. ---
+const RECRUITING_HTML='<title>PME Services</title><main><p>Nous accompagnons les PME dans la gestion de leurs demandes.</p><p>Nous recrutons actuellement plusieurs commerciaux pour renforcer notre équipe.</p></main>';
+
+test('an explicit recruiting event maps to commercial_signal only when the ICP defines that criterion',()=>{
+ const withSignal=new ObservationService().extract(RECRUITING_HTML,'https://vendor.example',SAAS_CRITERIA);
+ const signalObservation=withSignal.find(x=>x.observation_type==='RECRUITING_SIGNAL');
+ assert.ok(signalObservation);
+ assert.equal(signalObservation!.criterion,'commercial_signal');
+ assert.equal(signalObservation!.value,true);
+ assert.equal(signalObservation!.status,'OBSERVED');
+
+ const withoutSignalCriterion=new ObservationService().extract(RECRUITING_HTML,'https://vendor.example',FOODATOI_CRITERIA);
+ assert.ok(!withoutSignalCriterion.some(x=>x.observation_type==='RECRUITING_SIGNAL'));
+});
+test('a bare mention of the company, its phone number, or its website never grants commercial_signal',()=>{
+ const html='<title>Entreprise</title><main><p>Notre entreprise propose un service aux PME. Téléphone : 05 00 00 00 09. Visitez notre site.</p></main>';
+ const o=new ObservationService().extract(html,'https://vendor.example',SAAS_CRITERIA);
+ assert.ok(!o.some(x=>x.criterion==='commercial_signal'&&x.status==='OBSERVED'&&x.value===true));
+ // The phone number is real and does get its own deterministic signal — but only for contactability.
+ const phoneObservation=o.find(x=>x.observation_type==='PHONE_RAW');
+ assert.ok(phoneObservation);
+ assert.equal(phoneObservation!.criterion,'contactability');
+ assert.ok(!o.some(x=>x.observation_type==='PHONE_RAW'&&x.criterion==='commercial_signal'));
+});
+test('once an explicit event deterministically covers commercial_signal, the generic keyword matcher does not also guess at it',()=>{
+ const o=new ObservationService().extract(RECRUITING_HTML,'https://vendor.example',SAAS_CRITERIA);
+ const signalCriterionObservations=o.filter(x=>x.criterion==='commercial_signal');
+ assert.equal(signalCriterionObservations.length,1);
+ assert.equal(signalCriterionObservations[0].observation_type,'RECRUITING_SIGNAL');
+});
+test('a criterion whose label loosely resembles "signal" or "commercial" is never granted a value without the closed key vocabulary',()=>{
+ const criteria:Criterion[]=[{key:'marketing_signal_tracking',label:'Suivi du signal commercial marketing',weight:100}];
+ const o=new ObservationService().extract(RECRUITING_HTML,'https://vendor.example',criteria);
+ assert.ok(!o.some(x=>x.criterion==='marketing_signal_tracking'&&x.status==='OBSERVED'&&x.value===true));
+});
+test('target_fit and need_fit never resolve to OBSERVED — no deterministic rule exists for them, and no evidence is ever proposed for them on their own',()=>{
+ const html='<title>Entreprise PME</title><main><p>Notre entreprise accompagne les PME de services. Nous proposons une solution moderne pour la gestion client.</p></main>';
+ const o=new ObservationService().extract(html,'https://vendor.example',SAAS_CRITERIA);
+ const proposed=new EvidenceProposalService().propose(o,SAAS_CRITERIA);
+ for(const key of ['target_fit','need_fit']){
+  assert.ok(o.filter(x=>x.criterion===key).every(x=>x.status!=='OBSERVED'),`${key} must never resolve to OBSERVED`);
+  assert.equal(proposed.filter(e=>e.criterion===key).length,0,`${key} must never become an evidence proposal on its own`);
+ }
+});
+test('a simple business description alone never produces need_fit=true',()=>{
+ const html='<title>Notre entreprise</title><main><p>Notre entreprise est spécialisée dans les services aux PME depuis 10 ans. Nous proposons un accompagnement personnalisé.</p></main>';
+ const o=new ObservationService().extract(html,'https://vendor.example',SAAS_CRITERIA);
+ assert.ok(!o.some(x=>x.criterion==='need_fit'&&x.status==='OBSERVED'&&x.value===true));
+});

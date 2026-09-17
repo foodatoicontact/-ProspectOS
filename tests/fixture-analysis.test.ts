@@ -148,6 +148,33 @@ test('without a contactability-like criterion in the ICP, the same phone number 
  assert.equal(new EvidenceProposalService().propose(observations,FOODATOI_CRITERIA).length,0);
 });
 
+// --- The real, non-hardcoded explicit-event -> commercial_signal rule, from the actual fixture page ---
+test('a real recruiting event extracted from the Nova Assistance fixture page is proposed as commercial_signal evidence, never auto-verified',()=>{
+ const nova=GENERIC_FIXTURE_COMPANIES.find(c=>c.name.includes('Nova'))!;
+ const observations=new ObservationService().extract(nova.homepage,nova.website,SAAS_CRITERIA,'test_fixture');
+ const signalObservation=observations.find(o=>o.observation_type==='RECRUITING_SIGNAL');
+ assert.ok(signalObservation);
+ assert.equal(signalObservation!.criterion,'commercial_signal');
+ assert.equal(signalObservation!.value,true);
+ assert.equal(signalObservation!.status,'OBSERVED');
+ const proposed=new EvidenceProposalService().propose(observations,SAAS_CRITERIA);
+ const signalProposal=proposed.find(e=>e.criterion==='commercial_signal');
+ assert.ok(signalProposal);
+ assert.equal(signalProposal!.status,'NOT_VERIFIED');
+ assert.equal(scoreProspect(SAAS_CRITERIA,proposed).score,0,'no point before human confirmation');
+ const verified=proposed.map(e=>e.criterion==='commercial_signal'?{...e,status:'VERIFIED',verified_by:'human-reviewer'}:e);
+ assert.equal(scoreProspect(SAAS_CRITERIA,verified).breakdown.find(b=>b.key==='commercial_signal')!.points,25,'uses the ICP\'s own weight, never a hardcoded one');
+});
+test('target_fit and need_fit never receive a value from Nova\'s real fixture page — no deterministic rule exists for them',()=>{
+ const nova=GENERIC_FIXTURE_COMPANIES.find(c=>c.name.includes('Nova'))!;
+ const observations=new ObservationService().extract(nova.homepage,nova.website,SAAS_CRITERIA,'test_fixture');
+ const proposed=new EvidenceProposalService().propose(observations,SAAS_CRITERIA);
+ for(const key of ['target_fit','need_fit']){
+  assert.ok(observations.filter(o=>o.criterion===key).every(o=>o.status!=='OBSERVED'));
+  assert.equal(proposed.filter(e=>e.criterion===key).length,0);
+ }
+});
+
 // --- 10. No contamination between Test SaaS and Foodatoi on the new fixture pages ---
 test('the same fixture page analyzed under two different ICPs never contaminates their criteria',()=>{
  const alphaHtml=GENERIC_FIXTURE_COMPANIES[0].homepage;

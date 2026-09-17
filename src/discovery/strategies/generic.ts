@@ -2,6 +2,7 @@ import type {Observation} from '../types.ts';
 import type {Criterion} from '../../domain/core.ts';
 import type {ObservationContext} from './restaurant.ts';
 import {findContactChannelCriterion} from './contact-channel.ts';
+import {findCommercialSignalCriterion,matchCommercialSignal} from './commercial-signal.ts';
 // Sector-agnostic extraction: works from the project's own ICP labels instead of any hardcoded vertical.
 // A criterion never seen at compile time can still receive a proposal as long as it exists in the ICP passed in.
 const STOPWORDS=new Set(['dans','pour','avec','sans','plus','votre','vos','vous','notre','nos','nous','cette','ces','sont','être','avoir','leur','leurs','qui','que','dont','tout','tous','toute','toutes','fait','faire','très','bien','aussi','donc','ainsi','comme','the','and','for','with','this','that','from','your','have']);
@@ -21,9 +22,18 @@ export function extractGenericObservations(ctx:ObservationContext,criteria:Crite
   if(attachPhoneTo)out.push(make(attachPhoneTo.key,'PHONE_RAW',phone,true,'OBSERVED','Numéro de téléphone professionnel public documenté',.8));
   else out.push(make(null,'PHONE_RAW',phone,null,'OBSERVED','Numéro public présent ; usage commercial non déduit',.95));
  }
+ // Same closed-vocabulary + explicit-phrase discipline as the phone rule above, for the other
+ // self-contained, cross-sector concept this engine can prove deterministically: an explicit
+ // commercial/growth event (recruiting, opening, launch, tender, expansion). Existence of a website,
+ // a phone number, or the company itself is never enough — only a concrete, named event is.
+ const signalCriterion=findCommercialSignalCriterion(criteria);
+ const signalMatch=signalCriterion&&!covered.has(signalCriterion.key)?matchCommercialSignal(ctx):null;
+ const attachSignalTo=signalMatch?signalCriterion:null;
+ if(attachSignalTo&&signalMatch)out.push(make(attachSignalTo.key,signalMatch.type,signalMatch.line,true,'OBSERVED',signalMatch.claim,.75));
  for(const criterion of criteria){
   if(covered.has(criterion.key))continue; // already handled by a specialized preset for this ICP
   if(attachPhoneTo&&criterion.key===attachPhoneTo.key)continue; // already given a stronger, deterministic signal above — no redundant/weaker guess
+  if(attachSignalTo&&criterion.key===attachSignalTo.key)continue; // idem, for the explicit commercial-signal rule above
   const words=significantWords(criterion.label);if(!words.length)continue;
   const line=lines.find(l=>{const normalized=' '+l.normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase()+' ';return words.some(w=>normalized.includes(' '+w))});
   // A bare keyword overlap is a candidate excerpt, never a determination: no deterministic rule

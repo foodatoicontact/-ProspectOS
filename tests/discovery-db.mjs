@@ -254,6 +254,56 @@ try {
   assert.equal(finalScore.score,20,'contactability weight (20) now counts once the real PHONE_RAW-derived evidence is confirmed');
   assert.equal(finalScore.breakdown.find(b=>b.key==='contactability').state,'TRUE');
 
+  // --- Generalization to commercial_signal: same discipline, a different self-contained, cross-sector
+  // concept (an explicit, named commercial/growth event — see strategies/commercial-signal.ts). Nova
+  // Assistance's fixture page states a genuine, concrete recruiting event, never a bare mention of the
+  // company, its phone number, or its website.
+  const nova = GENERIC_FIXTURE_COMPANIES.find(c => c.name.includes('Nova'));
+  const novaProspectId = '40000000-0000-4000-8000-000000000006';
+  await sql(`insert into public.prospects(id,organization_id,project_id,name,website,status) values ($1,$2,$3,$4,$5,'À analyser')`,[novaProspectId,OB,PB,nova.name,nova.website]);
+  // The analysis quota was deliberately dropped to 1/hour earlier in this file to test quota
+  // enforcement itself; lift it back so this unrelated second analyze_company call is not rejected.
+  await sql(`update prospectos_private.discovery_quota_settings set analyses_per_hour=100`);
+  const novaAnalyzeResult=await new CompanyAnalysisService(realRepoFor(B),createCompositePageFetcher(realFetcher)).analyze_company(novaProspectId,'test_fixture');
+  assert.equal(realNetworkCalls,0,'zero real network calls for Nova, still a fixture prospect');
+  assert.ok(novaAnalyzeResult.pages_analyzed>=1);
+  const novaObservations=(await sql(`select * from public.prospect_observations where prospect_id=$1`,[novaProspectId])).rows;
+  assert.ok(novaObservations.every(o=>o.review_status!=='VERIFIED'));
+
+  // target_fit and need_fit have no deterministic rule at all — the ICP model carries no structured
+  // attribute to check them against (see RENDU). They must stay UNKNOWN, or at most a non-conclusive
+  // INFERRED candidate — never OBSERVED with a real value, and never linked to an evidence row.
+  for (const key of ['target_fit','need_fit']) {
+    const rows = novaObservations.filter(o=>o.criterion===key);
+    assert.ok(rows.every(o=>o.status!=='OBSERVED'), `${key} never resolves to OBSERVED without a deterministic rule`);
+    assert.ok(rows.every(o=>o.evidence_id===null), `${key} never creates an evidence row on its own`);
+  }
+
+  const signalObservations=novaObservations.filter(o=>o.criterion==='commercial_signal'&&o.status==='OBSERVED');
+  assert.ok(signalObservations.length>0,"the real recruiting phrase on Nova's page proposed commercial_signal on its own");
+  const signalObservation=signalObservations[0];
+  assert.equal(signalObservation.observation_type,'RECRUITING_SIGNAL');
+  assert.equal(signalObservation.value,true);
+  assert.equal(signalObservation.review_status,'NOT_VERIFIED');
+  assert.ok(signalObservation.evidence_id);
+  // A phone number never grants commercial_signal, and the recruiting rule never grants contactability.
+  assert.ok(!novaObservations.some(o=>o.observation_type==='PHONE_RAW'&&o.criterion==='commercial_signal'));
+  assert.ok(!novaObservations.some(o=>o.criterion==='contactability'&&o.observation_type!=='PHONE_RAW'));
+
+  let novaEvidence=(await sql(`select * from public.evidence where prospect_id=$1`,[novaProspectId])).rows;
+  assert.ok(novaEvidence.every(e=>e.status!=='VERIFIED'),'analyze_company never creates VERIFIED evidence on its own');
+  assert.equal(scoreProspect(SAAS_CRITERIA,novaEvidence.map(e=>({criterion:e.criterion,value:e.value,status:e.status,source_url:e.source_url,excerpt:e.excerpt,observed_at:e.observed_at})),new Date()).score,0,'score stays 0 before any human review');
+
+  await as(B,`select public.review_discovery_observation($1,'confirm')`,[signalObservation.id]);
+  const confirmedSignalEvidence=(await sql(`select * from public.evidence where id=$1`,[signalObservation.evidence_id])).rows[0];
+  assert.equal(confirmedSignalEvidence.status,'VERIFIED');
+  assert.equal(confirmedSignalEvidence.verified_by,B);
+  const novaEvidenceAfterConfirm=(await sql(`select * from public.evidence where prospect_id=$1`,[novaProspectId])).rows;
+  const novaFinalScore=scoreProspect(SAAS_CRITERIA,novaEvidenceAfterConfirm.map(e=>({criterion:e.criterion,value:e.value,status:e.status,source_url:e.source_url,excerpt:e.excerpt,observed_at:e.observed_at,verified_by:e.verified_by})),new Date());
+  const commercialSignalWeight=SAAS_CRITERIA.find(c=>c.key==='commercial_signal').weight; // never hardcoded
+  assert.equal(novaFinalScore.score,commercialSignalWeight,'commercial_signal weight now counts once the real recruiting-derived evidence is confirmed');
+  assert.equal(novaFinalScore.breakdown.find(b=>b.key==='commercial_signal').state,'TRUE');
+
   console.log('PASS: discovery lifecycle, scoring, tenant isolation, FK integrity, idempotency, validation, quotas, RPC grants, generic multi-sector ICP handling, and fixture analyze regression');
 } finally {
   await db.close();

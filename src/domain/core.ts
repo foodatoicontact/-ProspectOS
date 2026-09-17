@@ -1,5 +1,15 @@
 export const NO_UNAUTHORIZED_LINKEDIN_AUTOMATION = true as const;
-export type Criterion = {key:string; label:string; weight:number};
+// User-authored, explicit rules only — never a hint for an LLM or a similarity model. Structural
+// validation (bounds, dedup, discriminant) lives in discovery/types.ts's Zod schemas, the single
+// source of truth enforced both for Discovery search input and for ICP save — this type is kept in
+// sync with that schema via a compile-time assertion there. Absent (undefined) on a criterion means
+// exactly what it always meant: no deterministic rule, so behavior is unchanged for every existing ICP.
+export type TargetFitRules = {categories?:string[]; locations?:string[]; org_types?:string[]; match:'all_defined'|'any_defined'};
+export type NeedFitRules = {signals:string[]};
+export type CriterionRules =
+ | {type:'target_fit'; config:TargetFitRules}
+ | {type:'need_fit'; config:NeedFitRules};
+export type Criterion = {key:string; label:string; weight:number; rules?:CriterionRules};
 export type Evidence = {id:string;criterion:string;value:boolean;status:string;source_url:string;excerpt:string;observed_at:string;verified_by:string|null};
 export type Prospect = {id:string;name:string;website:string;city:string;status:string;project_id:string;organization_id:string;evidence:Evidence[];channels?:Channel[]};
 export type Channel = {kind:string;value:string;source_url:string;verified:boolean};

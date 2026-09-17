@@ -270,9 +270,10 @@ try {
   const novaObservations=(await sql(`select * from public.prospect_observations where prospect_id=$1`,[novaProspectId])).rows;
   assert.ok(novaObservations.every(o=>o.review_status!=='VERIFIED'));
 
-  // target_fit and need_fit have no deterministic rule at all — the ICP model carries no structured
-  // attribute to check them against (see RENDU). They must stay UNKNOWN, or at most a non-conclusive
-  // INFERRED candidate — never OBSERVED with a real value, and never linked to an evidence row.
+  // SAAS_CRITERIA's target_fit/need_fit carry no `rules` at all — so, exactly as before user-authored
+  // rules existed, they must stay UNKNOWN, or at most a non-conclusive INFERRED candidate — never
+  // OBSERVED with a real value, and never linked to an evidence row (see the dedicated rules-based
+  // scenario further below for the case where rules ARE configured).
   for (const key of ['target_fit','need_fit']) {
     const rows = novaObservations.filter(o=>o.criterion===key);
     assert.ok(rows.every(o=>o.status!=='OBSERVED'), `${key} never resolves to OBSERVED without a deterministic rule`);
@@ -303,6 +304,76 @@ try {
   const commercialSignalWeight=SAAS_CRITERIA.find(c=>c.key==='commercial_signal').weight; // never hardcoded
   assert.equal(novaFinalScore.score,commercialSignalWeight,'commercial_signal weight now counts once the real recruiting-derived evidence is confirmed');
   assert.equal(novaFinalScore.breakdown.find(b=>b.key==='commercial_signal').state,'TRUE');
+
+  // --- Generalization to target_fit / need_fit: the user's OWN explicit rules, deterministic literal
+  // matching only (see strategies/target-fit.ts, strategies/need-fit.ts). A dedicated project keeps
+  // this scenario isolated from PB's rules-less SAAS_CRITERIA prospects above. The page text is a
+  // small, self-contained HTML fixture local to this test (not the shared GENERIC_FIXTURE_COMPANIES
+  // dataset), so the shared fixtures stay generic and untouched by this specific rule configuration.
+  const rulesProjectId='20000000-0000-4000-8000-000000000010';
+  const rulesProspectId='40000000-0000-4000-8000-000000000007';
+  await sql(`insert into public.projects(id,organization_id,name) values ($1,$2,'Rules project')`,[rulesProjectId,OB]);
+  const RULES_CRITERIA=[
+   {key:'target_fit',label:'Correspond à la cible définie',weight:30,rules:{type:'target_fit',config:{categories:['restaurant'],locations:['Toulouse'],match:'all_defined'}}},
+   {key:'need_fit',label:'Besoin correspondant à l’offre',weight:40,rules:{type:'need_fit',config:{signals:['fort volume de réservations']}}},
+   {key:'commercial_signal',label:'Signal commercial observable',weight:30},
+  ];
+  await sql(`insert into public.icps(project_id,organization_id,criteria) values ($1,$2,$3::jsonb)`,[rulesProjectId,OB,JSON.stringify(RULES_CRITERIA)]);
+  await sql(`insert into public.prospects(id,organization_id,project_id,name,website,status) values ($1,$2,$3,'Le Bon Repas','https://lebonrepas.example/','À analyser')`,[rulesProspectId,OB,rulesProjectId]);
+  const RULES_HTML='<html><head><title>Le Bon Repas</title></head><body><h1>Le Bon Repas</h1><p>Restaurant situé à Toulouse, reconnu pour sa cuisine traditionnelle.</p><p>Nous constatons un fort volume de réservations chaque week-end.</p></body></html>';
+  const rulesAnalyzeResult=await new CompanyAnalysisService(realRepoFor(B),async url=>({url,html:RULES_HTML})).analyze_company(rulesProspectId,'official_website');
+  assert.ok(rulesAnalyzeResult.pages_analyzed>=1);
+  const rulesObservations=(await sql(`select * from public.prospect_observations where prospect_id=$1`,[rulesProspectId])).rows;
+  assert.ok(rulesObservations.every(o=>o.review_status!=='VERIFIED'));
+  assert.ok(rulesObservations.filter(o=>o.status==='UNKNOWN'||o.status==='INFERRED').every(o=>o.evidence_id===null),'UNKNOWN/INFERRED observations are never linked to an evidence row');
+
+  const targetFitObservations=rulesObservations.filter(o=>o.criterion==='target_fit'&&o.status==='OBSERVED');
+  assert.equal(targetFitObservations.length,1,'exactly one deterministic target_fit proposal — no redundant GENERIC_KEYWORD_MATCH guess');
+  const targetFitObservation=targetFitObservations[0];
+  assert.equal(targetFitObservation.observation_type,'TARGET_FIT_RULE_MATCH');
+  assert.equal(targetFitObservation.value,true);
+  assert.ok(targetFitObservation.evidence_id);
+
+  const needFitObservations=rulesObservations.filter(o=>o.criterion==='need_fit'&&o.status==='OBSERVED');
+  assert.equal(needFitObservations.length,1,'exactly one deterministic need_fit proposal');
+  const needFitObservation=needFitObservations[0];
+  assert.equal(needFitObservation.observation_type,'NEED_FIT_SIGNAL_MATCH');
+  assert.equal(needFitObservation.value,true);
+  assert.ok(needFitObservation.evidence_id);
+  assert.match(needFitObservation.claim,/fort volume de réservations/,'the claim explains exactly which user-defined signal matched');
+
+  // commercial_signal has no rules on this criterion here, and the page names no explicit event —
+  // it must stay without a positive value, exactly like any criterion without a deterministic rule.
+  assert.ok(!rulesObservations.some(o=>o.criterion==='commercial_signal'&&o.status==='OBSERVED'&&o.value===true));
+
+  let rulesEvidence=(await sql(`select * from public.evidence where prospect_id=$1`,[rulesProspectId])).rows;
+  assert.ok(rulesEvidence.every(e=>e.status!=='VERIFIED'),'analyze_company never creates VERIFIED evidence on its own');
+  assert.equal(scoreProspect(RULES_CRITERIA,rulesEvidence.map(e=>({criterion:e.criterion,value:e.value,status:e.status,source_url:e.source_url,excerpt:e.excerpt,observed_at:e.observed_at})),new Date()).score,0,'score stays 0 before any human review');
+
+  // Confirm target_fit first: score becomes exactly its own configured weight.
+  await as(B,`select public.review_discovery_observation($1,'confirm')`,[targetFitObservation.id]);
+  const targetFitEvidence=(await sql(`select * from public.evidence where id=$1`,[targetFitObservation.evidence_id])).rows[0];
+  assert.equal(targetFitEvidence.status,'VERIFIED');
+  assert.equal(targetFitEvidence.verified_by,B,'verified_by is the authenticated human, never automatic');
+  const rulesEvidenceAfterFirst=(await sql(`select * from public.evidence where prospect_id=$1`,[rulesProspectId])).rows;
+  const targetFitWeight=RULES_CRITERIA.find(c=>c.key==='target_fit').weight; // never hardcoded
+  assert.equal(scoreProspect(RULES_CRITERIA,rulesEvidenceAfterFirst.map(e=>({criterion:e.criterion,value:e.value,status:e.status,source_url:e.source_url,excerpt:e.excerpt,observed_at:e.observed_at,verified_by:e.verified_by})),new Date()).score,targetFitWeight,'score equals exactly the confirmed criterion’s own weight');
+
+  // Confirm need_fit second: score becomes the exact sum of both confirmed weights.
+  await as(B,`select public.review_discovery_observation($1,'confirm')`,[needFitObservation.id]);
+  const needFitEvidence=(await sql(`select * from public.evidence where id=$1`,[needFitObservation.evidence_id])).rows[0];
+  assert.equal(needFitEvidence.status,'VERIFIED');
+  assert.equal(needFitEvidence.verified_by,B);
+  const rulesEvidenceAfterBoth=(await sql(`select * from public.evidence where prospect_id=$1`,[rulesProspectId])).rows;
+  const needFitWeight=RULES_CRITERIA.find(c=>c.key==='need_fit').weight;
+  const rulesFinalScore=scoreProspect(RULES_CRITERIA,rulesEvidenceAfterBoth.map(e=>({criterion:e.criterion,value:e.value,status:e.status,source_url:e.source_url,excerpt:e.excerpt,observed_at:e.observed_at,verified_by:e.verified_by})),new Date());
+  assert.equal(rulesFinalScore.score,targetFitWeight+needFitWeight,'score equals the exact sum of both confirmed weights');
+  assert.equal(rulesFinalScore.breakdown.find(b=>b.key==='target_fit').state,'TRUE');
+  assert.equal(rulesFinalScore.breakdown.find(b=>b.key==='need_fit').state,'TRUE');
+
+  // Isolation: this new project's target_fit/need_fit evidence never leaks into project PB, whose own
+  // SAAS_CRITERIA prospects (Alpha, Nova, prospectSaas) carry no rules on those same criterion keys.
+  assert.equal(Number((await sql(`select count(*) n from public.evidence e join public.prospects p on p.id=e.prospect_id where p.project_id=$1 and e.criterion in ('target_fit','need_fit')`,[PB])).rows[0].n),0,'the rules-bearing criteria never leak evidence into an unrelated project');
 
   console.log('PASS: discovery lifecycle, scoring, tenant isolation, FK integrity, idempotency, validation, quotas, RPC grants, generic multi-sector ICP handling, and fixture analyze regression');
 } finally {

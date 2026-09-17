@@ -1,9 +1,30 @@
 import {z} from 'zod';
+import type {CriterionRules} from '../domain/core.ts';
 const publicUrl=z.string().max(2048).url().refine(v=>{const u=new URL(v);return ['http:','https:'].includes(u.protocol)&&!u.username&&!u.password},'HTTP(S) requis');
+// User-authored, explicit values only — trimmed, bounded, deduplicated. Never a hint for an LLM or a
+// similarity model: every value here is later matched literally (see strategies/text-match.ts).
+const RuleValue=z.string().trim().min(2).max(80);
+const RuleList=z.array(RuleValue).min(1).max(20).transform(values=>[...new Set(values)]);
+const MatchMode=z.enum(['all_defined','any_defined']);
+const TargetFitRulesConfigSchema=z.object({categories:RuleList.optional(),locations:RuleList.optional(),org_types:RuleList.optional(),match:MatchMode}).strict()
+ .refine(r=>!!(r.categories?.length||r.locations?.length||r.org_types?.length),{message:'Au moins une dimension (categories, locations, org_types) doit être définie et non vide.'});
+const NeedFitRulesConfigSchema=z.object({signals:RuleList}).strict();
+// A criterion's rules are a closed, discriminated set — never an open bag of arbitrary fields.
+export const CriterionRulesSchema=z.discriminatedUnion('type',[
+ z.object({type:z.literal('target_fit'),config:TargetFitRulesConfigSchema}).strict(),
+ z.object({type:z.literal('need_fit'),config:NeedFitRulesConfigSchema}).strict(),
+]);
+// Compile-time only (erased at build time): keeps this schema's output in lockstep with the
+// hand-written CriterionRules type in domain/core.ts. If either drifts, tsc fails right here.
+type AssertExtends<T,_U extends T>=true;
+type _CriterionRulesSchemaStaysInSync=AssertExtends<CriterionRules,z.infer<typeof CriterionRulesSchema>>;
 // Generic contract: PROJECT -> OFFER -> ICP -> QUERY. offer/criteria are optional context carried
 // alongside the search terms (persisted as-is in discovery_runs.filters_json) — never a hidden
 // fallback: when omitted, the query stays exactly what the user typed, with no vertical injected.
-const CriterionContextSchema=z.object({key:z.string().min(1).max(60),label:z.string().min(1).max(120),weight:z.number()}).strict();
+// `rules` is explicitly recognized (never `.passthrough()`'d blindly) so a valid Criterion carrying a
+// user-authored rule is accepted here exactly as it is when saving the ICP itself (see the `icps`
+// route handler, which reuses this exact schema) — any other unknown field is still rejected.
+export const CriterionContextSchema=z.object({key:z.string().min(1).max(60),label:z.string().min(1).max(120),weight:z.number(),rules:CriterionRulesSchema.optional()}).strict();
 export const DiscoveryInputSchema=z.object({project_id:z.string().min(1).max(100),query:z.string().trim().min(2).max(250),location:z.string().trim().min(2).max(120),categories:z.array(z.string().trim().min(1).max(60)).max(12),max_results:z.number().int().min(1).max(100).default(20),optional_filters:z.object({provider:z.enum(['fixture','brave']).optional(),country:z.string().regex(/^[A-Z]{2}$/).optional(),offer:z.string().max(4000).optional(),criteria:z.array(CriterionContextSchema).max(30).optional()}).strict().default({})}).strict();
 export type DiscoveryInput=z.infer<typeof DiscoveryInputSchema>;
 export const CandidateSchema=z.object({name:z.string().min(1).max(200),canonical_url:publicUrl.nullable(),website:publicUrl.nullable(),city:z.string().max(120).nullable(),address:z.string().max(400).nullable(),phone:z.string().max(60).nullable(),discovered_source:z.string().max(80),source_url:publicUrl,source_title:z.string().max(300),discovery_timestamp:z.string().datetime(),confidence:z.number().min(0).max(1),raw_metadata:z.record(z.string(),z.unknown()),deduplication_key:z.string().max(1000)}).strict();

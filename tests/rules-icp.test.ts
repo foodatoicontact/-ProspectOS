@@ -7,6 +7,8 @@ import assert from 'node:assert/strict';
 import {DiscoveryInputSchema,CriterionContextSchema} from '../src/discovery/types.ts';
 import {ObservationService,EvidenceProposalService} from '../src/discovery/observations.ts';
 import {findLiteralMatch} from '../src/discovery/strategies/text-match.ts';
+import {evaluateTargetFit} from '../src/discovery/strategies/target-fit.ts';
+import {matchNeedFitSignal} from '../src/discovery/strategies/need-fit.ts';
 import type {Criterion,TargetFitRules} from '../src/domain/core.ts';
 
 // --- Compatibility ---
@@ -184,3 +186,71 @@ test('need_fit: GENERIC_KEYWORD_MATCH never becomes an evidence proposal, even a
  const o=new ObservationService().extract(html,'https://vendor.example',criteria);
  assert.equal(new EvidenceProposalService().propose(o,criteria).some(e=>e.criterion==='target_fit'),false);
 });
+
+// --- M1 fix: rules read from icps.criteria are never trusted at their declared TypeScript type.
+// icps.criteria is a schema-less jsonb column writable outside this application's own Zod validation
+// (e.g. directly via PostgREST) — a malformed `rules` object must be treated as "no exploitable
+// rule": never a throw, never a positive or negative proposal, never an evidence, never repaired or
+// partially interpreted. An invalid `match` in particular must fail closed, never fall back to
+// any_defined (see evaluateTargetFit's isValidTargetFitConfig).
+test('evaluateTargetFit: malformed configs never throw and always resolve to not-satisfied',()=>{
+ const lines=['Restaurant reconnu à Toulouse.'];
+ const malformedConfigs:unknown[]=[
+  undefined,
+  null,
+  {},
+  {match:'invalid'},
+  {categories:'PME',match:'any_defined'},
+  {locations:null,match:'any_defined'},
+  {categories:['restaurant'],match:'invalid'},
+  {categories:[123],match:'any_defined'},
+  'not-an-object',
+  42,
+  ['array','not','object'],
+ ];
+ for(const config of malformedConfigs){
+  const result=evaluateTargetFit({lines},config);
+  assert.equal(result.satisfied,false,`config ${JSON.stringify(config)} must never satisfy`);
+  assert.deepEqual(result.matches,[]);
+ }
+});
+test('evaluateTargetFit: an invalid match value fails closed, never falls back to any_defined',()=>{
+ // "restaurant" genuinely matches the text below — if an invalid match value silently behaved like
+ // any_defined, this would incorrectly satisfy. It must not.
+ const result=evaluateTargetFit({lines:['Restaurant reconnu à Toulouse.']},{categories:['restaurant'],match:'sometimes'});
+ assert.equal(result.satisfied,false);
+});
+test('matchNeedFitSignal: malformed signals never throw and never match',()=>{
+ const lines=['Nous avons un fort volume de réservations.'];
+ const malformedSignals:unknown[]=[undefined,null,'foo',[123],{signals:['x']},42,[null],['fort volume de réservations',123]];
+ for(const signals of malformedSignals){
+  assert.equal(matchNeedFitSignal({lines},signals),null,`signals ${JSON.stringify(signals)} must never match`);
+ }
+});
+
+// End-to-end through the real ObservationService: 10 malformed rules scenarios, each proven to never
+// throw, never produce a positive or negative value, and never become an evidence proposal.
+const MALFORMED_HTML='<title>x</title><main><p>Restaurant reconnu à Toulouse, PME locale, fort volume de réservations.</p></main>';
+function malformed(key:string,rules:unknown):Criterion{return {key,label:'x',weight:100,rules} as Criterion}
+const MALFORMED_CASES:[string,Criterion][]=[
+ ['need_fit config={}',malformed('need_fit',{type:'need_fit',config:{}})],
+ ['need_fit signals=null',malformed('need_fit',{type:'need_fit',config:{signals:null}})],
+ ['need_fit signals="foo"',malformed('need_fit',{type:'need_fit',config:{signals:'foo'}})],
+ ['need_fit signals=[123]',malformed('need_fit',{type:'need_fit',config:{signals:[123]}})],
+ ['target_fit rules sans config',malformed('target_fit',{type:'target_fit'})],
+ ['target_fit categories="PME"',malformed('target_fit',{type:'target_fit',config:{categories:'PME',match:'any_defined'}})],
+ ['target_fit locations=null',malformed('target_fit',{type:'target_fit',config:{locations:null,match:'any_defined'}})],
+ ['target_fit match="invalid"',malformed('target_fit',{type:'target_fit',config:{categories:['restaurant'],match:'invalid'}})],
+ ['target_fit config={}',malformed('target_fit',{type:'target_fit',config:{}})],
+ ['objet rules totalement incohérent',malformed('target_fit',{foo:'bar',random:[1,2,3]})],
+];
+for(const [label,criterion] of MALFORMED_CASES){
+ test(`malformed rules never throws, never proposes, never creates evidence — ${label}`,()=>{
+  const observations=new ObservationService().extract(MALFORMED_HTML,'https://vendor.example',[criterion]);
+  const rows=observations.filter(o=>o.criterion===criterion.key);
+  assert.ok(rows.every(o=>o.status!=='OBSERVED'),'never resolves to OBSERVED from a malformed rule');
+  assert.ok(!rows.some(o=>o.value===true),'never value=true');
+  assert.ok(!rows.some(o=>o.value===false),'never value=false');
+  assert.equal(new EvidenceProposalService().propose(observations,[criterion]).length,0,'never becomes an evidence proposal');
+ });
+}

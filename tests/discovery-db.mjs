@@ -375,6 +375,31 @@ try {
   // SAAS_CRITERIA prospects (Alpha, Nova, prospectSaas) carry no rules on those same criterion keys.
   assert.equal(Number((await sql(`select count(*) n from public.evidence e join public.prospects p on p.id=e.prospect_id where p.project_id=$1 and e.criterion in ('target_fit','need_fit')`,[PB])).rows[0].n),0,'the rules-bearing criteria never leak evidence into an unrelated project');
 
+  // --- M1 fix: a malformed `rules` object written directly to icps.criteria — exactly as a direct
+  // PostgREST/SQL write bypassing this application's own Zod validation would produce — must never
+  // crash analyze_company. It must behave as "no exploitable rule": zero evidence, score 0.
+  const malformedProjectId='20000000-0000-4000-8000-000000000011';
+  const malformedProspectId='40000000-0000-4000-8000-000000000008';
+  await sql(`insert into public.projects(id,organization_id,name) values ($1,$2,'Malformed rules project')`,[malformedProjectId,OB]);
+  const MALFORMED_CRITERIA=[
+   {key:'target_fit',label:'Correspond à la cible définie',weight:50,rules:{type:'target_fit',config:{categories:'PME',match:'invalid'}}},
+   {key:'need_fit',label:'Besoin correspondant à l’offre',weight:50,rules:{type:'need_fit',config:{signals:null}}},
+  ];
+  // Inserted via a raw SQL statement — never through the app's own icps POST handler/Zod schema — to
+  // faithfully simulate a row written outside this application.
+  await sql(`insert into public.icps(project_id,organization_id,criteria) values ($1,$2,$3::jsonb)`,[malformedProjectId,OB,JSON.stringify(MALFORMED_CRITERIA)]);
+  await sql(`insert into public.prospects(id,organization_id,project_id,name,website,status) values ($1,$2,$3,'Malformed Rules Co','https://malformed-rules.example/','À analyser')`,[malformedProspectId,OB,malformedProjectId]);
+  const malformedHtml='<html><body><p>Restaurant reconnu à Toulouse, PME locale, fort volume de réservations.</p></body></html>';
+  const malformedAnalyzeResult=await new CompanyAnalysisService(realRepoFor(B),async url=>({url,html:malformedHtml})).analyze_company(malformedProspectId,'official_website');
+  assert.ok(malformedAnalyzeResult.pages_analyzed>=1,'analyze_company completes normally — it does not throw ANALYSIS_FAILED');
+  const malformedObservations=(await sql(`select * from public.prospect_observations where prospect_id=$1`,[malformedProspectId])).rows;
+  assert.ok(malformedObservations.every(o=>o.criterion!=='target_fit'||o.status!=='OBSERVED'),'the malformed target_fit rule never resolves to OBSERVED');
+  assert.ok(malformedObservations.every(o=>o.criterion!=='need_fit'||o.status!=='OBSERVED'),'the malformed need_fit rule never resolves to OBSERVED');
+  assert.ok(malformedObservations.filter(o=>['target_fit','need_fit'].includes(o.criterion)).every(o=>o.evidence_id===null),'no evidence created from the malformed rules');
+  const malformedEvidence=(await sql(`select * from public.evidence where prospect_id=$1`,[malformedProspectId])).rows;
+  assert.equal(malformedEvidence.length,0,'zero evidence rows created at all for this prospect');
+  assert.equal(scoreProspect(MALFORMED_CRITERIA,malformedEvidence.map(e=>({criterion:e.criterion,value:e.value,status:e.status,source_url:e.source_url,excerpt:e.excerpt,observed_at:e.observed_at})),new Date()).score,0,'score stays 0');
+
   console.log('PASS: discovery lifecycle, scoring, tenant isolation, FK integrity, idempotency, validation, quotas, RPC grants, generic multi-sector ICP handling, and fixture analyze regression');
 } finally {
   await db.close();

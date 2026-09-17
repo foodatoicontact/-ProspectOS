@@ -9,10 +9,15 @@ export function findNeedFitCriterion(criteria:Criterion[]):Criterion|null{
  return criteria.find(c=>keys.has(c.key)&&c.rules?.type==='need_fit')??null;
 }
 export type NeedFitMatch={signal:string; line:string};
+function isStringArray(value:unknown):value is string[]{return Array.isArray(value)&&value.every(v=>typeof v==='string')}
 // The vocabulary comes EXCLUSIVELY from the user's own rules.config.signals — never the criterion's
 // label, never the project's offer text, never a category, never a phone number, never
-// commercial_signal, and never a bare GENERIC_KEYWORD_MATCH guess.
-export function matchNeedFitSignal(ctx:Pick<ObservationContext,'lines'>,signals:string[]):NeedFitMatch|null{
+// commercial_signal, and never a bare GENERIC_KEYWORD_MATCH guess. `signals` is read from a
+// schema-less jsonb column writable outside this application's own Zod validation (e.g. directly via
+// PostgREST), so its declared TypeScript type is never trusted at runtime: anything short of a real
+// array of strings is "no exploitable rule" — never repaired, never partially used.
+export function matchNeedFitSignal(ctx:Pick<ObservationContext,'lines'>,signals:unknown):NeedFitMatch|null{
+ if(!isStringArray(signals))return null;
  for(const signal of signals){
   const found=findLiteralMatch(ctx.lines,signal);
   if(found)return {signal,line:found.line};

@@ -15,10 +15,27 @@ type Dimension='categories'|'locations'|'org_types';
 export const TARGET_FIT_DIMENSION_LABELS:Record<Dimension,string>={categories:'catégorie',locations:'localisation',org_types:'type d’organisation'};
 export type TargetFitMatch={dimension:Dimension; matchedValue:string; line:string};
 export type TargetFitEvaluation={satisfied:boolean; matches:TargetFitMatch[]};
+function isStringArray(value:unknown):value is string[]{return Array.isArray(value)&&value.every(v=>typeof v==='string')}
+// icps.criteria is a schema-less jsonb column, writable outside this application's own Zod validation
+// (e.g. directly via PostgREST) — so a criterion's declared `TargetFitRules` TypeScript type is never
+// trusted at runtime. Anything short of this exact shape is "no exploitable rule": never repaired,
+// never partially interpreted from whichever fields happen to look right. In particular, an invalid
+// `match` never silently falls back to any_defined — it fails the whole rule closed, same as any
+// other malformation.
+function isValidTargetFitConfig(config:unknown):config is TargetFitRules{
+ if(typeof config!=='object'||config===null)return false;
+ const c=config as Record<string,unknown>;
+ if(c.match!=='all_defined'&&c.match!=='any_defined')return false;
+ for(const key of ['categories','locations','org_types'] as const){
+  if(key in c&&c[key]!==undefined&&!isStringArray(c[key]))return false;
+ }
+ return true;
+}
 // The user's own values are the ONLY vocabulary ever consulted here — never the criterion's label,
 // never a hardcoded per-sector list, never a guess. A dimension only counts as "defined" when the
 // user actually populated it (an absent or empty dimension is simply not part of the rule).
-export function evaluateTargetFit(ctx:Pick<ObservationContext,'lines'>,rules:TargetFitRules):TargetFitEvaluation{
+export function evaluateTargetFit(ctx:Pick<ObservationContext,'lines'>,rules:unknown):TargetFitEvaluation{
+ if(!isValidTargetFitConfig(rules))return {satisfied:false,matches:[]};
  const dimensions:[Dimension,string[]|undefined][]=[['categories',rules.categories],['locations',rules.locations],['org_types',rules.org_types]];
  const defined=dimensions.filter((entry):entry is [Dimension,string[]]=>!!entry[1]&&entry[1].length>0);
  const matches:TargetFitMatch[]=[];

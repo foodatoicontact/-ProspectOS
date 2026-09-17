@@ -2,7 +2,7 @@ import {z} from 'zod';
 import type {SupabaseClient} from '@supabase/supabase-js';
 import {DiscoveryService,CompanyAnalysisService} from './services.ts';
 import {SupabaseDiscoveryRepository,checked} from './repository.ts';
-import {FixtureProvider,FIXTURE_HTML} from './providers/fixture.ts';
+import {FixtureProvider,isFixtureUrl,createCompositePageFetcher} from './providers/fixture.ts';
 import {BraveProvider} from './providers/brave.ts';
 import {safeFetch} from './safe-fetch.ts';
 import {DiscoveryInputSchema} from './types.ts';
@@ -34,10 +34,14 @@ export async function handleDiscovery(request:Request,path:string[],body:unknown
  }
  if(action==='analyze'&&method==='POST'){
  const p=await repo.prospect(id);const origin=await checked(db.from('discovery_results').select('provider').eq('prospect_id',id).eq('status','accepted').limit(1));
- const fixture=origin[0]?.provider==='fixture';if(fixture&&(!p.website||!new URL(p.website).hostname.endsWith('.fixture.example')))throw Error('FIXTURE_WEBSITE_MISMATCH');
+ const fixture=origin[0]?.provider==='fixture';if(fixture&&(!p.website||!isFixtureUrl(p.website)))throw Error('FIXTURE_WEBSITE_MISMATCH');
  const allowedHosts=(process.env.DISCOVERY_ALLOWED_HOSTS??'').split(',').map(s=>s.trim().toLowerCase()).filter(Boolean);
  if(!fixture&&!allowedHosts.length)throw Error('SOURCE_POLICY_REQUIRED');
- const fetcher=fixture?async(url:string)=>({url,html:FIXTURE_HTML}):async(url:string)=>safeFetch(url,{allowedHosts,respectRobots:true,maxBytes:500000,timeoutMs:12000,maxRedirects:3});
+ // A fixture-accepted prospect never touches the network: its known .fixture.example pages resolve
+ // deterministically. Every other prospect goes through the same policy-checked safeFetch as before —
+ // no branch here decides that, the composite fetcher does, based solely on the URL's own shape.
+ const realFetcher=(url:string)=>safeFetch(url,{allowedHosts,respectRobots:true,maxBytes:500000,timeoutMs:12000,maxRedirects:3});
+ const fetcher=createCompositePageFetcher(realFetcher);
  return json(await new CompanyAnalysisService(repo,fetcher,log).analyze_company(id,fixture?'test_fixture':'official_website'));
  }
  if(action==='observations'&&method==='GET'&&!observationId)return json(await checked(db.from('prospect_observations').select('*').eq('prospect_id',id).order('created_at')));

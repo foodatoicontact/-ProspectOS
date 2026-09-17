@@ -92,7 +92,10 @@ test('analyzing a fixture prospect produces real observations from its determini
  const result=await new CompanyAnalysisService(r,createCompositePageFetcher(real)).analyze_company('accepted','test_fixture');
  assert.ok(result.pages_analyzed>=1);
  assert.ok(r.observations.length>0);
- assert.ok(r.observations.every(o=>o.status!=='OBSERVED'||o.criterion===null)); // no deterministic SaaS rule exists, so no criterion-tied OBSERVED
+ // The only deterministic SaaS-agnostic rule is the phone -> contactability mapping (see
+ // strategies/contact-channel.ts) — every other criterion can only ever reach OBSERVED with a
+ // real value through a criterion-less contextual note (criterion===null), never on its own.
+ assert.ok(r.observations.every(o=>o.status!=='OBSERVED'||o.criterion===null||o.criterion==='contactability'));
  assert.ok(r.observations.every(o=>o.criterion===null||SAAS_CRITERIA.some(c=>c.key===o.criterion)));
 });
 test('no fixture observation is ever auto-VERIFIED, and the score stays 0 before human review',async()=>{
@@ -106,9 +109,9 @@ test('no fixture observation is ever auto-VERIFIED, and the score stays 0 before
 
 // --- 7. After human review, a valid proposal can contribute to the score via the existing engine ---
 test('after human review of a valid proposal, the evidence contributes to the score per its weight',()=>{
- // The fixture page for Alpha Services explicitly states a phone/email/contact-form signal; simulate
- // the deterministic path a project could support for "contactability" the same way Foodatoi's own
- // deterministic patterns work — via an explicit OBSERVED value, never a bare keyword guess.
+ // A hand-built OBSERVED signal, at an arbitrary weight, exercising the general propose/score engine
+ // in isolation from any specific extraction rule (the real phone -> contactability rule is covered
+ // end-to-end, from the actual fixture page, by the next test below).
  const criteria:Criterion[]=[{key:'contactability',label:'Canal de contact professionnel documenté',weight:40},...SAAS_CRITERIA.filter(c=>c.key!=='contactability').map(c=>({...c,weight:20}))];
  const observation:Observation={criterion:'contactability',observation_type:'CONTACT_CHANNEL',claim:'Téléphone, email et formulaire de contact explicitement proposés',value:true,status:'OBSERVED',source_url:'https://alpha.fixture.example/',source_title:'TEST — Alpha Services',source_excerpt:'Notre équipe traite les demandes reçues par téléphone au 05 00 00 00 11, par email et par formulaire de contact.',source_type:'test_fixture',confidence:.9,collected_at:new Date().toISOString(),expires_at:new Date(Date.now()+86400000).toISOString(),content_hash:'hash-contact'};
  const proposed=new EvidenceProposalService().propose([observation],criteria);
@@ -116,6 +119,33 @@ test('after human review of a valid proposal, the evidence contributes to the sc
  assert.equal(scoreProspect(criteria,proposed).score,0,'not verified yet');
  const verified=proposed.map(e=>({...e,status:'VERIFIED',verified_by:'human-reviewer'}));
  assert.equal(scoreProspect(criteria,verified).score,40);
+});
+
+// --- The real, non-hardcoded phone -> contactability rule, end-to-end from the actual fixture page ---
+test('a real PHONE_RAW extracted from the Alpha Services fixture page is proposed as contactability evidence, never auto-verified',()=>{
+ const alpha=GENERIC_FIXTURE_COMPANIES.find(c=>c.name.includes('Alpha'))!;
+ const observations=new ObservationService().extract(alpha.homepage,alpha.website,SAAS_CRITERIA,'test_fixture');
+ const phoneObservation=observations.find(o=>o.observation_type==='PHONE_RAW');
+ assert.ok(phoneObservation);
+ assert.equal(phoneObservation!.criterion,'contactability');
+ assert.equal(phoneObservation!.value,true);
+ assert.equal(phoneObservation!.status,'OBSERVED');
+ const proposed=new EvidenceProposalService().propose(observations,SAAS_CRITERIA);
+ const contactProposal=proposed.find(e=>e.criterion==='contactability');
+ assert.ok(contactProposal);
+ assert.equal(contactProposal!.status,'NOT_VERIFIED');
+ assert.equal(scoreProspect(SAAS_CRITERIA,proposed).score,0,'no point before human confirmation');
+ const verified=proposed.map(e=>e.criterion==='contactability'?{...e,status:'VERIFIED',verified_by:'human-reviewer'}:e);
+ assert.equal(scoreProspect(SAAS_CRITERIA,verified).breakdown.find(b=>b.key==='contactability')!.points,20);
+});
+test('without a contactability-like criterion in the ICP, the same phone number stays a contextual note',()=>{
+ const alpha=GENERIC_FIXTURE_COMPANIES.find(c=>c.name.includes('Alpha'))!;
+ const observations=new ObservationService().extract(alpha.homepage,alpha.website,FOODATOI_CRITERIA,'test_fixture');
+ const phoneObservation=observations.find(o=>o.observation_type==='PHONE_RAW');
+ assert.ok(phoneObservation);
+ assert.equal(phoneObservation!.criterion,null);
+ assert.equal(phoneObservation!.value,null);
+ assert.equal(new EvidenceProposalService().propose(observations,FOODATOI_CRITERIA).length,0);
 });
 
 // --- 10. No contamination between Test SaaS and Foodatoi on the new fixture pages ---

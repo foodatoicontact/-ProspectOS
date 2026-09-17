@@ -160,6 +160,13 @@ try {
   const saasObservation = [{criterion:'commercial_signal',observation_type:'GENERIC_KEYWORD_MATCH',claim:'Mention en lien avec le critère',value:true,status:'OBSERVED',source_url:'https://saas.example',source_title:'Accueil',source_excerpt:'Nous documentons un signal commercial observable ici.',source_type:'official_website',confidence:.5,collected_at:now,expires_at:expires,content_hash:'hash-saas-ok'}];
   const savedSaas = (await as(B, `select public.save_discovery_observations($1,$2::jsonb) rows`,[prospectSaas,JSON.stringify(saasObservation)])).rows[0].rows;
   assert.equal(savedSaas.length,1); assert.ok(savedSaas[0].evidence_id);
+
+  // --- Contradict never grants any positive point, even for a criterion that had a real, non-null value ---
+  await as(B,`select public.review_discovery_observation($1,'contradict')`,[savedSaas[0].id]);
+  const contradictedEvidence = (await sql(`select * from public.evidence where id=$1`,[savedSaas[0].evidence_id])).rows[0];
+  assert.equal(contradictedEvidence.status,'CONTRADICTED');
+  assert.equal(scoreProspect(SAAS_CRITERIA,[{criterion:contradictedEvidence.criterion,value:contradictedEvidence.value,status:contradictedEvidence.status,source_url:contradictedEvidence.source_url,excerpt:contradictedEvidence.excerpt,observed_at:contradictedEvidence.observed_at,verified_by:contradictedEvidence.verified_by}],new Date()).score,0,'a contradicted observation never grants a positive point');
+
   // A criterion foreign to this ICP (Foodatoi's own 'food') is rejected outright — never silently accepted.
   const foreignObservation = [{criterion:'food',observation_type:'FOOD_ACTIVITY',claim:'x',value:true,status:'OBSERVED',source_url:'https://saas.example',source_title:'Accueil',source_excerpt:'x',source_type:'official_website',confidence:.5,collected_at:now,expires_at:expires,content_hash:'hash-saas-foreign'}];
   await rejects(as(B,`select public.save_discovery_observations($1,$2::jsonb)`,[prospectSaas,JSON.stringify(foreignObservation)]),/Evidence fields required/i);
@@ -192,7 +199,14 @@ try {
   await sql("select set_config('request.jwt.claim.sub',$1,false)",[B]);
   await sql(`insert into public.prospects(id,organization_id,project_id,name,website,status) values ($1,$2,$3,$4,$5,'À analyser')`,[alphaProspectId,OB,PB,alpha.name,alpha.website]);
 
-  const rawExtraction=new ObservationService().extract(alpha.homepage,alpha.website,SAAS_CRITERIA,'test_fixture',new Date(now));
+  // Alpha's own homepage no longer produces an ambiguous null-value candidate for its phone number
+  // (contactability now resolves deterministically — see below), so a small crafted excerpt is used
+  // here purely to keep proving the general contract: a raw, unprocessed GENERIC_KEYWORD_MATCH
+  // candidate (a real criterion, a null value) is still rejected outright by the SQL function, which
+  // is exactly why toStorageSafeObservation exists and why the real analyze_company path below always
+  // goes through it.
+  const genericCandidateHtml='<html><body><p>Nous suivons un signal commercial observable chaque trimestre.</p></body></html>';
+  const rawExtraction=new ObservationService().extract(genericCandidateHtml,alpha.website,SAAS_CRITERIA,'test_fixture',new Date(now));
   assert.ok(rawExtraction.some(o=>o.observation_type==='GENERIC_KEYWORD_MATCH'&&o.status==='INFERRED'&&o.value===null&&o.criterion!==null));
   await rejects(as(B,`select public.save_discovery_observations($1,$2::jsonb)`,[alphaProspectId,JSON.stringify(rawExtraction)]),/Evidence fields required/i);
 
@@ -210,21 +224,35 @@ try {
   const alphaObservations=(await sql(`select * from public.prospect_observations where prospect_id=$1`,[alphaProspectId])).rows;
   assert.ok(alphaObservations.length>0,'observations were actually persisted');
   assert.ok(alphaObservations.every(o=>o.review_status!=='VERIFIED'));
+  // Whichever GENERIC_KEYWORD_MATCH (non-conclusive lexical guess) or UNKNOWN (absence-of-proof) rows
+  // exist among these, none is ever linked to an evidence row — only a real, deterministic value can
+  // be (the SQL-level contract for a null-value GENERIC_KEYWORD_MATCH is proven directly above).
+  assert.ok(alphaObservations.filter(o=>o.observation_type==='GENERIC_KEYWORD_MATCH').every(o=>o.evidence_id===null));
+  assert.ok(alphaObservations.filter(o=>o.status==='UNKNOWN').every(o=>o.evidence_id===null));
   let alphaEvidence=(await sql(`select * from public.evidence where prospect_id=$1`,[alphaProspectId])).rows;
-  assert.ok(alphaEvidence.every(e=>e.status!=='VERIFIED'));
+  assert.ok(alphaEvidence.every(e=>e.status!=='VERIFIED'),'analyze_company never creates VERIFIED evidence on its own');
   assert.equal(scoreProspect(SAAS_CRITERIA,alphaEvidence.map(e=>({criterion:e.criterion,value:e.value,status:e.status,source_url:e.source_url,excerpt:e.excerpt,observed_at:e.observed_at})),new Date()).score,0,'score stays 0 before any human review');
 
-  // A stronger, explicit deterministic signal (not the generic lexical matcher) can still produce
-  // real evidence for a dynamic SaaS criterion, and a human review still moves the score per its weight.
-  const explicitContactSignal=[{criterion:'contactability',observation_type:'CONTACT_CHANNEL_EXPLICIT',claim:'Téléphone, email et formulaire de contact explicitement proposés',value:true,status:'OBSERVED',source_url:alpha.website,source_title:alpha.name,source_excerpt:'Notre équipe traite les demandes reçues par téléphone au 05 00 00 00 11, par email et par formulaire de contact.',source_type:'test_fixture',confidence:.9,collected_at:now,expires_at:expires,content_hash:'hash-alpha-contact-explicit'}];
-  const explicitSaved=(await as(B,`select public.save_discovery_observations($1,$2::jsonb) rows`,[alphaProspectId,JSON.stringify(explicitContactSignal)])).rows[0].rows;
-  assert.equal(explicitSaved[0].review_status,'NOT_VERIFIED');
-  assert.equal(scoreProspect(SAAS_CRITERIA,[{...explicitContactSignal[0],id:explicitSaved[0].id}],new Date()).score,0,'still 0 before review');
-  await as(B,`select public.review_discovery_observation($1,'confirm')`,[explicitSaved[0].id]);
-  const confirmedEvidence=(await sql(`select * from public.evidence where id=$1`,[explicitSaved[0].evidence_id])).rows[0];
+  // --- The real, non-hardcoded rule: the PHONE_RAW extracted from Alpha's own fixture page (via the
+  // exact analyze_company/ObservationService pipeline above, not a hand-crafted observation) is what
+  // proposed contactability as a candidate evidence — see strategies/contact-channel.ts.
+  const contactObservations=alphaObservations.filter(o=>o.criterion==='contactability');
+  assert.ok(contactObservations.length>0,'the real PHONE_RAW extraction proposed contactability on its own');
+  const contactObservation=contactObservations[0];
+  assert.equal(contactObservation.observation_type,'PHONE_RAW');
+  assert.equal(contactObservation.value,true);
+  assert.equal(contactObservation.status,'OBSERVED');
+  assert.equal(contactObservation.review_status,'NOT_VERIFIED');
+  assert.ok(contactObservation.evidence_id,'a real, non-null candidate did create an evidence row');
+
+  await as(B,`select public.review_discovery_observation($1,'confirm')`,[contactObservation.id]);
+  const confirmedEvidence=(await sql(`select * from public.evidence where id=$1`,[contactObservation.evidence_id])).rows[0];
   assert.equal(confirmedEvidence.status,'VERIFIED');
-  const finalScoreInput=[{criterion:confirmedEvidence.criterion,value:confirmedEvidence.value,status:confirmedEvidence.status,source_url:confirmedEvidence.source_url,excerpt:confirmedEvidence.excerpt,observed_at:confirmedEvidence.observed_at,verified_by:confirmedEvidence.verified_by}];
-  assert.equal(scoreProspect(SAAS_CRITERIA,finalScoreInput,new Date()).score,20,'contactability weight (20) now counts once verified');
+  assert.equal(confirmedEvidence.verified_by,B);
+  const alphaEvidenceAfterConfirm=(await sql(`select * from public.evidence where prospect_id=$1`,[alphaProspectId])).rows;
+  const finalScore=scoreProspect(SAAS_CRITERIA,alphaEvidenceAfterConfirm.map(e=>({criterion:e.criterion,value:e.value,status:e.status,source_url:e.source_url,excerpt:e.excerpt,observed_at:e.observed_at,verified_by:e.verified_by})),new Date());
+  assert.equal(finalScore.score,20,'contactability weight (20) now counts once the real PHONE_RAW-derived evidence is confirmed');
+  assert.equal(finalScore.breakdown.find(b=>b.key==='contactability').state,'TRUE');
 
   console.log('PASS: discovery lifecycle, scoring, tenant isolation, FK integrity, idempotency, validation, quotas, RPC grants, generic multi-sector ICP handling, and fixture analyze regression');
 } finally {

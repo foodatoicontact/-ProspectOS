@@ -1,6 +1,7 @@
 import type {Observation} from '../types.ts';
 import type {Criterion} from '../../domain/core.ts';
 import type {ObservationContext} from './restaurant.ts';
+import {findContactChannelCriterion} from './contact-channel.ts';
 // Sector-agnostic extraction: works from the project's own ICP labels instead of any hardcoded vertical.
 // A criterion never seen at compile time can still receive a proposal as long as it exists in the ICP passed in.
 const STOPWORDS=new Set(['dans','pour','avec','sans','plus','votre','vos','vous','notre','nos','nous','cette','ces','sont','être','avoir','leur','leurs','qui','que','dont','tout','tous','toute','toutes','fait','faire','très','bien','aussi','donc','ainsi','comme','the','and','for','with','this','that','from','your','have']);
@@ -8,10 +9,21 @@ function significantWords(label:string):string[]{return label.normalize('NFD').r
 const PHONE_PATTERN=/(?:\+33\s*(?:\(0\)\s*)?|0)[1-9](?:[ .-]?\d{2}){4}/;
 export function extractGenericObservations(ctx:ObservationContext,criteria:Criterion[],covered:Set<string>):Observation[]{
  const {lines,text,make}=ctx;const out:Observation[]=[];
- // Cross-sector raw contact signal — a phone number is not tied to any vertical.
- const phone=text.match(PHONE_PATTERN)?.[0];if(phone)out.push(make(null,'PHONE_RAW',phone,null,'OBSERVED','Numéro public présent ; usage commercial non déduit',.95));
+ // Cross-sector raw contact signal — a phone number is not tied to any vertical. It is only ever
+ // attached to a real criterion for the one concept it deterministically proves: a documented contact
+ // channel (see findContactChannelCriterion). Any other criterion never receives a value from a bare
+ // phone number — that would be exactly the hazardous "any phone -> any criterion" shortcut this
+ // module must avoid. When the ICP defines no such criterion, the phone stays a contextual note.
+ const phone=text.match(PHONE_PATTERN)?.[0];
+ const contactCriterion=phone?findContactChannelCriterion(criteria):null;
+ const attachPhoneTo=contactCriterion&&!covered.has(contactCriterion.key)?contactCriterion:null;
+ if(phone){
+  if(attachPhoneTo)out.push(make(attachPhoneTo.key,'PHONE_RAW',phone,true,'OBSERVED','Numéro de téléphone professionnel public documenté',.8));
+  else out.push(make(null,'PHONE_RAW',phone,null,'OBSERVED','Numéro public présent ; usage commercial non déduit',.95));
+ }
  for(const criterion of criteria){
   if(covered.has(criterion.key))continue; // already handled by a specialized preset for this ICP
+  if(attachPhoneTo&&criterion.key===attachPhoneTo.key)continue; // already given a stronger, deterministic signal above — no redundant/weaker guess
   const words=significantWords(criterion.label);if(!words.length)continue;
   const line=lines.find(l=>{const normalized=' '+l.normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase()+' ';return words.some(w=>normalized.includes(' '+w))});
   // A bare keyword overlap is a candidate excerpt, never a determination: no deterministic rule

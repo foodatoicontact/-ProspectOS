@@ -142,3 +142,36 @@ test('a single strong key (e.g. "food") alone is enough to activate the preset f
  const o=new ObservationService().extract(RESTAURANT_HTML,'https://resto.example',criteria);
  assert.ok(o.some(x=>x.observation_type==='FOOD_ACTIVITY'&&x.value===true));
 });
+
+// --- Deterministic phone -> contactability mapping: cross-sector, ICP-driven, not a semantic guess ---
+test('a phone number only maps to contactability when the ICP actually defines that criterion',()=>{
+ const withContact=new ObservationService().extract(SAAS_HTML,'https://vendor.example',SAAS_CRITERIA);
+ const phoneWithContact=withContact.find(x=>x.observation_type==='PHONE_RAW');
+ assert.ok(phoneWithContact);
+ assert.equal(phoneWithContact!.criterion,'contactability');
+ assert.equal(phoneWithContact!.value,true);
+ assert.equal(phoneWithContact!.status,'OBSERVED');
+
+ const withoutContact=new ObservationService().extract(SAAS_HTML,'https://vendor.example',FOODATOI_CRITERIA);
+ const phoneWithoutContact=withoutContact.find(x=>x.observation_type==='PHONE_RAW');
+ assert.ok(phoneWithoutContact);
+ assert.equal(phoneWithoutContact!.criterion,null);
+ assert.equal(phoneWithoutContact!.value,null);
+});
+test('once a phone number deterministically covers contactability, the generic keyword matcher does not also guess at it',()=>{
+ const o=new ObservationService().extract(SAAS_HTML,'https://vendor.example',SAAS_CRITERIA);
+ const contactabilityObservations=o.filter(x=>x.criterion==='contactability');
+ assert.equal(contactabilityObservations.length,1);
+ assert.equal(contactabilityObservations[0].observation_type,'PHONE_RAW');
+});
+test('a criterion whose label merely contains the word "contact" is never granted a value from a bare phone number',()=>{
+ // Guards against the exact hazard the task calls out: label-based semantic matching would let any
+ // criterion mentioning "contact" absorb a phone number as proof. Only the closed key vocabulary in
+ // contact-channel.ts may do that — an unrelated key never does, even with a very suggestive label.
+ const criteria:Criterion[]=[{key:'marketing_contact_list',label:'Liste de contact marketing documentée',weight:100}];
+ const o=new ObservationService().extract(SAAS_HTML,'https://vendor.example',criteria);
+ const phoneObservation=o.find(x=>x.observation_type==='PHONE_RAW');
+ assert.ok(phoneObservation);
+ assert.equal(phoneObservation!.criterion,null,'not the known contactability vocabulary, so the phone stays contextual');
+ assert.ok(!o.some(x=>x.criterion==='marketing_contact_list'&&x.status==='OBSERVED'&&x.value===true));
+});

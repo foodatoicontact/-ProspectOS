@@ -3,8 +3,10 @@ import { strict as assert } from 'node:assert';
 import { readFile } from 'node:fs/promises';
 import { PGlite } from '@electric-sql/pglite';
 import { ObservationService } from '../src/discovery/observations.ts';
-import { FIXTURE_HTML } from '../src/discovery/providers/fixture.ts';
-import { FOODATOI_CRITERIA, scoreProspect } from '../src/domain/core.ts';
+import { FIXTURE_HTML, GENERIC_FIXTURE_COMPANIES, createCompositePageFetcher } from '../src/discovery/providers/fixture.ts';
+import { CompanyAnalysisService } from '../src/discovery/services.ts';
+import { toStorageSafeObservation } from '../src/discovery/repository.ts';
+import { FOODATOI_CRITERIA, scoreProspect, safeLink } from '../src/domain/core.ts';
 
 const db = new PGlite();
 const schema = await readFile(new URL('../db/schema.sql', import.meta.url), 'utf8');
@@ -173,7 +175,58 @@ try {
   const orphanSaved = (await as(B,`select public.save_discovery_observations($1,$2::jsonb) rows`,[orphanProspect,JSON.stringify(contextualOnly)])).rows[0].rows;
   assert.equal(orphanSaved.length,1); assert.equal(orphanSaved[0].evidence_id,null);
 
-  console.log('PASS: discovery lifecycle, scoring, tenant isolation, FK integrity, idempotency, validation, quotas, RPC grants, and generic multi-sector ICP handling');
+  // --- Regression: "Analyser le site" on a fixture-accepted Test SaaS prospect (production bug) ---
+  // A generic keyword candidate (status INFERRED, value null — see strategies/generic.ts) is a
+  // non-conclusive proposal with no boolean to give it. save_discovery_observations rejects ANY
+  // non-UNKNOWN observation carrying a real criterion but a null value ("Evidence fields required" —
+  // proven raw below): it is only designed for UNKNOWN (criterion + null value) or a criterion-less
+  // contextual note (null criterion + null value). CompanyAnalysisService.analyze_company()'s catch
+  // block turned that rejection into the generic ANALYSIS_FAILED ("Analyse impossible") shown in
+  // production. A previous JS-level test (tests/fixture-analysis.test.ts) used a MemoryRepo whose
+  // saveObservations() just stores the array in memory — it never runs this SQL validation, so it
+  // could not have caught this. This block runs the real save_discovery_observations RPC, exactly as
+  // production does, plus the exact CompanyAnalysisService/createCompositePageFetcher wiring used by
+  // src/discovery/api.ts's "analyze" route (the real handler behind the "Analyser le site" button).
+  const alpha = GENERIC_FIXTURE_COMPANIES.find(c => c.name.includes('Alpha'));
+  const alphaProspectId = '40000000-0000-4000-8000-000000000005';
+  await sql("select set_config('request.jwt.claim.sub',$1,false)",[B]);
+  await sql(`insert into public.prospects(id,organization_id,project_id,name,website,status) values ($1,$2,$3,$4,$5,'À analyser')`,[alphaProspectId,OB,PB,alpha.name,alpha.website]);
+
+  const rawExtraction=new ObservationService().extract(alpha.homepage,alpha.website,SAAS_CRITERIA,'test_fixture',new Date(now));
+  assert.ok(rawExtraction.some(o=>o.observation_type==='GENERIC_KEYWORD_MATCH'&&o.status==='INFERRED'&&o.value===null&&o.criterion!==null));
+  await rejects(as(B,`select public.save_discovery_observations($1,$2::jsonb)`,[alphaProspectId,JSON.stringify(rawExtraction)]),/Evidence fields required/i);
+
+  function realRepoFor(actingUser){return {
+   async prospect(id){return (await sql(`select id,website,organization_id,project_id from public.prospects where id=$1`,[id])).rows[0]},
+   async projectCriteria(projectId){return (await sql(`select criteria from public.icps where project_id=$1`,[projectId])).rows[0]?.criteria??[]},
+   async consumeAnalysis(id){await as(actingUser,`select public.consume_analysis_quota($1)`,[id])},
+   async saveObservations(id,observations){return (await as(actingUser,`select public.save_discovery_observations($1,$2::jsonb) rows`,[id,JSON.stringify(observations.map(toStorageSafeObservation))])).rows[0].rows}
+  }}
+  let realNetworkCalls=0;
+  const realFetcher=async url=>{realNetworkCalls++;throw Error('UNEXPECTED_REAL_FETCH: '+url)};
+  const analyzeResult=await new CompanyAnalysisService(realRepoFor(B),createCompositePageFetcher(realFetcher)).analyze_company(alphaProspectId,'test_fixture');
+  assert.equal(realNetworkCalls,0,'zero real network calls for a fixture prospect');
+  assert.ok(analyzeResult.pages_analyzed>=1);
+  const alphaObservations=(await sql(`select * from public.prospect_observations where prospect_id=$1`,[alphaProspectId])).rows;
+  assert.ok(alphaObservations.length>0,'observations were actually persisted');
+  assert.ok(alphaObservations.every(o=>o.review_status!=='VERIFIED'));
+  let alphaEvidence=(await sql(`select * from public.evidence where prospect_id=$1`,[alphaProspectId])).rows;
+  assert.ok(alphaEvidence.every(e=>e.status!=='VERIFIED'));
+  assert.equal(scoreProspect(SAAS_CRITERIA,alphaEvidence.map(e=>({criterion:e.criterion,value:e.value,status:e.status,source_url:e.source_url,excerpt:e.excerpt,observed_at:e.observed_at})),new Date()).score,0,'score stays 0 before any human review');
+
+  // A stronger, explicit deterministic signal (not the generic lexical matcher) can still produce
+  // real evidence for a dynamic SaaS criterion, and a human review still moves the score per its weight.
+  const explicitContactSignal=[{criterion:'contactability',observation_type:'CONTACT_CHANNEL_EXPLICIT',claim:'Téléphone, email et formulaire de contact explicitement proposés',value:true,status:'OBSERVED',source_url:alpha.website,source_title:alpha.name,source_excerpt:'Notre équipe traite les demandes reçues par téléphone au 05 00 00 00 11, par email et par formulaire de contact.',source_type:'test_fixture',confidence:.9,collected_at:now,expires_at:expires,content_hash:'hash-alpha-contact-explicit'}];
+  const explicitSaved=(await as(B,`select public.save_discovery_observations($1,$2::jsonb) rows`,[alphaProspectId,JSON.stringify(explicitContactSignal)])).rows[0].rows;
+  assert.equal(explicitSaved[0].review_status,'NOT_VERIFIED');
+  assert.equal(scoreProspect(SAAS_CRITERIA,[{...explicitContactSignal[0],id:explicitSaved[0].id}],new Date()).score,0,'still 0 before review');
+  await as(B,`select public.review_discovery_observation($1,'confirm')`,[explicitSaved[0].id]);
+  const confirmedEvidence=(await sql(`select * from public.evidence where id=$1`,[explicitSaved[0].evidence_id])).rows[0];
+  assert.equal(confirmedEvidence.status,'VERIFIED');
+  const finalScoreInput=[{criterion:confirmedEvidence.criterion,value:confirmedEvidence.value,status:confirmedEvidence.status,source_url:confirmedEvidence.source_url,excerpt:confirmedEvidence.excerpt,observed_at:confirmedEvidence.observed_at,verified_by:confirmedEvidence.verified_by}];
+  assert.equal(scoreProspect(SAAS_CRITERIA,finalScoreInput,new Date()).score,20,'contactability weight (20) now counts once verified');
+
+  console.log('PASS: discovery lifecycle, scoring, tenant isolation, FK integrity, idempotency, validation, quotas, RPC grants, generic multi-sector ICP handling, and fixture analyze regression');
 } finally {
   await db.close();
 }

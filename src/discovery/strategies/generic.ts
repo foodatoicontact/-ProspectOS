@@ -14,8 +14,12 @@ export function extractGenericObservations(ctx:ObservationContext,criteria:Crite
   if(covered.has(criterion.key))continue; // already handled by a specialized preset for this ICP
   const words=significantWords(criterion.label);if(!words.length)continue;
   const line=lines.find(l=>{const normalized=' '+l.normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase()+' ';return words.some(w=>normalized.includes(' '+w))});
-  if(line){const matched=words.filter(w=>(' '+line.normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase()+' ').includes(' '+w)).length;const confidence=Math.min(.6,.3+.1*matched);
-  out.push(make(criterion.key,'GENERIC_KEYWORD_MATCH',line,true,'OBSERVED',`Mention en lien avec « ${criterion.label} » repérée dans le texte`,confidence))}
+  // A bare keyword overlap is a candidate excerpt, never a determination: no deterministic rule
+  // established that the criterion is actually satisfied, so this can never resolve to TRUE/FALSE
+  // on its own — status INFERRED with value null keeps it out of EvidenceProposalService until a
+  // human confirms it (value===null is filtered out there).
+  if(line){const matched=words.filter(w=>(' '+line.normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase()+' ').includes(' '+w)).length;const confidence=Math.min(.4,.15+.05*matched);
+  out.push(make(criterion.key,'GENERIC_KEYWORD_MATCH',line,null,'INFERRED','Extrait potentiellement pertinent — correspondance avec le critère à confirmer',confidence))}
  }
  return out;
 }

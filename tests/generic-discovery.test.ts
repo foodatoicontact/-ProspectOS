@@ -1,5 +1,6 @@
-// TDD coverage for the generic, multi-sector Discovery engine (BLOC 3).
-// Each test below maps 1:1 to the numbered acceptance test requested in the task.
+// TDD coverage for the generic, multi-sector Discovery engine (BLOC 3), including the
+// red-team hardening pass: the generic keyword matcher must never conclude TRUE on its own,
+// and the restaurant preset must only fire on genuinely vertical-specific ICP keys.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {ObservationService,EvidenceProposalService} from '../src/discovery/observations.ts';
@@ -23,17 +24,39 @@ test('TEST 1 — a Foodatoi project keeps using its historical criteria correctl
  assert.ok(o.some(x=>x.criterion==='internal_delivery'&&x.status==='INFERRED'));
 });
 
+test('TEST 1bis — a full Foodatoi ICP activates the restaurant preset',()=>{
+ const o=new ObservationService().extract(RESTAURANT_HTML,'https://resto.example',FOODATOI_CRITERIA);
+ assert.ok(o.some(x=>x.observation_type==='FOOD_ACTIVITY'));
+ assert.ok(o.some(x=>x.observation_type==='DELIVERY_PLATFORM'));
+});
+
 test('TEST 2 — a project with generic SaaS criteria receives no restaurant/Foodatoi observation automatically',()=>{
  const o=new ObservationService().extract(RESTAURANT_HTML,'https://resto.example',SAAS_CRITERIA);
  assert.ok(!o.some(x=>['food','region','phone_orders','social_orders','platforms','weak_collect','audience','internal_delivery'].includes(x.criterion??'')));
  assert.ok(!o.some(x=>x.observation_type==='FOOD_ACTIVITY'||x.observation_type==='DELIVERY_PLATFORM'||x.observation_type==='CLICK_AND_COLLECT'));
 });
 
-test('TEST 3 — an unknown-at-compile-time criterion can receive a proposal if it exists in the current ICP',()=>{
+test('TEST 3 — an unknown-at-compile-time criterion can receive a candidate observation, never a conclusive one, from its own ICP label',()=>{
  const criteria:Criterion[]=[{key:'custom_signal_x',label:'Mention API publique documentée',weight:100}];
  const html='<title>Produit</title><main><p>Notre API publique documentée est accessible à tous.</p></main>';
  const o=new ObservationService().extract(html,'https://vendor.example',criteria);
- assert.ok(o.some(x=>x.criterion==='custom_signal_x'&&x.status==='OBSERVED'&&x.value===true));
+ const match=o.find(x=>x.criterion==='custom_signal_x');
+ assert.ok(match);
+ assert.equal(match!.status,'INFERRED');
+ assert.equal(match!.value,null);
+ // A non-conclusive candidate never becomes an evidence proposal on its own.
+ assert.equal(new EvidenceProposalService().propose(o,criteria).length,0);
+});
+
+test('a keyword from the ICP label present on the page is not enough to propose TRUE',()=>{
+ const criteria:Criterion[]=[{key:'need_fit',label:'Besoin correspondant à l’offre',weight:100}];
+ const html='<title>Page</title><main><p>Nous avons un besoin urgent de personnel.</p></main>';
+ const o=new ObservationService().extract(html,'https://vendor.example',criteria);
+ const match=o.find(x=>x.criterion==='need_fit');
+ assert.ok(match,'a candidate excerpt is still surfaced for human review');
+ assert.notEqual(match!.status,'OBSERVED');
+ assert.equal(match!.value,null);
+ assert.equal(new EvidenceProposalService().propose(o,criteria).length,0);
 });
 
 test('TEST 4 — a proposal toward a key absent from the ICP is rejected',()=>{
@@ -52,8 +75,8 @@ test('TEST 5 — absence of information never produces FALSE automatically',()=>
 });
 
 test('TEST 6 — Discovery never directly creates a VERIFIED evidence proposal',()=>{
- const o=new ObservationService().extract(SAAS_HTML,'https://saas.example',SAAS_CRITERIA);
- const evidence=new EvidenceProposalService().propose(o,SAAS_CRITERIA);
+ const o=new ObservationService().extract(RESTAURANT_HTML,'https://resto.example',FOODATOI_CRITERIA);
+ const evidence=new EvidenceProposalService().propose(o,FOODATOI_CRITERIA);
  assert.ok(evidence.length>0);
  assert.ok(evidence.every(e=>e.status!=='VERIFIED'));
 });
@@ -81,8 +104,41 @@ test('TEST 9 — existing URL/SSRF protections remain operational',()=>{
 });
 
 test('TEST 10 — unvalidated observations never change the score',()=>{
- const o=new ObservationService().extract(SAAS_HTML,'https://saas.example',SAAS_CRITERIA);
- const evidence=new EvidenceProposalService().propose(o,SAAS_CRITERIA);
+ const o=new ObservationService().extract(RESTAURANT_HTML,'https://resto.example',FOODATOI_CRITERIA);
+ const evidence=new EvidenceProposalService().propose(o,FOODATOI_CRITERIA);
  assert.ok(evidence.length>0);
- assert.equal(scoreProspect(SAAS_CRITERIA,evidence).score,0);
+ assert.equal(scoreProspect(FOODATOI_CRITERIA,evidence).score,0);
+});
+
+// --- Restaurant preset activation: conservative trigger on vertical-specific keys only ---
+test('an ICP containing only "region" does not activate the restaurant preset',()=>{
+ const criteria:Criterion[]=[{key:'region',label:'Toulouse / Occitanie',weight:100}];
+ const o=new ObservationService().extract(RESTAURANT_HTML,'https://resto.example',criteria);
+ assert.ok(!o.some(x=>x.observation_type==='GEOGRAPHY'));
+});
+
+test('an ICP containing only "audience" does not activate the restaurant preset',()=>{
+ const criteria:Criterion[]=[{key:'audience',label:'Forte audience sociale documentée',weight:100}];
+ const o=new ObservationService().extract(RESTAURANT_HTML,'https://resto.example',criteria);
+ assert.ok(!o.some(x=>x.criterion==='audience'&&x.status!=='UNKNOWN'&&x.observation_type!=='GENERIC_KEYWORD_MATCH'));
+ assert.ok(!o.some(x=>x.observation_type==='FOOD_ACTIVITY'||x.observation_type==='DELIVERY_PLATFORM'));
+});
+
+test('an ICP containing only "platforms" does not activate the restaurant preset',()=>{
+ const criteria:Criterion[]=[{key:'platforms',label:'Uber Eats / Deliveroo',weight:100}];
+ const o=new ObservationService().extract(RESTAURANT_HTML,'https://resto.example',criteria);
+ assert.ok(!o.some(x=>x.observation_type==='DELIVERY_PLATFORM'));
+});
+
+test('the full Foodatoi ICP activates the restaurant preset',()=>{
+ const o=new ObservationService().extract(RESTAURANT_HTML,'https://resto.example',FOODATOI_CRITERIA);
+ assert.ok(o.some(x=>x.observation_type==='FOOD_ACTIVITY'));
+ assert.ok(o.some(x=>x.observation_type==='GEOGRAPHY'));
+ assert.ok(o.some(x=>x.observation_type==='DELIVERY_PLATFORM'));
+});
+
+test('a single strong key (e.g. "food") alone is enough to activate the preset for that key',()=>{
+ const criteria:Criterion[]=[{key:'food',label:'Activité alimentaire',weight:100}];
+ const o=new ObservationService().extract(RESTAURANT_HTML,'https://resto.example',criteria);
+ assert.ok(o.some(x=>x.observation_type==='FOOD_ACTIVITY'&&x.value===true));
 });

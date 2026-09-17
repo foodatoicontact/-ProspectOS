@@ -15,9 +15,13 @@ export class ObservationService {
  const make=(criterion:Observation['criterion'],type:string,excerpt:string,value:boolean|null,status:Observation['status'],claim:string,confidence:number):Observation=>ObservationSchema.parse({criterion,observation_type:type,claim,value,status,source_url:url,source_title:title,source_excerpt:excerpt.slice(0,500),source_type:sourceType,confidence,collected_at:collected,expires_at:expires,content_hash:hash});
  const ctx={lines,text,make};
  const criteriaKeys=new Set(criteria.map(c=>c.key));
- const restaurantActiveKeys=new Set(RESTAURANT_PRESET_KEYS.filter(k=>criteriaKeys.has(k)));
- const out:Observation[]=isRestaurantPresetActive(criteriaKeys)?extractRestaurantObservations(ctx,restaurantActiveKeys):[];
- // Keys owned by the restaurant preset are never re-attempted by the generic matcher, even unmatched.
+ const presetActive=isRestaurantPresetActive(criteriaKeys);
+ const restaurantActiveKeys=presetActive?new Set(RESTAURANT_PRESET_KEYS.filter(k=>criteriaKeys.has(k))):new Set<string>();
+ const out:Observation[]=presetActive?extractRestaurantObservations(ctx,restaurantActiveKeys):[];
+ // Keys the preset actually claimed (only when it fired) are never re-attempted by the generic
+ // matcher, even unmatched. When the preset didn't fire — e.g. an ICP naming only "region" or
+ // "platforms" without any of the strong Foodatoi keys — those keys fall through to the generic,
+ // non-conclusive matcher instead of being silently skipped.
  out.push(...extractGenericObservations(ctx,criteria,restaurantActiveKeys));
  // Fill UNKNOWN strictly from this project's own criteria — never a hardcoded vertical's list.
  for(const c of criteria)if(!out.some(o=>o.criterion===c.key))out.push(make(c.key,'UNKNOWN','',null,'UNKNOWN','À confirmer : information absente de cette page',0));

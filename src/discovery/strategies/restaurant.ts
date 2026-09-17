@@ -3,7 +3,11 @@ export type ObservationContext={lines:string[];text:string;make(criterion:Observ
 // Optional preset: activates only when the project's own ICP already contains one of these keys.
 // Never activated by project name — see isRestaurantPresetActive().
 export const RESTAURANT_PRESET_KEYS=['food','region','phone_orders','social_orders','platforms','weak_collect','audience','internal_delivery'] as const;
-export function isRestaurantPresetActive(criteriaKeys:Set<string>):boolean{return RESTAURANT_PRESET_KEYS.some(k=>criteriaKeys.has(k))}
+// Trigger condition is deliberately conservative: region/audience/platforms are too generic on
+// their own (a SaaS project could plausibly name a criterion "platforms" or "audience") to imply
+// a restaurant. Only these vertical-specific keys are strong enough to switch the preset on.
+export const RESTAURANT_STRONG_KEYS=['food','phone_orders','social_orders','weak_collect','internal_delivery'] as const;
+export function isRestaurantPresetActive(criteriaKeys:Set<string>):boolean{return RESTAURANT_STRONG_KEYS.some(k=>criteriaKeys.has(k))}
 export function extractRestaurantObservations(ctx:ObservationContext,activeKeys:Set<string>):Observation[]{
  const {lines,text,make}=ctx;const out:Observation[]=[];
  const patterns:[string,string,RegExp][]=[['food','FOOD_ACTIVITY',/restaurant|snack|tacos|burger|pizza|boulangerie|kebab/i],['region','GEOGRAPHY',/Toulouse|Occitanie|Lombez|Montpellier|Albi|Montauban|Auch|Perpignan|Carcassonne|Nîmes|Tarbes|Foix|Cahors|Rodez|Mende/i],['phone_orders','PHONE_ORDERING',/command(?:ez|es?|er).{0,45}(?:téléphone|(?:au|:)?\s*(?:0[1-9]|\+33)[\d .()-]{8,})/i],['social_orders','SOCIAL_ORDERING',/command.{0,40}(?:\bDM\b|Instagram|WhatsApp|Snapchat|Messenger)/i],['platforms','DELIVERY_PLATFORM',/Uber\s*Eats|Deliveroo/i]];

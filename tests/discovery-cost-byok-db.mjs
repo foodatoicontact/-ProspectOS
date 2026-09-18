@@ -11,6 +11,7 @@ const schema = await readFile(new URL('../db/schema.sql', import.meta.url), 'utf
 const migration002 = await readFile(new URL('../db/migrations/002_discovery.sql', import.meta.url), 'utf8');
 const migration008 = await readFile(new URL('../db/migrations/008_account_privacy_beta.sql', import.meta.url), 'utf8');
 const migration009 = await readFile(new URL('../db/migrations/009_real_discovery_cost_byok.sql', import.meta.url), 'utf8');
+const migration010 = await readFile(new URL('../db/migrations/010_anthropic_sonnet5_pricing.sql', import.meta.url), 'utf8');
 
 async function sql(text, params = []) { return db.query(text, params); }
 async function as(user, text, params = []) {
@@ -60,6 +61,11 @@ await db.exec(`
   grant execute on all functions in schema public to service_role;
   grant execute on all functions in schema prospectos_private to service_role;
 `);
+// BLOC 4A.4.1 — model-priority hardening of resolve_provider_cost + the claude-sonnet-5 pricing seed.
+// Applied after the grants block above: CREATE OR REPLACE FUNCTION with an unchanged signature preserves
+// the function's existing ownership/ACL, so no re-grant is needed here.
+await db.exec(migration010);
+await db.exec(migration010); // idempotence: re-applying must not fail and must not duplicate either seeded row.
 const usagePolicies = (await sql(`select count(*)::int n from pg_policies where tablename='api_usage_events'`)).rows[0].n;
 assert.equal(usagePolicies, 1, 're-applying migration 009 does not duplicate the RLS policy');
 const braveSeedRows = (await sql(`select count(*)::int n from prospectos_private.provider_pricing where version='brave-search-2026-09-18'`)).rows[0].n;
@@ -173,6 +179,97 @@ await rejects(as(undefined, `select public.resolve_provider_cost('brave','search
 await rejects(as(A, `select prospectos_private.require_owner($1)`, [OA]), /permission denied/);
 
 console.log('PASS discovery-cost-byok-db: cost ledger — no-client-write, tenant isolation, integer cost, verified Brave tariff, frozen pricing history, append-only, pricing RPCs unreachable by anon/authenticated');
+
+// ============================================================
+// BLOC 4A.4.1 — claude-sonnet-5 pricing (migration 010) + resolve_provider_cost model-priority
+// hardening. NO real Anthropic call anywhere in this file — pure SQL/PGlite arithmetic.
+// ============================================================
+
+// ---- Step 1 test 1: two tariffs (input + output) coexist for the same model, no collision ----
+const sonnetRows = (await sql(
+ `select unit_type,price_per_unit_micros,currency,version from prospectos_private.provider_pricing
+  where provider='anthropic' and operation='offer_analysis' and model='claude-sonnet-5' order by unit_type`
+)).rows;
+assert.equal(sonnetRows.length, 2, 'exactly two claude-sonnet-5 tariffs (input+output) exist, and re-applying migration 010 did not duplicate either');
+const sonnetInputRow = sonnetRows.find(r => r.unit_type === 'input_tokens_1k');
+const sonnetOutputRow = sonnetRows.find(r => r.unit_type === 'output_tokens_1k');
+assert.equal(sonnetInputRow.price_per_unit_micros, 2000, 'input: $2/1,000,000 tokens = 2000 micros/1,000 tokens');
+assert.equal(sonnetOutputRow.price_per_unit_micros, 10000, 'output: $10/1,000,000 tokens = 10000 micros/1,000 tokens');
+assert.equal(sonnetInputRow.currency, 'USD');
+assert.equal(sonnetOutputRow.currency, 'USD');
+assert.equal(sonnetInputRow.version, 'anthropic-sonnet-5-2026-09-18');
+assert.equal(sonnetOutputRow.version, 'anthropic-sonnet-5-2026-09-18', 'both components share one version tag — no spurious "v+v" duplication in pricing_version');
+
+// ---- Step 1 test 2: THE exact math — 2000 input + 500 output => 9000 micros ($0.009) ----
+const sonnetMoneyTest = (await asAdmin(
+ `select public.resolve_provider_cost('anthropic','offer_analysis','claude-sonnet-5','[{"unit_type":"input_tokens_1k","quantity":2},{"unit_type":"output_tokens_1k","quantity":0.5}]'::jsonb) r`
+)).rows[0].r;
+// quantity=2 <=> 2000 input tokens / 1000 (costFromTokens' own conversion, src/server/pricing.ts);
+// quantity=0.5 <=> 500 output tokens / 1000. round(2000*2)=4000 + round(10000*0.5)=5000 = 9000 exactly.
+assert.equal(sonnetMoneyTest.estimated_cost_micros, 9000, '2000 input + 500 output tokens at $2/$10 per 1M must resolve to EXACTLY 9000 micros (= $0.009), matching the reference calculation');
+assert.equal(sonnetMoneyTest.pricing_version, 'anthropic-sonnet-5-2026-09-18');
+
+// ---- Step 1 test 3: input priced, output unpriced for this model => the WHOLE cost is null, never partial ----
+await asAdmin(`insert into prospectos_private.provider_pricing(provider,operation,model,unit_type,price_per_unit_micros,version) values ('anthropic','offer_analysis','claude-partial-pricing-test','input_tokens_1k',1234,'test-partial-v1')`);
+const partialPricingResult = (await asAdmin(
+ `select public.resolve_provider_cost('anthropic','offer_analysis','claude-partial-pricing-test','[{"unit_type":"input_tokens_1k","quantity":1},{"unit_type":"output_tokens_1k","quantity":1}]'::jsonb) r`
+)).rows[0].r;
+assert.equal(partialPricingResult, null, 'input has a price (1234) but output has none for this model — the function must return null for the WHOLE call, never silently return a partial (input-only) cost');
+
+// ---- Step 1 test 4: a model with zero pricing rows (exact or generic) resolves to null ----
+// output_tokens_1k is used deliberately: no generic (model=null) row for it exists anywhere in this file
+// (the pre-existing P/Q mechanism test above only ever seeded a generic input_tokens_1k row), so this is
+// a clean "truly no pricing anywhere" case, not merely "no exact match".
+const unknownModelResult = (await asAdmin(
+ `select public.resolve_provider_cost('anthropic','offer_analysis','claude-totally-unknown-model','[{"unit_type":"output_tokens_1k","quantity":1}]'::jsonb) r`
+)).rows[0].r;
+assert.equal(unknownModelResult, null, 'an unrecognized model with no matching pricing row (exact or generic) must resolve to null, never a guess');
+
+console.log('PASS discovery-cost-byok-db: claude-sonnet-5 pricing — two coexisting tariffs, exact 2000/500 => 9000 micros math, partial-pricing fail-closed, unknown-model fail-closed');
+
+// ============================================================
+// Step 2 — resolve_provider_cost model-priority hardening (A/B/C/D). The pre-existing P/Q mechanism
+// test above (further up this file) left an ACTIVE generic (model=null) row for
+// (anthropic, offer_analysis, input_tokens_1k): version='test-v2', price=900, effective_from=now() at
+// insert time — i.e. LATER than claude-sonnet-5's own effective_from ('2026-09-18 00:00:00+00'). Before
+// the migration 010 hardening, `order by effective_from desc` alone would let this more-recent GENERIC
+// row silently outrank claude-sonnet-5's own EXACT tariff (2000) — this is the literal collision the
+// 4A.4 audit flagged, now reused here as a real (not synthetic) regression proof, and it is exactly why
+// the "exact 2000/500 => 9000" money test above only passes because the hardening is already in place.
+// ============================================================
+
+// A — exact model present + a MORE RECENT generic row present => exact model still wins.
+const priorityTestA = (await asAdmin(
+ `select public.resolve_provider_cost('anthropic','offer_analysis','claude-sonnet-5','[{"unit_type":"input_tokens_1k","quantity":1}]'::jsonb) r`
+)).rows[0].r;
+assert.equal(priorityTestA.estimated_cost_micros, 2000, 'A — the exact claude-sonnet-5 tariff (2000) must win over the generic test-v2 row (900), even though test-v2 has a more recent effective_from');
+
+// B — exact model absent for this model, but a generic row exists => generic fallback is used.
+const priorityTestB = (await asAdmin(
+ `select public.resolve_provider_cost('anthropic','offer_analysis','claude-model-with-no-exact-pricing','[{"unit_type":"input_tokens_1k","quantity":1}]'::jsonb) r`
+)).rows[0].r;
+assert.equal(priorityTestB.estimated_cost_micros, 900, 'B — with no exact-model row for this model, the generic (model=null) fallback (900) must still resolve — fallback is never disabled, only deprioritized');
+
+// C — neither exact nor generic pricing exists for this provider/operation/unit_type => null.
+// output_tokens_1k has no generic row yet at this point in the file (only inserted for test D below).
+const priorityTestC = (await asAdmin(
+ `select public.resolve_provider_cost('anthropic','offer_analysis','claude-model-with-nothing','[{"unit_type":"output_tokens_1k","quantity":1}]'::jsonb) r`
+)).rows[0].r;
+assert.equal(priorityTestC, null, 'C — no exact and no generic pricing anywhere for this component => null');
+
+// D — one component (input) resolves to an EXACT model row, the other (output) has no exact row for
+// this model and falls back to a GENERIC row — confirmed as the function's already-existing, INTENTIONAL
+// per-component independence (each unit_type is resolved by its own loop iteration/SELECT — see
+// migration 010's comment), not a new abstraction: no code change was needed to support this, only the
+// ordering hardening above to make each independent resolution itself deterministic.
+await asAdmin(`insert into prospectos_private.provider_pricing(provider,operation,model,unit_type,price_per_unit_micros,version) values ('anthropic','offer_analysis',null,'output_tokens_1k',7777,'test-generic-output-v1')`);
+await asAdmin(`insert into prospectos_private.provider_pricing(provider,operation,model,unit_type,price_per_unit_micros,version) values ('anthropic','offer_analysis','claude-mixed-resolution-test','input_tokens_1k',3000,'test-mixed-v1')`);
+const priorityTestD = (await asAdmin(
+ `select public.resolve_provider_cost('anthropic','offer_analysis','claude-mixed-resolution-test','[{"unit_type":"input_tokens_1k","quantity":1},{"unit_type":"output_tokens_1k","quantity":1}]'::jsonb) r`
+)).rows[0].r;
+assert.equal(priorityTestD.estimated_cost_micros, 3000 + 7777, 'D — input resolves via its own exact-model row (3000), output resolves via the generic fallback (7777) for the SAME call — per-component mixed resolution, summed correctly');
+
+console.log('PASS discovery-cost-byok-db: resolve_provider_cost model-priority hardening — A exact-over-recent-generic, B generic fallback still works, C true-null, D per-component mixed exact/generic resolution');
 
 // ============================================================
 // BYOK — opaque table, owner-gated mutation, no secret ever returned, tenant isolation

@@ -160,6 +160,59 @@ par Anthropic — jamais estimés), `estimated_cost_micros` (`null` si non tarif
 `billing_source` (contrainte `check` `PLATFORM`/`BYOK`) existe depuis la migration 009 et n'était
 simplement jamais alimentée qu'en `'PLATFORM'`.
 
+**Mise à jour 4A.4.1** : le paragraphe ci-dessus décrivait l'état 4A.3/4A.3.1, où `AI_MODEL` n'était pas
+encore identifié avec certitude. Le modèle cible **`claude-sonnet-5`** a depuis été confirmé et son tarif
+officiel vérifié — voir « Tarif Anthropic — claude-sonnet-5 » ci-dessous. Pour **tout autre modèle**
+(`AI_MODEL` configuré différemment, ou non reconnu), le comportement fail-closed décrit ci-dessus reste
+exactement inchangé : `resolve_provider_cost` renvoie `null` sans ligne de tarif exacte correspondante.
+
+### Tarif Anthropic — claude-sonnet-5 (migration 010, bloc 4A.4.1)
+
+Deux lignes `prospectos_private.provider_pricing`, opérateur-vérifiées, insérées de façon idempotente
+(`insert ... where not exists (...)`, même patron que le tarif Brave) :
+
+| provider | operation | model | unit_type | price_per_unit_micros | version | effective_from |
+|---|---|---|---|---|---|---|
+| anthropic | offer_analysis | claude-sonnet-5 | input_tokens_1k | 2000 (= $2/1M tokens) | `anthropic-sonnet-5-2026-09-18` | 2026-09-18 |
+| anthropic | offer_analysis | claude-sonnet-5 | output_tokens_1k | 10000 (= $10/1M tokens) | `anthropic-sonnet-5-2026-09-18` | 2026-09-18 |
+
+Aucune contrainte UNIQUE n'existe sur `provider_pricing` (seulement un index de lookup) — les deux lignes
+coexistent sans collision, différenciées uniquement par `unit_type`. `resolve_provider_cost` résout
+chaque composant (`input_tokens_1k`, `output_tokens_1k`) indépendamment dans la même boucle et les
+additionne : pour 2000 tokens d'entrée + 500 tokens de sortie, `costFromTokens` produit
+`[{input_tokens_1k, quantity:2},{output_tokens_1k, quantity:0.5}]`, et le total résolu est exactement
+`round(2000×2) + round(10000×0.5) = 4000 + 5000 = 9000` micros (= 0,009 USD) — vérifié par un test DB
+dédié (`tests/discovery-cost-byok-db.mjs`), aucun appel Anthropic réel.
+
+### Durcissement de `resolve_provider_cost` — priorité modèle exact (migration 010, bloc 4A.4.1)
+
+**Gap identifié par l'audit 4A.4 Phase 0** : la clause `(model=p_model or model is null) order by
+effective_from desc` ne garantissait pas qu'un tarif spécifique à un modèle prime sur un tarif générique
+(`model is null`) — seule la date `effective_from` la plus récente l'emportait, indépendamment de la
+spécificité du modèle. Corrigé de façon strictement minimale (un seul terme ajouté à l'`ORDER BY`, aucun
+autre changement) :
+
+```sql
+order by (model is null), effective_from desc limit 1
+```
+
+`(model is null)` est un booléen jamais `NULL` (le prédicat `IS NULL` vaut toujours vrai/faux) : `false`
+(ligne à modèle exact) trie toujours avant `true` (ligne générique), quelle que soit la date. `effective_from`
+reste le seul départage, mais désormais strictement **à l'intérieur** de chaque palier (exact-contre-exact,
+ou générique-contre-générique), jamais entre les deux. Chaque composant (`unit_type`) d'un même appel
+continue d'être résolu indépendamment (conception déjà existante depuis la migration 009, aucune nouvelle
+abstraction) : un appel peut légitimement résoudre l'entrée via un tarif exact et la sortie via un
+fallback générique, dans le même appel. Brave n'est pas affecté (aucune collision exact/générique
+n'existe pour ce fournisseur). Le fail-closed multi-composants (`if not found then return null`,
+abandonnant tout total déjà accumulé) est inchangé.
+
+Ce correctif s'est révélé nécessaire en pratique, pas seulement théorique : le test DB de version de
+tarif déjà existant (P/Q, migration 009) laisse une ligne générique active
+`(anthropic, offer_analysis, input_tokens_1k, model=null, prix=900)` avec un `effective_from` postérieur
+à celui de `claude-sonnet-5`. Sans ce correctif, le test de calcul 2000/500 → 9000 micros échouerait
+réellement (résultat observé : 6800, la ligne générique plus récente écrasant le tarif exact) — vérifié
+empiriquement en désactivant temporairement le correctif pendant le développement de ce bloc.
+
 ### UI minimale — Compte → Clé API Anthropic
 
 Un nouveau bouton **« Clé API Anthropic »** dans la modale Compte (`app/page.tsx`, gardé par

@@ -7,6 +7,8 @@ import {BraveProvider} from './providers/brave.ts';
 import {safeFetch} from './safe-fetch.ts';
 import {DiscoveryInputSchema} from './types.ts';
 import {requireActiveEntitlement} from '../server/entitlement.ts';
+import {recordApiUsage} from '../server/usage.ts';
+import {computeRunCostMetrics} from './cost-metrics.ts';
 const uuid=z.string().uuid();
 const json=(data:unknown,status=200)=>Response.json(data,{status,headers:{'Cache-Control':'no-store'}});
 const log=(event:Record<string,string|number|null>)=>console.info(JSON.stringify({component:'discovery',...event}));
@@ -22,10 +24,15 @@ export async function handleDiscovery(request:Request,path:string[],body:unknown
  const repo=new SupabaseDiscoveryRepository(db);
  if(resource==='discovery-config'&&method==='GET')return json({providers:[{id:'fixture',available:true,mode:'test',label:'TEST — entreprises synthétiques'},{id:'brave',available:!!process.env.BRAVE_SEARCH_API_KEY,mode:'live',label:'Brave Search API'}],website_policy:'Domaines autorisés par l’opérateur et robots.txt vérifié',max_results_transport:100});
  if(resource==='projects'&&action==='discovery'&&method==='POST'){
- uuid.parse(id);const input=DiscoveryInputSchema.parse({...z.record(z.string(),z.unknown()).parse(body),project_id:id});const name=input.optional_filters.provider??'fixture';const provider=name==='brave'?new BraveProvider(process.env.BRAVE_SEARCH_API_KEY??''):new FixtureProvider();return json(await new DiscoveryService(repo,provider,log).find_prospects(input),201);
+ uuid.parse(id);const input=DiscoveryInputSchema.parse({...z.record(z.string(),z.unknown()).parse(body),project_id:id});const name=input.optional_filters.provider??'fixture';const provider=name==='brave'?new BraveProvider(process.env.BRAVE_SEARCH_API_KEY??''):new FixtureProvider();
+ const result=await new DiscoveryService(repo,provider,log).find_prospects(input);
+ // Real Brave call that just happened: exactly one billed search request. Never written for the
+ // fixture/TEST provider — a synthetic run must never leave a real-looking cost trace.
+ if(name==='brave'){const run=result as unknown as {id:string;organization_id:string};try{await recordApiUsage({organizationId:run.organization_id,projectId:id,discoveryRunId:run.id,userId:user.id,provider:'brave',operation:'search',requestCount:1})}catch{/* Cost-ledger visibility is best-effort; the search itself already succeeded. */}}
+ return json(result,201);
  }
  if(resource==='discovery-runs'&&method==='GET'){
- uuid.parse(id);const run=await checked(db.from('discovery_runs').select('*').eq('id',id).single());if(action==='results')return json(await checked(db.from('discovery_results').select('*').eq('discovery_run_id',run.id).order('created_at')));if(!action)return json(run);
+ uuid.parse(id);const run=await checked(db.from('discovery_runs').select('*').eq('id',id).single());if(action==='results')return json(await checked(db.from('discovery_results').select('*').eq('discovery_run_id',run.id).order('created_at')));if(action==='cost')return json(await computeRunCostMetrics(db,run.id));if(!action)return json(run);
  }
  if(resource==='discovery-results'&&method==='POST'){
  uuid.parse(id);if(action==='accept'){const b=z.object({force_separate:z.boolean().default(false)}).strict().parse(body);return json(await checked(db.rpc('accept_discovery_result',{p_result_id:id,p_force_separate:b.force_separate})));}

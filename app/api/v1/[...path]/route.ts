@@ -8,6 +8,8 @@ import {checked as checkedRpc} from '../../../../src/discovery/repository';
 import {CriterionContextSchema} from '../../../../src/discovery/types';
 import {requireActiveEntitlement} from '../../../../src/server/entitlement';
 import {buildAccountExportZip,anonymizeAuthUser} from '../../../../src/server/account';
+import {recordApiUsage} from '../../../../src/server/usage';
+import {saveProviderCredential,listProviderCredentials,deleteProviderCredential} from '../../../../src/server/byok';
 import {DEFAULT_CRITERIA,STATUSES,OUTREACH_STATUSES,validateCriteria,generateOutreach,scoreProspect,csv,safeLink} from '../../../../src/domain/core';
 export const runtime='nodejs';
 export const maxDuration=60;
@@ -109,11 +111,36 @@ async function handler(request:Request,context:{params:Promise<{path:string[]}>}
  // provider ever run, then consumes the quota BEFORE calling the provider, never after — fail-closed
  // by construction at every step (invalid id, quota exceeded, not a member, or the check itself
  // failing all stop here, before any cost is incurred).
- return json(await analyzeCompanyGuarded(
+ const {usage,...analysis}=await analyzeCompanyGuarded(
   body.project_id,
   (projectId)=>checkedRpc(db.rpc('consume_ai_offer_quota',{p_project_id:projectId})),
   ()=>analyzeOffer(body.text),
- ));
+ );
+ // Best-effort cost-ledger write for the real LLM call that just happened — never allowed to turn an
+ // already-successful (and already billed) analysis into a failed response for the user.
+ if(usage.input_tokens||usage.output_tokens){try{
+ const project=await checked(db.from('projects').select('organization_id').eq('id',body.project_id).single());
+ await recordApiUsage({organizationId:project.organization_id,projectId:body.project_id,userId:user.id,provider:usage.provider as 'anthropic'|'openai',operation:'offer_analysis',model:usage.model,inputTokens:usage.input_tokens,outputTokens:usage.output_tokens});
+ }catch{/* Cost-ledger visibility is best-effort; the analysis itself already succeeded. */}}
+ return json(analysis);
+ }
+ if(resource==='provider-credentials'){
+ // BYOK architecture surface (foundation only — no provider is actually routed through a BYOK key
+ // yet, see docs/COST_METERING.md). Every mutation goes through a SECURITY DEFINER RPC that itself
+ // requires the caller to be an OWNER of the target organization — never trusted from the request
+ // beyond that check. The plaintext API key is encrypted here, in this request's memory, before
+ // save_provider_credential ever sees it; it is never read back (list/GET only ever returns
+ // provider/key_last4/created_at/updated_at).
+ const organizationId=z.string().uuid().parse(id);
+ if(request.method==='GET')return json(await listProviderCredentials(db,organizationId));
+ if(request.method==='POST'){
+ const b=z.object({provider:z.enum(['brave','anthropic','openai']),api_key:z.string().min(8).max(500)}).strict().parse(body);
+ return json(await saveProviderCredential(db,organizationId,b.provider,b.api_key),201);
+ }
+ if(request.method==='DELETE'){
+ const b=z.object({provider:z.enum(['brave','anthropic','openai'])}).strict().parse(body);
+ await deleteProviderCredential(db,organizationId,b.provider);return json({deleted:true});
+ }
  }
  if(resource==='account'){
  if(request.method==='GET'&&!id){

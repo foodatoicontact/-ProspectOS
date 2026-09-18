@@ -42,13 +42,24 @@ export function scoreProspect(criteria:Criterion[],evidence:Evidence[],now=new D
  });
  return {score:Math.round(breakdown.reduce((s,b)=>s+b.points,0)),coverage:Math.round(breakdown.filter(b=>['TRUE','FALSE'].includes(b.state)).reduce((s,b)=>s+b.weight,0)),breakdown};
 }
+// Truncates at a word boundary — never mid-word — so a long excerpt stays a short, readable quote
+// instead of an unreadable wall of text. Pure truncation, never a summary: it cannot add meaning.
+function truncateExcerpt(text:string,max=220):string{const t=text.length<=max?text:text.slice(0,max).replace(/\s+\S*$/,'')+'…';return t.replace(/[.!?]+$/,'')}
 export function generateOutreach(name:string,offer:string,criteria:Criterion[],evidence:Evidence[],now=new Date()){
- const s=scoreProspect(criteria,evidence,now);const known=(key:string)=>s.breakdown.find(b=>b.key===key&&b.state==='TRUE');
- let hook='Je me permets de vous contacter au sujet de votre activité.';let chosen:ReturnType<typeof known>;
- if((chosen=known('phone_orders')))hook='Votre site indique que vous prenez des commandes par téléphone.';
- else if((chosen=known('platforms')))hook='Votre page mentionne votre présence sur des plateformes de livraison.';
- else if((chosen=known('social_orders')))hook='Votre page propose de commander via vos réseaux sociaux.';
- if(!chosen){const generic=s.breakdown.find(b=>b.state==='TRUE');if(generic){chosen=generic;hook=`J’ai relevé un signal pertinent concernant « ${generic.label} » dans vos informations publiques.`}}
+ const s=scoreProspect(criteria,evidence,now);
+ // The highest-weight satisfied criterion of THIS project's own ICP — never a hardcoded per-sector
+ // key (no "phone_orders"/"platforms" special-casing): the same engine must read a Foodatoi ICP, a
+ // SaaS ICP or any other one identically, since only the user's own weights express priority here.
+ const chosen=[...s.breakdown].filter(b=>b.state==='TRUE').sort((a,b)=>b.weight-a.weight)[0];
+ const provingEvidence=chosen?evidence.find(e=>e.id===chosen.evidence_ids[0]):undefined;
+ // The excerpt is the ONLY thing ever quoted as a fact — never the criterion's key or label (an
+ // internal modeling term the prospect must never see, e.g. "Signal commercial observable" or
+ // "RECRUITING_SIGNAL"). Quoting the human-verified source text verbatim, rather than attempting a
+ // free paraphrase, guarantees by construction that nothing is added beyond what was actually
+ // observed and confirmed — natural without ever risking an invented nuance.
+ const hook=provingEvidence
+  ?`j’ai remarqué ceci sur votre site : « ${truncateExcerpt(provingEvidence.excerpt.trim())} ».`
+  :'je me permets de vous contacter au sujet de votre activité.';
  const value=offer.trim()||'Je souhaite vous présenter notre offre et vérifier si elle correspond à vos besoins.';
  const text=`Bonjour l’équipe ${name}, ${hook} ${value} Seriez-vous ouvert à un court échange ?`;
  return {text,evidence_ids:chosen?.evidence_ids??[],mode:'Modèle factuel',generated_at:now.toISOString()};

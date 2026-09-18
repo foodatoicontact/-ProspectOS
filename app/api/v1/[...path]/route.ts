@@ -66,9 +66,19 @@ async function handler(request:Request,context:{params:Promise<{path:string[]}>}
  const draft=generateOutreach(p.name,project.offer,projectCriteria(project.icps),p.evidence);
  // At most one live DRAFT per prospect: a regeneration supersedes the previous one instead of
  // leaving an ambiguous pile of undecided drafts. Already-decided rows (APPROVED/USED/DISCARDED)
- // are historical record and are never touched here.
+ // are historical record and are never touched here. The invariant itself is enforced by a partial
+ // unique index (migration 007), not by this discard-then-insert sequence alone: two concurrent
+ // generations can still both reach the insert below, but only one can ever succeed.
  await checked(db.from('outreach').update({status:'DISCARDED'}).eq('prospect_id',p.id).eq('organization_id',p.organization_id).eq('status','DRAFT'));
- const row=await checked(db.from('outreach').insert({organization_id:p.organization_id,prospect_id:p.id,content:draft.text,evidence_ids:draft.evidence_ids,provider:'rule_based_v1'}).select('id,status,created_at').single());
+ const {data:row,error:insertError}=await db.from('outreach').insert({organization_id:p.organization_id,prospect_id:p.id,content:draft.text,evidence_ids:draft.evidence_ids,provider:'rule_based_v1'}).select('id,status,created_at').single();
+ if(insertError){
+ // 23505 = unique_violation: a concurrent generation for the same prospect won the race and its
+ // DRAFT is now the live one. This is expected under concurrency, never a raw DB exception — the
+ // loser is told plainly to retry, and retrying immediately succeeds (it discards the winner's
+ // DRAFT first, exactly like any other regeneration).
+ if(insertError.code==='23505')return json({error:'Une autre génération est en cours pour ce prospect. Réessayez.'},409);
+ throw Error('DATABASE_REQUEST_FAILED');
+ }
  return json({...draft,id:row.id,status:row.status,created_at:row.created_at},201);
  }
  if(resource==='outreach'&&request.method==='PATCH'&&id){
@@ -82,7 +92,11 @@ async function handler(request:Request,context:{params:Promise<{path:string[]}>}
  if(typeof body.content!=='string'||!body.content.trim()||body.content.length>4000)return json({error:'Contenu de brouillon invalide'},400);
  patch.content=body.content;
  }
- return json(await checked(db.from('outreach').update(patch).eq('id',id).select().single()));
+ // USED/DISCARDED are terminal: only a row currently DRAFT or APPROVED can still be patched. A row
+ // that has already moved past that point matches nothing here (0 rows -> the same generic error as
+ // any other not-found/wrong-tenant case below) — enforced again, independently, by the
+ // outreach_guard DB trigger (migration 007), so this never depends on the API check alone.
+ return json(await checked(db.from('outreach').update(patch).eq('id',id).in('status',['DRAFT','APPROVED']).select().single()));
  }
  if(resource==='events'&&request.method==='GET'){const pid=new URL(request.url).searchParams.get('prospect_id');return json(await checked(db.from('events').select('*').eq('prospect_id',pid??'').order('created_at',{ascending:false}).limit(100)))}
  if(resource==='analyze-company'&&request.method==='POST'){

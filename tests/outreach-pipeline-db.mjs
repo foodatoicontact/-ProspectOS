@@ -9,6 +9,7 @@ import { PGlite } from '@electric-sql/pglite';
 const db = new PGlite();
 const schema = await readFile(new URL('../db/schema.sql', import.meta.url), 'utf8');
 const migrationOutreach = await readFile(new URL('../db/migrations/006_outreach_pipeline.sql', import.meta.url), 'utf8');
+const migrationHardening = await readFile(new URL('../db/migrations/007_outreach_pipeline_hardening.sql', import.meta.url), 'utf8');
 
 async function sql(text, params = []) { return db.query(text, params); }
 async function as(user, text, params = []) {
@@ -35,8 +36,14 @@ try {
   `);
   await db.exec(schema);
   await db.exec(migrationOutreach);
-  // Idempotence: re-applying the migration must not fail and must not change the effective rules.
+  await db.exec(migrationHardening);
+  // Idempotence: re-applying both migrations must not fail and must not change the effective rules.
   await db.exec(migrationOutreach);
+  await db.exec(migrationHardening);
+  const guardTriggerCount = (await sql(`select count(*)::int n from pg_trigger where tgrelid='public.outreach'::regclass and tgname='outreach_guard'`)).rows[0].n;
+  assert.equal(guardTriggerCount,1,'re-applying migration 007 does not duplicate the outreach_guard trigger');
+  const draftIndexCount = (await sql(`select count(*)::int n from pg_indexes where tablename='outreach' and indexname='outreach_one_draft_per_prospect'`)).rows[0].n;
+  assert.equal(draftIndexCount,1,'re-applying migration 007 does not duplicate the partial unique index');
 
   const A = '00000000-0000-4000-8000-000000000001';
   const B = '00000000-0000-4000-8000-000000000002';
@@ -123,7 +130,104 @@ try {
   const crossProspectUpdate = await as(B, `update public.prospects set status='Contacté' where id=$1`, [prospectA]);
   assert.equal(crossProspectUpdate.affectedRows ?? 0,0,'B cannot modify A\'s prospect');
 
-  console.log('PASS: outreach draft lifecycle (DRAFT/USED), traceability via the shared events trigger, copy-is-not-contacted, additive pipeline statuses, and multi-tenant isolation');
+  // ============================================================
+  // M1 — at most one live DRAFT per prospect, enforced by a partial unique index (migration 007),
+  // not by the discard-then-insert application sequence alone.
+  // ============================================================
+  const raceProspect = '40000000-0000-4000-8000-000000000003';
+  await as(A, `insert into public.prospects(id,organization_id,project_id,name) values ($1,$2,$3,'Race prospect')`, [raceProspect,OA,PA]);
+
+  // 1/2 — two concurrent generations for the same prospect: simulate the exact interleaving two
+  // simultaneous "Préparer le message" requests would produce (each request is its own
+  // discard-then-insert, run as two independent statements/transactions, never one atomic unit).
+  const raceDraft1 = '60000000-0000-4000-8000-000000000001';
+  const raceDraft2 = '60000000-0000-4000-8000-000000000002';
+  await sql(`update public.outreach set status='DISCARDED' where prospect_id=$1 and organization_id=$2 and status='DRAFT'`, [raceProspect, OA]); // request 1 discard (no-op, nothing yet)
+  await sql(`update public.outreach set status='DISCARDED' where prospect_id=$1 and organization_id=$2 and status='DRAFT'`, [raceProspect, OA]); // request 2 discard, races ahead of request 1's insert
+  await as(A, `insert into public.outreach(id,organization_id,prospect_id,content,evidence_ids) values ($1,$2,$3,'request 1 draft','[]'::jsonb)`, [raceDraft1, OA, raceProspect]); // request 1 insert: wins
+  await rejects(
+    as(A, `insert into public.outreach(id,organization_id,prospect_id,content,evidence_ids) values ($1,$2,$3,'request 2 draft','[]'::jsonb)`, [raceDraft2, OA, raceProspect]),
+    /duplicate key|unique/i
+  ); // request 2 insert: the exact race the previous red-team proved — now rejected by the DB, a clean unique_violation, never a silent second DRAFT
+  const liveDraftsAfterRace = (await sql(`select id from public.outreach where prospect_id=$1 and status='DRAFT'`, [raceProspect])).rows;
+  assert.equal(liveDraftsAfterRace.length, 1, 'never more than one live DRAFT for the same prospect, even under a raced discard-then-insert');
+  assert.equal(liveDraftsAfterRace[0].id, raceDraft1);
+
+  // The loser's retry (exactly what route.ts's caller is expected to do on a 409) succeeds cleanly:
+  // discard the current DRAFT, then insert — no leftover row, no data loss.
+  await sql(`update public.outreach set status='DISCARDED' where prospect_id=$1 and organization_id=$2 and status='DRAFT'`, [raceProspect, OA]);
+  await as(A, `insert into public.outreach(id,organization_id,prospect_id,content,evidence_ids) values ($1,$2,$3,'request 2 retry draft','[]'::jsonb)`, [raceDraft2, OA, raceProspect]);
+  const afterRetry = (await sql(`select id,status from public.outreach where prospect_id=$1 order by created_at`, [raceProspect])).rows;
+  assert.deepEqual(afterRetry.map(r=>r.status), ['DISCARDED','DRAFT'], '2 — the superseded draft becomes DISCARDED, never deleted');
+  assert.equal(afterRetry.length, 2, '5 — both rows still exist: history is never destroyed by the race or the retry');
+
+  // 3/4 — a regeneration (the same discard-then-insert route.ts runs) must never touch an existing
+  // USED or APPROVED row for the same prospect: it only ever discards rows currently DRAFT.
+  const usedEarlierId = '60000000-0000-4000-8000-000000000006';
+  await as(A, `insert into public.outreach(id,organization_id,prospect_id,content,evidence_ids,status) values ($1,$2,$3,'used earlier','[]'::jsonb,'USED')`, [usedEarlierId, OA, raceProspect]);
+  const approvedId = '60000000-0000-4000-8000-000000000003';
+  await as(A, `insert into public.outreach(id,organization_id,prospect_id,content,evidence_ids,status) values ($1,$2,$3,'approved earlier','[]'::jsonb,'APPROVED')`, [approvedId, OA, raceProspect]);
+  // A fresh regeneration for this prospect: discard current DRAFT (raceDraft2), insert a new one.
+  await sql(`update public.outreach set status='DISCARDED' where prospect_id=$1 and organization_id=$2 and status='DRAFT'`, [raceProspect, OA]);
+  const raceDraft3 = '60000000-0000-4000-8000-000000000004';
+  await as(A, `insert into public.outreach(id,organization_id,prospect_id,content,evidence_ids) values ($1,$2,$3,'request 3 draft','[]'::jsonb)`, [raceDraft3, OA, raceProspect]);
+  const statusesAfterRegen = Object.fromEntries((await sql(`select id,status from public.outreach where prospect_id=$1`, [raceProspect])).rows.map(r=>[r.id,r.status]));
+  assert.equal(statusesAfterRegen[usedEarlierId], 'USED', '3 — a USED draft is left untouched by a later regeneration');
+  assert.equal(statusesAfterRegen[approvedId], 'APPROVED', '4 — an APPROVED draft is left untouched by a later regeneration');
+  assert.equal(statusesAfterRegen[raceDraft2], 'DISCARDED');
+  assert.equal(statusesAfterRegen[raceDraft3], 'DRAFT');
+
+  // 6 — the constraint (index) itself survives being re-applied without duplication (already asserted
+  // above at load time; re-confirmed here after real traffic has flowed through the table).
+  await db.exec(migrationHardening);
+  const guardTriggerCountAfterTraffic = (await sql(`select count(*)::int n from pg_trigger where tgrelid='public.outreach'::regclass and tgname='outreach_guard'`)).rows[0].n;
+  assert.equal(guardTriggerCountAfterTraffic, 1, '6 — the migration stays idempotent after real rows/traffic exist, not just on an empty table');
+
+  // ============================================================
+  // M2 — USED and DISCARDED are terminal: neither status nor content can change again, enforced
+  // independently by the DB trigger (outreach_guard) regardless of any API-level check.
+  // ============================================================
+  const usedRow = usedEarlierId; // already USED from above
+  const discardedRow = raceDraft2; // already DISCARDED from above
+  const draftRow = raceDraft3; // still DRAFT
+
+  // 7/8 — content or status patch on a USED row is rejected.
+  await rejects(as(A, `update public.outreach set content='hacked after use' where id=$1`, [usedRow]), /immutable/i);
+  await rejects(as(A, `update public.outreach set status='DISCARDED' where id=$1`, [usedRow]), /immutable/i);
+  let usedAfter = (await sql(`select status,content from public.outreach where id=$1`,[usedRow])).rows[0];
+  assert.equal(usedAfter.status, 'USED');
+  assert.notEqual(usedAfter.content, 'hacked after use');
+
+  // 9/10 — content or status patch on a DISCARDED row is rejected.
+  await rejects(as(A, `update public.outreach set content='hacked after discard' where id=$1`, [discardedRow]), /immutable/i);
+  await rejects(as(A, `update public.outreach set status='USED' where id=$1`, [discardedRow]), /immutable/i);
+  let discardedAfter = (await sql(`select status,content from public.outreach where id=$1`,[discardedRow])).rows[0];
+  assert.equal(discardedAfter.status, 'DISCARDED');
+  assert.notEqual(discardedAfter.content, 'hacked after discard');
+
+  // 11/12/13 — a DRAFT row stays fully mutable: content editable, and can still reach USED or
+  // DISCARDED (the transitions the product actually uses).
+  await as(A, `update public.outreach set content='edited while still draft' where id=$1`, [draftRow]);
+  assert.equal((await sql(`select content from public.outreach where id=$1`,[draftRow])).rows[0].content, 'edited while still draft', '11 — DRAFT content is modifiable');
+  await as(A, `update public.outreach set status='USED' where id=$1`, [draftRow]);
+  assert.equal((await sql(`select status from public.outreach where id=$1`,[draftRow])).rows[0].status, 'USED', '12 — DRAFT -> USED is allowed');
+  await rejects(as(A, `update public.outreach set content='too late now' where id=$1`, [draftRow]), /immutable/i); // now terminal itself
+
+  const discardableDraft = '60000000-0000-4000-8000-000000000005';
+  await as(A, `insert into public.outreach(id,organization_id,prospect_id,content,evidence_ids) values ($1,$2,$3,'to be discarded','[]'::jsonb)`, [discardableDraft, OA, raceProspect]);
+  await as(A, `update public.outreach set status='DISCARDED' where id=$1`, [discardableDraft]);
+  assert.equal((await sql(`select status from public.outreach where id=$1`,[discardableDraft])).rows[0].status, 'DISCARDED', '13 — DRAFT -> DISCARDED is allowed');
+
+  // 14 — cross-tenant remains blocked exactly as before these two fixes (RLS is untouched by
+  // migration 007; the new trigger/index add restrictions, they never relax RLS).
+  const crossReadAfterHardening = await as(B, `select * from public.outreach where id=$1`, [usedRow]);
+  assert.equal(crossReadAfterHardening.rows.length, 0, '14 — B still cannot read A\'s outreach rows');
+  const crossUpdateAfterHardening = await as(B, `update public.outreach set content='cross-tenant' where id=$1`, [draftRow]);
+  assert.equal(crossUpdateAfterHardening.affectedRows ?? 0, 0, '14 — B still cannot update A\'s outreach rows');
+  await rejects(as(B, `insert into public.outreach(organization_id,prospect_id,content,evidence_ids) values ($1,$2,'cross-tenant insert','[]'::jsonb)`, [OB, raceProspect]),
+    /foreign key/i);
+
+  console.log('PASS: outreach draft lifecycle (DRAFT/USED), traceability via the shared events trigger, copy-is-not-contacted, additive pipeline statuses, multi-tenant isolation, single-live-DRAFT under a race (M1), and USED/DISCARDED terminality (M2)');
 } finally {
   await db.close();
 }

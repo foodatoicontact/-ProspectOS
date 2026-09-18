@@ -14,7 +14,8 @@
     "test:ai-quota-db": "node tests/ai-quota-db.mjs",
     "test:outreach-db": "node tests/outreach-pipeline-db.mjs",
     "test:account-db": "node tests/account-privacy-beta-db.mjs",
-    "test:all": "npm test && npm run test:db && npm run test:discovery-db && npm run test:ai-quota-db && npm run test:outreach-db && npm run test:account-db && npm run typecheck"
+    "test:cost-byok-db": "node tests/discovery-cost-byok-db.mjs",
+    "test:all": "npm test && npm run test:db && npm run test:discovery-db && npm run test:ai-quota-db && npm run test:outreach-db && npm run test:account-db && npm run test:cost-byok-db && npm run typecheck"
   },
   "dependencies": {
     "@supabase/supabase-js": "2.116.0",

@@ -15,7 +15,7 @@ begin;
 -- or forge a cost record. `api_usage_events_immutable` additionally makes every row immutable at the
 -- trigger level (fires for every role, service-role included), exactly like `events`/event_immutable:
 -- a future pricing change can never rewrite a past event's frozen estimated_cost_micros/pricing_version.
-create table public.api_usage_events (
+create table if not exists public.api_usage_events (
  id uuid primary key default gen_random_uuid(),
  organization_id uuid not null references public.organizations(id),
  project_id uuid,
@@ -38,12 +38,14 @@ create table public.api_usage_events (
  foreign key(project_id,organization_id) references public.projects(id,organization_id),
  foreign key(discovery_run_id,project_id,organization_id) references public.discovery_runs(id,project_id,organization_id)
 );
-create index api_usage_events_tenant_idx on public.api_usage_events(organization_id,created_at desc);
-create index api_usage_events_run_idx on public.api_usage_events(discovery_run_id) where discovery_run_id is not null;
+create index if not exists api_usage_events_tenant_idx on public.api_usage_events(organization_id,created_at desc);
+create index if not exists api_usage_events_run_idx on public.api_usage_events(discovery_run_id) where discovery_run_id is not null;
 alter table public.api_usage_events enable row level security;
+drop policy if exists api_usage_events_read on public.api_usage_events;
 create policy api_usage_events_read on public.api_usage_events for select to authenticated using(prospectos_private.is_member(organization_id));
 revoke all on public.api_usage_events from public,anon,authenticated;
 grant select on public.api_usage_events to authenticated;
+drop trigger if exists api_usage_events_immutable on public.api_usage_events;
 create trigger api_usage_events_immutable before update or delete on public.api_usage_events
  for each row execute function prospectos_private.deny_event_mutation();
 
@@ -56,7 +58,7 @@ create trigger api_usage_events_immutable before update or delete on public.api_
 -- never a guess. A tariff change never rewrites history: insert a new row with a new `version` and
 -- effective_from, optionally close the old one's effective_to — never UPDATE price_per_unit_micros on
 -- an existing row.
-create table prospectos_private.provider_pricing (
+create table if not exists prospectos_private.provider_pricing (
  id uuid primary key default gen_random_uuid(),
  provider text not null check(provider in ('brave','anthropic','openai')),
  operation text not null check(operation in ('search','offer_analysis')),
@@ -70,7 +72,7 @@ create table prospectos_private.provider_pricing (
  created_at timestamptz not null default now(),
  check(effective_to is null or effective_to > effective_from)
 );
-create index provider_pricing_lookup_idx on prospectos_private.provider_pricing(provider,operation,unit_type,effective_from desc);
+create index if not exists provider_pricing_lookup_idx on prospectos_private.provider_pricing(provider,operation,unit_type,effective_from desc);
 revoke all on prospectos_private.provider_pricing from public,anon,authenticated;
 
 -- The ONLY way to read pricing at all (prospectos_private is never exposed to PostgREST, by design —
@@ -82,7 +84,7 @@ revoke all on prospectos_private.provider_pricing from public,anon,authenticated
 -- rest of the cost-metering surface: only server-side trusted code, via the service-role client, ever
 -- calls this) — service_role keeps EXECUTE by default here exactly as it already does on
 -- grant_beta_access, since only public/anon/authenticated are revoked below.
-create function public.resolve_provider_cost(p_provider text,p_operation text,p_model text,p_quantities jsonb) returns jsonb
+create or replace function public.resolve_provider_cost(p_provider text,p_operation text,p_model text,p_quantities jsonb) returns jsonb
 language plpgsql security definer set search_path='' as $$
 declare q jsonb; total bigint:=0; versions text[]:=array[]::text[]; found_price bigint; found_version text; any_priced boolean:=false;
 begin
@@ -110,7 +112,7 @@ revoke all on function public.resolve_provider_cost(text,text,text,jsonb) from p
 -- (satisfies "never store in clear" and "never return after saving" directly at the schema level, not
 -- just by convention). Encryption/decryption itself happens exclusively in src/server/crypto.ts
 -- (AES-256-GCM, server-only master key) — this table only ever stores already-encrypted bytes.
-create table public.provider_credentials (
+create table if not exists public.provider_credentials (
  id uuid primary key default gen_random_uuid(),
  organization_id uuid not null references public.organizations(id),
  provider text not null check(provider in ('brave','anthropic','openai')),
@@ -129,7 +131,7 @@ revoke all on public.provider_credentials from public,anon,authenticated;
 -- Requires the acting user to be an OWNER of the organization (not just a member): a BYOK credential
 -- changes which API key bills the whole organization's usage of that provider, which is an
 -- organization-level decision, mirroring the existing owner-only bar on transfer_organization_ownership.
-create function prospectos_private.require_owner(tenant uuid) returns void language plpgsql security definer set search_path='' as $$
+create or replace function prospectos_private.require_owner(tenant uuid) returns void language plpgsql security definer set search_path='' as $$
 begin
  if auth.uid() is null or not exists(select 1 from public.memberships where organization_id=tenant and user_id=auth.uid() and role='owner') then
   raise exception 'Organization owner required' using errcode='42501';
@@ -137,7 +139,7 @@ begin
 end $$;
 revoke all on function prospectos_private.require_owner(uuid) from public,anon,authenticated;
 
-create function public.save_provider_credential(p_organization_id uuid,p_provider text,p_encrypted_secret bytea,p_iv bytea,p_auth_tag bytea,p_key_last4 text) returns jsonb
+create or replace function public.save_provider_credential(p_organization_id uuid,p_provider text,p_encrypted_secret bytea,p_iv bytea,p_auth_tag bytea,p_key_last4 text) returns jsonb
 language plpgsql security definer set search_path='' as $$
 declare row public.provider_credentials;
 begin
@@ -152,7 +154,7 @@ end $$;
 revoke all on function public.save_provider_credential(uuid,text,bytea,bytea,bytea,text) from public,anon;
 grant execute on function public.save_provider_credential(uuid,text,bytea,bytea,bytea,text) to authenticated;
 
-create function public.list_provider_credentials(p_organization_id uuid) returns jsonb
+create or replace function public.list_provider_credentials(p_organization_id uuid) returns jsonb
 language plpgsql security definer set search_path='' as $$
 declare tenant_ok boolean;
 begin
@@ -164,7 +166,7 @@ end $$;
 revoke all on function public.list_provider_credentials(uuid) from public,anon;
 grant execute on function public.list_provider_credentials(uuid) to authenticated;
 
-create function public.delete_provider_credential(p_organization_id uuid,p_provider text) returns void
+create or replace function public.delete_provider_credential(p_organization_id uuid,p_provider text) returns void
 language plpgsql security definer set search_path='' as $$
 begin
  perform prospectos_private.require_owner(p_organization_id);

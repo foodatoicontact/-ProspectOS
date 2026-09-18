@@ -33,15 +33,30 @@ export async function deleteProviderCredential(db:SupabaseClient,organizationId:
  if(error)throw Error('DATABASE_REQUEST_FAILED');
 }
 
-// Routing skeleton for section 12 of the brief: NOT wired into BraveProvider/analyzeOffer in this
-// bloc (no BYOK provider is actually activated yet — see the delivery report). Reads the raw encrypted
-// row directly, which requires the admin/service-role client: provider_credentials has zero grants and
-// zero RLS policies for any client role (migration 009) — not even the organization's own members can
-// SELECT it directly, only through list_provider_credentials' redacted summary. Decrypts in memory,
-// immediately before the value would be handed to a provider call — never cached, never logged.
-export async function resolveProviderCredential(organizationId:string,provider:ByokProvider):Promise<string|null> {
+// Three-state resolution — deliberately NOT collapsed to string|null (4A.3.1 hardening). NONE and
+// INVALID must never be confused by a caller: NONE means "no BYOK credential exists, a platform-key
+// fallback is a legitimate choice"; INVALID means "one exists but cannot be trusted/used" (corrupted
+// ciphertext/iv/tag, wrong BYOK_MASTER_KEY, malformed stored bytea, any other cryptographic failure) —
+// silently substituting the platform key here would mean a broken BYOK setup quietly shifts cost onto
+// the platform's own key, an invisible and unauthorized billing change. A caller MUST fail closed (no
+// provider call at all) on INVALID, never fall back.
+export type CredentialResolution={status:'NONE'}|{status:'VALID';apiKey:string}|{status:'INVALID'};
+
+// Reads the raw encrypted row directly, which requires the admin/service-role client:
+// provider_credentials has zero grants and zero RLS policies for any client role (migration 009) — not
+// even the organization's own members can SELECT it directly, only through list_provider_credentials'
+// redacted summary. Decrypts in memory, immediately before the value would be handed to a provider
+// call — never cached, never logged. The raw crypto exception (which could vary by failure mode but
+// never contains the plaintext key, ciphertext, iv or tag in its message) is deliberately swallowed
+// here and never returned/rethrown with its original detail — only the fact that it failed.
+export async function resolveProviderCredential(organizationId:string,provider:ByokProvider):Promise<CredentialResolution> {
  const admin=createAdminClient();
  const {data,error}=await admin.from('provider_credentials').select('encrypted_secret,iv,auth_tag').eq('organization_id',organizationId).eq('provider',provider).maybeSingle();
- if(error||!data)return null;
- return decryptSecret({ciphertext:fromBytea(data.encrypted_secret),iv:fromBytea(data.iv),authTag:fromBytea(data.auth_tag)});
+ if(error||!data)return {status:'NONE'};
+ try {
+  const apiKey=decryptSecret({ciphertext:fromBytea(data.encrypted_secret),iv:fromBytea(data.iv),authTag:fromBytea(data.auth_tag)});
+  return {status:'VALID',apiKey};
+ } catch {
+  return {status:'INVALID'};
+ }
 }

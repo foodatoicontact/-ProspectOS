@@ -157,7 +157,7 @@ test('E — saveProviderCredential never sends the plaintext API key to the RPC,
  assert.match(String(params.p_auth_tag),/^\\x[0-9a-f]+$/);
 });
 
-test('E — CRITICAL: resolveProviderCredential decrypts the exact \\x-hex bytea shape a real PostgREST response carries, via real AES-256-GCM, and returns the exact original plaintext',async()=>{
+test('E — CRITICAL: resolveProviderCredential decrypts the exact \\x-hex bytea shape a real PostgREST response carries, via real AES-256-GCM, and returns status VALID with the exact original plaintext',async()=>{
  const {encryptSecret}=await import('../src/server/crypto.ts');
  const secret='sk-ant-api03-a-realistic-anthropic-key-0123456789';
  const encrypted=encryptSecret(secret);
@@ -172,29 +172,84 @@ test('E — CRITICAL: resolveProviderCredential decrypts the exact \\x-hex bytea
  });
  const {resolveProviderCredential}=await import(`../src/server/byok.ts?d=${Date.now()}`);
  const result=await resolveProviderCredential('org-1','anthropic');
- assert.equal(result,secret,'the full save-shape → bytea-hex → decrypt round trip must return the exact original plaintext key');
+ assert.deepEqual(result,{status:'VALID',apiKey:secret},'the full save-shape → bytea-hex → decrypt round trip must return VALID with the exact original plaintext key');
  mock.reset();
 });
 
-test('E — resolveProviderCredential returns null (never throws, never a fabricated key) when no credential row exists',async()=>{
+test('E — resolveProviderCredential returns status NONE (never throws, never a fabricated key) when no credential row exists',async()=>{
  mock.module('../src/server/admin-client.ts',{
   namedExports:{createAdminClient:()=>({
    from:()=>({select:()=>({eq:()=>({eq:()=>({maybeSingle:async()=>({data:null,error:null})})})})}),
   })},
  });
  const {resolveProviderCredential}=await import(`../src/server/byok.ts?d=${Date.now()}`);
- assert.equal(await resolveProviderCredential('org-1','anthropic'),null);
+ assert.deepEqual(await resolveProviderCredential('org-1','anthropic'),{status:'NONE'});
  mock.reset();
 });
 
-test('E — resolveProviderCredential itself propagates a decryption failure (e.g. tampered/corrupted stored ciphertext) — it is the ROUTE call site\'s job to catch it and fall back to the platform key, never this function silently returning null for a real error',async()=>{
- mock.module('../src/server/admin-client.ts',{
+// ------------------------------------------------------------
+// H — 4A.3.1 FAIL-CLOSED HARDENING: NONE / VALID / INVALID must never be confused. A credential row
+// that exists but cannot be decrypted (corrupted ciphertext, wrong iv/tag, wrong BYOK_MASTER_KEY,
+// malformed stored bytea) is INVALID — categorically different from NONE — and resolveProviderCredential
+// must return that status rather than throwing OR collapsing to NONE, so the caller can fail closed
+// instead of silently substituting the platform key.
+// ------------------------------------------------------------
+function mockAdminWithBrokenCredential(row:{encrypted_secret:string;iv:string;auth_tag:string}){
+ return mock.module('../src/server/admin-client.ts',{
   namedExports:{createAdminClient:()=>({
-   from:()=>({select:()=>({eq:()=>({eq:()=>({maybeSingle:async()=>({data:{encrypted_secret:'\\xdeadbeef',iv:'\\x000000000000000000000000',auth_tag:'\\x00000000000000000000000000000000'},error:null})})})})}),
+   from:()=>({select:()=>({eq:()=>({eq:()=>({maybeSingle:async()=>({data:row,error:null})})})})}),
   })},
  });
+}
+
+test('H1 — status INVALID (never NONE, never a throw) when the stored ciphertext/iv/tag cannot be authenticated (tampered ciphertext, real AES-GCM auth failure)',async()=>{
+ const {encryptSecret}=await import('../src/server/crypto.ts');
+ const encrypted=encryptSecret('a-real-looking-key');
+ const toBytea=(buf:Buffer)=>'\\x'+buf.toString('hex');
+ const tampered=Buffer.from(encrypted.ciphertext);tampered[0]^=0xff;
+ mockAdminWithBrokenCredential({encrypted_secret:toBytea(tampered),iv:toBytea(encrypted.iv),auth_tag:toBytea(encrypted.authTag)});
  const {resolveProviderCredential}=await import(`../src/server/byok.ts?d=${Date.now()}`);
- await assert.rejects(resolveProviderCredential('org-1','anthropic'));
+ assert.deepEqual(await resolveProviderCredential('org-1','anthropic'),{status:'INVALID'});
+ mock.reset();
+});
+
+test('H2 — status INVALID when the stored auth tag itself is tampered',async()=>{
+ const {encryptSecret}=await import('../src/server/crypto.ts');
+ const encrypted=encryptSecret('a-real-looking-key');
+ const toBytea=(buf:Buffer)=>'\\x'+buf.toString('hex');
+ const tamperedTag=Buffer.from(encrypted.authTag);tamperedTag[0]^=0xff;
+ mockAdminWithBrokenCredential({encrypted_secret:toBytea(encrypted.ciphertext),iv:toBytea(encrypted.iv),auth_tag:toBytea(tamperedTag)});
+ const {resolveProviderCredential}=await import(`../src/server/byok.ts?d=${Date.now()}`);
+ assert.deepEqual(await resolveProviderCredential('org-1','anthropic'),{status:'INVALID'});
+ mock.reset();
+});
+
+test('H3 — status INVALID when the stored IV has the wrong length (malformed/corrupted row shape)',async()=>{
+ mockAdminWithBrokenCredential({encrypted_secret:'\\xdeadbeef',iv:'\\x0000',auth_tag:'\\x00000000000000000000000000000000'});
+ const {resolveProviderCredential}=await import(`../src/server/byok.ts?d=${Date.now()}`);
+ assert.deepEqual(await resolveProviderCredential('org-1','anthropic'),{status:'INVALID'});
+ mock.reset();
+});
+
+test('H4 — status INVALID when BYOK_MASTER_KEY at read time does not match the key the secret was encrypted under (e.g. rotated/misconfigured master key)',async()=>{
+ const {encryptSecret}=await import('../src/server/crypto.ts');
+ const savedMasterKey=process.env.BYOK_MASTER_KEY;
+ const encrypted=encryptSecret('a-real-looking-key');
+ process.env.BYOK_MASTER_KEY=Buffer.alloc(32,9).toString('base64'); // a DIFFERENT valid-shaped key
+ const toBytea=(buf:Buffer)=>'\\x'+buf.toString('hex');
+ mockAdminWithBrokenCredential({encrypted_secret:toBytea(encrypted.ciphertext),iv:toBytea(encrypted.iv),auth_tag:toBytea(encrypted.authTag)});
+ const {resolveProviderCredential}=await import(`../src/server/byok.ts?d=${Date.now()}`);
+ try{
+  assert.deepEqual(await resolveProviderCredential('org-1','anthropic'),{status:'INVALID'});
+ }finally{process.env.BYOK_MASTER_KEY=savedMasterKey;mock.reset()}
+});
+
+test('H5 — INVALID never leaks the raw crypto exception, ciphertext, iv, tag or plaintext — the status object carries no detail at all',async()=>{
+ mockAdminWithBrokenCredential({encrypted_secret:'\\xdeadbeef',iv:'\\x000000000000000000000000',auth_tag:'\\x00000000000000000000000000000000'});
+ const {resolveProviderCredential}=await import(`../src/server/byok.ts?d=${Date.now()}`);
+ const result=await resolveProviderCredential('org-1','anthropic');
+ assert.deepEqual(result,{status:'INVALID'},'no ciphertext/iv/tag/exception message ever attached to the returned status');
+ assert.equal(Object.keys(result).length,1,'exactly {status}, nothing else — no leaked detail field');
  mock.reset();
 });
 
@@ -208,15 +263,28 @@ const analyzeCompanyBlock=routeSource.match(/if\(resource==='analyze-company'&&r
 
 test('F — analyze-company resolves the BYOK credential only when the platform provider is already anthropic',()=>{
  assert.ok(analyzeCompanyBlock,'analyze-company block not found');
- assert.match(analyzeCompanyBlock,/process\.env\.AI_PROVIDER==='anthropic'\?await resolveProviderCredential/);
+ assert.match(analyzeCompanyBlock,/if\(process\.env\.AI_PROVIDER==='anthropic'\)\{\s*const credential=await resolveProviderCredential/);
 });
 test('F — the resolved credential_source is forwarded to recordApiUsage as billingSource, and stripped out of the client-facing JSON',()=>{
  assert.match(analyzeCompanyBlock,/const \{usage,credential_source,\.\.\.analysis\}=await analyzeCompanyGuarded/,'credential_source is destructured out of the object returned to the client');
  assert.match(analyzeCompanyBlock,/billingSource:credential_source/);
  assert.match(analyzeCompanyBlock,/return json\(analysis\)/,'the public response is built from `analysis` only — never includes credential_source or usage');
 });
-test('F — a BYOK resolution/decryption failure is swallowed to null (falls back to the platform key) rather than ever surfacing to the client',()=>{
- assert.match(analyzeCompanyBlock,/resolveProviderCredential\([^)]*\)\.catch\(\(\)=>null\)/);
+// H6/H7 (4A.3.1) — the route must fail closed on INVALID (throw before ever calling analyzeOffer with
+// any key), and must NEVER blanket-catch resolveProviderCredential's own result into a silent fallback:
+// NONE alone maps to a null override (platform fallback allowed), INVALID throws immediately.
+test('F/H — an INVALID credential throws BYOK_CREDENTIAL_INVALID and analyzeOffer is never called with any key for that branch (no silent platform fallback)',()=>{
+ assert.match(analyzeCompanyBlock,/if\(credential\.status==='INVALID'\)throw Error\('BYOK_CREDENTIAL_INVALID'\)/);
+ // The only analyzeOffer call inside the anthropic branch happens AFTER the INVALID throw, and its
+ // override is derived strictly from credential.status — never an unconditional `.catch(()=>null)`
+ // that would erase the NONE/INVALID distinction.
+ assert.doesNotMatch(analyzeCompanyBlock,/resolveProviderCredential\([^)]*\)\.catch/,'resolveProviderCredential must never be blanket-caught — NONE vs INVALID must reach the branch below undisturbed');
+ assert.match(analyzeCompanyBlock,/analyzeOffer\(body\.text,\{apiKeyOverride:credential\.status==='VALID'\?credential\.apiKey:null\}\)/);
+});
+test('F/H — BYOK_CREDENTIAL_INVALID maps to a generic, non-sensitive HTTP response (503, fixed French message, stable code field) — never a raw crypto exception',()=>{
+ assert.match(routeSource,/code==='BYOK_CREDENTIAL_INVALID'\?503/);
+ assert.match(routeSource,/code==='BYOK_CREDENTIAL_INVALID'\?'Clé Anthropic personnalisée invalide ou illisible\. Remplacez-la dans Compte\.'/);
+ assert.match(routeSource,/code:code==='BETA_ACCESS_EXPIRED'\?'BETA_ACCESS_EXPIRED':code==='BYOK_CREDENTIAL_INVALID'\?'BYOK_CREDENTIAL_INVALID'/);
 });
 
 // ------------------------------------------------------------
@@ -230,4 +298,102 @@ test('G — no console.* call anywhere in ai.ts, byok.ts or usage.ts ever refere
    for(const forbidden of [/apiKeyOverride/,/plaintext/,/decryptSecret/,/\bkey\b/])
     assert.doesNotMatch(call,forbidden,`console call "${call}" must never reference the decrypted key`);
  }
+});
+
+// ============================================================
+// I — BLOC 4A.3.1 mandated test matrix. Each test runs the EXACT decision chain route.ts uses
+// (resolveProviderCredential then analyzeOffer, see the static F/H proofs above confirming this is
+// truly what route.ts does) against the real production functions — only admin-client/fetch are
+// mocked. This is the end-to-end proof that NONE/VALID/INVALID are never confused.
+// ============================================================
+async function decide(text:string){
+ if(process.env.AI_PROVIDER==='anthropic'){
+  const {resolveProviderCredential}=await import(`../src/server/byok.ts?d=${Date.now()}`);
+  const credential=await resolveProviderCredential('org-1','anthropic');
+  if(credential.status==='INVALID')throw Error('BYOK_CREDENTIAL_INVALID');
+  return analyzeOffer(text,{apiKeyOverride:credential.status==='VALID'?credential.apiKey:null});
+ }
+ return analyzeOffer(text);
+}
+function mockAdminNone(){return mock.module('../src/server/admin-client.ts',{namedExports:{createAdminClient:()=>({from:()=>({select:()=>({eq:()=>({eq:()=>({maybeSingle:async()=>({data:null,error:null})})})})}),})}})}
+async function mockAdminValid(secret:string){
+ const {encryptSecret}=await import('../src/server/crypto.ts');
+ const encrypted=encryptSecret(secret);
+ const toBytea=(buf:Buffer)=>'\\x'+buf.toString('hex');
+ return mock.module('../src/server/admin-client.ts',{namedExports:{createAdminClient:()=>({from:()=>({select:()=>({eq:()=>({eq:()=>({maybeSingle:async()=>({data:{encrypted_secret:toBytea(encrypted.ciphertext),iv:toBytea(encrypted.iv),auth_tag:toBytea(encrypted.authTag)},error:null})})})})}),})}});
+}
+function mockAdminInvalid(){return mock.module('../src/server/admin-client.ts',{namedExports:{createAdminClient:()=>({from:()=>({select:()=>({eq:()=>({eq:()=>({maybeSingle:async()=>({data:{encrypted_secret:'\\xdeadbeef',iv:'\\x000000000000000000000000',auth_tag:'\\x00000000000000000000000000000000'},error:null})})})})}),})}})}
+function mockAdminThrowsIfCalled(){return mock.module('../src/server/admin-client.ts',{namedExports:{createAdminClient:()=>{throw Error('resolveProviderCredential must never be called when AI_PROVIDER is not anthropic')}}})}
+
+test('I1 (mandated #1) — no BYOK credential + platform key present → PLATFORM used, billing_source PLATFORM, no error',async()=>{
+ process.env.AI_PROVIDER='anthropic';process.env.AI_API_KEY='platform-key-i1';process.env.AI_MODEL='claude-observed-model';
+ mockAdminNone();
+ const fetchMock=mockFetchOnce(200,{content:[{type:'text',text:JSON.stringify({summary:'s',target:'t',questions:['q']})}],usage:{input_tokens:1,output_tokens:1}});
+ try{
+  const result=await decide('un texte public suffisamment long pour passer la validation métier');
+  assert.equal(result.credential_source,'PLATFORM');
+  const [,init]=fetchMock.mock.calls[0].arguments as [string,{headers:Record<string,string>}];
+  assert.equal(init.headers['x-api-key'],'platform-key-i1');
+ }finally{fetchMock.mock.restore();mock.reset()}
+});
+
+test('I2 (mandated #2) — valid, decryptable BYOK credential + platform key present → BYOK used EXCLUSIVELY, billing_source BYOK',async()=>{
+ process.env.AI_PROVIDER='anthropic';process.env.AI_API_KEY='platform-key-i2-must-not-be-sent';process.env.AI_MODEL='claude-observed-model';
+ await mockAdminValid('byok-key-i2-real');
+ const fetchMock=mockFetchOnce(200,{content:[{type:'text',text:JSON.stringify({summary:'s',target:'t',questions:['q']})}],usage:{input_tokens:1,output_tokens:1}});
+ try{
+  const result=await decide('un texte public suffisamment long pour passer la validation métier');
+  assert.equal(result.credential_source,'BYOK');
+  const [,init]=fetchMock.mock.calls[0].arguments as [string,{headers:Record<string,string>}];
+  assert.equal(init.headers['x-api-key'],'byok-key-i2-real','BYOK key used exclusively');
+  assert.notEqual(init.headers['x-api-key'],'platform-key-i2-must-not-be-sent');
+ }finally{fetchMock.mock.restore();mock.reset()}
+});
+
+test('I3 (mandated #3) — corrupted BYOK credential + platform key present → NO provider call at all, PLATFORM never used',async()=>{
+ process.env.AI_PROVIDER='anthropic';process.env.AI_API_KEY='platform-key-i3-must-not-be-used';process.env.AI_MODEL='claude-observed-model';
+ mockAdminInvalid();
+ const fetchMock=mock.method(globalThis,'fetch',async()=>{throw Error('fetch must never be called when the BYOK credential is invalid')});
+ try{
+  await assert.rejects(decide('un texte public suffisamment long pour passer la validation métier'),/BYOK_CREDENTIAL_INVALID/);
+  assert.equal(fetchMock.mock.calls.length,0,'no provider call — no quota-consuming/paid request of any kind');
+ }finally{fetchMock.mock.restore();mock.reset()}
+});
+
+test('I4 (mandated #4) — corrupted BYOK credential + NO platform key configured either → same fail-closed BYOK_CREDENTIAL_INVALID, never AI_NOT_CONFIGURED, never a provider call',async()=>{
+ process.env.AI_PROVIDER='anthropic';delete process.env.AI_API_KEY;process.env.AI_MODEL='claude-observed-model';
+ mockAdminInvalid();
+ const fetchMock=mock.method(globalThis,'fetch',async()=>{throw Error('fetch must never be called')});
+ try{
+  await assert.rejects(decide('un texte public suffisamment long pour passer la validation métier'),/BYOK_CREDENTIAL_INVALID/);
+  assert.equal(fetchMock.mock.calls.length,0);
+ }finally{fetchMock.mock.restore();mock.reset();process.env.AI_API_KEY=savedEnv.AI_API_KEY}
+});
+
+test('I6 (mandated #6) — provider != anthropic: BYOK Anthropic stays inert, resolveProviderCredential is never even consulted',async()=>{
+ process.env.AI_PROVIDER='openai';process.env.AI_API_KEY='platform-openai-key-i6';process.env.AI_MODEL='gpt-observed-model';
+ mockAdminThrowsIfCalled(); // proves resolveProviderCredential's admin client is never constructed
+ const fetchMock=mockFetchOnce(200,{choices:[{message:{content:JSON.stringify({summary:'s',target:'t',questions:['q']})}}],usage:{prompt_tokens:1,completion_tokens:1}});
+ try{
+  const result=await decide('un texte public suffisamment long pour passer la validation métier');
+  assert.equal(result.credential_source,'PLATFORM');
+  const [,init]=fetchMock.mock.calls[0].arguments as [string,{headers:Record<string,string>}];
+  assert.equal(init.headers.Authorization,'Bearer platform-openai-key-i6');
+ }finally{fetchMock.mock.restore();mock.reset()}
+});
+
+test('I7 (mandated #7) — billing_source exactness across the whole matrix: BYOK only when BYOK truly used, PLATFORM only when the platform key truly used',async()=>{
+ // NONE → PLATFORM (re-verified here as a single joined assertion, complementing I1/I2 above).
+ process.env.AI_PROVIDER='anthropic';process.env.AI_API_KEY='platform-key-i7';process.env.AI_MODEL='claude-observed-model';
+ mockAdminNone();
+ let fetchMock=mockFetchOnce(200,{content:[{type:'text',text:JSON.stringify({summary:'s',target:'t',questions:['q']})}],usage:{input_tokens:1,output_tokens:1}});
+ let result=await decide('un texte public suffisamment long pour passer la validation métier');
+ assert.equal(result.credential_source,'PLATFORM');
+ fetchMock.mock.restore();mock.reset();
+ // VALID → BYOK.
+ await mockAdminValid('byok-key-i7');
+ fetchMock=mockFetchOnce(200,{content:[{type:'text',text:JSON.stringify({summary:'s',target:'t',questions:['q']})}],usage:{input_tokens:1,output_tokens:1}});
+ result=await decide('un texte public suffisamment long pour passer la validation métier');
+ assert.equal(result.credential_source,'BYOK');
+ fetchMock.mock.restore();mock.reset();
 });

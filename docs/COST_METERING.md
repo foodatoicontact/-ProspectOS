@@ -100,9 +100,46 @@ pas un bug — documentée ici comme risque résiduel (voir plus bas).
 Chemin exact (`app/api/v1/[...path]/route.ts`, bloc `analyze-company`) :
 1. `analyzeCompanyGuarded` valide `project_id` et consomme le quota horaire — **avant** tout appel payant, inchangé.
 2. À l'intérieur du `callProvider` (donc seulement après consommation du quota), le `organization_id` du projet est résolu, puis `resolveProviderCredential(organizationId,'anthropic')` est tenté **uniquement si** `process.env.AI_PROVIDER==='anthropic'`.
-3. Un échec de résolution/déchiffrement (pas de clé, ligne corrompue, `BYOK_MASTER_KEY` absente) est intercepté (`.catch(()=>null)`) et traité comme "pas de clé BYOK" — retombe sur la clé plateforme, **jamais** un fallback vers un autre fournisseur.
+3. Le résultat est un état à 3 valeurs (`NONE`/`VALID`/`INVALID`, voir section suivante) — **jamais** un simple `catch` indistinct : `NONE` retombe légitimement sur la clé plateforme, `INVALID` interrompt l'appel entièrement (fail-closed), voir ci-dessous.
 4. `analyzeOffer(text,{apiKeyOverride})` renvoie `credential_source:'BYOK'|'PLATFORM'` en plus de `usage` — les deux sont retirés de la réponse HTTP (`const {usage,credential_source,...analysis}=...; return json(analysis)`), jamais exposés au client.
 5. `recordApiUsage({...,billingSource:credential_source})` écrit la provenance réelle dans `api_usage_events.billing_source` (colonne déjà existante, migration 009 — `billingSource` est un nouveau paramètre optionnel de `RecordUsageInput`, défaut `'PLATFORM'`, l'appel Brave existant est inchangé).
+
+### Machine d'état NONE / VALID / INVALID (bloc `feat/anthropic-byok-metering` 4A.3.1 — durcissement fail-closed)
+
+**Bug corrigé** : la version initiale de ce bloc interceptait `resolveProviderCredential(...)` avec un
+`.catch(()=>null)` indistinct. Une credential BYOK **présente mais indéchiffrable** (ciphertext corrompu,
+IV/tag invalide, `BYOK_MASTER_KEY` incorrecte ou changée, ligne malformée) était donc traitée exactement
+comme une credential **absente** : l'appel retombait silencieusement sur `AI_API_KEY` plateforme. C'est un
+défaut de facturation/sécurité — un owner dont la configuration BYOK est cassée voyait ses appels
+silencieusement payés par la clé de la plateforme, sans jamais en être informé.
+
+`resolveProviderCredential()` (`src/server/byok.ts`) renvoie désormais un type discriminé, jamais un
+`string|null` :
+
+```ts
+type CredentialResolution = {status:'NONE'} | {status:'VALID';apiKey:string} | {status:'INVALID'};
+```
+
+- **NONE** — aucune ligne `provider_credentials` pour cette organisation/provider (ou une erreur de
+  requête franche). Fallback vers la clé plateforme **autorisé**.
+- **VALID** — ligne trouvée, déchiffrement AES-256-GCM réussi. La clé BYOK est utilisée **exclusivement**.
+- **INVALID** — ligne trouvée mais le déchiffrement échoue, pour n'importe quelle raison cryptographique
+  (`decryptSecret` lève une exception, capturée par un `try/catch` qui n'entoure **que** l'étape de
+  déchiffrement — jamais toute la fonction). **Aucun fallback, aucun appel fournisseur.**
+
+Câblage `route.ts` :
+```ts
+const credential=await resolveProviderCredential(project.organization_id,'anthropic');
+if(credential.status==='INVALID')throw Error('BYOK_CREDENTIAL_INVALID');
+return analyzeOffer(body.text,{apiKeyOverride:credential.status==='VALID'?credential.apiKey:null});
+```
+Aucun `.catch()` n'entoure plus cet appel : `NONE` et `INVALID` sont deux valeurs de retour normales et
+distinctes de la même fonction, jamais fusionnées par une capture d'exception généraliste.
+`BYOK_CREDENTIAL_INVALID` est mappé (comme tous les codes internes de ce fichier) vers une réponse HTTP
+503 générique et fixe (« Clé Anthropic personnalisée invalide ou illisible. Remplacez-la dans Compte. »)
+— jamais l'exception crypto brute, jamais le ciphertext/IV/tag, jamais la clé. Le quota horaire déjà
+consommé n'est pas remboursé (même invariant que tout autre échec fournisseur — `AI_UNAVAILABLE` par
+exemple — voir `src/server/ai-guard.ts`).
 
 ### Modèle Anthropic exact — toujours inconnu, aucun prix inventé
 
@@ -157,8 +194,13 @@ réellement, via `node:test`'s `mock.module`/`mock.method` (aucun réseau, aucun
 - `recordApiUsage` : `billing_source` par défaut `'PLATFORM'`, propagation correcte de `'BYOK'`, coût
   toujours `null` en l'absence de tarif Anthropic, aucun champ clé/secret dans la ligne insérée.
 - Preuves statiques (source-level, même convention que `tests/account-session.test.ts`) que
-  `credential_source`/`usage` sont retirés de la réponse HTTP et qu'un échec de résolution BYOK est
-  intercepté avant d'atteindre le client.
+  `credential_source`/`usage` sont retirés de la réponse HTTP, et que `route.ts` ne fait plus jamais un
+  `.catch()` indistinct sur `resolveProviderCredential` (voir « Machine d'état » ci-dessus).
+- **4A.3.1** : matrice complète NONE/VALID/INVALID × plateforme présente/absente (ciphertext tampered,
+  auth tag tampered, IV de mauvaise longueur, `BYOK_MASTER_KEY` incorrecte) exécutée sur le vrai
+  `resolveProviderCredential`, prouvant qu'`INVALID` ne déclenche jamais ni un appel fournisseur ni un
+  fallback plateforme, et que `provider!=='anthropic'` empêche même la construction du client admin
+  (donc `resolveProviderCredential` n'est jamais consulté).
 
 Ce que ceci ne remplace toujours pas : un vrai serveur PostgREST/Supabase n'a jamais reçu ni renvoyé ce
 format bytea en conditions réelles. Le smoke production décrit ci-dessous reste la validation

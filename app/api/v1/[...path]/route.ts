@@ -121,11 +121,18 @@ async function handler(request:Request,context:{params:Promise<{path:string[]}>}
    const project=await checked(db.from('projects').select('organization_id').eq('id',body.project_id).single());
    organizationId=project.organization_id;
    // BYOK never changes which provider/model is called — only which key pays — and only ever
-   // activates when the platform is already configured for Anthropic (see src/server/ai.ts). A
-   // decryption/lookup failure here is treated as "no BYOK key available" (falls back to the
-   // platform key, never to a different provider), never surfaced to the client.
-   const byokKey=process.env.AI_PROVIDER==='anthropic'?await resolveProviderCredential(project.organization_id,'anthropic').catch(()=>null):null;
-   return analyzeOffer(body.text,{apiKeyOverride:byokKey});
+   // activates when the platform is already configured for Anthropic (see src/server/ai.ts). NONE
+   // (no BYOK credential saved) legitimately falls back to the platform key. INVALID (a credential
+   // exists but cannot be decrypted/used — corrupted ciphertext, wrong BYOK_MASTER_KEY, etc.) is NEVER
+   // treated the same as NONE: falling back to the platform key there would silently bill the
+   // platform's own key for an organization whose BYOK setup is broken. Fail closed instead — no
+   // provider call, no quota refund (same as any other provider-side failure).
+   if(process.env.AI_PROVIDER==='anthropic'){
+    const credential=await resolveProviderCredential(project.organization_id,'anthropic');
+    if(credential.status==='INVALID')throw Error('BYOK_CREDENTIAL_INVALID');
+    return analyzeOffer(body.text,{apiKeyOverride:credential.status==='VALID'?credential.apiKey:null});
+   }
+   return analyzeOffer(body.text);
   },
  );
  // Best-effort cost-ledger write for the real LLM call that just happened — never allowed to turn an
@@ -193,6 +200,6 @@ async function handler(request:Request,context:{params:Promise<{path:string[]}>}
  return new Response(csv([['Nom','Ville','Statut','Score','Couverture','URL'],...rows.map((p:any)=>{const s=scoreProspect(projectCriteria(project.icps),p.evidence);return [p.name,p.city,p.status,s.score,s.coverage,p.website]})]),{headers:{'content-type':'text/csv; charset=utf-8','content-disposition':'attachment; filename="prospectos.csv"','Cache-Control':'no-store'}});
  }
  return json({error:'Route ou action non disponible'},404);
- }catch(error){const code=error instanceof Error?error.message:'';const status=code==='UNAUTHORIZED'?401:code==='CONFIGURATION_REQUIRED'||code==='AI_NOT_CONFIGURED'?503:code==='QUOTA_EXCEEDED'?429:code==='BETA_ACCESS_EXPIRED'?402:400;return json({error:code==='UNAUTHORIZED'?'Connexion requise':code==='CONFIGURATION_REQUIRED'?'Supabase reste à connecter':code==='AI_NOT_CONFIGURED'?'Fournisseur IA et modèle non configurés':code==='QUOTA_EXCEEDED'?'Quota horaire de votre organisation atteint.':code==='BETA_ACCESS_EXPIRED'?'Votre accès bêta est terminé.':code==='INVALID_PROJECT_ID'?'Identifiant de projet invalide':'Opération impossible. Vérifiez les données et vos droits.',code:code==='BETA_ACCESS_EXPIRED'?'BETA_ACCESS_EXPIRED':undefined},status)}
+ }catch(error){const code=error instanceof Error?error.message:'';const status=code==='UNAUTHORIZED'?401:code==='CONFIGURATION_REQUIRED'||code==='AI_NOT_CONFIGURED'||code==='BYOK_CREDENTIAL_INVALID'?503:code==='QUOTA_EXCEEDED'?429:code==='BETA_ACCESS_EXPIRED'?402:400;return json({error:code==='UNAUTHORIZED'?'Connexion requise':code==='CONFIGURATION_REQUIRED'?'Supabase reste à connecter':code==='AI_NOT_CONFIGURED'?'Fournisseur IA et modèle non configurés':code==='BYOK_CREDENTIAL_INVALID'?'Clé Anthropic personnalisée invalide ou illisible. Remplacez-la dans Compte.':code==='QUOTA_EXCEEDED'?'Quota horaire de votre organisation atteint.':code==='BETA_ACCESS_EXPIRED'?'Votre accès bêta est terminé.':code==='INVALID_PROJECT_ID'?'Identifiant de projet invalide':'Opération impossible. Vérifiez les données et vos droits.',code:code==='BETA_ACCESS_EXPIRED'?'BETA_ACCESS_EXPIRED':code==='BYOK_CREDENTIAL_INVALID'?'BYOK_CREDENTIAL_INVALID':undefined},status)}
 }
 export {handler as GET,handler as POST,handler as PATCH};

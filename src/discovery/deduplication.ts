@@ -1,6 +1,8 @@
 import {safeLink} from '../domain/core.ts';
 export type Identity={id?:string;name:string;website?:string|null;phone?:string|null;address?:string|null;city?:string|null};
-const normalize=(s:string|null|undefined)=>(s??'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,' ').trim();
+// Exported so other modules needing the exact same normalization (e.g. candidate-diversity.ts's title
+// containment check) never reimplement a subtly different variant.
+export const normalize=(s:string|null|undefined)=>(s??'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,' ').trim();
 export function normalizeDomain(s:string|null|undefined){if(!s||!safeLink(s))return null;const h=new URL(s).hostname.toLowerCase().replace(/^www\./,'');return h||null}
 export function normalizePhone(s:string|null|undefined){if(!s)return null;let p=s.replace(/\(0\)/g,'').replace(/[^\d+]/g,'');if(p.startsWith('00'))p='+'+p.slice(2);if(/^0[1-9]\d{8}$/.test(p))p='+33'+p.slice(1);return /^\+[1-9]\d{7,14}$/.test(p)?p:null}
 export function similarity(a:string,b:string){a=normalize(a);b=normalize(b);if(!a||!b)return 0;const row=Array.from({length:b.length+1},(_,i)=>i);for(let i=1;i<=a.length;i++){let prev=row[0];row[0]=i;for(let j=1;j<=b.length;j++){const old=row[j];row[j]=Math.min(row[j]+1,row[j-1]+1,prev+(a[i-1]===b[j-1]?0:1));prev=old}}return 1-row[b.length]/Math.max(a.length,b.length)}

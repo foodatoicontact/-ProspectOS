@@ -102,3 +102,25 @@ test('confidence stays within the existing Candidate schema bounds (0..1) for ev
  const raws = await provider.searchCompanies(baseInput);
  for (const raw of raws) { const c = provider.normalizeResult(raw); assert.ok(c.confidence > 0 && c.confidence < 1); }
 });
+
+// ============================================================
+// 4A.2 end-to-end: quality ranking AND diversity selection working together through the real
+// searchCompanies path, still exactly one HTTP call. Reproduces the real post-4A.1 smoke-test pool
+// (2 near-duplicate Resto Drive results + Terra Tolosa + other distinct establishments lower down).
+// ============================================================
+test('end-to-end: searchCompanies surfaces Terra Tolosa and excludes the duplicate Resto Drive slot, in a single HTTP call', async () => {
+ const rawPool = [
+  {title: 'Commande en ligne restaurant Toulouse', url: 'https://www.restodrive.fr/toulouse'},
+  {title: 'Commande en ligne restaurant Toulouse : solution click & collect | Resto Drive', url: 'https://www.restodrive.fr/toulouse/click-and-collect'},
+  {title: 'Terra Tolosa - Restaurant Traditionnel - Toulouse', url: 'https://terratolosa.fr/'},
+  {title: '10 meilleurs restaurants à Toulouse', url: 'https://guide-sortir.fr/toulouse/top10'},
+  {title: 'Chez Mario - Restaurant italien - Toulouse', url: 'https://chezmario-toulouse.fr/'},
+ ];
+ const {provider, callCount} = mockBrave(rawPool);
+ const results = await provider.searchCompanies({...baseInput, max_results: 3}) as typeof rawPool;
+ assert.equal(callCount(), 1, 'still exactly one Brave HTTP call');
+ assert.equal(results.length, 3);
+ assert.ok(results.some(r => r.url === 'https://terratolosa.fr/'));
+ assert.equal(results.filter(r => r.url.includes('restodrive.fr')).length, 1, 'only one Resto Drive slot survives quality ranking + diversity selection together');
+ assert.equal(new Set(results.map(r => new URL(r.url).hostname)).size, 3, 'three distinct hostnames in the final top 3');
+});

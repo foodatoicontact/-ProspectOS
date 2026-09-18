@@ -2,6 +2,7 @@ import {z} from 'zod';
 import {CandidateSchema,type Candidate,type DiscoveryInput,type DiscoveryProvider} from '../types.ts';
 import {DeduplicationService} from '../deduplication.ts';
 import {assessCandidateQuality,type QualityAssessment} from '../candidate-quality.ts';
+import {selectDiverseCandidates} from '../candidate-diversity.ts';
 const RawSchema=z.object({title:z.string().min(1),url:z.string().url(),description:z.string().optional()}).passthrough();
 // Attached in-memory onto each raw result between searchCompanies and normalizeResult — never
 // serialized, never persisted as its own column; it only ever ends up inside Candidate.raw_metadata
@@ -35,7 +36,10 @@ export class BraveProvider implements DiscoveryProvider {
  // heuristic false positive never silently hides a possibly-real business (see candidate-quality.ts).
  const tagged=results.map(r=>Object.assign(r,{__quality:assessCandidateQuality(r,input.location)} satisfies QualityTagged));
  tagged.sort((a,b)=>(b.__quality?.confidence??0)-(a.__quality?.confidence??0));
- return tagged.slice(0,input.max_results);
+ // Diversity selection runs on the FULL quality-sorted pool, strictly before truncation: it can only
+ // ever substitute a near-duplicate for a genuinely distinct candidate already present lower in the
+ // same pool — never a reason to fetch more or call Brave again (see candidate-diversity.ts).
+ return selectDiverseCandidates(tagged,input.max_results);
  }
  async fetchCompanyDetails(candidate:Candidate){return candidate} // No private-page fetch; site analysis is separate policy-controlled service.
  normalizeResult(raw:unknown):Candidate {

@@ -17,23 +17,31 @@ et n'a aucun coût variable — elle n'écrit jamais dans le ledger.
 Le fournisseur `fixture` (TEST) n'écrit **jamais** dans `api_usage_events` : voir la garde
 `if(name==='brave')` dans `src/discovery/api.ts`.
 
-## Configurer un tarif réel (obligatoire avant que les coûts affichés aient un sens)
+## Tarif Brave — vérifié et déjà inséré (RC hardening review, 2026-09-18)
 
-`prospectos_private.provider_pricing` est livré **vide** : aucun prix Brave/Anthropic/OpenAI n'est
-inventé par ce bloc. Tant qu'aucune ligne active n'existe pour un provider/operation/unit_type,
-`estimated_cost_micros` reste `null` — jamais une estimation devinée.
+`prospectos_private.provider_pricing` contient désormais une ligne réelle, opérateur-vérifiée :
+
+| provider | operation | unit_type | price_per_unit_micros | version | effective_from |
+|---|---|---|---|---|---|
+| brave | search | request | 5000 (= $0,005/requête = $5/1000 requêtes) | `brave-search-2026-09-18` | 2026-09-18 |
+
+Cette ligne est insérée par la migration elle-même (`insert ... where not exists (...)`, idempotent —
+ne duplique jamais la ligne si la migration est rejouée). Les $5 de crédits Search gratuits mensuels
+annoncés par Brave sont **volontairement jamais soustraits ici** : le ledger mesure le coût économique
+brut fournisseur (ce qu'un appel coûte réellement en tarif catalogue), pas la facture nette après crédits
+— une couche crédits/remises distincte viendrait s'ajouter par-dessus si un jour nécessaire, jamais en
+modifiant `estimated_cost_micros` lui-même.
+
+`anthropic`/`openai` restent **volontairement vides** : `AI_MODEL` est une variable d'environnement
+choisie par l'opérateur, inconnue de ce bloc — insérer un tarif pour un modèle qu'on ne peut pas
+confirmer avec certitude reviendrait à inventer un coût. Une fois le modèle réellement configuré
+identifié sans ambiguïté, l'insérer ainsi (exemple, valeurs à vérifier avant usage) :
 
 ```sql
--- Exemple : Brave Search facturé par requête. Remplacer 5000 par le tarif réel et vérifié (en
--- micro-dollars par requête) lu sur la page de pricing actuelle de Brave.
 insert into prospectos_private.provider_pricing(provider, operation, model, unit_type, price_per_unit_micros, version)
-values ('brave', 'search', null, 'request', 5000, 'brave-2026-01');
-
--- Exemple : un modèle Anthropic facturé par 1000 tokens d'entrée / sortie.
+values ('anthropic', 'offer_analysis', '<AI_MODEL exact>', 'input_tokens_1k', <prix vérifié>, 'anthropic-<date>');
 insert into prospectos_private.provider_pricing(provider, operation, model, unit_type, price_per_unit_micros, version)
-values ('anthropic', 'offer_analysis', 'claude-haiku-...', 'input_tokens_1k', 250, 'anthropic-2026-01');
-insert into prospectos_private.provider_pricing(provider, operation, model, unit_type, price_per_unit_micros, version)
-values ('anthropic', 'offer_analysis', 'claude-haiku-...', 'output_tokens_1k', 1250, 'anthropic-2026-01');
+values ('anthropic', 'offer_analysis', '<AI_MODEL exact>', 'output_tokens_1k', <prix vérifié>, 'anthropic-<date>');
 ```
 
 **Ne jamais faire un `update` sur `price_per_unit_micros` d'une ligne existante** : un changement de
@@ -71,13 +79,17 @@ contre un `discovery_run_id`. Les ajouter demanderait de toucher le pipeline d'a
 ce bloc s'interdit explicitement. Ils apparaissent à `null` avec une note explicite plutôt qu'un chiffre
 inventé.
 
-## BYOK — état de ce bloc
+## BYOK — FOUNDATION ONLY (pas fonctionnel)
 
-L'architecture de stockage (`provider_credentials`), le chiffrement (AES-256-GCM, `src/server/crypto.ts`,
-clé maîtresse `BYOK_MASTER_KEY` serveur uniquement) et les routes (`/api/v1/provider-credentials/:organization_id`)
-sont livrés et testés. **Aucun appel réel (Brave ou IA) n'est encore routé à travers une clé BYOK** :
-`resolveProviderCredential()` existe (`src/server/byok.ts`) mais n'est appelé par aucun code de
-production — c'est le squelette de routage prévu par la section 12 du brief, pas son activation.
+**BYOK FOUNDATION ONLY.** Le stockage (`provider_credentials`), le chiffrement (AES-256-GCM,
+`src/server/crypto.ts`, clé maîtresse `BYOK_MASTER_KEY` serveur uniquement) et les routes
+(`/api/v1/provider-credentials/:organization_id`) sont livrés et testés — mais **aucun appel réel (Brave
+ou IA) n'est routé à travers une clé BYOK sauvegardée**. `resolveProviderCredential()` existe
+(`src/server/byok.ts`) et sait déchiffrer une clé stockée, mais n'est appelé par aucun chemin de
+production : ni `BraveProvider`, ni `analyzeOffer` ne le consultent. Un client peut sauvegarder une clé
+Brave/Anthropic/OpenAI dès aujourd'hui ; **elle n'est jamais utilisée pour un seul appel réel tant que ce
+routage n'est pas explicitement construit dans un bloc ultérieur**. Aucune UI ne doit laisser entendre le
+contraire.
 
 Gérer une clé BYOK (organisation, `owner` uniquement) :
 ```
@@ -89,6 +101,35 @@ DELETE /api/v1/provider-credentials/:organization_id    { "provider": "brave" }
 La clé en clair n'est **jamais** renvoyée après sauvegarde (ni par `save`, ni par `list`) — seuls
 `provider`, `key_last4`, `created_at`, `updated_at` sortent de la base. L'export RGPD ne lit jamais
 `provider_credentials`.
+
+### Risque documenté — chemin bytea via PostgREST non testé contre un vrai backend
+
+`src/server/byok.ts` encode `encrypted_secret`/`iv`/`auth_tag` en hex préfixé `\x` pour les envoyer à
+`save_provider_credential` via `supabase-js`/PostgREST, et les décode de la même façon en lecture. Ce
+format est celui documenté par Postgres pour un cast texte→bytea et par la sérialisation JSON de
+PostgREST pour une colonne bytea — mais il n'a été vérifié que par la logique du code et par les tests
+PGlite (qui, eux, utilisent le protocole fil Postgres brut et acceptent un `Buffer`, pas la même
+convention — voir le commentaire dans `tests/discovery-cost-byok-db.mjs`). **Il n'a jamais été exercé
+contre un vrai serveur PostgREST/Supabase.** Tant que ce chemin n'a pas tourné une fois en conditions
+réelles, le considérer comme un risque ouvert, pas comme validé.
+
+### Smoke test non destructif à exécuter plus tard (jamais avec une vraie clé fournisseur)
+
+Une fois `BYOK_MASTER_KEY` configurée sur un environnement de test réel (jamais la production sans
+validation explicite), avec un secret **entièrement factice** :
+
+```
+TEST_ONLY_NOT_A_REAL_API_KEY_xxx
+```
+
+1. **save** — `POST /api/v1/provider-credentials/:organization_id` avec `{"provider":"brave","api_key":"TEST_ONLY_NOT_A_REAL_API_KEY_xxx"}`, en tant qu'owner d'une organisation de test. Vérifier : réponse `201`, corps = exactement `{provider,key_last4,created_at,updated_at}` — jamais `encrypted_secret`/`iv`/`auth_tag`/le secret en clair.
+2. **list (masked only)** — `GET /api/v1/provider-credentials/:organization_id`. Vérifier : le tableau retourné ne contient que `provider`/`key_last4`/`created_at`/`updated_at` ; `key_last4` doit valoir les 4 derniers caractères du secret factice (`_xxx`).
+3. **server decrypt** — appeler `resolveProviderCredential(organizationId,'brave')` directement (script serveur, jamais exposé en HTTP) et vérifier que la valeur déchiffrée est bien `TEST_ONLY_NOT_A_REAL_API_KEY_xxx` — cela valide le chemin bytea aller-retour complet (écriture via PostgREST, lecture directe admin, déchiffrement AES-256-GCM).
+4. **delete** — `DELETE /api/v1/provider-credentials/:organization_id` avec `{"provider":"brave"}`. Vérifier : `200`, puis `list` renvoie un tableau vide.
+5. Sur toute la procédure : grep les logs serveur, la table `events`, et un export RGPD généré entre-temps pour ce compte — le secret factice ne doit apparaître **nulle part** en dehors de la requête HTTP `save` elle-même (jamais loggé, jamais dans `events`, jamais dans l'export).
+
+Ce test n'appelle jamais Brave/Anthropic/OpenAI (aucun appel réseau sortant vers un fournisseur) — il
+valide uniquement le chemin de stockage/chiffrement.
 
 ## Variables d'environnement
 

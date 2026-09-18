@@ -75,6 +75,23 @@ create table if not exists prospectos_private.provider_pricing (
 create index if not exists provider_pricing_lookup_idx on prospectos_private.provider_pricing(provider,operation,unit_type,effective_from desc);
 revoke all on prospectos_private.provider_pricing from public,anon,authenticated;
 
+-- Verified operator-confirmed tariff (RC hardening review, 2026-09-18): Brave Search API, "Search"
+-- endpoint — the exact endpoint BraveProvider.searchCompanies calls (res/v1/web/search), hence
+-- operation='search', matching the check constraint and resolve_provider_cost's own operation values.
+-- $5 / 1,000 requests = $0.005/request = 5000 micros USD/request. Brave's $5/month of free Search
+-- credits are a promotional offset, never subtracted here: this ledger records the gross economic
+-- fournisseur cost of each call, not what Brave actually invoices after credits — a separate
+-- credits/discount layer would sit on top of this if ever needed, never inside estimated_cost_micros
+-- itself. effective_from is the date this tariff was verified against Brave's own pricing page, not
+-- `now()` (which would silently drift to whatever moment the migration happens to run) — reapplying
+-- this migration must not insert a duplicate row, hence the not-exists guard instead of a bare insert.
+insert into prospectos_private.provider_pricing(provider,operation,model,unit_type,price_per_unit_micros,currency,version,effective_from)
+select 'brave','search',null,'request',5000,'USD','brave-search-2026-09-18','2026-09-18 00:00:00+00'
+where not exists (
+ select 1 from prospectos_private.provider_pricing
+ where provider='brave' and operation='search' and unit_type='request' and version='brave-search-2026-09-18'
+);
+
 -- The ONLY way to read pricing at all (prospectos_private is never exposed to PostgREST, by design —
 -- same reason consume_discovery_quota needs a public-schema wrapper). Pure computation, no side effect,
 -- no user data touched: takes the real measured quantities (request count / token counts, already

@@ -14,6 +14,10 @@ test('duplicates counted once',()=>assert.equal(scoreProspect(criteria,[evidence
 test('conflicting observations need review',()=>{const s=scoreProspect(criteria,[evidence,{...evidence,id:'2',value:false}],now);assert.equal(s.score,0);assert.equal(s.breakdown[0].state,'CONFLICT')});
 test('unknown DM does not invent phone orders',()=>assert.doesNotMatch(generateOutreach('Test','Foodatoi',criteria,[],now).text,/vous prenez|vous proposez|par téléphone/));
 test('verified DM cites evidence ids',()=>assert.deepEqual(generateOutreach('Test','Foodatoi',criteria,[evidence],now).evidence_ids,['1']));
+test('NOT_VERIFIED evidence is never used as a fact in the draft',()=>{const r=generateOutreach('Test','Foodatoi',criteria,[{...evidence,status:'NOT_VERIFIED',verified_by:null}],now);assert.deepEqual(r.evidence_ids,[]);assert.doesNotMatch(r.text,/vous prenez|vous proposez|par téléphone/)});
+test('CONTRADICTED evidence is never used as a fact in the draft',()=>{const r=generateOutreach('Test','Foodatoi',criteria,[{...evidence,status:'CONTRADICTED'}],now);assert.deepEqual(r.evidence_ids,[]);assert.doesNotMatch(r.text,/vous prenez|vous proposez|par téléphone/)});
+test('INFERRED_UNCONFIRMED evidence is never used as a fact in the draft',()=>{const r=generateOutreach('Test','Foodatoi',criteria,[{...evidence,status:'INFERRED_UNCONFIRMED'}],now);assert.deepEqual(r.evidence_ids,[]);assert.doesNotMatch(r.text,/vous prenez|vous proposez|par téléphone/)});
+test('no VERIFIED evidence at all falls back to a generic, offer-only message',()=>{const r=generateOutreach('Test','Foodatoi',criteria,[],now);assert.deepEqual(r.evidence_ids,[]);assert.match(r.text,/Foodatoi/);assert.match(r.text,/Test/)});
 test('dangerous links rejected',()=>{for(const u of ['javascript:alert(1)','data:text/html,x','https://user:pass@example.com'])assert.equal(safeLink(u),null)});
 test('CSV prevents formulas and escapes quotes',()=>assert.match(csv([['=1+1','a"b']]),/"'=1\+1","a""b"/));
 test('LinkedIn final actions are human',()=>{assert.equal(allowedAction('linkedin_send'),false);assert.equal(allowedAction('mark_contacted'),true)});

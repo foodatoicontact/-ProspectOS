@@ -6,7 +6,7 @@ import {analyzeOffer} from '../../../../src/server/ai';
 import {analyzeCompanyGuarded} from '../../../../src/server/ai-guard';
 import {checked as checkedRpc} from '../../../../src/discovery/repository';
 import {CriterionContextSchema} from '../../../../src/discovery/types';
-import {DEFAULT_CRITERIA,STATUSES,validateCriteria,generateOutreach,scoreProspect,csv,safeLink} from '../../../../src/domain/core';
+import {DEFAULT_CRITERIA,STATUSES,OUTREACH_STATUSES,validateCriteria,generateOutreach,scoreProspect,csv,safeLink} from '../../../../src/domain/core';
 export const runtime='nodejs';
 export const maxDuration=60;
 export const dynamic='force-dynamic';
@@ -64,7 +64,25 @@ async function handler(request:Request,context:{params:Promise<{path:string[]}>}
  const p=await checked(db.from('prospects').select('*,evidence(*)').eq('id',body.prospect_id).single());
  const project=await checked(db.from('projects').select('*,icps(*)').eq('id',p.project_id).single());
  const draft=generateOutreach(p.name,project.offer,projectCriteria(project.icps),p.evidence);
- await checked(db.from('outreach').insert({organization_id:p.organization_id,prospect_id:p.id,content:draft.text,evidence_ids:draft.evidence_ids}));return json(draft);
+ // At most one live DRAFT per prospect: a regeneration supersedes the previous one instead of
+ // leaving an ambiguous pile of undecided drafts. Already-decided rows (APPROVED/USED/DISCARDED)
+ // are historical record and are never touched here.
+ await checked(db.from('outreach').update({status:'DISCARDED'}).eq('prospect_id',p.id).eq('organization_id',p.organization_id).eq('status','DRAFT'));
+ const row=await checked(db.from('outreach').insert({organization_id:p.organization_id,prospect_id:p.id,content:draft.text,evidence_ids:draft.evidence_ids,provider:'rule_based_v1'}).select('id,status,created_at').single());
+ return json({...draft,id:row.id,status:row.status,created_at:row.created_at},201);
+ }
+ if(resource==='outreach'&&request.method==='PATCH'&&id){
+ // Draft lifecycle only — never re-enters DRAFT via this route, and never touches the prospect's
+ // own business status (see prospects PATCH above): copying or approving a message is never, on
+ // its own, proof that it was actually sent or that the prospect was contacted.
+ if(!OUTREACH_STATUSES.includes(body.status))return json({error:'Statut de brouillon invalide'},400);
+ if(body.status==='DRAFT')return json({error:'Statut de brouillon invalide'},400);
+ const patch:Record<string,unknown>={status:body.status};
+ if(body.content!==undefined){
+ if(typeof body.content!=='string'||!body.content.trim()||body.content.length>4000)return json({error:'Contenu de brouillon invalide'},400);
+ patch.content=body.content;
+ }
+ return json(await checked(db.from('outreach').update(patch).eq('id',id).select().single()));
  }
  if(resource==='events'&&request.method==='GET'){const pid=new URL(request.url).searchParams.get('prospect_id');return json(await checked(db.from('events').select('*').eq('prospect_id',pid??'').order('created_at',{ascending:false}).limit(100)))}
  if(resource==='analyze-company'&&request.method==='POST'){

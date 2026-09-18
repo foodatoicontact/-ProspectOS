@@ -13,7 +13,8 @@ export type Criterion = {key:string; label:string; weight:number; rules?:Criteri
 export type Evidence = {id:string;criterion:string;value:boolean;status:string;source_url:string;excerpt:string;observed_at:string;verified_by:string|null};
 export type Prospect = {id:string;name:string;website:string;city:string;status:string;project_id:string;organization_id:string;evidence:Evidence[];channels?:Channel[]};
 export type Channel = {kind:string;value:string;source_url:string;verified:boolean};
-export const STATUSES=['À analyser','Qualifié','À contacter','Contacté','Réponse','Gagné','Perdu'] as const;
+export const STATUSES=['À analyser','Qualifié','À contacter','Contacté','Réponse','Intéressé','Gagné','Perdu','Ignoré'] as const;
+export const OUTREACH_STATUSES=['DRAFT','APPROVED','USED','DISCARDED'] as const;
 export const FOODATOI_CRITERIA:Criterion[]=[
  {key:'food',label:'Activité alimentaire',weight:15},
  {key:'region',label:'Toulouse / Occitanie',weight:15},

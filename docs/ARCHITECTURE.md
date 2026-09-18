@@ -20,7 +20,7 @@ L’IA est une dépendance serveur interchangeable OpenAI/Anthropic, configurée
 | prospects | établissement et statut | projet + organisation ; URL source ; aucune coordonnée inventée |
 | evidence | observations | prospect + organisation ; critère, booléen, extrait, URL, observed_at, état et validateur |
 | channels | coordonnées professionnelles | prospect + organisation ; type, valeur, URL, validation |
-| outreach | brouillons | prospect + organisation ; contenu et références ; jamais envoyé par le système |
+| outreach | brouillons | prospect + organisation ; contenu, références de preuves et statut (DRAFT/APPROVED/USED/DISCARDED) ; jamais envoyé par le système |
 | events | historique append-only | organisation, prospect, acteur, événement |
 
 Les FK composites (parent_id, organization_id) interdisent les associations cross-tenant. Les politiques SELECT/INSERT/UPDATE/DELETE utilisent une adhésion réelle et WITH CHECK. L’adhésion n’est jamais tirée de user_metadata. Les fonctions privilégiées ont un search_path fermé ; aucune clé service_role côté navigateur.
@@ -38,6 +38,7 @@ Le fetch arbitraire de sites est exclu du premier incrément tant qu’un fetche
 
 ## Sécurité opérationnelle
 NO_UNAUTHORIZED_LINKEDIN_AUTOMATION = true, immuable dans le domaine. Actions permises : préparer, copier, ouvrir manuellement, marquer contacté. Aucun cookie LinkedIn, mot de passe, CAPTCHA, extension de navigation ou file d’envoi. Une disponibilité de canal ne constitue pas une autorisation de démarcher. Liste d’opposition, rétention configurable et formalités de protection des données sont des gates avant commercialisation élargie ; la V0 n’est pas une certification juridique.
+Copier un brouillon marque son propre statut USED (traçabilité du brouillon) mais ne modifie jamais le statut commercial du prospect : « Contacté » (et Réponse/Intéressé/Gagné/Perdu/Ignoré) reste une déclaration humaine séparée et explicite, jamais déduite d’un clic Copier ni d’une IA. Toute génération ou changement de statut de brouillon est historisé dans `events` par le même trigger append-only que prospects/evidence.
 
 ## Déploiement
 Aucune base existante n’est modifiée sans identification de la cible. Variables : NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY, AI_PROVIDER, AI_API_KEY, AI_MODEL. Démo séparée sans compte ; production refuse les accès non authentifiés. Les secrets ne figurent jamais dans le ZIP.

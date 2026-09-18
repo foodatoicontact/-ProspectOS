@@ -112,3 +112,95 @@ test('never returns more candidates than the pool actually has', () => {
 test('an empty pool returns an empty selection, never throws', () => {
  assert.deepEqual(selectDiverseCandidates([], 3), []);
 });
+
+// ============================================================
+// 4A.2.1 — registrable-domain (eTLD+1) resolution via tldts. See docs/DISCOVERY_CANDIDATE_DIVERSITY.md
+// for the production regression this fixes: the prior hostname-equality check missed subdomain variants
+// of the same commercial entity, which is the most probable (reproduced, not yet directly observed in
+// raw Brave JSON) explanation for the two Resto Drive results surviving in production despite 4A.2.
+// ============================================================
+const RESTO_A = 'Commande en ligne restaurant Toulouse';
+const RESTO_B = 'Commande en ligne restaurant Toulouse : solution click & collect | Resto Drive';
+
+test('1 — régression exacte : A sur commande.restodrive.fr, B sur www.restodrive.fr, + Terra Tolosa + candidats distincts → un seul Resto Drive dans le top 3', () => {
+ const pool = [
+  c(RESTO_A, 'https://commande.restodrive.fr/toulouse'),
+  c('Terra Tolosa / Restaurant Traditionnel / TOULOUSE', 'https://terratolosa.fr/'),
+  c(RESTO_B, 'https://www.restodrive.fr/toulouse/click-and-collect'),
+  c('Chez Mario - Restaurant italien - Toulouse', 'https://chezmario-toulouse.fr/'),
+  c('Le Petit Comptoir - Bistrot - Toulouse', 'https://lepetitcomptoir-toulouse.fr/'),
+  c('La Table de Sophie - Toulouse', 'https://latabledesophie.fr/'),
+ ];
+ const top3 = selectDiverseCandidates(pool, 3);
+ assert.equal(top3.length, 3);
+ assert.equal(top3.filter(r => /(^|\.)restodrive\.fr$/.test(new URL(r.url).hostname)).length, 1, 'un seul Resto Drive malgré des sous-domaines différents (commande. vs www.)');
+ assert.ok(top3.some(r => r.url === 'https://terratolosa.fr/'));
+});
+
+test('2 — sous-domaines frères (commande. / pro.) avec contenu quasi identique → quasi-doublon', () => {
+ assert.ok(isNearDuplicateCandidate(
+  c('Menu et commande en ligne - Le Gourmet', 'https://commande.example.com/le-gourmet'),
+  c('Menu et commande en ligne - Le Gourmet : livraison rapide et click & collect', 'https://pro.example.com/le-gourmet')
+ ), 'ni sous-domaine n\'est le domaine nu — seule la résolution du registrable domain (example.com pour les deux) permet de les rapprocher');
+});
+
+test('3 — même domaine, contenus clairement différents (deux établissements/pages distincts) → jamais fusionnés automatiquement, les deux peuvent survivre', () => {
+ assert.equal(isNearDuplicateCandidate(
+  c('Agence Toulouse Centre - Immobilier', 'https://example.com/location-a'),
+  c('Agence Blagnac - Immobilier', 'https://example.com/location-b')
+ ), false);
+ const pool = [
+  c('Agence Toulouse Centre - Immobilier', 'https://example.com/location-a'),
+  c('Agence Blagnac - Immobilier', 'https://example.com/location-b'),
+ ];
+ assert.equal(selectDiverseCandidates(pool, 2).length, 2, 'les deux pages du même domaine survivent : le domaine partagé seul ne suffit jamais');
+});
+
+test('4 — TLD composé : foo.example.co.uk et bar.example.co.uk résolvent au même registrable domain (example.co.uk) — quasi-doublon si le signal de contenu est aussi présent', () => {
+ assert.ok(isNearDuplicateCandidate(
+  c('Commande en ligne - Toulouse Bistro', 'https://foo.example.co.uk/toulouse'),
+  c('Commande en ligne - Toulouse Bistro : livraison à domicile et click & collect', 'https://bar.example.co.uk/toulouse')
+ ), 'foo. et bar. sont deux sous-domaines du même example.co.uk (eTLD+1 correct, pas juste les 2 derniers labels)');
+});
+
+test('5 — domaines distincts sous le même suffixe public (foo.example.co.uk vs bar.other.co.uk) → jamais fusionnés, même avec des titres quasi identiques', () => {
+ assert.equal(isNearDuplicateCandidate(
+  c('Commande en ligne - Toulouse Bistro', 'https://foo.example.co.uk/toulouse'),
+  c('Commande en ligne - Toulouse Bistro : livraison à domicile et click & collect', 'https://bar.other.co.uk/toulouse')
+ ), false, 'example.co.uk et other.co.uk sont deux registrable domains différents — une heuristique naïve "2 derniers labels" les aurait fusionnés à tort en "co.uk"');
+});
+
+test('6 — localhost / IP / URL invalide : fail-closed, aucun crash, aucune fusion abusive par le seul signal de domaine', () => {
+ assert.doesNotThrow(() => isNearDuplicateCandidate(c('Test', 'not a url'), c('Autre chose', 'https://example.com/')));
+ assert.doesNotThrow(() => isNearDuplicateCandidate(c('Test', 'http://192.168.1.1/a'), c('Test', 'http://192.168.1.1/b')));
+ // Deux hôtes localhost identiques, contenu proche (préfixe partagé) mais getDomain(...)===null pour les
+ // deux : le signal de domaine ne doit JAMAIS compter un double null comme une correspondance.
+ assert.equal(isNearDuplicateCandidate(
+  c('Tableau de bord interne', 'http://localhost:3000/a'),
+  c('Tableau de bord interne : section 2', 'http://localhost:3000/b')
+ ), false, 'deux hôtes localhost identiques ne sont jamais fusionnés via le signal de domaine (null n\'est jamais une correspondance)');
+ assert.equal(isNearDuplicateCandidate(
+  c('Tableau de bord interne', 'http://192.168.1.1/a'),
+  c('Tableau de bord interne : section 2', 'http://192.168.1.1/b')
+ ), false, 'même chose pour une IP littérale');
+});
+
+test('7 — le fallback "never under-return" ne réadmet un quasi-doublon que si le pool ne contient réellement pas assez de candidats distincts', () => {
+ const richPool = [
+  c(RESTO_A, 'https://commande.restodrive.fr/toulouse'),
+  c('Terra Tolosa - Restaurant Traditionnel - Toulouse', 'https://terratolosa.fr/'),
+  c(RESTO_B, 'https://www.restodrive.fr/toulouse/click-and-collect'),
+  c('Chez Mario - Restaurant italien - Toulouse', 'https://chezmario-toulouse.fr/'),
+  c('Le Petit Comptoir - Bistrot - Toulouse', 'https://lepetitcomptoir-toulouse.fr/'),
+ ];
+ const richTop3 = selectDiverseCandidates(richPool, 3);
+ assert.equal(richTop3.filter(r => /(^|\.)restodrive\.fr$/.test(new URL(r.url).hostname)).length, 1, 'assez de candidats distincts disponibles : le fallback ne doit jamais réadmettre le doublon');
+
+ const poorPool = [
+  c(RESTO_A, 'https://commande.restodrive.fr/toulouse'),
+  c('Terra Tolosa - Restaurant Traditionnel - Toulouse', 'https://terratolosa.fr/'),
+  c(RESTO_B, 'https://www.restodrive.fr/toulouse/click-and-collect'),
+ ];
+ const poorTop3 = selectDiverseCandidates(poorPool, 3);
+ assert.equal(poorTop3.length, 3, 'seulement 2 entités réellement distinctes disponibles pour 3 slots : le fallback réadmet le doublon plutôt que de sous-retourner');
+});

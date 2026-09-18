@@ -80,12 +80,54 @@ Aucun. Cette étape ne touche ni `count` (toujours 20, un seul appel HTTP), ni `
 1 dans `recordApiUsage`), ni `provider_pricing` (5000 micros/`request`, inchangé). C'est une sélection
 en mémoire sur des résultats déjà reçus dans l'unique appel Brave facturé.
 
+## Mise à jour 4A.2.1 — régression production : résolution par domaine enregistrable (eTLD+1)
+
+### Régression observée et diagnostic
+
+Après déploiement de 4A.2, le smoke production a montré les deux résultats « Resto Drive » toujours
+présents dans le top 3. Diagnostic détaillé (bloc 4A.2 « PRODUCTION REGRESSION ») : `normalizeHost`
+comparait les noms d'hôte par **égalité stricte** après avoir seulement retiré un préfixe `www.` — sans
+aucune notion de domaine racine partagé entre sous-domaines. Reproduit empiriquement : avec les deux
+titres réels exacts (similarité d'édition ≈0,514, très inférieure au seuil de 0,85 ; préfixe normalisé
+partagé de 37 caractères, condition de longueur satisfaite), le signal faible (même hôte + préfixe) ne
+se déclenchait que si les deux URLs partageaient le **même hostname littéral** — hypothèse vérifiée par
+la fixture 4A.2, mais **non confirmée** sur les vraies données Brave (le JSON brut réel n'a pas été
+observé directement). Une variante plausible et courante (sous-domaine de commande dédié vs domaine
+principal, ou deux sous-domaines frères) reproduit exactement le symptôme observé.
+
+### Dépendance ajoutée : `tldts`
+
+Avant d'ajouter une dépendance, `package.json`/`package-lock.json`/`node_modules` ont été inspectés :
+aucune capacité de résolution de domaine enregistrable (Public Suffix List) n'existait, ni directement
+ni en transitif (aucun `psl`, `tldts`, `parse-domain`, etc.). Une heuristique naïve « 2 derniers labels »
+a été explicitement écartée : elle échoue sur les TLD composés (`foo.example.co.uk` et
+`bar.other.co.uk` se réduiraient tous deux, à tort, à `co.uk`, fusionnant deux entités totalement
+distinctes — exactement le risque que ce bloc doit éviter).
+
+`tldts@7.4.13` (épinglé exact, comme toutes les dépendances du repo) a été retenu : activement
+maintenu, une seule dépendance propre (`tldts-core`), typé TypeScript nativement, API minimale
+(`getDomain(hostname)` → domaine enregistrable ou `null`), utilisé uniquement côté serveur (jamais
+embarqué côté client — Discovery est exclusivement logique de route API). Comportement vérifié
+explicitement avant intégration sur tous les cas requis : sous-domaines (`commande.`/`www.`/`pro.`),
+TLD composés (`.co.uk`), domaines distincts sous même suffixe, et retour `null` (jamais un crash, jamais
+une supposition) pour `localhost`, les IP littérales et les URLs invalides.
+
+### Algorithme mis à jour
+
+`isNearDuplicateCandidate` remplace la comparaison de hostname strict par une comparaison de
+**domaine enregistrable exact** (`getDomain(a) === getDomain(b)`, jamais `null === null`) — toujours
+combinée au signal de contenu (préfixe partagé ≥15 caractères), **jamais suffisante seule** : ce
+garde-fou (Test 3) reste strictement inchangé. Le signal fort (similarité de titre ≥0,85, indépendant du
+domaine) est également inchangé.
+
 ## Risques résiduels
 
 - Le seuil de similarité de titre (0,85) et le seuil de longueur minimale de préfixe partagé (15
-  caractères) sont des constantes choisies raisonnablement, pas dérivées empiriquement d'un grand
-  corpus — un cas limite pourrait échapper à la détection ou, à l'inverse, sur-fusionner deux titres
-  très courts et génériquement proches (atténué par le seuil de longueur minimale et par l'exigence de
-  même domaine pour le signal faible).
-- Comme en 4A.1, aucun appel Brave réel n'a validé ce comportement en conditions réelles — uniquement
-  fixtures reproduisant fidèlement le pool observé.
+  caractères) restent des constantes choisies raisonnablement, pas dérivées empiriquement d'un grand
+  corpus.
+- La cause « sous-domaines différents » reste une explication **reproduite et fortement probable**, pas
+  un fait de production définitivement établi (le JSON brut réel de Brave n'a jamais été inspecté
+  directement dans ce projet). Si le prochain smoke production montre encore le même symptôme, il
+  faudra obtenir les hostnames/URLs bruts réels pour confirmer ou infirmer cette hypothèse.
+- Comme en 4A.1/4A.2, aucun appel Brave réel n'a validé ce comportement en conditions réelles —
+  uniquement fixtures reproduisant fidèlement le pool et les titres observés.

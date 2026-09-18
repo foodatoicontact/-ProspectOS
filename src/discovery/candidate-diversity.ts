@@ -11,17 +11,26 @@
 // establishment sits just below the cut. DeduplicationService (deduplication.ts) cannot help here: it
 // compares prospects/candidates by website/phone/city, all of which are null on a raw, not-yet-analyzed
 // search result — its identity model is for post-analysis prospects, not for search hits.
+import {getDomain} from 'tldts';
 import {similarity,normalize} from './deduplication.ts';
 
-// A single very-high title similarity is a strong signal on its own, regardless of hostname (two
-// different sites both echoing the same generic listing text for the same establishment). A same-host
-// pair only counts as a near-duplicate on the WEAKER prefix/containment signal — same domain alone is
-// deliberately never sufficient (a corporate/multi-brand domain can legitimately host several distinct
-// establishments — see docs, Test C).
+// A single very-high title similarity is a strong signal on its own, regardless of domain (two
+// different sites both echoing the same generic listing text for the same establishment). A
+// same-registrable-domain pair only counts as a near-duplicate on the WEAKER prefix/containment signal
+// — a shared domain alone is deliberately never sufficient (a corporate/multi-brand domain can
+// legitimately host several distinct establishments — see docs, Test C).
 const HIGH_TITLE_SIMILARITY = 0.85;
 const MIN_CONTAINED_TITLE_LENGTH = 15;
 
-const normalizeHost = (url: string): string => { try { return new URL(url).hostname.toLowerCase().replace(/^www\./, ''); } catch { return ''; } };
+// Correct eTLD+1 (registrable domain) resolution via the Public Suffix List (see tldts in
+// package.json — chosen after confirming no equivalent capability already existed anywhere in this
+// project's dependency tree; see docs/DISCOVERY_CANDIDATE_DIVERSITY.md for the full justification and
+// the alternative considered). A naive "last two labels" heuristic was deliberately rejected: it is
+// wrong for composed TLDs (foo.example.co.uk and bar.other.co.uk would both naively reduce to
+// "co.uk", wrongly treating two completely unrelated businesses as the same domain). getDomain returns
+// null — never a guess — for anything without a recognized public suffix (localhost, a bare IP,
+// malformed input): that null NEVER counts as a match, so no domain-based signal can ever fire for it.
+const registrableDomain = (url: string): string | null => { try { return getDomain(new URL(url).hostname); } catch { return null; } };
 
 // True when one normalized title is essentially a generic prefix/substring of the other — the exact
 // shape of the real observed case ("Commande en ligne restaurant Toulouse" vs the same phrase followed
@@ -37,11 +46,15 @@ function titlesShareGenericPrefix(a: string, b: string): boolean {
 
 export function isNearDuplicateCandidate(a: {title: string; url: string}, b: {title: string; url: string}): boolean {
  const highTitleSimilarity = similarity(a.title, b.title) >= HIGH_TITLE_SIMILARITY;
- if (highTitleSimilarity) return true; // strong enough alone — never requires a matching hostname (Test B)
- const sameHost = normalizeHost(a.url) !== '' && normalizeHost(a.url) === normalizeHost(b.url);
- // The weaker prefix signal only ever counts when reinforced by the same domain — same domain with
- // genuinely distinct titles is explicitly never treated as a duplicate (Test C).
- return sameHost && titlesShareGenericPrefix(a.title, b.title);
+ if (highTitleSimilarity) return true; // strong enough alone — never requires a matching domain (Test B)
+ const domainA = registrableDomain(a.url), domainB = registrableDomain(b.url);
+ const sameRegistrableDomain = domainA !== null && domainA === domainB;
+ // The weaker prefix signal only ever counts when reinforced by the same REGISTRABLE domain — a shared
+ // domain with genuinely distinct titles is explicitly never treated as a duplicate (Test C), and two
+ // different registrable domains that merely share a public suffix (foo.example.co.uk vs
+ // bar.other.co.uk) are never conflated (Test 5) — domainA===domainB is a full eTLD+1 string match, not
+ // a suffix check.
+ return sameRegistrableDomain && titlesShareGenericPrefix(a.title, b.title);
 }
 
 // Greedy diversity selection: walk the pool in its existing (quality-descending) order, keep a

@@ -117,9 +117,14 @@ test('delete: the account panel only opens a dedicated confirmation flow, it nev
  assert.match(accountModal,/onClick=\{\(\)=>\{setModal\('delete-account'\);setDeleteStep\(1\)\}\}>Supprimer mon compte/);
 });
 test('delete step 1: the irreversibility warning and data-handling explanation are shown before any confirmation input exists',()=>{
- assert.match(deleteModal,/Cette action peut être irréversible/);
+ assert.match(deleteModal,/Cette action est irréversible/);
  assert.match(deleteModal,/deleteStep===1/);
  assert.doesNotMatch(deleteModal.split('deleteStep===2')[0],/<input/,'no confirmation input exists before the user explicitly continues past the warning');
+});
+test('delete step 1: the warning accurately describes anonymization (not physical erasure) of personal auth info, retention of organizational data, and retention of audit references',()=>{
+ assert.match(deleteModal,/informations d.authentification personnelles \(email, mot de passe\) sont anonymisées/,'must not imply personal auth data is physically deleted — the real behavior is anonymization in place');
+ assert.match(deleteModal,/Les données appartenant à votre organisation[^<]*sont conservées/,'must state organizational/shared data is retained, not erased');
+ assert.match(deleteModal,/références d.audit[^<]*sont conservées pour préserver l.intégrité des preuves et de l.historique/,'must state audit references (evidence.verified_by / events.actor_id) are retained, never described as merely possible');
 });
 test('delete step 2: the literal word SUPPRIMER must be typed, and the destructive button is disabled until it matches exactly',()=>{
  assert.match(deleteModal,/Pour confirmer, saisissez <b>SUPPRIMER<\/b>/);

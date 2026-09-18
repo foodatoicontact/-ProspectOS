@@ -9,7 +9,7 @@ import {CriterionContextSchema} from '../../../../src/discovery/types';
 import {requireActiveEntitlement} from '../../../../src/server/entitlement';
 import {buildAccountExportZip,anonymizeAuthUser} from '../../../../src/server/account';
 import {recordApiUsage} from '../../../../src/server/usage';
-import {saveProviderCredential,listProviderCredentials,deleteProviderCredential} from '../../../../src/server/byok';
+import {saveProviderCredential,listProviderCredentials,deleteProviderCredential,resolveProviderCredential} from '../../../../src/server/byok';
 import {DEFAULT_CRITERIA,STATUSES,OUTREACH_STATUSES,validateCriteria,generateOutreach,scoreProspect,csv,safeLink} from '../../../../src/domain/core';
 export const runtime='nodejs';
 export const maxDuration=60;
@@ -110,17 +110,28 @@ async function handler(request:Request,context:{params:Promise<{path:string[]}>}
  // analyzeCompanyGuarded rejects a malformed project_id before either the quota RPC or the paid
  // provider ever run, then consumes the quota BEFORE calling the provider, never after — fail-closed
  // by construction at every step (invalid id, quota exceeded, not a member, or the check itself
- // failing all stop here, before any cost is incurred).
- const {usage,...analysis}=await analyzeCompanyGuarded(
+ // failing all stop here, before any cost is incurred). organizationId is resolved INSIDE the
+ // callProvider closure (so it only ever runs after the id is validated and the quota consumed) and
+ // captured here only to address the cost-ledger write below — never used to decide access.
+ let organizationId:string|undefined;
+ const {usage,credential_source,...analysis}=await analyzeCompanyGuarded(
   body.project_id,
   (projectId)=>checkedRpc(db.rpc('consume_ai_offer_quota',{p_project_id:projectId})),
-  ()=>analyzeOffer(body.text),
+  async()=>{
+   const project=await checked(db.from('projects').select('organization_id').eq('id',body.project_id).single());
+   organizationId=project.organization_id;
+   // BYOK never changes which provider/model is called — only which key pays — and only ever
+   // activates when the platform is already configured for Anthropic (see src/server/ai.ts). A
+   // decryption/lookup failure here is treated as "no BYOK key available" (falls back to the
+   // platform key, never to a different provider), never surfaced to the client.
+   const byokKey=process.env.AI_PROVIDER==='anthropic'?await resolveProviderCredential(project.organization_id,'anthropic').catch(()=>null):null;
+   return analyzeOffer(body.text,{apiKeyOverride:byokKey});
+  },
  );
  // Best-effort cost-ledger write for the real LLM call that just happened — never allowed to turn an
  // already-successful (and already billed) analysis into a failed response for the user.
  if(usage.input_tokens||usage.output_tokens){try{
- const project=await checked(db.from('projects').select('organization_id').eq('id',body.project_id).single());
- await recordApiUsage({organizationId:project.organization_id,projectId:body.project_id,userId:user.id,provider:usage.provider as 'anthropic'|'openai',operation:'offer_analysis',model:usage.model,inputTokens:usage.input_tokens,outputTokens:usage.output_tokens});
+ await recordApiUsage({organizationId:organizationId!,projectId:body.project_id,userId:user.id,provider:usage.provider as 'anthropic'|'openai',operation:'offer_analysis',model:usage.model,inputTokens:usage.input_tokens,outputTokens:usage.output_tokens,billingSource:credential_source});
  }catch{/* Cost-ledger visibility is best-effort; the analysis itself already succeeded. */}}
  return json(analysis);
  }
@@ -153,6 +164,7 @@ async function handler(request:Request,context:{params:Promise<{path:string[]}>}
  return json({
   email:user.email??null,
   organization:organization?{name:organization.name}:null,
+  organization_id:membership?.organization_id??null,
   role:membership?.role??null,
   entitlement:entitlement?{plan:entitlement.plan,status:entitlement.status,expires_at:entitlement.expires_at,active:entitlement.status==='ACTIVE'&&new Date(entitlement.expires_at).getTime()>Date.now()}:null,
  });

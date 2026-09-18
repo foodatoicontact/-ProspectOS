@@ -79,57 +79,112 @@ contre un `discovery_run_id`. Les ajouter demanderait de toucher le pipeline d'a
 ce bloc s'interdit explicitement. Ils apparaissent à `null` avec une note explicite plutôt qu'un chiffre
 inventé.
 
-## BYOK — FOUNDATION ONLY (pas fonctionnel)
+## BYOK Anthropic — branché sur `analyzeOffer()` (bloc `feat/anthropic-byok-metering`)
 
-**BYOK FOUNDATION ONLY.** Le stockage (`provider_credentials`), le chiffrement (AES-256-GCM,
-`src/server/crypto.ts`, clé maîtresse `BYOK_MASTER_KEY` serveur uniquement) et les routes
-(`/api/v1/provider-credentials/:organization_id`) sont livrés et testés — mais **aucun appel réel (Brave
-ou IA) n'est routé à travers une clé BYOK sauvegardée**. `resolveProviderCredential()` existe
-(`src/server/byok.ts`) et sait déchiffrer une clé stockée, mais n'est appelé par aucun chemin de
-production : ni `BraveProvider`, ni `analyzeOffer` ne le consultent. Un client peut sauvegarder une clé
-Brave/Anthropic/OpenAI dès aujourd'hui ; **elle n'est jamais utilisée pour un seul appel réel tant que ce
-routage n'est pas explicitement construit dans un bloc ultérieur**. Aucune UI ne doit laisser entendre le
-contraire.
+Le stockage (`provider_credentials`), le chiffrement (AES-256-GCM, `src/server/crypto.ts`, clé maîtresse
+`BYOK_MASTER_KEY` serveur uniquement) et les routes (`/api/v1/provider-credentials/:organization_id`)
+sont inchangés depuis la fondation (bloc `feat/real-discovery-cost-byok`). Ce qui change ici :
+**`resolveProviderCredential()` est désormais appelé par la route `analyze-company`**, et son résultat
+peut réellement payer un appel Anthropic à la place de la clé plateforme.
 
-Gérer une clé BYOK (organisation, `owner` uniquement) :
-```
-POST   /api/v1/provider-credentials/:organization_id   { "provider": "brave", "api_key": "..." }
-GET    /api/v1/provider-credentials/:organization_id
-DELETE /api/v1/provider-credentials/:organization_id    { "provider": "brave" }
-```
+### Règle d'activation — BYOK ne change jamais le provider ni le modèle
 
-La clé en clair n'est **jamais** renvoyée après sauvegarde (ni par `save`, ni par `list`) — seuls
-`provider`, `key_last4`, `created_at`, `updated_at` sortent de la base. L'export RGPD ne lit jamais
-`provider_credentials`.
+`analyzeOffer()` (`src/server/ai.ts`) accepte un second paramètre optionnel `{apiKeyOverride}`. Cette
+clé n'est **utilisée que si `AI_PROVIDER==='anthropic'`** — c'est-à-dire uniquement pour remplacer *quelle
+clé paie*, jamais *quel fournisseur/modèle est appelé*. Si la plateforme est configurée pour `openai`
+(ou n'est pas configurée), une clé Anthropic BYOK sauvegardée reste disponible en base mais n'est **jamais
+activée** : l'activer forcerait à inventer un modèle Anthropic qui n'existe nulle part dans la
+configuration actuelle, ce que le brief interdit explicitement. C'est une limitation de portée assumée,
+pas un bug — documentée ici comme risque résiduel (voir plus bas).
 
-### Risque documenté — chemin bytea via PostgREST non testé contre un vrai backend
+Chemin exact (`app/api/v1/[...path]/route.ts`, bloc `analyze-company`) :
+1. `analyzeCompanyGuarded` valide `project_id` et consomme le quota horaire — **avant** tout appel payant, inchangé.
+2. À l'intérieur du `callProvider` (donc seulement après consommation du quota), le `organization_id` du projet est résolu, puis `resolveProviderCredential(organizationId,'anthropic')` est tenté **uniquement si** `process.env.AI_PROVIDER==='anthropic'`.
+3. Un échec de résolution/déchiffrement (pas de clé, ligne corrompue, `BYOK_MASTER_KEY` absente) est intercepté (`.catch(()=>null)`) et traité comme "pas de clé BYOK" — retombe sur la clé plateforme, **jamais** un fallback vers un autre fournisseur.
+4. `analyzeOffer(text,{apiKeyOverride})` renvoie `credential_source:'BYOK'|'PLATFORM'` en plus de `usage` — les deux sont retirés de la réponse HTTP (`const {usage,credential_source,...analysis}=...; return json(analysis)`), jamais exposés au client.
+5. `recordApiUsage({...,billingSource:credential_source})` écrit la provenance réelle dans `api_usage_events.billing_source` (colonne déjà existante, migration 009 — `billingSource` est un nouveau paramètre optionnel de `RecordUsageInput`, défaut `'PLATFORM'`, l'appel Brave existant est inchangé).
 
-`src/server/byok.ts` encode `encrypted_secret`/`iv`/`auth_tag` en hex préfixé `\x` pour les envoyer à
-`save_provider_credential` via `supabase-js`/PostgREST, et les décode de la même façon en lecture. Ce
-format est celui documenté par Postgres pour un cast texte→bytea et par la sérialisation JSON de
-PostgREST pour une colonne bytea — mais il n'a été vérifié que par la logique du code et par les tests
-PGlite (qui, eux, utilisent le protocole fil Postgres brut et acceptent un `Buffer`, pas la même
-convention — voir le commentaire dans `tests/discovery-cost-byok-db.mjs`). **Il n'a jamais été exercé
-contre un vrai serveur PostgREST/Supabase.** Tant que ce chemin n'a pas tourné une fois en conditions
-réelles, le considérer comme un risque ouvert, pas comme validé.
+### Modèle Anthropic exact — toujours inconnu, aucun prix inventé
 
-### Smoke test non destructif à exécuter plus tard (jamais avec une vraie clé fournisseur)
+`AI_MODEL` reste une variable d'environnement 100% pilotée par l'opérateur (`process.env.AI_MODEL`),
+sans valeur par défaut ni constante dans le code — impossible à déterminer statiquement dans ce dépôt.
+**Aucune ligne `provider_pricing` n'est ajoutée pour `anthropic` par ce bloc.** `resolve_provider_cost`
+continue de renvoyer `null` pour toute paire provider/model/operation sans ligne active (mécanisme déjà
+présent depuis la migration 009, zéro code nouveau requis) : le coût d'un appel Anthropic BYOK ou
+PLATFORM reste donc `estimated_cost_micros = null` tant qu'aucun opérateur n'insère un tarif vérifié pour
+le modèle exact réellement configuré (voir le bloc SQL d'exemple plus haut, section Tarif). C'est le
+comportement fail-closed explicitement demandé — jamais une estimation devinée depuis la longueur du
+texte, jamais un tarif approximatif appliqué "au cas où".
 
-Une fois `BYOK_MASTER_KEY` configurée sur un environnement de test réel (jamais la production sans
-validation explicite), avec un secret **entièrement factice** :
+`api_usage_events` permet déjà de retrouver, pour un appel Anthropic : `organization_id`, `provider`,
+`operation`, `model` (valeur runtime de `AI_MODEL`), `input_tokens`/`output_tokens` (renvoyés tels quels
+par Anthropic — jamais estimés), `estimated_cost_micros` (`null` si non tarifé), `billing_source`
+(`'BYOK'` ou `'PLATFORM'`), `created_at`. Aucune migration n'a été nécessaire pour ce bloc : la colonne
+`billing_source` (contrainte `check` `PLATFORM`/`BYOK`) existe depuis la migration 009 et n'était
+simplement jamais alimentée qu'en `'PLATFORM'`.
 
-```
-TEST_ONLY_NOT_A_REAL_API_KEY_xxx
-```
+### UI minimale — Compte → Clé API Anthropic
 
-1. **save** — `POST /api/v1/provider-credentials/:organization_id` avec `{"provider":"brave","api_key":"TEST_ONLY_NOT_A_REAL_API_KEY_xxx"}`, en tant qu'owner d'une organisation de test. Vérifier : réponse `201`, corps = exactement `{provider,key_last4,created_at,updated_at}` — jamais `encrypted_secret`/`iv`/`auth_tag`/le secret en clair.
-2. **list (masked only)** — `GET /api/v1/provider-credentials/:organization_id`. Vérifier : le tableau retourné ne contient que `provider`/`key_last4`/`created_at`/`updated_at` ; `key_last4` doit valoir les 4 derniers caractères du secret factice (`_xxx`).
-3. **server decrypt** — appeler `resolveProviderCredential(organizationId,'brave')` directement (script serveur, jamais exposé en HTTP) et vérifier que la valeur déchiffrée est bien `TEST_ONLY_NOT_A_REAL_API_KEY_xxx` — cela valide le chemin bytea aller-retour complet (écriture via PostgREST, lecture directe admin, déchiffrement AES-256-GCM).
-4. **delete** — `DELETE /api/v1/provider-credentials/:organization_id` avec `{"provider":"brave"}`. Vérifier : `200`, puis `list` renvoie un tableau vide.
-5. Sur toute la procédure : grep les logs serveur, la table `events`, et un export RGPD généré entre-temps pour ce compte — le secret factice ne doit apparaître **nulle part** en dehors de la requête HTTP `save` elle-même (jamais loggé, jamais dans `events`, jamais dans l'export).
+Un nouveau bouton **« Clé API Anthropic »** dans la modale Compte (`app/page.tsx`, gardé par
+`mode==='live'`, visible pour tout membre) ouvre une modale dédiée (`modal==='byok-anthropic'`) :
+statut (`Configurée · se termine par XXXX` / `Non configurée`), champ `type="password"` pour saisir/
+remplacer, boutons Enregistrer/Supprimer visibles uniquement pour `role==='owner'` (miroir exact de
+`require_owner` côté RPC — un non-owner voit le statut mais pas les actions). La clé n'est **jamais**
+réaffichée après sauvegarde : seul `key_last4` revient du serveur. Utilise exclusivement les routes BYOK
+existantes (`GET`/`POST`/`DELETE /api/v1/provider-credentials/:organization_id`) via le helper `api()`
+déjà en place — aucune nouvelle route. `organization_id` a été ajouté (additif) à la réponse
+`GET /api/v1/account` pour que le client puisse adresser ces routes.
 
-Ce test n'appelle jamais Brave/Anthropic/OpenAI (aucun appel réseau sortant vers un fournisseur) — il
-valide uniquement le chemin de stockage/chiffrement.
+### Test critique bytea — désormais exercé par mocks (pas seulement documenté comme risque)
+
+`src/server/byok.ts` et `src/server/usage.ts` importaient leurs modules serveur voisins sans extension
+(`./crypto`, `./admin-client`, `./pricing`) — un style incompatible avec le runtime `node --test` utilisé
+par la suite de tests (seul le bundler Next.js tolérait cette omission). Corrigé ici (`./crypto.ts`,
+`./admin-client.ts`, `./pricing.ts`, comportement identique sous Next.js grâce à
+`allowImportingTsExtensions`, déjà activé) — cela aligne `src/server/` sur la convention déjà suivie
+partout ailleurs dans `src/discovery/` et `src/domain/`, et rend ces modules réellement testables en
+isolation pour la première fois. `tests/byok-anthropic.test.ts` (nouveau, `npm test`) exerce désormais
+réellement, via `node:test`'s `mock.module`/`mock.method` (aucun réseau, aucune DB réelle) :
+
+- **Chemin bytea complet** : `encryptSecret` produit un ciphertext/iv/authTag réels, encodés exactement
+  comme `toBytea` le fait (`\x`-hex) — la forme JSON exacte qu'un vrai PostgREST renverrait pour une
+  colonne bytea — puis `resolveProviderCredential` (code de production, non réimplémenté) les décode et
+  déchiffre via `decryptSecret` réel, et le texte clair obtenu est comparé strictement à l'original.
+- `saveProviderCredential` n'envoie jamais le texte en clair à la RPC, uniquement `\x`-hex + `key_last4`.
+- Sélection de la clé BYOK vs plateforme dans `analyzeOffer` (en-tête HTTP réellement envoyé, mocké au
+  niveau `fetch`), `credential_source` correct dans les deux cas, ignoré silencieusement si le provider
+  configuré n'est pas `anthropic`.
+- `recordApiUsage` : `billing_source` par défaut `'PLATFORM'`, propagation correcte de `'BYOK'`, coût
+  toujours `null` en l'absence de tarif Anthropic, aucun champ clé/secret dans la ligne insérée.
+- Preuves statiques (source-level, même convention que `tests/account-session.test.ts`) que
+  `credential_source`/`usage` sont retirés de la réponse HTTP et qu'un échec de résolution BYOK est
+  intercepté avant d'atteindre le client.
+
+Ce que ceci ne remplace toujours pas : un vrai serveur PostgREST/Supabase n'a jamais reçu ni renvoyé ce
+format bytea en conditions réelles. Le smoke production décrit ci-dessous reste la validation
+définitive end-to-end.
+
+### Smoke production futur — UN seul appel réel, jamais pendant le développement
+
+**Aucun appel Anthropic réel n'a été fait pendant ce bloc.** Procédure à exécuter plus tard, en
+production, avec le petit crédit Anthropic déjà disponible :
+
+1. Sur l'environnement de production réel, en tant qu'owner d'une organisation de test/pilote, saisir une
+   vraie clé Anthropic valide via la nouvelle UI Compte → Clé API Anthropic → Enregistrer. Vérifier que le
+   statut affiche `Configurée · se termine par XXXX` (jamais la clé elle-même).
+2. Confirmer que `AI_PROVIDER=anthropic` est bien la configuration Vercel active pour cet environnement
+   (sinon la clé BYOK reste inerte par design — voir plus haut).
+3. Depuis l'UI (onglet Offre & ICP → « Analyser l'offre »), soumettre **un seul** texte minimal mais
+   réaliste (30-200 caractères, pas de boucle, pas de retry manuel).
+4. Vérifier dans `api_usage_events` (requête SQL directe, jamais via une route publique) : une seule
+   nouvelle ligne, `provider='anthropic'`, `billing_source='BYOK'`, `model` = valeur réelle observée de
+   `AI_MODEL`, `input_tokens`/`output_tokens` non nuls, `estimated_cost_micros` = `null` (aucun tarif
+   seedé) — c'est le signal que le coût est correctement fail-closed plutôt que deviné.
+5. Noter le modèle exact observé dans `model` — c'est la première fois qu'il est connu avec certitude.
+   Ne PAS insérer de ligne `provider_pricing` sans vérifier au préalable, hors de ce dépôt, le tarif
+   officiel exact d'Anthropic pour ce modèle précis.
+6. Supprimer la clé de test via Compte → Clé API Anthropic → Supprimer si elle ne doit pas rester active.
+   Budget consommé : exactement un appel `messages`, aucun retry, aucune boucle.
 
 ## Variables d'environnement
 

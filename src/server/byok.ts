@@ -1,6 +1,6 @@
 import type {SupabaseClient} from '@supabase/supabase-js';
-import {encryptSecret,decryptSecret,last4} from './crypto';
-import {createAdminClient} from './admin-client';
+import {encryptSecret,decryptSecret,last4} from './crypto.ts';
+import {createAdminClient} from './admin-client.ts';
 export type ByokProvider='brave'|'anthropic'|'openai';
 export interface CredentialSummary {provider:ByokProvider;key_last4:string;created_at:string;updated_at:string}
 // Postgres' bytea text-input/output format is hex prefixed with `\x` — both the RPC parameter

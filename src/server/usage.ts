@@ -1,9 +1,12 @@
-import {createAdminClient} from './admin-client';
-import {resolveCost,costFromRequests,costFromTokens,type Provider,type Operation} from './pricing';
+import {createAdminClient} from './admin-client.ts';
+import {resolveCost,costFromRequests,costFromTokens,type Provider,type Operation} from './pricing.ts';
 export interface RecordUsageInput {
  organizationId:string;projectId?:string|null;discoveryRunId?:string|null;userId:string;
  provider:Provider;operation:Operation;model?:string|null;
  requestCount?:number;inputTokens?:number|null;outputTokens?:number|null;
+ // Which key actually paid for this call. Defaults to 'PLATFORM' so the existing Brave call site (which
+ // never passes this) keeps its exact prior behavior byte-for-byte.
+ billingSource?:'PLATFORM'|'BYOK';
 }
 // Called exclusively from server code, exclusively for a call that ACTUALLY happened against a real
 // (never fixture/TEST) provider. Writes through the admin/service-role client — no `authenticated`
@@ -18,7 +21,7 @@ export async function recordApiUsage(input:RecordUsageInput):Promise<void> {
   const cost=await resolveCost(admin,input.provider,input.operation,input.model??null,quantities);
   const {error}=await admin.from('api_usage_events').insert({
    organization_id:input.organizationId,project_id:input.projectId??null,discovery_run_id:input.discoveryRunId??null,user_id:input.userId,
-   provider:input.provider,operation:input.operation,model:input.model??null,billing_source:'PLATFORM',
+   provider:input.provider,operation:input.operation,model:input.model??null,billing_source:input.billingSource??'PLATFORM',
    request_count:input.requestCount??1,input_tokens:input.inputTokens??null,output_tokens:input.outputTokens??null,
    estimated_cost_micros:cost?.estimatedCostMicros??null,pricing_version:cost?.pricingVersion??null,
   });

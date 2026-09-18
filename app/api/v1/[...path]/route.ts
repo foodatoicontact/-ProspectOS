@@ -6,6 +6,8 @@ import {analyzeOffer} from '../../../../src/server/ai';
 import {analyzeCompanyGuarded} from '../../../../src/server/ai-guard';
 import {checked as checkedRpc} from '../../../../src/discovery/repository';
 import {CriterionContextSchema} from '../../../../src/discovery/types';
+import {requireActiveEntitlement} from '../../../../src/server/entitlement';
+import {buildAccountExportZip,anonymizeAuthUser} from '../../../../src/server/account';
 import {DEFAULT_CRITERIA,STATUSES,OUTREACH_STATUSES,validateCriteria,generateOutreach,scoreProspect,csv,safeLink} from '../../../../src/domain/core';
 export const runtime='nodejs';
 export const maxDuration=60;
@@ -16,7 +18,7 @@ async function handler(request:Request,context:{params:Promise<{path:string[]}>}
  const {db,user}=await authenticatedDb(request);const {path}=await context.params;const [resource,id]=path;
  let body:Record<string,any>={};
  if(!['GET','HEAD'].includes(request.method)){const raw=await request.text();if(raw.length>20000)return json({error:'Corps trop volumineux'},413);try{body=JSON.parse(raw||'{}')}catch{return json({error:'JSON invalide'},400)}if(!body||Array.isArray(body))return json({error:'Objet requis'},400)}
- const discoveryResponse=await handleDiscovery(request,path,body,db);if(discoveryResponse)return discoveryResponse;
+ const discoveryResponse=await handleDiscovery(request,path,body,db,user);if(discoveryResponse)return discoveryResponse;
  const checked=async(query:PromiseLike<any>)=>{const {data,error}=await query;if(error)throw Error('DATABASE_REQUEST_FAILED');return data};
  if(resource==='organizations'){
  if(request.method==='GET')return json(await checked(db.from('organizations').select('*')));
@@ -61,6 +63,7 @@ async function handler(request:Request,context:{params:Promise<{path:string[]}>}
  const p=await checked(db.from('prospects').select('*').eq('id',body.prospect_id).single());return json(await checked(db.from('channels').insert({prospect_id:p.id,organization_id:p.organization_id,kind:body.kind,value:body.value,source_url:body.source_url,verified:body.verified===true}).select().single()),201);
  }
  if(resource==='outreach'&&request.method==='POST'){
+ await requireActiveEntitlement(db,user.id);
  const p=await checked(db.from('prospects').select('*,evidence(*)').eq('id',body.prospect_id).single());
  const project=await checked(db.from('projects').select('*,icps(*)').eq('id',p.project_id).single());
  const draft=generateOutreach(p.name,project.offer,projectCriteria(project.icps),p.evidence);
@@ -100,6 +103,7 @@ async function handler(request:Request,context:{params:Promise<{path:string[]}>}
  }
  if(resource==='events'&&request.method==='GET'){const pid=new URL(request.url).searchParams.get('prospect_id');return json(await checked(db.from('events').select('*').eq('prospect_id',pid??'').order('created_at',{ascending:false}).limit(100)))}
  if(resource==='analyze-company'&&request.method==='POST'){
+ await requireActiveEntitlement(db,user.id);
  if(typeof body.text!=='string'||body.text.length<30||body.text.length>10000||!safeLink(String(body.source_url??'')))return json({error:'URL source et texte public de 30 à 10 000 caractères requis'},400);
  // analyzeCompanyGuarded rejects a malformed project_id before either the quota RPC or the paid
  // provider ever run, then consumes the quota BEFORE calling the provider, never after — fail-closed
@@ -111,11 +115,45 @@ async function handler(request:Request,context:{params:Promise<{path:string[]}>}
   ()=>analyzeOffer(body.text),
  ));
  }
+ if(resource==='account'){
+ if(request.method==='GET'&&!id){
+ // V0's own single-org-per-user assumption (same one createProject already makes): role/organization
+ // are read from this user's own membership row(s), never from anything the client asserts.
+ const memberships=await checked(db.from('memberships').select('organization_id,role'));
+ const membership=memberships[0]??null;
+ const organization=membership?await checked(db.from('organizations').select('name').eq('id',membership.organization_id).single()):null;
+ const entitlement=await checked(db.from('account_entitlements').select('plan,status,expires_at').eq('user_id',user.id).maybeSingle());
+ return json({
+  email:user.email??null,
+  organization:organization?{name:organization.name}:null,
+  role:membership?.role??null,
+  entitlement:entitlement?{plan:entitlement.plan,status:entitlement.status,expires_at:entitlement.expires_at,active:entitlement.status==='ACTIVE'&&new Date(entitlement.expires_at).getTime()>Date.now()}:null,
+ });
+ }
+ if(id==='export'&&request.method==='POST'){
+ const zip=await buildAccountExportZip(db,user);
+ try{await db.rpc('log_account_export')}catch{/* best-effort audit only — never blocks the export itself */}
+ return new Response(zip as BodyInit,{headers:{'content-type':'application/zip','content-disposition':`attachment; filename="prospectos-export-${new Date().toISOString().slice(0,10)}.zip"`,'Cache-Control':'no-store'}});
+ }
+ if(id==='delete'&&request.method==='POST'){
+ // A typed confirmation is required at the API layer too — this is never enforced by the UI alone.
+ if(body.confirm!=='SUPPRIMER')return json({error:'Confirmation requise'},400);
+ const {error:rpcError}=await db.rpc('delete_own_account');
+ if(rpcError){
+  if(rpcError.message?.includes('last_owner_blocked'))return json({error:'Vous êtes le dernier propriétaire d’une organisation encore active (membres ou données). Transférez la propriété ou supprimez l’organisation avant de supprimer votre compte.',code:'LAST_OWNER_BLOCKED'},409);
+  throw Error('DATABASE_REQUEST_FAILED');
+ }
+ // Memberships are already gone at this point — the account is already unusable inside the app.
+ // A failure here is reported plainly rather than silently claimed as a full success.
+ try{await anonymizeAuthUser(user.id)}catch{return json({error:'Vos accès ont été retirés, mais la fermeture définitive du compte a échoué. Contactez le support.'},500)}
+ return json({deleted:true});
+ }
+ }
  if(resource==='export'&&request.method==='GET'){
  const pid=new URL(request.url).searchParams.get('project_id');const project=await checked(db.from('projects').select('*,icps(*)').eq('id',pid??'').single());const rows=await checked(db.from('prospects').select('*,evidence(*)').eq('project_id',project.id));
  return new Response(csv([['Nom','Ville','Statut','Score','Couverture','URL'],...rows.map((p:any)=>{const s=scoreProspect(projectCriteria(project.icps),p.evidence);return [p.name,p.city,p.status,s.score,s.coverage,p.website]})]),{headers:{'content-type':'text/csv; charset=utf-8','content-disposition':'attachment; filename="prospectos.csv"','Cache-Control':'no-store'}});
  }
  return json({error:'Route ou action non disponible'},404);
- }catch(error){const code=error instanceof Error?error.message:'';const status=code==='UNAUTHORIZED'?401:code==='CONFIGURATION_REQUIRED'||code==='AI_NOT_CONFIGURED'?503:code==='QUOTA_EXCEEDED'?429:400;return json({error:code==='UNAUTHORIZED'?'Connexion requise':code==='CONFIGURATION_REQUIRED'?'Supabase reste à connecter':code==='AI_NOT_CONFIGURED'?'Fournisseur IA et modèle non configurés':code==='QUOTA_EXCEEDED'?'Quota horaire de votre organisation atteint.':code==='INVALID_PROJECT_ID'?'Identifiant de projet invalide':'Opération impossible. Vérifiez les données et vos droits.'},status)}
+ }catch(error){const code=error instanceof Error?error.message:'';const status=code==='UNAUTHORIZED'?401:code==='CONFIGURATION_REQUIRED'||code==='AI_NOT_CONFIGURED'?503:code==='QUOTA_EXCEEDED'?429:code==='BETA_ACCESS_EXPIRED'?402:400;return json({error:code==='UNAUTHORIZED'?'Connexion requise':code==='CONFIGURATION_REQUIRED'?'Supabase reste à connecter':code==='AI_NOT_CONFIGURED'?'Fournisseur IA et modèle non configurés':code==='QUOTA_EXCEEDED'?'Quota horaire de votre organisation atteint.':code==='BETA_ACCESS_EXPIRED'?'Votre accès bêta est terminé.':code==='INVALID_PROJECT_ID'?'Identifiant de projet invalide':'Opération impossible. Vérifiez les données et vos droits.',code:code==='BETA_ACCESS_EXPIRED'?'BETA_ACCESS_EXPIRED':undefined},status)}
 }
 export {handler as GET,handler as POST,handler as PATCH};

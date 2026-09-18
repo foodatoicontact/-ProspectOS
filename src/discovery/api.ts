@@ -6,14 +6,19 @@ import {FixtureProvider,isFixtureUrl,createCompositePageFetcher} from './provide
 import {BraveProvider} from './providers/brave.ts';
 import {safeFetch} from './safe-fetch.ts';
 import {DiscoveryInputSchema} from './types.ts';
+import {requireActiveEntitlement} from '../server/entitlement.ts';
 const uuid=z.string().uuid();
 const json=(data:unknown,status=200)=>Response.json(data,{status,headers:{'Cache-Control':'no-store'}});
 const log=(event:Record<string,string|number|null>)=>console.info(JSON.stringify({component:'discovery',...event}));
-export async function handleDiscovery(request:Request,path:string[],body:unknown,db:SupabaseClient):Promise<Response|null>{
+export async function handleDiscovery(request:Request,path:string[],body:unknown,db:SupabaseClient,user:{id:string}):Promise<Response|null>{
  const [resource,id,action,observationId,decision]=path;const method=request.method;
  const applies=resource==='discovery-config'||resource==='discovery-runs'||resource==='discovery-results'||resource==='projects'&&action==='discovery'||resource==='prospects'&&['analyze','observations','website'].includes(action);
  if(!applies)return null;
  try{
+ // Only the two actions that actually search for or analyze a company are gated — reading existing
+ // discovery runs/results, reviewing/confirming an observation, or setting a prospect's official
+ // website never are: an expired trial must never hide data the user already has.
+ if((resource==='projects'&&action==='discovery'&&method==='POST')||(resource==='prospects'&&action==='analyze'&&method==='POST'))await requireActiveEntitlement(db,user.id);
  const repo=new SupabaseDiscoveryRepository(db);
  if(resource==='discovery-config'&&method==='GET')return json({providers:[{id:'fixture',available:true,mode:'test',label:'TEST — entreprises synthétiques'},{id:'brave',available:!!process.env.BRAVE_SEARCH_API_KEY,mode:'live',label:'Brave Search API'}],website_policy:'Domaines autorisés par l’opérateur et robots.txt vérifié',max_results_transport:100});
  if(resource==='projects'&&action==='discovery'&&method==='POST'){
@@ -50,5 +55,5 @@ export async function handleDiscovery(request:Request,path:string[],body:unknown
  }
  }
  return json({error:'Route Discovery inconnue'},404);
- }catch(e){const code=e instanceof Error?e.message:'DISCOVERY_FAILED';const messages:Record<string,string>={BRAVE_NOT_CONFIGURED:'Brave est implémenté mais sa clé API n’est pas configurée.',SOURCE_POLICY_REQUIRED:'Analyse bloquée : l’opérateur doit autoriser ce domaine dans DISCOVERY_ALLOWED_HOSTS après revue de ses conditions.',OFFICIAL_WEBSITE_REQUIRED:'Renseignez et confirmez le site officiel avant analyse.',QUOTA_EXCEEDED:'Quota horaire de votre organisation atteint.',MAX_RESULTS_EXCEEDED:'Le nombre demandé dépasse la limite configurée par l’opérateur.',ANALYSIS_FAILED:'Analyse impossible : source, robots, réseau ou politique de sécurité. Aucune preuve validée.',DISCOVERY_FAILED:'La recherche a échoué. Consultez son état ; aucune preuve n’a été validée.',DATABASE_REQUEST_FAILED:'Opération refusée : vérifiez les droits, l’état du résultat et la migration Discovery.'};return json({error:messages[code]??'Requête Discovery invalide',code:code in messages?code:'INVALID_REQUEST'},code==='QUOTA_EXCEEDED'?429:code==='BRAVE_NOT_CONFIGURED'||code==='SOURCE_POLICY_REQUIRED'?503:400)}
+ }catch(e){const code=e instanceof Error?e.message:'DISCOVERY_FAILED';const messages:Record<string,string>={BRAVE_NOT_CONFIGURED:'Brave est implémenté mais sa clé API n’est pas configurée.',SOURCE_POLICY_REQUIRED:'Analyse bloquée : l’opérateur doit autoriser ce domaine dans DISCOVERY_ALLOWED_HOSTS après revue de ses conditions.',OFFICIAL_WEBSITE_REQUIRED:'Renseignez et confirmez le site officiel avant analyse.',QUOTA_EXCEEDED:'Quota horaire de votre organisation atteint.',BETA_ACCESS_EXPIRED:'Votre accès bêta est terminé.',MAX_RESULTS_EXCEEDED:'Le nombre demandé dépasse la limite configurée par l’opérateur.',ANALYSIS_FAILED:'Analyse impossible : source, robots, réseau ou politique de sécurité. Aucune preuve validée.',DISCOVERY_FAILED:'La recherche a échoué. Consultez son état ; aucune preuve n’a été validée.',DATABASE_REQUEST_FAILED:'Opération refusée : vérifiez les droits, l’état du résultat et la migration Discovery.'};return json({error:messages[code]??'Requête Discovery invalide',code:code in messages?code:'INVALID_REQUEST'},code==='QUOTA_EXCEEDED'?429:code==='BETA_ACCESS_EXPIRED'?402:code==='BRAVE_NOT_CONFIGURED'||code==='SOURCE_POLICY_REQUIRED'?503:400)}
 }

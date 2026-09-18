@@ -26,10 +26,13 @@ test('A — the account panel displays the authenticated user\'s email',()=>{
  assert.match(page,/setUserEmail\(session\.user\.email/,'email is captured from the real Supabase session, never invented');
 });
 
-// --- B: current organization shown when available ---
-test('B — the organization is displayed only when already available, fetched from the user\'s own RLS-scoped organizations',()=>{
+// --- B: current organization (and role) shown when available ---
+test('B — the organization is displayed only when already available, fetched from the server-derived /account endpoint',()=>{
  assert.match(accountModal,/\{orgName&&<div className="account-field">/);
- assert.match(page,/api\('organizations','GET'/,'reuses the existing organizations endpoint — no new API surface');
+ assert.match(page,/api\('account','GET'/,'role/organization/entitlement are all read from one server-derived endpoint — never asserted by the client');
+});
+test('B — the role shown is exactly what the server reports, never invented client-side',()=>{
+ assert.match(accountModal,/\{role&&<div className="account-field">/);
 });
 
 // --- C: no technical/token data ever rendered in the account panel ---
@@ -82,4 +85,81 @@ test('H — the account trigger is a small, fixed-size control that cannot push 
 });
 test('H — a long email wraps instead of overflowing the account panel',()=>{
  assert.match(css,/\.account-field>p\{[^}]*overflow-wrap:anywhere/);
+});
+
+// ============================================================
+// Privacy/beta bloc: access status, export, self-service deletion
+// ============================================================
+const deleteModalMatch=page.match(/\{modal==='delete-account'&&<div className="modal-backdrop"[\s\S]*?<\/section><\/div>\}/);
+const deleteModal=deleteModalMatch?.[0]??'';
+
+test('setup sanity: the delete-account modal block was found in the source',()=>{
+ assert.ok(deleteModal,'delete-account modal JSX not found — later assertions would be vacuous');
+});
+
+test('access status: Actif/Bêta/Bêta terminé is shown, and the expiry date only when actually on an active beta',()=>{
+ assert.match(accountModal,/betaActive===null\?'Actif':betaActive\?'Bêta':'Bêta terminé'/);
+ assert.match(accountModal,/\{betaActive&&betaExpiresAt&&<p className="muted">Expire le/);
+});
+test('an expired beta account still sees a clear "access ended" message, never a silent data loss',()=>{
+ assert.match(accountModal,/betaActive===false&&<p className="muted">Votre accès bêta est terminé\./);
+});
+
+test('export: a dedicated button triggers a real authenticated server call, not a client-side fabrication',()=>{
+ assert.match(accountModal,/onClick=\{\(\)=>work\(exportAccount\)\}>Exporter mes données/);
+ assert.match(page,/fetch\('\/api\/v1\/account\/export',\{method:'POST',headers:\{Authorization:`Bearer \$\{token\}`\}\}\)/);
+});
+test('export never renders/exposes the raw token or blob URL in visible UI text',()=>{
+ assert.doesNotMatch(accountModal,/exportAccount.*token/s);
+});
+
+test('delete: the account panel only opens a dedicated confirmation flow, it never deletes on a single click',()=>{
+ assert.match(accountModal,/onClick=\{\(\)=>\{setModal\('delete-account'\);setDeleteStep\(1\)\}\}>Supprimer mon compte/);
+});
+test('delete step 1: the irreversibility warning and data-handling explanation are shown before any confirmation input exists',()=>{
+ assert.match(deleteModal,/Cette action peut être irréversible/);
+ assert.match(deleteModal,/deleteStep===1/);
+ assert.doesNotMatch(deleteModal.split('deleteStep===2')[0],/<input/,'no confirmation input exists before the user explicitly continues past the warning');
+});
+test('delete step 2: the literal word SUPPRIMER must be typed, and the destructive button is disabled until it matches exactly',()=>{
+ assert.match(deleteModal,/Pour confirmer, saisissez <b>SUPPRIMER<\/b>/);
+ assert.match(deleteModal,/disabled=\{busy\|\|deleteConfirm!=='SUPPRIMER'\}/);
+});
+test('delete: the server call carries the same typed confirmation, the API is never trusted to accept a bare click',()=>{
+ assert.match(page,/api\('account\/delete','POST',\{confirm:deleteConfirm\}\)/);
+});
+test('delete: no UUID/token/tenant id is ever rendered in the deletion flow either',()=>{
+ for(const forbidden of [/access_token/,/refresh_token/,/organization_id/,/identity\.current/])
+  assert.doesNotMatch(deleteModal,forbidden);
+});
+
+// --- server-side enforcement: which routes are actually gated, and which never are ---
+const routeSource=readFileSync(new URL('../app/api/v1/[...path]/route.ts',import.meta.url),'utf8');
+const discoveryApiSource=readFileSync(new URL('../src/discovery/api.ts',import.meta.url),'utf8');
+
+test('server enforcement: outreach generation and the AI offer analysis both require an active entitlement',()=>{
+ const outreachBlock=routeSource.match(/if\(resource==='outreach'&&request\.method==='POST'\)\{[\s\S]*?requireActiveEntitlement/);
+ const analyzeBlock=routeSource.match(/if\(resource==='analyze-company'&&request\.method==='POST'\)\{[\s\S]*?requireActiveEntitlement/);
+ assert.ok(outreachBlock,'outreach generation is not gated');
+ assert.ok(analyzeBlock,'AI offer analysis is not gated');
+});
+test('server enforcement: Discovery search and page analysis require an active entitlement, but reading existing results/observations never does',()=>{
+ assert.match(discoveryApiSource,/resource==='projects'&&action==='discovery'&&method==='POST'\)\|\|\(resource==='prospects'&&action==='analyze'&&method==='POST'\)\)await requireActiveEntitlement/);
+});
+test('server enforcement: login, account, export, delete-account and logout are never gated by the entitlement check',()=>{
+ assert.doesNotMatch(routeSource.split("if(resource==='account')")[1]?.split("if(resource==='export'")[0]??'',/requireActiveEntitlement/,'the entire account resource block (info/export/delete) must never call the entitlement gate');
+});
+test('server enforcement: an expired entitlement maps to a stable, documented error code (BETA_ACCESS_EXPIRED, HTTP 402)',()=>{
+ assert.match(routeSource,/code==='BETA_ACCESS_EXPIRED'\?402/);
+ assert.match(discoveryApiSource,/code==='BETA_ACCESS_EXPIRED'\?402/);
+});
+
+// --- migration-level guarantees a client can never override ---
+const migration008=readFileSync(new URL('../db/migrations/008_account_privacy_beta.sql',import.meta.url),'utf8');
+test('migration: grant_beta_access is never callable by a logged-in app user, only by direct SQL access',()=>{
+ assert.match(migration008,/revoke all on function public\.grant_beta_access\(text\) from public,anon,authenticated;/);
+});
+test('migration: account_entitlements has no client write grant at all — mutation only through the SECURITY DEFINER functions',()=>{
+ assert.match(migration008,/grant select on public\.account_entitlements to authenticated;/);
+ assert.doesNotMatch(migration008,/grant (insert|update|delete)[^;]*account_entitlements/i);
 });

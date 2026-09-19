@@ -143,12 +143,13 @@ async function handler(request:Request,context:{params:Promise<{path:string[]}>}
  return json(analysis);
  }
  if(resource==='provider-credentials'){
- // BYOK architecture surface (foundation only — no provider is actually routed through a BYOK key
- // yet, see docs/COST_METERING.md). Every mutation goes through a SECURITY DEFINER RPC that itself
- // requires the caller to be an OWNER of the target organization — never trusted from the request
- // beyond that check. The plaintext API key is encrypted here, in this request's memory, before
- // save_provider_credential ever sees it; it is never read back (list/GET only ever returns
- // provider/key_last4/created_at/updated_at).
+ // BYOK storage/management surface, shared by all providers. Anthropic credentials saved here are
+ // actually routed through analyzeOffer (see the analyze-company block above and docs/COST_METERING.md)
+ // — Brave/OpenAI credentials remain stored but not yet wired into a provider call. Every mutation goes
+ // through a SECURITY DEFINER RPC that itself requires the caller to be an OWNER of the target
+ // organization — never trusted from the request beyond that check. The plaintext API key is encrypted
+ // here, in this request's memory, before save_provider_credential ever sees it; it is never read back
+ // (list/GET only ever returns provider/key_last4/created_at/updated_at).
  const organizationId=z.string().uuid().parse(id);
  if(request.method==='GET')return json(await listProviderCredentials(db,organizationId));
  if(request.method==='POST'){

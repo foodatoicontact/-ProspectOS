@@ -33,13 +33,18 @@ const ANTHROPIC_MAX_TOKENS=2048; // Conservative, fixed ceiling for a short stru
 // tolerated shapes. Anything else (leading/trailing prose, multiple fences, a nested fence, an
 // unterminated fence) returns null — exactly as fail-closed as rejecting the response outright.
 export function normalizeAnthropicJsonText(raw:string):string|null{
- const trimmed=raw.trim();
+ const trimmed=raw.replace(/\r\n/g,'\n').trim();
  if(!trimmed)return null;
  // CAS A — the entire (trimmed) response is itself a JSON object candidate.
  if(trimmed.startsWith('{')&&trimmed.endsWith('}'))return trimmed;
- // CAS B — the entire (trimmed) response is exactly ONE fenced code block (bare ``` or ```json) and
- // nothing else: no text before/after the fence, and no second/nested fence inside it.
- const fenceMatch=trimmed.match(/^```(?:json)?[ \t]*\n([\s\S]*?)\n```$/);
+ // CAS B — the entire (trimmed) response is exactly ONE fenced code block (bare ``` or ```json/```JSON,
+ // any case) and nothing else. `\s*` is deliberately permissive about HOW the fence is laid out — a
+ // single line, no blank line before the closing fence, extra blank lines, etc. are all real, harmless
+ // formatting variations a model may produce — but that permissiveness never extends to accepting a
+ // second/nested fence: `[\s\S]*?` is lazy, but the closing `$` anchor can force it to backtrack across
+ // an inner fence if one exists, so the explicit `!inner.includes('```')` check below is what actually
+ // rejects multi-fence input, not the regex shape alone.
+ const fenceMatch=trimmed.match(/^```(?:json)?\s*([\s\S]*?)\s*```$/i);
  if(fenceMatch){
   const inner=fenceMatch[1].trim();
   if(!inner.includes('```')&&inner.startsWith('{')&&inner.endsWith('}'))return inner;

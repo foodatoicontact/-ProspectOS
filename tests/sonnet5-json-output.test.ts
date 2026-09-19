@@ -38,6 +38,23 @@ test('normalize B2 — CAS B: a single bare ``` fence (no "json" tag) is also ac
 test('normalize B3 — CAS B: leading/trailing whitespace around the whole fence is tolerated',()=>{
  assert.equal(normalizeAnthropicJsonText(`   \n\`\`\`json\n${validJson}\n\`\`\`\n  `),validJson);
 });
+// 4A.4.4 conformance fix — the initial regex only accepted one exact whitespace layout; these are real,
+// harmless formatting variations a model may legitimately produce and must not be rejected.
+test('normalize B4 — CAS B: a single-line fence (no newlines at all around the JSON) is accepted',()=>{
+ assert.equal(normalizeAnthropicJsonText('```json '+validJson+' ```'),validJson);
+});
+test('normalize B5 — CAS B: the fence tag is matched case-insensitively (```JSON)',()=>{
+ assert.equal(normalizeAnthropicJsonText('```JSON\n'+validJson+'\n```'),validJson);
+});
+test('normalize B6 — CAS B: CRLF line endings around and inside the fence are tolerated',()=>{
+ assert.equal(normalizeAnthropicJsonText('```json\r\n'+validJson+'\r\n```'),validJson);
+});
+test('normalize B7 — CAS B: no newline between the JSON and the closing fence is tolerated',()=>{
+ assert.equal(normalizeAnthropicJsonText('```json\n'+validJson+'```'),validJson);
+});
+test('normalize B8 — CAS B: an extra blank line before the closing fence is tolerated',()=>{
+ assert.equal(normalizeAnthropicJsonText('```json\n'+validJson+'\n\n```'),validJson);
+});
 test('normalize REJECT — prose before the JSON is never tolerated',()=>{
  assert.equal(normalizeAnthropicJsonText('Voici l\'analyse :\n'+validJson),null);
 });

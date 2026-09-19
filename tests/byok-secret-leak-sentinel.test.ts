@@ -54,7 +54,7 @@ test('sentinel C — a BYOK call using the sentinel as apiKeyOverride sends it O
  process.env.AI_PROVIDER = 'anthropic'; process.env.AI_API_KEY = 'unrelated-platform-key-never-used-here'; process.env.AI_MODEL = 'claude-sonnet-5';
  const fetchMock = mock.method(globalThis, 'fetch', async (_url: unknown, init: any) => {
   assert.equal(init.headers['x-api-key'], SENTINEL, 'the sentinel must reach the provider header — this is the one legitimate transmission point');
-  return {ok: true, status: 200, json: async () => ({content: [{type: 'text', text: JSON.stringify({summary: 's', target: 't', questions: ['q']})}], usage: {input_tokens: 1, output_tokens: 1}})};
+  return {ok: true, status: 200, json: async () => ({content: [{type: 'text', text: JSON.stringify({summary: 's', target: 't', questions: ['q']})}], stop_reason: 'end_turn', usage: {input_tokens: 1, output_tokens: 1}})};
  });
  try {
   const result = await analyzeOffer('un texte public suffisamment long pour la validation métier', {apiKeyOverride: SENTINEL});

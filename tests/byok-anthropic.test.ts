@@ -26,7 +26,7 @@ const {analyzeOffer}=await import('../src/server/ai.ts');
 // ------------------------------------------------------------
 test('A — a BYOK key override is used (as the x-api-key header) and credential_source is BYOK, when AI_PROVIDER is anthropic',async()=>{
  process.env.AI_PROVIDER='anthropic';process.env.AI_API_KEY='platform-key-should-not-be-used';process.env.AI_MODEL='claude-observed-model';
- const fetchMock=mockFetchOnce(200,{content:[{type:'text',text:JSON.stringify({summary:'s',target:'t',questions:['q']})}],usage:{input_tokens:11,output_tokens:22}});
+ const fetchMock=mockFetchOnce(200,{content:[{type:'text',text:JSON.stringify({summary:'s',target:'t',questions:['q']})}],stop_reason:'end_turn',usage:{input_tokens:11,output_tokens:22}});
  try{
   const result=await analyzeOffer('un texte public suffisamment long pour passer la validation métier',{apiKeyOverride:'byok-user-key-abc123'});
   assert.equal(result.credential_source,'BYOK');
@@ -39,7 +39,7 @@ test('A — a BYOK key override is used (as the x-api-key header) and credential
 
 test('A — with no BYOK override, the platform key is used and credential_source is PLATFORM',async()=>{
  process.env.AI_PROVIDER='anthropic';process.env.AI_API_KEY='platform-key-123';process.env.AI_MODEL='claude-observed-model';
- const fetchMock=mockFetchOnce(200,{content:[{type:'text',text:JSON.stringify({summary:'s',target:'t',questions:['q']})}],usage:{input_tokens:5,output_tokens:9}});
+ const fetchMock=mockFetchOnce(200,{content:[{type:'text',text:JSON.stringify({summary:'s',target:'t',questions:['q']})}],stop_reason:'end_turn',usage:{input_tokens:5,output_tokens:9}});
  try{
   const result=await analyzeOffer('un texte public suffisamment long pour passer la validation métier');
   assert.equal(result.credential_source,'PLATFORM');
@@ -66,7 +66,7 @@ test('A — a BYOK override is silently ignored (never sent, never activated) wh
 // ------------------------------------------------------------
 test('B — neither the BYOK override key nor the platform key ever appears in the returned result, in either branch',async()=>{
  process.env.AI_PROVIDER='anthropic';process.env.AI_API_KEY='platform-secret-xyz';process.env.AI_MODEL='claude-observed-model';
- const fetchMock=mockFetchOnce(200,{content:[{type:'text',text:JSON.stringify({summary:'s',target:'t',questions:['q']})}],usage:{input_tokens:1,output_tokens:1}});
+ const fetchMock=mockFetchOnce(200,{content:[{type:'text',text:JSON.stringify({summary:'s',target:'t',questions:['q']})}],stop_reason:'end_turn',usage:{input_tokens:1,output_tokens:1}});
  try{
   const result=await analyzeOffer('un texte public suffisamment long pour passer la validation métier',{apiKeyOverride:'byok-secret-abc'});
   const serialized=JSON.stringify(result);
@@ -328,7 +328,7 @@ function mockAdminThrowsIfCalled(){return mock.module('../src/server/admin-clien
 test('I1 (mandated #1) — no BYOK credential + platform key present → PLATFORM used, billing_source PLATFORM, no error',async()=>{
  process.env.AI_PROVIDER='anthropic';process.env.AI_API_KEY='platform-key-i1';process.env.AI_MODEL='claude-observed-model';
  mockAdminNone();
- const fetchMock=mockFetchOnce(200,{content:[{type:'text',text:JSON.stringify({summary:'s',target:'t',questions:['q']})}],usage:{input_tokens:1,output_tokens:1}});
+ const fetchMock=mockFetchOnce(200,{content:[{type:'text',text:JSON.stringify({summary:'s',target:'t',questions:['q']})}],stop_reason:'end_turn',usage:{input_tokens:1,output_tokens:1}});
  try{
   const result=await decide('un texte public suffisamment long pour passer la validation métier');
   assert.equal(result.credential_source,'PLATFORM');
@@ -340,7 +340,7 @@ test('I1 (mandated #1) — no BYOK credential + platform key present → PLATFOR
 test('I2 (mandated #2) — valid, decryptable BYOK credential + platform key present → BYOK used EXCLUSIVELY, billing_source BYOK',async()=>{
  process.env.AI_PROVIDER='anthropic';process.env.AI_API_KEY='platform-key-i2-must-not-be-sent';process.env.AI_MODEL='claude-observed-model';
  await mockAdminValid('byok-key-i2-real');
- const fetchMock=mockFetchOnce(200,{content:[{type:'text',text:JSON.stringify({summary:'s',target:'t',questions:['q']})}],usage:{input_tokens:1,output_tokens:1}});
+ const fetchMock=mockFetchOnce(200,{content:[{type:'text',text:JSON.stringify({summary:'s',target:'t',questions:['q']})}],stop_reason:'end_turn',usage:{input_tokens:1,output_tokens:1}});
  try{
   const result=await decide('un texte public suffisamment long pour passer la validation métier');
   assert.equal(result.credential_source,'BYOK');
@@ -386,13 +386,13 @@ test('I7 (mandated #7) — billing_source exactness across the whole matrix: BYO
  // NONE → PLATFORM (re-verified here as a single joined assertion, complementing I1/I2 above).
  process.env.AI_PROVIDER='anthropic';process.env.AI_API_KEY='platform-key-i7';process.env.AI_MODEL='claude-observed-model';
  mockAdminNone();
- let fetchMock=mockFetchOnce(200,{content:[{type:'text',text:JSON.stringify({summary:'s',target:'t',questions:['q']})}],usage:{input_tokens:1,output_tokens:1}});
+ let fetchMock=mockFetchOnce(200,{content:[{type:'text',text:JSON.stringify({summary:'s',target:'t',questions:['q']})}],stop_reason:'end_turn',usage:{input_tokens:1,output_tokens:1}});
  let result=await decide('un texte public suffisamment long pour passer la validation métier');
  assert.equal(result.credential_source,'PLATFORM');
  fetchMock.mock.restore();mock.reset();
  // VALID → BYOK.
  await mockAdminValid('byok-key-i7');
- fetchMock=mockFetchOnce(200,{content:[{type:'text',text:JSON.stringify({summary:'s',target:'t',questions:['q']})}],usage:{input_tokens:1,output_tokens:1}});
+ fetchMock=mockFetchOnce(200,{content:[{type:'text',text:JSON.stringify({summary:'s',target:'t',questions:['q']})}],stop_reason:'end_turn',usage:{input_tokens:1,output_tokens:1}});
  result=await decide('un texte public suffisamment long pour passer la validation métier');
  assert.equal(result.credential_source,'BYOK');
  fetchMock.mock.restore();mock.reset();

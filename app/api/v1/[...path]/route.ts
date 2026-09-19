@@ -2,7 +2,7 @@ import {z} from 'zod';
 import {handleDiscovery} from '../../../../src/discovery/api';
 import {projectCriteria} from '../../../../src/domain/relations';
 import {authenticatedDb} from '../../../../src/server/db';
-import {analyzeOffer} from '../../../../src/server/ai';
+import {analyzeOffer,AnalyzeOfferError} from '../../../../src/server/ai';
 import {analyzeCompanyGuarded} from '../../../../src/server/ai-guard';
 import {checked as checkedRpc} from '../../../../src/discovery/repository';
 import {CriterionContextSchema} from '../../../../src/discovery/types';
@@ -15,6 +15,22 @@ export const runtime='nodejs';
 export const maxDuration=60;
 export const dynamic='force-dynamic';
 const json=(value:unknown,status=200)=>Response.json(value,{status,headers:{'Cache-Control':'no-store'}});
+// 4A.5: runs the real provider call and, if it fails with a business-logic error that still carries real
+// usage (AnalyzeOfferError — see src/server/ai.ts), meters that usage BEFORE propagating the exact same
+// public error code the client has always received. A plain Error (network failure, non-2xx, a
+// pre-provider guard like BYOK_CREDENTIAL_INVALID) carries no usage and is rethrown untouched, exactly
+// as before — this never changes the UI message, the HTTP status, or the success path, and can never
+// meter twice (analyzeOffer runs exactly once per call here, no retry is ever introduced).
+async function callProviderMeteringFailure(call:()=>ReturnType<typeof analyzeOffer>,meter:{organizationId:string;projectId:string;userId:string}){
+ try{
+  return await call();
+ }catch(err){
+  if(err instanceof AnalyzeOfferError&&err.usage){
+   await recordApiUsage({organizationId:meter.organizationId,projectId:meter.projectId,userId:meter.userId,provider:err.usage.provider as 'anthropic'|'openai',operation:'offer_analysis',model:err.usage.model,inputTokens:err.usage.input_tokens,outputTokens:err.usage.output_tokens,billingSource:err.usage.credential_source});
+  }
+  throw err instanceof AnalyzeOfferError?Error(err.message):err;
+ }
+}
 async function handler(request:Request,context:{params:Promise<{path:string[]}>}){
  try {
  const {db,user}=await authenticatedDb(request);const {path}=await context.params;const [resource,id]=path;
@@ -127,12 +143,13 @@ async function handler(request:Request,context:{params:Promise<{path:string[]}>}
    // treated the same as NONE: falling back to the platform key there would silently bill the
    // platform's own key for an organization whose BYOK setup is broken. Fail closed instead — no
    // provider call, no quota refund (same as any other provider-side failure).
+   const meter={organizationId:project.organization_id,projectId:body.project_id,userId:user.id};
    if(process.env.AI_PROVIDER==='anthropic'){
     const credential=await resolveProviderCredential(project.organization_id,'anthropic');
     if(credential.status==='INVALID')throw Error('BYOK_CREDENTIAL_INVALID');
-    return analyzeOffer(body.text,{apiKeyOverride:credential.status==='VALID'?credential.apiKey:null});
+    return callProviderMeteringFailure(()=>analyzeOffer(body.text,{apiKeyOverride:credential.status==='VALID'?credential.apiKey:null}),meter);
    }
-   return analyzeOffer(body.text);
+   return callProviderMeteringFailure(()=>analyzeOffer(body.text),meter);
   },
  );
  // Best-effort cost-ledger write for the real LLM call that just happened — never allowed to turn an

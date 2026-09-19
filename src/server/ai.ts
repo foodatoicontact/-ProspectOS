@@ -23,6 +23,14 @@
 // multiple/nested fences all still fail closed exactly as before. logAnalyzeOfferFailure adds a short,
 // enumerable, non-sensitive reason code to each fail-closed throw — server logs only, never returned to
 // the client, never the prompt, the user's text, the model's raw response, or any credential.
+//
+// 4A.5 (Anthropic branch only): a business-logic rejection below can happen AFTER Anthropic has already
+// returned real, billable usage — the platform/BYOK key is charged regardless of whether the JSON result
+// is ever accepted. Every fail-closed throw in the Anthropic branch now carries that exact usage via
+// AnalyzeOfferError instead of a plain Error, so route.ts can meter the call before propagating the same
+// unchanged public error code. A network failure or a non-2xx response never reaches this point at all
+// (no body was ever parsed), so those cases correctly carry no usage and meter nothing — see
+// buildFailureUsage.
 const ANTHROPIC_MAX_TOKENS=2048; // Conservative, fixed ceiling for a short structured JSON reply with
 // thinking disabled — not an arbitrary 16k/128k. Worst case under the existing schema (summary ≤1000
 // chars + target ≤1000 chars + up to 5 questions ≤1000 chars each, roughly 4 chars/token) is
@@ -64,6 +72,34 @@ function logAnalyzeOfferFailure(reason:string,stopReason?:unknown){
  console.error(JSON.stringify({component:'analyzeOffer',provider:'anthropic',reason,...(stopReason!==undefined?{stop_reason:String(stopReason).slice(0,40)}:{})}));
 }
 
+// 4A.5: a business-logic rejection (INVALID_STOP_REASON, NO_TEXT_BLOCK, EMPTY_TEXT, MALFORMED_JSON,
+// SCHEMA_MISMATCH, AI_TRUNCATED_RESULT) can happen AFTER Anthropic has already returned a real, billable
+// usage object — the provider was still paid even though the result is discarded. AnalyzeOfferError
+// carries that exact usage alongside the unchanged public error code, instead of a plain Error with a
+// hidden/fragile side-channel, so the caller (route.ts) can meter the call before propagating the same
+// fail-closed error the client has always seen. `usage` is null whenever it could not be trusted (see
+// buildFailureUsage) — the caller must then record nothing, never a fabricated zero-cost event.
+export interface AnalyzeOfferFailureUsage{provider:string;model:string;input_tokens:number;output_tokens:number;credential_source:'BYOK'|'PLATFORM'}
+export class AnalyzeOfferError extends Error{
+ readonly usage:AnalyzeOfferFailureUsage|null;
+ constructor(code:string,usage:AnalyzeOfferFailureUsage|null){super(code);this.name='AnalyzeOfferError';this.usage=usage}
+}
+
+// Pure, fail-closed: a token count is trusted ONLY when the provider reported a real non-negative
+// integer — never a fabricated 0 for an absent/malformed value. undefined, null, NaN, negative numbers,
+// floats, strings and objects are all equally "not reliable", not "free".
+function toReliableTokenCount(v:unknown):number|null{return typeof v==='number'&&Number.isInteger(v)&&v>=0?v:null}
+// The single point where a business-logic failure's usage becomes (or fails to become) meterable: as
+// soon as body.usage exists AND both of its token counts pass toReliableTokenCount. Anything else —
+// missing usage object, one or both counts malformed — returns null, meaning "do not meter this call",
+// exactly as fail-closed as rejecting the business result itself.
+function buildFailureUsage(rawUsage:unknown,provider:string,model:string,byok:boolean):AnalyzeOfferFailureUsage|null{
+ const inputTokens=toReliableTokenCount((rawUsage as {input_tokens?:unknown}|null|undefined)?.input_tokens);
+ const outputTokens=toReliableTokenCount((rawUsage as {output_tokens?:unknown}|null|undefined)?.output_tokens);
+ if(inputTokens===null||outputTokens===null)return null;
+ return {provider,model,input_tokens:inputTokens,output_tokens:outputTokens,credential_source:byok?'BYOK':'PLATFORM'};
+}
+
 export async function analyzeOffer(text:string,options?:{apiKeyOverride?:string|null}){
  const model=process.env.AI_MODEL,provider=process.env.AI_PROVIDER;
  const anthropic=provider==='anthropic';if(!anthropic&&provider!=='openai')throw Error('AI_NOT_CONFIGURED');
@@ -81,13 +117,18 @@ export async function analyzeOffer(text:string,options?:{apiKeyOverride?:string|
  const body=await response.json();
  let result:{summary:string;target:string;questions:string[]};
  if(anthropic){
+  // 4A.5: the earliest point a business-logic rejection below could still be a real, billed provider
+  // call — body.usage is part of the same 200 response as everything checked after this line, so it is
+  // captured ONCE here, before any of the fail-closed checks that follow, and attached to every one of
+  // them. null (missing/malformed usage) means every throw below meters nothing, exactly like today.
+  const failureUsage=buildFailureUsage(body.usage,provider,model,usingByokKey);
   // stop_reason first, before any parsing: 'max_tokens' means the output — thinking disabled or not —
   // was cut off mid-generation, and a truncated string can coincidentally still parse as valid JSON
   // (or as valid-looking garbage); that must never be accepted as a real result. 'refusal' and any other
   // value this tools-free, single-turn workload never legitimately produces are equally untrusted.
   const stopReason=body.stop_reason;
-  if(stopReason==='max_tokens'){logAnalyzeOfferFailure('TRUNCATED_MAX_TOKENS');throw Error('AI_TRUNCATED_RESULT')}
-  if(stopReason!=='end_turn'){logAnalyzeOfferFailure('INVALID_STOP_REASON',stopReason);throw Error('AI_INVALID_RESULT')} // refusal, or any other unexpected value
+  if(stopReason==='max_tokens'){logAnalyzeOfferFailure('TRUNCATED_MAX_TOKENS');throw new AnalyzeOfferError('AI_TRUNCATED_RESULT',failureUsage)}
+  if(stopReason!=='end_turn'){logAnalyzeOfferFailure('INVALID_STOP_REASON',stopReason);throw new AnalyzeOfferError('AI_INVALID_RESULT',failureUsage)} // refusal, or any other unexpected value
   // Correct selection is content[].type==='text', never content[0] — a thinking (or any other) block
   // may legitimately precede or follow the text block. Never throws on a malformed shape: a non-array
   // `content`, or a block missing `.text`, simply contributes nothing to `raw`.
@@ -95,17 +136,17 @@ export async function analyzeOffer(text:string,options?:{apiKeyOverride?:string|
    ?body.content.filter((v:{type?:string})=>v?.type==='text').map((v:{text?:string})=>typeof v.text==='string'?v.text:'')
    :[];
   const raw=textBlocks.join('').trim();
-  if(!raw){logAnalyzeOfferFailure(textBlocks.length===0?'NO_TEXT_BLOCK':'EMPTY_TEXT');throw Error('AI_INVALID_RESULT')}
+  if(!raw){logAnalyzeOfferFailure(textBlocks.length===0?'NO_TEXT_BLOCK':'EMPTY_TEXT');throw new AnalyzeOfferError('AI_INVALID_RESULT',failureUsage)}
   // 4A.4.4: tolerate exactly the two safe shapes (raw JSON, or one whole fence explicitly tagged json)
   // — a bare fence, any other language tag, prose around the JSON, or multiple/nested fences all still
   // fail closed, never repaired/guessed. Both rejection points below collapse to the same MALFORMED_JSON
   // reason: from the outside, "not a recognized JSON shape" and "recognized shape but invalid JSON
   // syntax" are the same class of problem, and splitting them added a distinction nothing acted on.
   const normalized=normalizeAnthropicJsonText(raw);
-  if(normalized===null){logAnalyzeOfferFailure('MALFORMED_JSON');throw Error('AI_INVALID_RESULT')}
+  if(normalized===null){logAnalyzeOfferFailure('MALFORMED_JSON');throw new AnalyzeOfferError('AI_INVALID_RESULT',failureUsage)}
   let parsed:unknown;
-  try{parsed=JSON.parse(normalized)}catch{logAnalyzeOfferFailure('MALFORMED_JSON');throw Error('AI_INVALID_RESULT')} // never a raw, unmapped SyntaxError
-  if(!parsed||typeof parsed!=='object'||typeof (parsed as {summary?:unknown}).summary!=='string'||typeof (parsed as {target?:unknown}).target!=='string'||!Array.isArray((parsed as {questions?:unknown}).questions)||(parsed as {questions:unknown[]}).questions.some((v:unknown)=>typeof v!=='string')){logAnalyzeOfferFailure('SCHEMA_MISMATCH');throw Error('AI_INVALID_RESULT')}
+  try{parsed=JSON.parse(normalized)}catch{logAnalyzeOfferFailure('MALFORMED_JSON');throw new AnalyzeOfferError('AI_INVALID_RESULT',failureUsage)} // never a raw, unmapped SyntaxError
+  if(!parsed||typeof parsed!=='object'||typeof (parsed as {summary?:unknown}).summary!=='string'||typeof (parsed as {target?:unknown}).target!=='string'||!Array.isArray((parsed as {questions?:unknown}).questions)||(parsed as {questions:unknown[]}).questions.some((v:unknown)=>typeof v!=='string')){logAnalyzeOfferFailure('SCHEMA_MISMATCH');throw new AnalyzeOfferError('AI_INVALID_RESULT',failureUsage)}
   result=parsed as {summary:string;target:string;questions:string[]};
  } else {
   // Unchanged from before 4A.4.3 — OpenAI's request/response handling is out of scope for this hotfix.

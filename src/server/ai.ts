@@ -18,11 +18,11 @@
 // answer in a single fenced code block even when told not to — a common, harmless LLM habit that the
 // previous hardening's strict `JSON.parse(entireString)` rejected outright as AI_INVALID_RESULT.
 // normalizeAnthropicJsonText decides, deterministically and without ever repairing/guessing, whether the
-// whole response is ONE of exactly two tolerated shapes (raw JSON, or one whole fenced block containing
-// JSON) before handing anything to JSON.parse — any other shape (prose, multiple/nested fences) still
-// fails closed exactly as before. logAnalyzeOfferFailure adds a short, enumerable, non-sensitive reason
-// code to each fail-closed throw — server logs only, never returned to the client, never the prompt, the
-// user's text, the model's raw response, or any credential.
+// whole response is ONE of exactly two tolerated shapes (raw JSON, or one whole fence EXPLICITLY tagged
+// `json`) before handing anything to JSON.parse — a bare fence, any other language tag, prose, or
+// multiple/nested fences all still fail closed exactly as before. logAnalyzeOfferFailure adds a short,
+// enumerable, non-sensitive reason code to each fail-closed throw — server logs only, never returned to
+// the client, never the prompt, the user's text, the model's raw response, or any credential.
 const ANTHROPIC_MAX_TOKENS=2048; // Conservative, fixed ceiling for a short structured JSON reply with
 // thinking disabled — not an arbitrary 16k/128k. Worst case under the existing schema (summary ≤1000
 // chars + target ≤1000 chars + up to 5 questions ≤1000 chars each, roughly 4 chars/token) is
@@ -30,26 +30,29 @@ const ANTHROPIC_MAX_TOKENS=2048; // Conservative, fixed ceiling for a short stru
 
 // Pure, deterministic, fail-closed — decides WHICH exact substring of a model's raw text response to
 // hand to JSON.parse. Never repairs, never guesses, never accepts anything beyond the two explicitly
-// tolerated shapes. Anything else (leading/trailing prose, multiple fences, a nested fence, an
-// unterminated fence) returns null — exactly as fail-closed as rejecting the response outright.
+// tolerated shapes. Anything else (a bare fence, any other language tag, leading/trailing prose,
+// multiple fences, a nested fence, an unterminated fence) returns null — exactly as fail-closed as
+// rejecting the response outright.
 export function normalizeAnthropicJsonText(raw:string):string|null{
  const trimmed=raw.replace(/\r\n/g,'\n').trim();
  if(!trimmed)return null;
  // CAS A — the entire (trimmed) response is itself a JSON object candidate.
  if(trimmed.startsWith('{')&&trimmed.endsWith('}'))return trimmed;
- // CAS B — the entire (trimmed) response is exactly ONE fenced code block (bare ``` or ```json/```JSON,
- // any case) and nothing else. `\s*` is deliberately permissive about HOW the fence is laid out — a
- // single line, no blank line before the closing fence, extra blank lines, etc. are all real, harmless
- // formatting variations a model may produce — but that permissiveness never extends to accepting a
- // second/nested fence: `[\s\S]*?` is lazy, but the closing `$` anchor can force it to backtrack across
- // an inner fence if one exists, so the explicit `!inner.includes('```')` check below is what actually
- // rejects multi-fence input, not the regex shape alone.
- const fenceMatch=trimmed.match(/^```(?:json)?\s*([\s\S]*?)\s*```$/i);
+ // CAS B — the entire (trimmed) response is exactly ONE fenced code block EXPLICITLY tagged `json`
+ // (case-insensitive: ```json, ```JSON, ```Json...) and nothing else. A bare ``` fence or any other
+ // language tag (```javascript, ```text, ...) is deliberately NOT tolerated — only a fence the model
+ // itself labeled as JSON is treated as an unambiguous JSON candidate. `\s*` stays permissive about HOW
+ // the fence is laid out — single line, no blank line before the closing fence, CRLF, extra blank
+ // lines — all real, harmless formatting variations — but never about accepting a second/nested fence:
+ // `[\s\S]*?` is lazy, but the closing `$` anchor can force it to backtrack across an inner fence if one
+ // exists, so the explicit `!inner.includes('```')` check below is what actually rejects multi-fence
+ // input, not the regex shape alone.
+ const fenceMatch=trimmed.match(/^```json\b\s*([\s\S]*?)\s*```$/i);
  if(fenceMatch){
   const inner=fenceMatch[1].trim();
   if(!inner.includes('```')&&inner.startsWith('{')&&inner.endsWith('}'))return inner;
  }
- return null; // prose, multiple/nested fences, or any other shape — never guessed, never repaired.
+ return null; // bare fence, wrong language tag, prose, multiple/nested fences — never guessed, never repaired.
 }
 
 // Logs ONLY a short, enumerable reason code (plus, for INVALID_STOP_REASON, Anthropic's own short
@@ -93,10 +96,13 @@ export async function analyzeOffer(text:string,options?:{apiKeyOverride?:string|
    :[];
   const raw=textBlocks.join('').trim();
   if(!raw){logAnalyzeOfferFailure(textBlocks.length===0?'NO_TEXT_BLOCK':'EMPTY_TEXT');throw Error('AI_INVALID_RESULT')}
-  // 4A.4.4: tolerate exactly the two safe shapes (raw JSON, or one whole fenced JSON block) — anything
-  // else (prose around the JSON, multiple/nested fences) still fails closed, never repaired/guessed.
+  // 4A.4.4: tolerate exactly the two safe shapes (raw JSON, or one whole fence explicitly tagged json)
+  // — a bare fence, any other language tag, prose around the JSON, or multiple/nested fences all still
+  // fail closed, never repaired/guessed. Both rejection points below collapse to the same MALFORMED_JSON
+  // reason: from the outside, "not a recognized JSON shape" and "recognized shape but invalid JSON
+  // syntax" are the same class of problem, and splitting them added a distinction nothing acted on.
   const normalized=normalizeAnthropicJsonText(raw);
-  if(normalized===null){logAnalyzeOfferFailure('UNRECOGNIZED_FORMAT');throw Error('AI_INVALID_RESULT')}
+  if(normalized===null){logAnalyzeOfferFailure('MALFORMED_JSON');throw Error('AI_INVALID_RESULT')}
   let parsed:unknown;
   try{parsed=JSON.parse(normalized)}catch{logAnalyzeOfferFailure('MALFORMED_JSON');throw Error('AI_INVALID_RESULT')} // never a raw, unmapped SyntaxError
   if(!parsed||typeof parsed!=='object'||typeof (parsed as {summary?:unknown}).summary!=='string'||typeof (parsed as {target?:unknown}).target!=='string'||!Array.isArray((parsed as {questions?:unknown}).questions)||(parsed as {questions:unknown[]}).questions.some((v:unknown)=>typeof v!=='string')){logAnalyzeOfferFailure('SCHEMA_MISMATCH');throw Error('AI_INVALID_RESULT')}

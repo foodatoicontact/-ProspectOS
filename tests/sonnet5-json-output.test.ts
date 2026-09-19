@@ -2,10 +2,12 @@ import test, {mock} from 'node:test';
 import assert from 'node:assert/strict';
 
 // ============================================================
-// BLOC 4A.4.4 — Sonnet 5 JSON output tolerance (raw JSON or a single fenced ```json block) + reinforced
-// system prompt + safe server-side reason codes. Every scenario is mocked at the `fetch` level — NEVER
-// a real network call, NEVER a real Anthropic key. Exercises the real production code from
-// src/server/ai.ts, not a reimplementation.
+// BLOC 4A.4.4 — Sonnet 5 JSON output tolerance (raw JSON, or a single fence EXPLICITLY tagged `json`,
+// case-insensitive — a bare fence or any other language tag is rejected) + reinforced system prompt +
+// safe server-side reason codes (UNRECOGNIZED_FORMAT was removed — every "not a recognized JSON shape"
+// case now logs MALFORMED_JSON, same as an actual JSON.parse syntax failure). Every scenario is mocked
+// at the `fetch` level — NEVER a real network call, NEVER a real Anthropic key. Exercises the real
+// production code from src/server/ai.ts, not a reimplementation.
 // ============================================================
 const savedEnv={AI_PROVIDER:process.env.AI_PROVIDER,AI_API_KEY:process.env.AI_API_KEY,AI_MODEL:process.env.AI_MODEL};
 test.after(()=>{process.env.AI_PROVIDER=savedEnv.AI_PROVIDER;process.env.AI_API_KEY=savedEnv.AI_API_KEY;process.env.AI_MODEL=savedEnv.AI_MODEL});
@@ -32,8 +34,20 @@ test('normalize A2 — CAS A: raw JSON object with leading/trailing whitespace i
 test('normalize B1 — CAS B: a single fenced ```json block, nothing else',()=>{
  assert.equal(normalizeAnthropicJsonText('```json\n'+validJson+'\n```'),validJson);
 });
-test('normalize B2 — CAS B: a single bare ``` fence (no "json" tag) is also accepted',()=>{
- assert.equal(normalizeAnthropicJsonText('```\n'+validJson+'\n```'),validJson);
+// 4A.4.4 final conformance — ONLY a fence explicitly tagged `json` is a safe, unambiguous JSON
+// candidate. A bare fence or any other language tag carries no such guarantee and must be rejected.
+test('normalize REJECT — a bare ``` fence (no "json" tag) is rejected, never accepted',()=>{
+ assert.equal(normalizeAnthropicJsonText('```\n'+validJson+'\n```'),null);
+});
+test('normalize REJECT — a ```javascript fence is rejected',()=>{
+ assert.equal(normalizeAnthropicJsonText('```javascript\n'+validJson+'\n```'),null);
+});
+test('normalize REJECT — any other language tag is rejected (```text, ```python, ...)',()=>{
+ assert.equal(normalizeAnthropicJsonText('```text\n'+validJson+'\n```'),null);
+ assert.equal(normalizeAnthropicJsonText('```python\n'+validJson+'\n```'),null);
+});
+test('normalize REJECT — a tag that merely starts with "json" but isn\'t exactly "json" is rejected',()=>{
+ assert.equal(normalizeAnthropicJsonText('```jsonfoo\n'+validJson+'\n```'),null);
 });
 test('normalize B3 — CAS B: leading/trailing whitespace around the whole fence is tolerated',()=>{
  assert.equal(normalizeAnthropicJsonText(`   \n\`\`\`json\n${validJson}\n\`\`\`\n  `),validJson);
@@ -45,6 +59,9 @@ test('normalize B4 — CAS B: a single-line fence (no newlines at all around the
 });
 test('normalize B5 — CAS B: the fence tag is matched case-insensitively (```JSON)',()=>{
  assert.equal(normalizeAnthropicJsonText('```JSON\n'+validJson+'\n```'),validJson);
+});
+test('normalize B5b — CAS B: mixed-case tag (```Json) is also accepted',()=>{
+ assert.equal(normalizeAnthropicJsonText('```Json\n'+validJson+'\n```'),validJson);
 });
 test('normalize B6 — CAS B: CRLF line endings around and inside the fence are tolerated',()=>{
  assert.equal(normalizeAnthropicJsonText('```json\r\n'+validJson+'\r\n```'),validJson);
@@ -106,6 +123,16 @@ test('E2E 2 — a single fenced ```json block (CAS B) now succeeds where it used
  }finally{fetchMock.mock.restore()}
 });
 
+test('E2E 2b — a single fenced ```JSON block (uppercase tag) succeeds identically',async()=>{
+ setAnthropicEnv();
+ const fenced='```JSON\n'+validJson+'\n```';
+ const fetchMock=mockFetchOnce(200,{content:[{type:'text',text:fenced}],stop_reason:'end_turn',usage:{input_tokens:10,output_tokens:5}});
+ try{
+  const result=await analyzeOffer(validText);
+  assert.equal(result.summary,'s');assert.equal(result.target,'t');assert.deepEqual(result.questions,['q']);
+ }finally{fetchMock.mock.restore()}
+});
+
 test('E2E 3 — JSON wrapped in explanatory prose still fails closed (only the two tolerated shapes are accepted, never a loose extraction)',async()=>{
  setAnthropicEnv();
  const fetchMock=mockFetchOnce(200,{content:[{type:'text',text:'Voici mon analyse :\n'+validJson}],stop_reason:'end_turn',usage:{input_tokens:10,output_tokens:5}});
@@ -149,7 +176,7 @@ test('prompt 2 — OpenAI\'s system message is completely unaffected by the Anth
 // ============================================================
 // D — safe server-side reason codes: enumerable, never business content or secrets.
 // ============================================================
-const KNOWN_REASONS=['NO_TEXT_BLOCK','EMPTY_TEXT','UNRECOGNIZED_FORMAT','MALFORMED_JSON','SCHEMA_MISMATCH','INVALID_STOP_REASON','TRUNCATED_MAX_TOKENS'];
+const KNOWN_REASONS=['NO_TEXT_BLOCK','EMPTY_TEXT','MALFORMED_JSON','SCHEMA_MISMATCH','INVALID_STOP_REASON','TRUNCATED_MAX_TOKENS'];
 
 async function captureFailureLog(mockBody:unknown):Promise<{reason:string;raw:string}>{
  setAnthropicEnv();
@@ -172,11 +199,23 @@ test('reason codes — empty text',async()=>{
  const {reason}=await captureFailureLog({content:[{type:'text',text:''}],stop_reason:'end_turn',usage:{input_tokens:1,output_tokens:1}});
  assert.equal(reason,'EMPTY_TEXT');
 });
-test('reason codes — unrecognized format (prose)',async()=>{
+test('reason codes — prose around the JSON logs MALFORMED_JSON (UNRECOGNIZED_FORMAT was removed — folded into MALFORMED_JSON)',async()=>{
  const {reason}=await captureFailureLog({content:[{type:'text',text:'Voici : '+validJson}],stop_reason:'end_turn',usage:{input_tokens:1,output_tokens:1}});
- assert.equal(reason,'UNRECOGNIZED_FORMAT');
+ assert.equal(reason,'MALFORMED_JSON');
 });
-test('reason codes — malformed JSON (looks like a JSON object but isn\'t valid JSON)',async()=>{
+test('reason codes — a bare ``` fence (no json tag) logs MALFORMED_JSON',async()=>{
+ const {reason}=await captureFailureLog({content:[{type:'text',text:'```\n'+validJson+'\n```'}],stop_reason:'end_turn',usage:{input_tokens:1,output_tokens:1}});
+ assert.equal(reason,'MALFORMED_JSON');
+});
+test('reason codes — a ```javascript fence logs MALFORMED_JSON',async()=>{
+ const {reason}=await captureFailureLog({content:[{type:'text',text:'```javascript\n'+validJson+'\n```'}],stop_reason:'end_turn',usage:{input_tokens:1,output_tokens:1}});
+ assert.equal(reason,'MALFORMED_JSON');
+});
+test('reason codes — multiple fenced blocks log MALFORMED_JSON',async()=>{
+ const {reason}=await captureFailureLog({content:[{type:'text',text:'```json\n'+validJson+'\n```\n```json\n'+validJson+'\n```'}],stop_reason:'end_turn',usage:{input_tokens:1,output_tokens:1}});
+ assert.equal(reason,'MALFORMED_JSON');
+});
+test('reason codes — malformed JSON syntax (looks like a JSON object but isn\'t valid JSON) logs MALFORMED_JSON',async()=>{
  const {reason}=await captureFailureLog({content:[{type:'text',text:'{"summary":"s",}'}],stop_reason:'end_turn',usage:{input_tokens:1,output_tokens:1}});
  assert.equal(reason,'MALFORMED_JSON');
 });

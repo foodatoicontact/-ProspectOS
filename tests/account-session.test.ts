@@ -97,12 +97,16 @@ test('setup sanity: the delete-account modal block was found in the source',()=>
  assert.ok(deleteModal,'delete-account modal JSX not found — later assertions would be vacuous');
 });
 
-test('access status: Actif/Bêta/Bêta terminé is shown, and the expiry date only when actually on an active beta',()=>{
- assert.match(accountModal,/betaActive===null\?'Actif':betaActive\?'Bêta':'Bêta terminé'/);
- assert.match(accountModal,/\{betaActive&&betaExpiresAt&&<p className="muted">Expire le/);
+test('access status: Interne/Aucun accès bêta actif/Bêta/Bêta terminé is shown, and the expiry date only when actually on an active, non-INTERNAL beta',()=>{
+ assert.match(accountModal,/entitlementPlan==='INTERNAL'\?'Interne':betaActive===null\?'Aucun accès bêta actif':betaActive\?'Bêta':'Bêta terminé'/);
+ assert.match(accountModal,/entitlementPlan!=='INTERNAL'&&betaActive&&betaExpiresAt&&<p className="muted">Expire le/);
 });
 test('an expired beta account still sees a clear "access ended" message, never a silent data loss',()=>{
  assert.match(accountModal,/betaActive===false&&<p className="muted">Votre accès bêta est terminé\./);
+});
+test('a user with no entitlement at all sees a clear, non-alarming explanation — never the old "Actif" legacy label',()=>{
+ assert.match(accountModal,/entitlementPlan!=='INTERNAL'&&betaActive===null&&<p className="muted">Invitation bêta nécessaire/);
+ assert.doesNotMatch(accountModal,/betaActive===null\?'Actif'/,'the old legacy "no entitlement = Actif" label must not reappear');
 });
 
 test('export: a dedicated button triggers a real authenticated server call, not a client-side fabrication',()=>{
@@ -158,6 +162,10 @@ test('server enforcement: an expired entitlement maps to a stable, documented er
  assert.match(routeSource,/code==='BETA_ACCESS_EXPIRED'\?402/);
  assert.match(discoveryApiSource,/code==='BETA_ACCESS_EXPIRED'\?402/);
 });
+test('server enforcement: NO entitlement at all maps to a stable, documented error code (ENTITLEMENT_REQUIRED, HTTP 403), never a silent allow',()=>{
+ assert.match(routeSource,/code==='ENTITLEMENT_REQUIRED'\?403/);
+ assert.match(discoveryApiSource,/code==='ENTITLEMENT_REQUIRED'\?403/);
+});
 
 // --- migration-level guarantees a client can never override ---
 const migration008=readFileSync(new URL('../db/migrations/008_account_privacy_beta.sql',import.meta.url),'utf8');
@@ -167,4 +175,24 @@ test('migration: grant_beta_access is never callable by a logged-in app user, on
 test('migration: account_entitlements has no client write grant at all — mutation only through the SECURITY DEFINER functions',()=>{
  assert.match(migration008,/grant select on public\.account_entitlements to authenticated;/);
  assert.doesNotMatch(migration008,/grant (insert|update|delete)[^;]*account_entitlements/i);
+});
+
+// --- migration 011 (BETA hotfix): INTERNAL plan + its own admin-only, capacity-exempt grant function ---
+const migration011=readFileSync(new URL('../db/migrations/011_beta_entitlement_gate.sql',import.meta.url),'utf8');
+test('migration 011: widens plan to allow INTERNAL alongside the existing BETA — never replaces or removes BETA',()=>{
+ assert.match(migration011,/add constraint account_entitlements_plan_check check\(plan in \('BETA','INTERNAL'\)\)/);
+});
+test('migration 011: grant_internal_access is never callable by a logged-in app user, only by direct SQL access — same model as grant_beta_access',()=>{
+ assert.match(migration011,/create or replace function public\.grant_internal_access\(p_user_email text\) returns jsonb/);
+ assert.match(migration011,/revoke all on function public\.grant_internal_access\(text\) from public,anon,authenticated;/);
+});
+test('migration 011: no user_id is ever guessed or inserted automatically — the migration contains no unconditional INSERT into account_entitlements',()=>{
+ const withoutFunctionBody=migration011.replace(/create or replace function[\s\S]*?\$\$;/g,'');
+ assert.doesNotMatch(withoutFunctionBody,/insert into public\.account_entitlements/i,'the migration itself must never insert an entitlement row directly — only the admin-only function does, and only when explicitly invoked with an email');
+});
+test('migration 011: grant_internal_access has no capacity check and no advisory lock — INTERNAL is exempt from the 10-slot BETA cap by construction (a different plan value), not by a separate limit to maintain',()=>{
+ const fnMatch=migration011.match(/create or replace function public\.grant_internal_access[\s\S]*?\$\$;/);
+ assert.ok(fnMatch,'grant_internal_access function body not found');
+ assert.doesNotMatch(fnMatch[0],/pg_advisory_xact_lock/);
+ assert.doesNotMatch(fnMatch[0],/beta_program/);
 });

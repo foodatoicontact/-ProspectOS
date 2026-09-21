@@ -7,6 +7,7 @@ import { PGlite } from '@electric-sql/pglite';
 const db = new PGlite();
 const schema = await readFile(new URL('../db/schema.sql', import.meta.url), 'utf8');
 const migration008 = await readFile(new URL('../db/migrations/008_account_privacy_beta.sql', import.meta.url), 'utf8');
+const migration011 = await readFile(new URL('../db/migrations/011_beta_entitlement_gate.sql', import.meta.url), 'utf8');
 
 async function sql(text, params = []) { return db.query(text, params); }
 async function as(user, text, params = []) {
@@ -35,6 +36,8 @@ try {
   await db.exec(migration008);
   // Idempotence: re-applying must not fail and must not duplicate any object.
   await db.exec(migration008);
+  await db.exec(migration011);
+  await db.exec(migration011); // idempotence for the BETA-hotfix migration too
   const entitlementSelectPolicies = (await sql(`select count(*)::int n from pg_policies where tablename='account_entitlements'`)).rows[0].n;
   assert.equal(entitlementSelectPolicies, 1, 're-applying migration 008 does not duplicate the RLS policy');
 
@@ -114,6 +117,55 @@ try {
   assert.equal(crossRead.rows.length, 0, "V — B cannot read A's entitlement row");
 
   // ============================================================
+  // INTERNAL — migration 011 (BETA hotfix): the historical/owner plan, exempt from the BETA cap,
+  // never time-boxed, and just as unreachable to a logged-in client as grant_beta_access itself.
+  // Capacity is still pinned at exactly 10 BETA slots at this point in the file (W1 confirms it).
+  // ============================================================
+  const internalUser = '40000000-0000-4000-8000-000000000001';
+  await sql(`insert into auth.users(id,email) values ($1,'internal@test')`, [internalUser]);
+
+  // W1 — BETA capacity is still exactly 10 (unaffected by anything INTERNAL does below).
+  const betaCountBeforeInternal = (await sql(`select count(*)::int n from public.account_entitlements where plan='BETA'`)).rows[0].n;
+  assert.equal(betaCountBeforeInternal, 10, 'W1 — baseline: BETA capacity is still exactly full before granting INTERNAL');
+
+  // W2 — granting INTERNAL succeeds even though the 10 BETA slots are completely full: it is not
+  // subject to the same capacity check at all (different plan, no advisory lock, no count() query).
+  await sql(`select public.grant_internal_access('internal@test')`);
+  const internalRow = (await sql(`select plan,status,expires_at,starts_at from public.account_entitlements where user_id=$1`, [internalUser])).rows[0];
+  assert.equal(internalRow.plan, 'INTERNAL', 'W2 — the granted row is plan=INTERNAL, never BETA');
+  assert.equal(internalRow.status, 'ACTIVE');
+  const internalYears = (new Date(internalRow.expires_at) - new Date(internalRow.starts_at)) / (86400000 * 365);
+  assert.ok(internalYears > 50, 'W2 — INTERNAL is granted a far-future expiry, functionally permanent');
+
+  // W3 — granting INTERNAL never consumed a BETA slot: the count of plan='BETA' rows is unchanged.
+  const betaCountAfterInternal = (await sql(`select count(*)::int n from public.account_entitlements where plan='BETA'`)).rows[0].n;
+  assert.equal(betaCountAfterInternal, 10, 'W3 — INTERNAL grant did not touch the BETA count at all');
+
+  // W4 — the 10 BETA slots are still genuinely full: an 11th BETA candidate is still refused even
+  // though an 11th row (the INTERNAL one) now exists in the same table.
+  const uid12 = '20000000-0000-4000-8000-000000000012';
+  await sql(`insert into auth.users(id,email) values ($1,'beta12@test')`, [uid12]);
+  await rejects(sql(`select public.grant_beta_access('beta12@test')`), /BETA_CAPACITY_REACHED/);
+
+  // X — a client (authenticated role) can never call grant_internal_access at all — same admin-only
+  // model as grant_beta_access, proven dynamically here (not just by reading the migration text).
+  await rejects(
+    as(A, `select public.grant_internal_access('a@test')`),
+    /permission denied/i
+  );
+
+  // Y — a client cannot self-promote to INTERNAL by direct INSERT/UPDATE either (same RLS/grant
+  // posture as any other plan value — INTERNAL adds no new client-writable surface at all).
+  await rejects(
+    as(A, `update public.account_entitlements set plan='INTERNAL' where user_id=$1`, [A]),
+    /permission denied/i
+  );
+  await rejects(
+    as(B, `insert into public.account_entitlements(user_id,plan,starts_at,expires_at) values ($1,'INTERNAL',now(),now()+interval '100 years')`, [B]),
+    /permission denied/i
+  );
+
+  // ============================================================
   // DELETE — membership cleanup, last-owner block, multi-tenant isolation
   // ============================================================
   const memberOrg = '10000000-0000-4000-8000-000000000003';
@@ -179,7 +231,7 @@ try {
   assert.doesNotMatch(fnDef, /\bevidence\b/i, 'L — delete_own_account never touches evidence (attribution preserved, not anonymized, in this bloc)');
   assert.doesNotMatch(fnDef, /\bevents\b/i, 'L — delete_own_account never touches events (append-only history preserved untouched)');
 
-  console.log('PASS: account entitlements (RLS, atomic capacity, expiry, client-write protection) and self-service account deletion (membership cleanup, last-owner block, multi-tenant isolation)');
+  console.log('PASS: account entitlements (RLS, atomic capacity, expiry, client-write protection), INTERNAL plan (BETA-cap-exempt, permanent, admin-only, no client self-promotion), and self-service account deletion (membership cleanup, last-owner block, multi-tenant isolation)');
 } finally {
   await db.close();
 }

@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
-import {EDITOR, HOSTING, MISSING, MISSING_COMMERCIAL, TERMS_VERSION, PRIVACY_VERSION, LEGAL_PAGES} from '../src/domain/legal.ts';
+import {EDITOR, HOSTING, MISSING, MISSING_COMMERCIAL, TERMS_VERSION, PRIVACY_VERSION, LEGAL_PAGES, COMMERCIAL_NAME, ACTIVITY_FORMALITY} from '../src/domain/legal.ts';
 
 const legalRoutes=['mentions-legales','cgu','confidentialite','cgv'];
 
@@ -31,16 +31,49 @@ test('A — none of the 4 legal pages declare a client component ("use client") 
 });
 
 // ------------------------------------------------------------
-// B — no invented legal identity. Every EDITOR/HOSTING field is either the one value verified from
-// the product itself (EDITOR_NAME), or the exact '[À FOURNIR]' sentinel — never a fabricated SIREN,
-// address, status, or contact.
+// B — legal identity: every field is either officially provided by the owner (verified in
+// conversation, quoted verbatim below) or the exact '[À FOURNIR]' sentinel — never a fabricated value.
 // ------------------------------------------------------------
-test('B — EDITOR_NAME is the one identity fact actually verifiable from the product (matches the production organization name)',()=>{
- assert.equal(EDITOR.name,'Foodatoi');
+test('B — the owner-provided identity fields are recorded exactly as given, never altered',()=>{
+ assert.equal(EDITOR.name,'Kevin Cardia');
+ assert.equal(COMMERCIAL_NAME,'Foodatoi');
+ assert.equal(EDITOR.legalStatus,'Entrepreneur individuel (EI), régime micro-entreprise');
+ assert.equal(EDITOR.siren,'106 540 453');
+ assert.equal(EDITOR.siret,'106 540 453 00011');
+ assert.equal(EDITOR.rneRegistrationDate,'25/06/2026');
+ assert.equal(EDITOR.address,'1 rue Edmond Haraucourt, 31100 Toulouse, France');
+ assert.equal(EDITOR.publicationDirector,'Kevin Cardia');
 });
-test('B — every other legal identity field is the explicit MISSING placeholder, never invented',()=>{
- for(const field of [EDITOR.legalStatus,EDITOR.siren,EDITOR.siret,EDITOR.rcs,EDITOR.vatNumber,EDITOR.address,EDITOR.phone,EDITOR.legalEmail,EDITOR.publicationDirector,EDITOR.capital])
-  assert.equal(field,MISSING);
+test('B — capital social is explicitly stated as not applicable (EI has no share capital), never a fabricated figure',()=>{
+ assert.match(EDITOR.capital,/[Nn]on applicable/);
+ assert.doesNotMatch(EDITOR.capital,/^\d/,'must never be a bare invented amount');
+});
+test('B — VAT status is a reasoned, sourced determination (franchise en base de TVA, art. 293 B CGI for a new micro-entreprise), never a fabricated intracommunity VAT number',()=>{
+ assert.match(EDITOR.vatStatus,/293 B/);
+ assert.match(EDITOR.vatStatus,/franchise en base/i);
+ assert.doesNotMatch(EDITOR.vatStatus,/^FR\d/,'must never look like a fabricated FR-prefixed VAT number');
+});
+test('B — RCS is left explicitly unresolved (not asserted as either applicable or not applicable) since no number or greffe city was provided',()=>{
+ assert.equal(EDITOR.rcs,MISSING);
+});
+test('B — the fields that remain genuinely unknown stay the explicit MISSING placeholder, never invented: phone, legal/RGPD contact email, host addresses',()=>{
+ for(const field of [EDITOR.phone,EDITOR.legalEmail])assert.equal(field,MISSING);
+});
+test('B — the legal/RGPD contact email is never silently filled with the owner\'s registered business address',()=>{
+ assert.notEqual(EDITOR.legalEmail,EDITOR.address);
+ assert.equal(EDITOR.legalEmail,MISSING);
+});
+test('B — the ProspectOS activity formality is described as filed and pending, never as already validated/registered',()=>{
+ assert.match(ACTIVITY_FORMALITY.status,/en cours de traitement|en cours de validation|non encore confirmée/);
+ assert.doesNotMatch(ACTIVITY_FORMALITY.status,/validée définitivement|définitivement enregistrée/);
+ assert.equal(ACTIVITY_FORMALITY.filedAt,'21/09/2026');
+ assert.equal(ACTIVITY_FORMALITY.declaredStartDate,'18/09/2026');
+});
+test('B — mentions légales never claim the activity is already validated by the INSEE — the page explicitly says the opposite instead',async()=>{
+ const source=await readFile(new URL('../app/mentions-legales/page.tsx',import.meta.url),'utf8');
+ assert.match(source,/ACTIVITY_FORMALITY/,'the formality status must actually be rendered on the page');
+ assert.match(source,/ne doit pas être présentée comme définitivement enregistrée/,'the required disclaimer must be present');
+ assert.doesNotMatch(source,/déjà validée/);
 });
 test('B — hosting providers are named from the real architecture (Vercel, Supabase), never invented, but their exact addresses are left explicit rather than guessed',()=>{
  assert.equal(HOSTING.application.name,'Vercel Inc.');

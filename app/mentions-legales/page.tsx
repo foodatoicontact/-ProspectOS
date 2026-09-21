@@ -1,6 +1,6 @@
 import type {Metadata} from 'next';
 import {LegalPage} from '../../src/components/LegalPage';
-import {EDITOR, HOSTING, MISSING, TERMS_VERSION} from '../../src/domain/legal';
+import {EDITOR, HOSTING, MISSING, TERMS_VERSION, COMMERCIAL_NAME, ACTIVITY_FORMALITY} from '../../src/domain/legal';
 import {SITE_URL} from '../../src/domain/seo';
 
 export const metadata:Metadata={
@@ -21,18 +21,29 @@ export default function Page(){
 
   <section>
    <h2>Éditeur du site</h2>
-   <Field label="Nom / raison sociale" value={EDITOR.name}/>
+   <Field label="Nom et prénom de l’entrepreneur individuel" value={EDITOR.name}/>
+   <Field label="Nom commercial / projet" value={COMMERCIAL_NAME}/>
    <Field label="Statut juridique" value={EDITOR.legalStatus}/>
    <Field label="SIREN" value={EDITOR.siren}/>
-   <Field label="SIRET" value={EDITOR.siret}/>
-   <Field label="RCS" value={EDITOR.rcs}/>
-   <Field label="Numéro de TVA intracommunautaire" value={EDITOR.vatNumber}/>
+   <Field label="SIRET (établissement principal)" value={EDITOR.siret}/>
+   <Field label="Immatriculation RNE (Registre National des Entreprises)" value={EDITOR.rneRegistrationDate}/>
+   <Field label="RCS (registre du commerce et des sociétés)" value={EDITOR.rcs}/>
+   <p className="muted">Immatriculation confirmée au Registre National des Entreprises. L’applicabilité d’une inscription distincte au RCS pour cette activité, ainsi que le numéro et la ville de greffe le cas échéant, restent à vérifier et à compléter.</p>
+   <Field label="TVA" value={EDITOR.vatStatus}/>
    <Field label="Capital social" value={EDITOR.capital}/>
    <Field label="Siège social" value={EDITOR.address}/>
    <Field label="Téléphone" value={EDITOR.phone}/>
    <Field label="Email de contact" value={EDITOR.legalEmail}/>
    <Field label="Directeur de la publication" value={EDITOR.publicationDirector}/>
-   <p className="muted">ProspectOS est développé et exploité dans le cadre de l’activité de {EDITOR.name}. Les informations d’identification légale ci-dessus marquées <span className="missing">{MISSING}</span> doivent être complétées par l’exploitant avant toute ouverture publique non contrôlée du service.</p>
+   <p className="muted">ProspectOS est développé et exploité par {EDITOR.name}, entrepreneur individuel, dans le cadre du projet « {COMMERCIAL_NAME} ». Les informations d’identification légale ci-dessus marquées <span className="missing">{MISSING}</span> doivent être complétées par l’exploitant avant toute ouverture publique non contrôlée du service.</p>
+  </section>
+
+  <section>
+   <h2>Activité ProspectOS</h2>
+   <p>{ACTIVITY_FORMALITY.status}</p>
+   <p>Date de dépôt de la formalité d’adjonction d’activité : {ACTIVITY_FORMALITY.filedAt}. Date de début d’activité déclarée : {ACTIVITY_FORMALITY.declaredStartDate}.</p>
+   <p className="muted">Activité déclarée : « {ACTIVITY_FORMALITY.description} »</p>
+   <p className="muted">Cette activité ne doit pas être présentée comme définitivement enregistrée tant que sa validation par l’INSEE n’a pas été confirmée.</p>
   </section>
 
   <section>

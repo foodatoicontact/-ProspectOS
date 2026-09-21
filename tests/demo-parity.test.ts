@@ -185,3 +185,81 @@ test('L — no new fetch/api call was introduced by the follow-up patch (reset a
  const panel=await readFile(new URL('../src/components/DiscoveryPanel.tsx',import.meta.url),'utf8');
  for(const source of [page,panel])assert.doesNotMatch(source,/fetch\(['"`]https?:/);
 });
+
+// ------------------------------------------------------------
+// M — REGRESSION: verifying a demo-mode evidence item must update the existing record in place (same
+// id) instead of minting a new id and appending a second object — the bug that made one proof render
+// twice ("À confirmer" + "Vérifiée...") after a real click on "J'ai vérifié la source : valider".
+//
+// app/page.tsx's `Home` component (where verifyEvidence lives) is a closure inside a client component;
+// this repo has no React/DOM test harness (every other test here is a static-source-proof against pure
+// business-logic modules, e.g. src/domain/core.ts). Two complementary checks stand in for a full
+// component/DOM test:
+//   1) a source pin on the exact fixed reducer, so the old crypto.randomUUID()+append pattern can never
+//      silently return, and live mode's append-only POST (a real, immutable server-side evidence row —
+//      intentionally different, and explicitly not touched by this fix) stays byte-identical;
+//   2) the SAME reducer expression, copied verbatim from the fix, exercised against real DEMO_PROSPECTS
+//      data to prove the property the bug report actually cares about.
+// ------------------------------------------------------------
+test('M — verifyEvidence: demo branch no longer mints a new id + appends; live branch unchanged (source pin)',async()=>{
+ const source=await readFile(new URL('../app/page.tsx',import.meta.url),'utf8');
+ const fn=source.match(/async function verifyEvidence\(e:Evidence\)\{[\s\S]*?\n log\('Observation validée par un humain'\)\}\)\}/)?.[0]??'';
+ assert.ok(fn,'verifyEvidence not found in app/page.tsx');
+ assert.doesNotMatch(fn,/id:crypto\.randomUUID\(\),status:'VERIFIED',verified_by:'demo-human'/,'the old duplicate-producing pattern must never return');
+ assert.match(fn,/evidence:p\.evidence\.map\(x=>x\.id===e\.id\?\{\.\.\.x,status:'VERIFIED',verified_by:'demo-human'\}:x\)/,'the demo branch must update the existing evidence object in place, matched by id');
+ assert.match(fn,/if\(mode==='live'\)\{const v=await api\('evidence','POST',\{\.\.\.e,status:'VERIFIED',prospect_id:current\.id\}\);setProspects\(ps=>ps\.map\(p=>p\.id===current\.id\?\{\.\.\.p,evidence:\[\.\.\.p\.evidence,v\]\}:p\)\)\}/,'live mode\'s append-only, immutable-row POST behavior must be unchanged');
+});
+test('M — demo verification reducer: array length unchanged, same id, correct fields, every other evidence row byte-for-byte untouched (real DEMO_PROSPECTS data)',()=>{
+ const original=DEMO_PROSPECTS.find(p=>p.id==='newschool');
+ assert.ok(original);
+ const target=original.evidence.find(e=>e.criterion==='food');
+ assert.ok(target);
+ assert.equal(target.status,'NOT_VERIFIED');
+ // Verbatim copy of the fixed demo-mode reducer in app/page.tsx (pinned by the source test above).
+ const updatedEvidence=original.evidence.map(x=>x.id===target.id?{...x,status:'VERIFIED',verified_by:'demo-human'}:x);
+ assert.equal(updatedEvidence.length,original.evidence.length,'verifying one proof must never change the array length');
+ assert.equal(new Set(updatedEvidence.map(e=>e.id)).size,original.evidence.length,'no new id may be introduced');
+ const updated=updatedEvidence.find(e=>e.id===target.id);
+ assert.ok(updated);
+ assert.equal(updated.status,'VERIFIED');
+ assert.equal(updated.verified_by,'demo-human');
+ assert.equal(updated.criterion,target.criterion);
+ assert.equal(updated.excerpt,target.excerpt);
+ assert.equal(updated.source_url,target.source_url);
+ assert.equal(updated.value,target.value);
+ for(const other of original.evidence.filter(e=>e.id!==target.id))
+  assert.deepEqual(updatedEvidence.find(e=>e.id===other.id),other,'every other evidence row (different criterion) must be byte-for-byte untouched');
+});
+test('M — the fix leaves the resulting score/coverage identical to what the old (duplicate-appending) code produced, on a multi-criterion prospect',()=>{
+ const original=DEMO_PROSPECTS.find(p=>p.id==='newschool'); // 4 evidence rows across 4 different criteria
+ assert.ok(original);
+ const target=original.evidence.find(e=>e.criterion==='food');
+ assert.ok(target);
+ const fixedEvidence=original.evidence.map(x=>x.id===target.id?{...x,status:'VERIFIED',verified_by:'demo-human'}:x);
+ // Reproduces exactly what the OLD (buggy) code produced: original NOT_VERIFIED row kept untouched,
+ // plus a second, new-id VERIFIED copy appended alongside it.
+ const oldBuggyEvidence=[...original.evidence,{...target,id:'old-code-simulated-new-id',status:'VERIFIED',verified_by:'demo-human'}];
+ const fixedScore=scoreProspect(FOODATOI_CRITERIA,fixedEvidence);
+ const oldScore=scoreProspect(FOODATOI_CRITERIA,oldBuggyEvidence);
+ assert.equal(fixedScore.score,oldScore.score);
+ assert.equal(fixedScore.coverage,oldScore.coverage);
+ assert.deepEqual(fixedScore.breakdown.map(b=>({key:b.key,state:b.state,points:b.points})),oldScore.breakdown.map(b=>({key:b.key,state:b.state,points:b.points})));
+ // ...but only the fixed array actually avoids the data/render duplicate.
+ assert.equal(fixedEvidence.length,original.evidence.length);
+ assert.equal(oldBuggyEvidence.length,original.evidence.length+1);
+ // No other criterion's evidence (region/phone_orders/platforms) was affected by verifying "food".
+ for(const other of fixedEvidence.filter(e=>e.criterion!=='food'))assert.equal(other.status,'NOT_VERIFIED');
+});
+test('M — refresh persistence: a JSON round-trip (simulating localStorage save/reload) keeps exactly one evidence row per verified proof',()=>{
+ const original=DEMO_PROSPECTS.find(p=>p.id==='newschool');
+ assert.ok(original);
+ const target=original.evidence.find(e=>e.criterion==='food');
+ assert.ok(target);
+ const fixedEvidence=original.evidence.map(x=>x.id===target.id?{...x,status:'VERIFIED',verified_by:'demo-human'}:x);
+ const roundTripped=JSON.parse(JSON.stringify(fixedEvidence));
+ assert.deepEqual(roundTripped,fixedEvidence);
+ assert.equal(roundTripped.filter((e:{criterion:string})=>e.criterion==='food').length,1,'exactly one evidence row for this criterion must survive a save/reload cycle');
+});
+test('M — reset semantics: DEMO_PROSPECTS itself (what resetDemo() restores) is untouched by this fix and still starts fully NOT_VERIFIED',()=>{
+ for(const p of DEMO_PROSPECTS)for(const e of p.evidence){assert.equal(e.status,'NOT_VERIFIED');assert.equal(e.verified_by,null)}
+});

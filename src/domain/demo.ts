@@ -29,5 +29,19 @@ export const DEMO_ONBOARDING_STEPS:string[]=[
  'L’envoi reste humain.',
 ];
 // A visible, honest marker — never mixed with the fixture label below. These 5 establishments are real
-// public businesses (see the excerpts' own source URLs); nothing here is invented or private.
-export const DEMO_REAL_LABEL='Établissement réel · sources publiques';
+// public businesses (see the excerpts' own source URLs); nothing here is invented or private. Wording
+// deliberately separates "this company exists" from "this data is already verified" — a prior version
+// ("sources publiques") read as if the data were already trustworthy, when every evidence row here
+// starts NOT_VERIFIED until a human reviews it.
+export const DEMO_REAL_LABEL='Entreprise réelle · données publiques à vérifier';
+// Read alongside DEMO_ONBOARDING_STEPS. States plainly what this public demo does and does not run live,
+// so nobody concludes from the 5 real establishments or from a fixture "Analyser le site" run that the
+// demo just demonstrated a live web search or a live site analysis — neither ever happens here. Never
+// say the 5 establishments were "discovered live" or their observations came from a live analysis: they
+// were prepared in advance for review, exactly as stated below.
+export const DEMO_LIVE_LIMITATIONS:string[]=[
+ 'Les 5 établissements Foodatoi sont des entreprises réelles ; leurs données publiques sont proposées ici pour revue humaine, pas générées à la volée.',
+ '« Trouver des prospects » fonctionne uniquement sur des exemples TEST synthétiques dans cette démo — aucune recherche web réelle n’est jamais lancée.',
+ 'L’extraction ou l’analyse d’un site réel en direct n’est pas exécutée dans cette démo publique.',
+ 'Cette capacité est disponible dans l’espace bêta connecté, selon les droits applicables.',
+];

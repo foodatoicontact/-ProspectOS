@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
-import {EDITOR, HOSTING, TRANSFERS, MISSING, TO_CONFIRM, MISSING_COMMERCIAL, TERMS_VERSION, PRIVACY_VERSION, LEGAL_PAGES, COMMERCIAL_NAME, ACTIVITY_FORMALITY} from '../src/domain/legal.ts';
+import {EDITOR, HOSTING, TRANSFERS, MISSING, TO_CONFIRM, MISSING_COMMERCIAL, TERMS_VERSION, PRIVACY_VERSION, LEGAL_PAGES, SERVICE_NAME, ACTIVITY_FORMALITY} from '../src/domain/legal.ts';
 
 const legalRoutes=['mentions-legales','cgu','confidentialite','cgv'];
 
@@ -36,7 +36,7 @@ test('A — none of the 4 legal pages declare a client component ("use client") 
 // ------------------------------------------------------------
 test('B — the owner-provided identity fields are recorded exactly as given, never altered',()=>{
  assert.equal(EDITOR.name,'Kevin Cardia');
- assert.equal(COMMERCIAL_NAME,'Foodatoi');
+ assert.equal(SERVICE_NAME,'ProspectOS');
  assert.equal(EDITOR.legalStatus,'Entrepreneur individuel (EI), régime micro-entreprise');
  assert.equal(EDITOR.siren,'106 540 453');
  assert.equal(EDITOR.siret,'106 540 453 00011');
@@ -100,6 +100,31 @@ test('B — no page ever renders a fabricated SIREN/SIRET-shaped number or a fic
   assert.doesNotMatch(source,/\b\d{9}\b/,`${slug} must never contain a 9-digit-looking SIREN`);
   assert.doesNotMatch(source,/\b\d{14}\b/,`${slug} must never contain a 14-digit-looking SIRET`);
  }
+});
+
+// ------------------------------------------------------------
+// J — regression guard (legal identity hotfix): ProspectOS and Foodatoi are two distinct projects
+// operated by the same entrepreneur individuel. An earlier version of these pages named Foodatoi as
+// ProspectOS's own "nom commercial" and said ProspectOS was developed "dans le cadre du projet
+// Foodatoi" — a real misattribution, since a reader could conclude ProspectOS belongs to or is
+// operated by/under Foodatoi. Foodatoi must never reappear anywhere in these 4 pages or in
+// src/domain/legal.ts; the service these pages describe is named directly (SERVICE_NAME/ProspectOS).
+// ------------------------------------------------------------
+test('J — "Foodatoi" never appears anywhere in any of the 4 legal pages',async()=>{
+ for(const slug of legalRoutes){
+  const source=await readFile(new URL(`../app/${slug}/page.tsx`,import.meta.url),'utf8');
+  assert.doesNotMatch(source,/Foodatoi/i,`${slug} must never mention Foodatoi — ProspectOS and Foodatoi are distinct projects`);
+ }
+});
+test('J — no exported constant value in src/domain/legal.ts is or contains "Foodatoi" (a code comment may still name it historically, to explain why this hotfix exists — it is never rendered on any page)',()=>{
+ for(const value of [EDITOR.name,EDITOR.legalStatus,EDITOR.siren,EDITOR.siret,EDITOR.rneRegistrationDate,EDITOR.rcs,EDITOR.vatStatus,EDITOR.address,EDITOR.phone,EDITOR.legalEmail,EDITOR.publicationDirector,EDITOR.capital,SERVICE_NAME,ACTIVITY_FORMALITY.status,HOSTING.application.name,HOSTING.application.address,HOSTING.database.name,HOSTING.database.address,TRANSFERS.vercel,TRANSFERS.supabase,TRANSFERS.anthropic,TRANSFERS.braveSearch])
+  assert.doesNotMatch(String(value),/Foodatoi/i);
+});
+test('J — mentions légales identify the service concerned as SERVICE_NAME (ProspectOS), never as operating "dans le cadre du projet" of anything else',async()=>{
+ const source=await readFile(new URL('../app/mentions-legales/page.tsx',import.meta.url),'utf8');
+ assert.match(source,/SERVICE_NAME/,'the service field must actually be rendered from SERVICE_NAME');
+ assert.doesNotMatch(source,/dans le cadre du projet/,'the phrasing that caused the misattribution must never reappear');
+ assert.equal(SERVICE_NAME,'ProspectOS');
 });
 
 // ------------------------------------------------------------

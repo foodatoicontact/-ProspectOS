@@ -10,11 +10,13 @@ export const MISSING = '[À FOURNIR]'; // genuinely unknown — the owner still 
 export const TO_CONFIRM = '[À CONFIRMER]'; // a status that is administratively pending or contractually unverified — never asserted either way until confirmed
 export const MISSING_COMMERCIAL = '[À DÉFINIR AVANT COMMERCIALISATION]';
 
-// Verified from db/schema.sql, this session's own read-only production audit (organization "Foodatoi",
-// GitHub org foodatoicontact), and README.md ("Première verticale Foodatoi"). Foodatoi is the
-// product/project ProspectOS is a vertical of — it is referenced here as such, never presented as a
-// separate legal entity distinct from the individual entrepreneur below.
-export const COMMERCIAL_NAME = 'Foodatoi';
+// The service these legal pages actually concern. ProspectOS and Foodatoi are two distinct
+// projects operated by the same entrepreneur individuel (Kevin Cardia) — a prior version of this
+// constant incorrectly named Foodatoi as ProspectOS's own "nom commercial", which misattributed
+// ProspectOS to a different project. Never reintroduce that: this page is about ProspectOS, and
+// ProspectOS is presented as the service concerned, never as operating "in the context of" or
+// "under" any other named project.
+export const SERVICE_NAME = 'ProspectOS';
 
 // Officially provided by the owner (Kevin Cardia) for this legal bloc. An entrepreneur individuel (EI)
 // has no "raison sociale" distinct from the person's own civil identity — the natural person IS the

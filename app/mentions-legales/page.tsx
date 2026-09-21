@@ -1,6 +1,6 @@
 import type {Metadata} from 'next';
 import {LegalPage} from '../../src/components/LegalPage';
-import {EDITOR, HOSTING, MISSING, TO_CONFIRM, TERMS_VERSION, COMMERCIAL_NAME, ACTIVITY_FORMALITY} from '../../src/domain/legal';
+import {EDITOR, HOSTING, MISSING, TO_CONFIRM, TERMS_VERSION, SERVICE_NAME, ACTIVITY_FORMALITY} from '../../src/domain/legal';
 import {SITE_URL} from '../../src/domain/seo';
 
 export const metadata:Metadata={
@@ -23,7 +23,7 @@ export default function Page(){
   <section>
    <h2>Éditeur du site</h2>
    <Field label="Nom et prénom de l’entrepreneur individuel" value={EDITOR.name}/>
-   <Field label="Nom commercial / projet" value={COMMERCIAL_NAME}/>
+   <Field label="Service concerné par les présentes mentions" value={SERVICE_NAME}/>
    <Field label="Statut juridique" value={EDITOR.legalStatus}/>
    <Field label="SIREN" value={EDITOR.siren}/>
    <Field label="SIRET (établissement principal)" value={EDITOR.siret}/>
@@ -37,7 +37,7 @@ export default function Page(){
    <Field label="Téléphone" value={EDITOR.phone}/>
    <Field label="Email de contact" value={EDITOR.legalEmail}/>
    <Field label="Directeur de la publication" value={EDITOR.publicationDirector}/>
-   <p className="muted">ProspectOS est développé et exploité par {EDITOR.name}, entrepreneur individuel, dans le cadre du projet « {COMMERCIAL_NAME} ».</p>
+   <p className="muted">{SERVICE_NAME} est développé et exploité par {EDITOR.name}, entrepreneur individuel.</p>
   </section>
 
   <section>

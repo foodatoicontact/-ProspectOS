@@ -1,6 +1,6 @@
 import type {Metadata} from 'next';
 import {LegalPage} from '../../src/components/LegalPage';
-import {EDITOR, MISSING, TERMS_VERSION} from '../../src/domain/legal';
+import {EDITOR, TERMS_VERSION} from '../../src/domain/legal';
 import {SITE_URL} from '../../src/domain/seo';
 
 export const metadata:Metadata={
@@ -22,7 +22,7 @@ export default function Page(){
   <section>
    <h2>2. Accès au service et compte utilisateur</h2>
    <p>L’accès à ProspectOS nécessite la création d’un compte (email et mot de passe) via l’authentification Supabase. La création d’un premier projet crée automatiquement votre organisation ; vous en êtes alors le propriétaire (owner).</p>
-   <p>Vous êtes responsable de la confidentialité de vos identifiants de connexion et de toute activité réalisée depuis votre compte. Toute suspicion d’accès non autorisé doit être signalée sans délai à {EDITOR.legalEmail===MISSING?<span className="missing">{MISSING}</span>:EDITOR.legalEmail}.</p>
+   <p>Vous êtes responsable de la confidentialité de vos identifiants de connexion et de toute activité réalisée depuis votre compte. Toute suspicion d’accès non autorisé doit être signalée sans délai à {EDITOR.legalEmail} · {EDITOR.phone}.</p>
   </section>
 
   <section>

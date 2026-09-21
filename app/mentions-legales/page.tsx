@@ -1,6 +1,6 @@
 import type {Metadata} from 'next';
 import {LegalPage} from '../../src/components/LegalPage';
-import {EDITOR, HOSTING, MISSING, TERMS_VERSION, COMMERCIAL_NAME, ACTIVITY_FORMALITY} from '../../src/domain/legal';
+import {EDITOR, HOSTING, MISSING, TO_CONFIRM, TERMS_VERSION, COMMERCIAL_NAME, ACTIVITY_FORMALITY} from '../../src/domain/legal';
 import {SITE_URL} from '../../src/domain/seo';
 
 export const metadata:Metadata={
@@ -10,10 +10,11 @@ export const metadata:Metadata={
  robots:{index:true,follow:true},
 };
 
-// Renders a value, or the visible '[À FOURNIR]' placeholder if it hasn't been supplied — never a
-// guess. See src/domain/legal.ts for exactly which fields are verified vs. still missing.
+// Renders a value, or a visible placeholder badge if it hasn't been supplied yet ('[À FOURNIR]') or is
+// administratively/contractually pending ('[À CONFIRMER]') — never a guess in either case. See
+// src/domain/legal.ts for exactly which fields are verified vs. still open.
 function Field({label,value}:{label:string;value:string}){
- return <p><b>{label} :</b> {value===MISSING?<span className="missing">{value}</span>:value}</p>;
+ return <p><b>{label} :</b> {value===MISSING||value===TO_CONFIRM?<span className="missing">{value}</span>:value}</p>;
 }
 
 export default function Page(){
@@ -28,22 +29,21 @@ export default function Page(){
    <Field label="SIRET (établissement principal)" value={EDITOR.siret}/>
    <Field label="Immatriculation RNE (Registre National des Entreprises)" value={EDITOR.rneRegistrationDate}/>
    <Field label="RCS (registre du commerce et des sociétés)" value={EDITOR.rcs}/>
-   <p className="muted">Immatriculation confirmée au Registre National des Entreprises. L’applicabilité d’une inscription distincte au RCS pour cette activité, ainsi que le numéro et la ville de greffe le cas échéant, restent à vérifier et à compléter.</p>
-   <Field label="TVA" value={EDITOR.vatStatus}/>
+   <p className="muted">La formalité d’adjonction d’activité ProspectOS étant encore en cours de traitement (voir ci-dessous), l’applicabilité d’une inscription RCS distincte pour cette activité — ainsi que le numéro et la ville de greffe le cas échéant — reste à confirmer une fois cette formalité validée.</p>
+   <Field label="Numéro de TVA intracommunautaire" value={EDITOR.vatStatus}/>
+   <p className="muted">Le statut TVA de cette activité est en cours de vérification et n’est pas présumé applicable ou non applicable à ce stade. Un numéro sera indiqué ici s’il s’avère exigible.</p>
    <Field label="Capital social" value={EDITOR.capital}/>
    <Field label="Siège social" value={EDITOR.address}/>
    <Field label="Téléphone" value={EDITOR.phone}/>
    <Field label="Email de contact" value={EDITOR.legalEmail}/>
    <Field label="Directeur de la publication" value={EDITOR.publicationDirector}/>
-   <p className="muted">ProspectOS est développé et exploité par {EDITOR.name}, entrepreneur individuel, dans le cadre du projet « {COMMERCIAL_NAME} ». Les informations d’identification légale ci-dessus marquées <span className="missing">{MISSING}</span> doivent être complétées par l’exploitant avant toute ouverture publique non contrôlée du service.</p>
+   <p className="muted">ProspectOS est développé et exploité par {EDITOR.name}, entrepreneur individuel, dans le cadre du projet « {COMMERCIAL_NAME} ».</p>
   </section>
 
   <section>
    <h2>Activité ProspectOS</h2>
    <p>{ACTIVITY_FORMALITY.status}</p>
-   <p>Date de dépôt de la formalité d’adjonction d’activité : {ACTIVITY_FORMALITY.filedAt}. Date de début d’activité déclarée : {ACTIVITY_FORMALITY.declaredStartDate}.</p>
-   <p className="muted">Activité déclarée : « {ACTIVITY_FORMALITY.description} »</p>
-   <p className="muted">Cette activité ne doit pas être présentée comme définitivement enregistrée tant que sa validation par l’INSEE n’a pas été confirmée.</p>
+   <p className="muted">Dépôt : {ACTIVITY_FORMALITY.filedAt} · Début d’activité déclaré : {ACTIVITY_FORMALITY.declaredStartDate}. Cette activité n’est pas présentée comme définitivement enregistrée tant que sa validation administrative n’est pas confirmée.</p>
   </section>
 
   <section>
@@ -54,7 +54,7 @@ export default function Page(){
    <Field label="Adresse" value={HOSTING.application.address}/>
    <h3>Base de données et authentification</h3>
    <Field label="Hébergeur" value={HOSTING.database.name}/>
-   <p className="muted">{HOSTING.database.role}. La base de données de production est hébergée dans la région Europe (Irlande, eu-west-1).</p>
+   <p className="muted">{HOSTING.database.role}. Le projet est configuré dans la région {HOSTING.database.region}, qui détermine la localisation primaire des données selon la documentation Supabase.</p>
    <Field label="Adresse" value={HOSTING.database.address}/>
   </section>
 
@@ -66,7 +66,7 @@ export default function Page(){
 
   <section>
    <h2>Contact</h2>
-   <p>Pour toute question relative à ces mentions légales, contactez : {EDITOR.legalEmail===MISSING?<span className="missing">{MISSING}</span>:EDITOR.legalEmail}.</p>
+   <p>Pour toute question relative à ces mentions légales : {EDITOR.legalEmail} · {EDITOR.phone}.</p>
   </section>
 
  </LegalPage>;

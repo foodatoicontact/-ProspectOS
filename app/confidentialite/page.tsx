@@ -1,6 +1,6 @@
 import type {Metadata} from 'next';
 import {LegalPage} from '../../src/components/LegalPage';
-import {EDITOR, MISSING, PRIVACY_VERSION} from '../../src/domain/legal';
+import {EDITOR, TRANSFERS, PRIVACY_VERSION} from '../../src/domain/legal';
 import {SITE_URL} from '../../src/domain/seo';
 
 export const metadata:Metadata={
@@ -15,7 +15,7 @@ export default function Page(){
 
   <section>
    <h2>1. Responsable du traitement</h2>
-   <p>Le responsable du traitement des données décrites ci-dessous est {EDITOR.name}. Ses coordonnées complètes d’identification légale figurent dans les <a href="/mentions-legales">mentions légales</a> ; certaines d’entre elles restent marquées <span className="missing">{MISSING}</span> et doivent être complétées par l’exploitant avant toute commercialisation.</p>
+   <p>Le responsable du traitement des données décrites ci-dessous est {EDITOR.name}, entrepreneur individuel. Ses coordonnées complètes d’identification légale figurent dans les <a href="/mentions-legales">mentions légales</a> ; certains éléments y restent explicitement signalés comme à fournir ou à confirmer.</p>
   </section>
 
   <section>
@@ -76,7 +76,11 @@ export default function Page(){
     <li><b>Anthropic</b> — lorsque la fonctionnalité d’analyse IA de votre offre est utilisée : reçoit le texte que vous soumettez volontairement à l’analyse (votre propre proposition commerciale, jamais une donnée de prospect saisie automatiquement), ainsi que, si vous utilisez votre clé personnelle (BYOK), cette clé — jamais en clair côté ProspectOS, transmise directement au fournisseur pour authentifier l’appel.</li>
     <li><b>Brave Search</b> — lorsque la recherche de prospects (Discovery) est utilisée en mode réel (non démonstration) : reçoit les termes de recherche que vous avez saisis (secteur d’activité, localisation) — jamais une donnée à caractère personnel identifiée individuellement.</li>
    </ul>
-   <p>Anthropic et Brave Search sont des sociétés américaines : leur utilisation implique un transfert de données hors de l’Union européenne pour les seules données décrites ci-dessus. L’existence et la nature exacte des garanties contractuelles appropriées (clauses contractuelles types ou mécanisme équivalent) avec ces prestataires doivent être vérifiées et documentées précisément par l’exploitant avant toute ouverture commerciale à grande échelle ; cette politique ne peut pas, à elle seule, garantir cette conformité.</p>
+   <h3>Transferts internationaux</h3>
+   <p className="muted"><b>Vercel</b> — {TRANSFERS.vercel}</p>
+   <p className="muted"><b>Supabase</b> — {TRANSFERS.supabase}</p>
+   <p className="muted"><b>Anthropic</b> — {TRANSFERS.anthropic}</p>
+   <p className="muted"><b>Brave Search</b> — {TRANSFERS.braveSearch}</p>
    <p>Aucune donnée n’est vendue à un tiers. Aucun outil publicitaire, aucun revendeur de données, aucun courtier en données n’est utilisé.</p>
   </section>
 
@@ -132,14 +136,14 @@ export default function Page(){
    <ul>
     <li>Les droits d’<b>accès</b> et de <b>portabilité</b> sur vos propres données de compte et d’organisation peuvent être exercés directement via l’export en libre-service (section 10).</li>
     <li>Le droit d’<b>effacement</b> de votre compte peut être exercé directement via la suppression en libre-service (section 9), dans les limites qui y sont décrites.</li>
-    <li>Pour toute autre demande (rectification, limitation, opposition, ou une question sur une donnée de prospect vous concernant que vous estimez inexacte), contactez : {EDITOR.legalEmail===MISSING?<span className="missing">{MISSING}</span>:EDITOR.legalEmail}.</li>
+    <li>Pour toute autre demande (rectification, limitation, opposition, ou une question sur une donnée de prospect vous concernant que vous estimez inexacte), contactez : {EDITOR.legalEmail} · {EDITOR.phone}.</li>
    </ul>
    <p>Vous disposez également du droit d’introduire une réclamation auprès de la Commission Nationale de l’Informatique et des Libertés (CNIL) — <a href="https://www.cnil.fr" target="_blank" rel="noreferrer">www.cnil.fr</a>.</p>
   </section>
 
   <section>
    <h2>13. Contact</h2>
-   <p>Pour toute question relative à cette politique de confidentialité : {EDITOR.legalEmail===MISSING?<span className="missing">{MISSING}</span>:EDITOR.legalEmail}.</p>
+   <p>Pour toute question relative à cette politique de confidentialité : {EDITOR.legalEmail} · {EDITOR.phone}.</p>
   </section>
 
  </LegalPage>;

@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
-import {EDITOR, HOSTING, MISSING, MISSING_COMMERCIAL, TERMS_VERSION, PRIVACY_VERSION, LEGAL_PAGES, COMMERCIAL_NAME, ACTIVITY_FORMALITY} from '../src/domain/legal.ts';
+import {EDITOR, HOSTING, TRANSFERS, MISSING, TO_CONFIRM, MISSING_COMMERCIAL, TERMS_VERSION, PRIVACY_VERSION, LEGAL_PAGES, COMMERCIAL_NAME, ACTIVITY_FORMALITY} from '../src/domain/legal.ts';
 
 const legalRoutes=['mentions-legales','cgu','confidentialite','cgv'];
 
@@ -43,43 +43,56 @@ test('B — the owner-provided identity fields are recorded exactly as given, ne
  assert.equal(EDITOR.rneRegistrationDate,'25/06/2026');
  assert.equal(EDITOR.address,'1 rue Edmond Haraucourt, 31100 Toulouse, France');
  assert.equal(EDITOR.publicationDirector,'Kevin Cardia');
+ assert.equal(EDITOR.phone,'06 35 15 10 66');
+ assert.equal(EDITOR.legalEmail,'prospectos.contact@gmail.com');
 });
 test('B — capital social is explicitly stated as not applicable (EI has no share capital), never a fabricated figure',()=>{
  assert.match(EDITOR.capital,/[Nn]on applicable/);
  assert.doesNotMatch(EDITOR.capital,/^\d/,'must never be a bare invented amount');
 });
-test('B — VAT status is a reasoned, sourced determination (franchise en base de TVA, art. 293 B CGI for a new micro-entreprise), never a fabricated intracommunity VAT number',()=>{
- assert.match(EDITOR.vatStatus,/293 B/);
- assert.match(EDITOR.vatStatus,/franchise en base/i);
+test('B — VAT status is left as an explicit "to confirm" — never asserted as "non applicable" merely because the regime is micro-entreprise, and never a fabricated intracommunity VAT number',()=>{
+ assert.equal(EDITOR.vatStatus,TO_CONFIRM);
  assert.doesNotMatch(EDITOR.vatStatus,/^FR\d/,'must never look like a fabricated FR-prefixed VAT number');
 });
-test('B — RCS is left explicitly unresolved (not asserted as either applicable or not applicable) since no number or greffe city was provided',()=>{
- assert.equal(EDITOR.rcs,MISSING);
+test('B — the mentions légales page never claims the VAT status is definitively "non applicable"',async()=>{
+ const source=await readFile(new URL('../app/mentions-legales/page.tsx',import.meta.url),'utf8');
+ assert.doesNotMatch(source,/TVA non applicable/);
+ assert.match(source,/n’est pas présumé applicable ou non applicable/,'the neutral framing must be present');
 });
-test('B — the fields that remain genuinely unknown stay the explicit MISSING placeholder, never invented: phone, legal/RGPD contact email, host addresses',()=>{
- for(const field of [EDITOR.phone,EDITOR.legalEmail])assert.equal(field,MISSING);
+test('B — RCS is left explicitly unresolved as "to confirm" (not asserted as either applicable or not applicable) since no number or greffe city was provided, and the pending activity formality is why',()=>{
+ assert.equal(EDITOR.rcs,TO_CONFIRM);
 });
-test('B — the legal/RGPD contact email is never silently filled with the owner\'s registered business address',()=>{
+test('B — the legal/RGPD contact email is a dedicated channel, never silently filled with the owner\'s registered business address',()=>{
  assert.notEqual(EDITOR.legalEmail,EDITOR.address);
- assert.equal(EDITOR.legalEmail,MISSING);
+ assert.match(EDITOR.legalEmail,/^[^\s@]+@[^\s@]+\.[^\s@]+$/,'must be a real-shaped email, not a placeholder');
 });
-test('B — the ProspectOS activity formality is described as filed and pending, never as already validated/registered',()=>{
- assert.match(ACTIVITY_FORMALITY.status,/en cours de traitement|en cours de validation|non encore confirmée/);
+test('B — the ProspectOS activity formality is described as filed and pending, never as already validated/registered — kept to the minimal factual statement, no unnecessary commercial description',()=>{
+ assert.match(ACTIVITY_FORMALITY.status,/en cours/);
  assert.doesNotMatch(ACTIVITY_FORMALITY.status,/validée définitivement|définitivement enregistrée/);
  assert.equal(ACTIVITY_FORMALITY.filedAt,'21/09/2026');
  assert.equal(ACTIVITY_FORMALITY.declaredStartDate,'18/09/2026');
+ assert.equal(('description' in ACTIVITY_FORMALITY),false,'the activity description was deliberately dropped — the owner asked for the minimal factual statement only');
 });
 test('B — mentions légales never claim the activity is already validated by the INSEE — the page explicitly says the opposite instead',async()=>{
  const source=await readFile(new URL('../app/mentions-legales/page.tsx',import.meta.url),'utf8');
  assert.match(source,/ACTIVITY_FORMALITY/,'the formality status must actually be rendered on the page');
- assert.match(source,/ne doit pas être présentée comme définitivement enregistrée/,'the required disclaimer must be present');
+ assert.match(source,/n’est pas présentée comme définitivement enregistrée/,'the required disclaimer must be present');
  assert.doesNotMatch(source,/déjà validée/);
 });
-test('B — hosting providers are named from the real architecture (Vercel, Supabase), never invented, but their exact addresses are left explicit rather than guessed',()=>{
+test('B — hosting providers are named from the real architecture (Vercel, Supabase); Vercel\'s verified official address is used exactly as supplied, Supabase\'s remains explicit rather than guessed',()=>{
  assert.equal(HOSTING.application.name,'Vercel Inc.');
+ assert.equal(HOSTING.application.address,'440 N Barranca Avenue #4133, Covina, CA 91723, United States');
  assert.equal(HOSTING.database.name,'Supabase');
- assert.equal(HOSTING.application.address,MISSING);
  assert.equal(HOSTING.database.address,MISSING);
+ assert.equal(HOSTING.database.region,'eu-west-1 — Europe (Irlande)');
+});
+test('B — international transfer status is stated per-provider from what is actually verified, never extrapolated: Vercel/Anthropic reference their own real DPA, Supabase never claims zero transfer just because primary storage is EU, and Brave Search\'s status is explicitly unresolved rather than borrowed from Brave Ads\' unrelated DPA',()=>{
+ assert.match(TRANSFERS.vercel,/Clauses Contractuelles Types|CCT|SCC/);
+ assert.match(TRANSFERS.anthropic,/Commercial Terms/);
+ assert.doesNotMatch(TRANSFERS.supabase,/aucun transfert|jamais.*hors UE/i);
+ assert.match(TRANSFERS.braveSearch,/\[À CONFIRMER\]/);
+ assert.match(TRANSFERS.braveSearch,/Brave Ads/);
+ assert.match(TRANSFERS.braveSearch,/n’a pas été vérifiée/,'must state the Brave Ads mechanism is unverified for Brave Search, never presumed to apply');
 });
 test('B — no page ever renders a fabricated SIREN/SIRET-shaped number or a fictional address',async()=>{
  for(const slug of legalRoutes){

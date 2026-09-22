@@ -160,9 +160,10 @@ test('app/page.tsx: loadBetaAnalytics calls the admin route through the authenti
  const source=await readFile(new URL('../app/page.tsx',import.meta.url),'utf8');
  assert.match(source,/api\('admin\/beta-analytics'\)/);
 });
-test('app/page.tsx: no business activity renders literally "Aucune activité métier", never a fallback to a login timestamp',async()=>{
+test('app/page.tsx: no business event renders literally "Aucun événement métier enregistré", never a fallback to a login timestamp and never a bare "Aucune activité" claim',async()=>{
  const source=await readFile(new URL('../app/page.tsx',import.meta.url),'utf8');
- assert.match(source,/Aucune activité métier/);
+ assert.match(source,/Aucun événement métier enregistré/);
+ assert.doesNotMatch(source,/Aucune activité/,'must never read as "no activity at all" — it measures tracked events, not product usage');
 });
 test('app/page.tsx: the small-sample funnel caveat is shown to the user, never presented as statistically significant',async()=>{
  const source=await readFile(new URL('../app/page.tsx',import.meta.url),'utf8');

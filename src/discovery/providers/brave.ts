@@ -3,6 +3,7 @@ import {CandidateSchema,type Candidate,type DiscoveryInput,type DiscoveryProvide
 import {DeduplicationService} from '../deduplication.ts';
 import {assessCandidateQuality,type QualityAssessment} from '../candidate-quality.ts';
 import {selectDiverseCandidates} from '../candidate-diversity.ts';
+import {resolveCanonicalCompany} from '../entity-resolution.ts';
 const RawSchema=z.object({title:z.string().min(1),url:z.string().url(),description:z.string().optional()}).passthrough();
 // Attached in-memory onto each raw result between searchCompanies and normalizeResult — never
 // serialized, never persisted as its own column; it only ever ends up inside Candidate.raw_metadata
@@ -43,9 +44,19 @@ export class BraveProvider implements DiscoveryProvider {
  }
  async fetchCompanyDetails(candidate:Candidate){return candidate} // No private-page fetch; site analysis is separate policy-controlled service.
  normalizeResult(raw:unknown):Candidate {
- const r=RawSchema.parse(raw) as z.infer<typeof RawSchema>&QualityTagged;const title=r.title.replace(/<[^>]*>/g,'').slice(0,200);const identity={name:title,website:null,city:null,address:null,phone:null};
+ const r=RawSchema.parse(raw) as z.infer<typeof RawSchema>&QualityTagged;
+ const title=r.title.replace(/<[^>]*>/g,'').slice(0,200);
+ const description=(r.description??'').replace(/<[^>]*>/g,'').slice(0,1000);
  const quality=r.__quality;
- // A search hit may be a directory or chain page; never label it an official website automatically.
- return CandidateSchema.parse({...identity,canonical_url:null,discovered_source:this.id,source_url:r.url,source_title:r.title.replace(/<[^>]*>/g,'').slice(0,300),discovery_timestamp:new Date().toISOString(),confidence:quality?.confidence??.45,raw_metadata:{description:(r.description??'').replace(/<[^>]*>/g,'').slice(0,1000),official_website_status:'NOT_VERIFIED',quality_signal:quality?.signal??'ambiguous',quality_reasons:quality?.reasons??[]},deduplication_key:new DeduplicationService().key(identity)+'|'+new URL(r.url).hostname+new URL(r.url).pathname});
+ // Entity resolution: is this hit the company's own site, a media page explicitly citing an
+ // external official domain, or neither? Never a guess — RESOLVED only for exactly one identifiable
+ // company, UNRESOLVED (source kept as evidence, never deleted) otherwise. See entity-resolution.ts.
+ const resolution=resolveCanonicalCompany({title,description,sourceUrl:r.url,quality:quality??{confidence:.45,signal:'ambiguous',reasons:[]}});
+ const identity={name:resolution.name,website:resolution.status==='RESOLVED'?resolution.website:null,city:null,address:null,phone:null};
+ // A RESOLVED candidate dedupes by its real domain (letting the existing DeduplicationService
+ // naturally merge N articles about the same company into one candidate); an UNRESOLVED one keeps
+ // the per-source-page suffix so two not-yet-identified results are never falsely merged.
+ const dedupeKey=resolution.status==='RESOLVED'?new DeduplicationService().key(identity):new DeduplicationService().key(identity)+'|'+new URL(r.url).hostname+new URL(r.url).pathname;
+ return CandidateSchema.parse({...identity,canonical_url:resolution.status==='RESOLVED'?resolution.canonical_url:null,discovered_source:this.id,source_url:r.url,source_title:r.title.replace(/<[^>]*>/g,'').slice(0,300),discovery_timestamp:new Date().toISOString(),confidence:quality?.confidence??.45,raw_metadata:{description,official_website_status:resolution.status,canonical_resolution_method:resolution.status==='RESOLVED'?resolution.method:null,canonical_resolution_reasons:resolution.reasons,quality_signal:quality?.signal??'ambiguous',quality_reasons:quality?.reasons??[]},deduplication_key:dedupeKey});
  }
 }

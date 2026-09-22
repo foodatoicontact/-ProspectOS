@@ -31,13 +31,15 @@ const AGGREGATOR_WORDS = /\b(annuaire|comparateur|plateforme|marketplace|trouvez
 // cross-sector aggregator/marketplace/directory/social domains that are structurally never a single
 // business's own site, whatever the vertical being searched. Kept intentionally short — this is a
 // reinforcement signal, not a domain blacklist to maintain over time.
-const KNOWN_AGGREGATOR_HOSTS = [
+// Exported so entity-resolution.ts can reuse the exact same list (aggregator/media hosts are never a
+// company's own official site) without maintaining a second, driftable copy.
+export const KNOWN_AGGREGATOR_HOSTS = [
  'ubereats.com', 'deliveroo.fr', 'deliveroo.com', 'justeat.fr', 'justeat.com',
  'tripadvisor.fr', 'tripadvisor.com', 'pagesjaunes.fr', 'yelp.fr', 'yelp.com',
  'leboncoin.fr', 'seloger.com', 'google.com', 'facebook.com', 'instagram.com',
  'wikipedia.org', 'trustpilot.com',
 ];
-const isKnownAggregatorHost = (hostname: string): boolean =>
+export const isKnownAggregatorHost = (hostname: string): boolean =>
  KNOWN_AGGREGATOR_HOSTS.some(domain => hostname === domain || hostname.endsWith(`.${domain}`));
 
 const clamp = (value: number): number => Math.min(MAX_CONFIDENCE, Math.max(MIN_CONFIDENCE, value));

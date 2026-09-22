@@ -181,9 +181,13 @@ test('E — the privacy policy concludes no cookie consent banner is required an
 test('E — no analytics/marketing tracker (Google Analytics, Meta Pixel, Hotjar) is ever mentioned as present, and none exists in package.json',async()=>{
  const source=await readFile(new URL('../app/confidentialite/page.tsx',import.meta.url),'utf8');
  for(const tracker of [/Google Analytics/,/Meta Pixel/,/Hotjar/,/Mixpanel/])assert.doesNotMatch(source,tracker);
- const pkg=await readFile(new URL('../package.json',import.meta.url),'utf8');
+ // Checked against actual dependency package names only — never the raw file text, which also
+ // contains this app's own script/feature names (e.g. the internal "beta-analytics" admin dashboard,
+ // an in-house usage report, not a third-party marketing tracker).
+ const pkg=JSON.parse(await readFile(new URL('../package.json',import.meta.url),'utf8'));
+ const dependencyNames=Object.keys({...pkg.dependencies,...pkg.devDependencies}).join(' ').toLowerCase();
  for(const tracker of ['analytics','gtag','hotjar','mixpanel','segment','posthog'])
-  assert.doesNotMatch(pkg.toLowerCase(),new RegExp(tracker),`package.json must not depend on ${tracker}`);
+  assert.doesNotMatch(dependencyNames,new RegExp(tracker),`package.json must not depend on ${tracker}`);
 });
 test('E — CNIL complaint right is mentioned',async()=>{
  const source=await readFile(new URL('../app/confidentialite/page.tsx',import.meta.url),'utf8');

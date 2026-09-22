@@ -16,7 +16,8 @@
     "test:account-db": "node tests/account-privacy-beta-db.mjs",
     "test:cost-byok-db": "node tests/discovery-cost-byok-db.mjs",
     "test:trial-db": "node tests/beta-self-service-trial-db.mjs",
-    "test:all": "npm test && npm run test:db && npm run test:discovery-db && npm run test:ai-quota-db && npm run test:outreach-db && npm run test:account-db && npm run test:cost-byok-db && npm run test:trial-db && npm run typecheck"
+    "test:beta-analytics-db": "node tests/beta-analytics-admin-db.mjs",
+    "test:all": "npm test && npm run test:db && npm run test:discovery-db && npm run test:ai-quota-db && npm run test:outreach-db && npm run test:account-db && npm run test:cost-byok-db && npm run test:trial-db && npm run test:beta-analytics-db && npm run typecheck"
   },
   "dependencies": {
     "@supabase/supabase-js": "2.116.0",

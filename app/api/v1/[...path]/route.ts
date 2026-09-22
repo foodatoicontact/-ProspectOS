@@ -223,6 +223,17 @@ async function handler(request:Request,context:{params:Promise<{path:string[]}>}
  return json({deleted:true});
  }
  }
+ if(resource==='admin'&&id==='beta-analytics'&&request.method==='GET'){
+ // Never a new admin role/table: beta_analytics() itself checks the caller's OWN
+ // account_entitlements.plan='INTERNAL'/status='ACTIVE' before reading anything cross-user (migration
+ // 013) and raises 'Admin access required' otherwise — mapped here to a clean 403, never a raw 500.
+ const {data,error:rpcError}=await db.rpc('beta_analytics');
+ if(rpcError){
+  if(rpcError.message?.includes('Admin access required'))return json({error:'Accès administrateur requis.',code:'ADMIN_ACCESS_REQUIRED'},403);
+  throw Error('DATABASE_REQUEST_FAILED');
+ }
+ return json(data);
+ }
  if(resource==='export'&&request.method==='GET'){
  const pid=new URL(request.url).searchParams.get('project_id');const project=await checked(db.from('projects').select('*,icps(*)').eq('id',pid??'').single());const rows=await checked(db.from('prospects').select('*,evidence(*)').eq('project_id',project.id));
  return new Response(csv([['Nom','Ville','Statut','Score','Couverture','URL'],...rows.map((p:any)=>{const s=scoreProspect(projectCriteria(project.icps),p.evidence);return [p.name,p.city,p.status,s.score,s.coverage,p.website]})]),{headers:{'content-type':'text/csv; charset=utf-8','content-disposition':'attachment; filename="prospectos.csv"','Cache-Control':'no-store'}});

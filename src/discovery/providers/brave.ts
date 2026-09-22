@@ -48,15 +48,26 @@ export class BraveProvider implements DiscoveryProvider {
  const title=r.title.replace(/<[^>]*>/g,'').slice(0,200);
  const description=(r.description??'').replace(/<[^>]*>/g,'').slice(0,1000);
  const quality=r.__quality;
- // Entity resolution: is this hit the company's own site, a media page explicitly citing an
- // external official domain, or neither? Never a guess — RESOLVED only for exactly one identifiable
- // company, UNRESOLVED (source kept as evidence, never deleted) otherwise. See entity-resolution.ts.
+ // Entity resolution: company NAME and company DOMAIN are resolved independently — a media article
+ // can clearly name a real company while citing no verifiable domain at all (e.g. "Grand Frais : 30
+ // nouveaux magasins..." on Aufeminin), which is a normal, honest outcome: name RESOLVED, domain
+ // UNRESOLVED. Never a domain guessed from the name alone. See entity-resolution.ts.
  const resolution=resolveCanonicalCompany({title,description,sourceUrl:r.url,quality:quality??{confidence:.45,signal:'ambiguous',reasons:[]}});
- const identity={name:resolution.name,website:resolution.status==='RESOLVED'?resolution.website:null,city:null,address:null,phone:null};
- // A RESOLVED candidate dedupes by its real domain (letting the existing DeduplicationService
- // naturally merge N articles about the same company into one candidate); an UNRESOLVED one keeps
- // the per-source-page suffix so two not-yet-identified results are never falsely merged.
- const dedupeKey=resolution.status==='RESOLVED'?new DeduplicationService().key(identity):new DeduplicationService().key(identity)+'|'+new URL(r.url).hostname+new URL(r.url).pathname;
- return CandidateSchema.parse({...identity,canonical_url:resolution.status==='RESOLVED'?resolution.canonical_url:null,discovered_source:this.id,source_url:r.url,source_title:r.title.replace(/<[^>]*>/g,'').slice(0,300),discovery_timestamp:new Date().toISOString(),confidence:quality?.confidence??.45,raw_metadata:{description,official_website_status:resolution.status,canonical_resolution_method:resolution.status==='RESOLVED'?resolution.method:null,canonical_resolution_reasons:resolution.reasons,quality_signal:quality?.signal??'ambiguous',quality_reasons:quality?.reasons??[]},deduplication_key:dedupeKey});
+ const identity={name:resolution.companyName.name,website:resolution.companyDomain.status==='RESOLVED'?resolution.companyDomain.website:null,city:null,address:null,phone:null};
+ // Deduplication is domain-based only (never by name alone — a name like "Orange" or "Action" is far
+ // too generic to safely merge on): a RESOLVED domain dedupes by that real domain (letting the
+ // existing DeduplicationService naturally merge N articles about the same company into one
+ // candidate); anything else keeps the per-source-page suffix so two results are never falsely merged.
+ const dedupeKey=resolution.companyDomain.status==='RESOLVED'?new DeduplicationService().key(identity):new DeduplicationService().key(identity)+'|'+new URL(r.url).hostname+new URL(r.url).pathname;
+ return CandidateSchema.parse({...identity,canonical_url:resolution.companyDomain.status==='RESOLVED'?resolution.companyDomain.canonical_url:null,discovered_source:this.id,source_url:r.url,source_title:r.title.replace(/<[^>]*>/g,'').slice(0,300),discovery_timestamp:new Date().toISOString(),confidence:quality?.confidence??.45,raw_metadata:{
+ description,
+ company_name_status:resolution.companyName.status,
+ company_name_method:resolution.companyName.status==='RESOLVED'?resolution.companyName.method:null,
+ company_domain_status:resolution.companyDomain.status,
+ company_domain_method:resolution.companyDomain.status==='RESOLVED'?resolution.companyDomain.method:null,
+ company_domain_reasons:resolution.companyDomain.reasons,
+ quality_signal:quality?.signal??'ambiguous',
+ quality_reasons:quality?.reasons??[],
+ },deduplication_key:dedupeKey});
  }
 }

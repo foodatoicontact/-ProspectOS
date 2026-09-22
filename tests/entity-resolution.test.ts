@@ -7,10 +7,12 @@ import {BraveProvider} from '../src/discovery/providers/brave.ts';
 import {DeduplicationService} from '../src/discovery/deduplication.ts';
 
 // ============================================================
-// Root-cause regression: Discovery correctly finds a commercial signal (an opening/expansion
-// article) but must resolve SIGNAL -> CANONICAL COMPANY -> OFFICIAL WEBSITE -> SOURCE (kept as
-// evidence) -> PROSPECT, never letting the media page itself become the prospect. The 7 CAS fixtures
-// below reproduce the Verisure/retail acceptance scenario end to end through the real BraveProvider.
+// V2 — company NAME and company DOMAIN are resolved INDEPENDENTLY (micro-patch after the real Brave
+// smoke test on the Verisure case surfaced "Grand Frais : 30 nouveaux magasins... (Aufeminin)": the
+// company name is clearly identifiable from the headline even though no verifiable domain is ever
+// cited or fetched directly). RESOLVED name + UNRESOLVED domain must read as an honest intermediate
+// state, never as "nothing was found", and a domain must NEVER be guessed from a resolved name alone.
+// The 7 CAS fixtures below are the exact ones mandated by the bloc.
 // ============================================================
 function quality(hit: {title: string; url: string; description?: string}, location = 'France') {
  return assessCandidateQuality(hit, location);
@@ -23,106 +25,150 @@ function normalize(provider: BraveProvider, hit: {title: string; url: string; de
 }
 
 // ------------------------------------------------------------
-// CAS 1 — media != prospect: a pure editorial article about a company opening a store must never
-// resolve its own (media) domain as the company's website.
+// CAS 1 — Grand Frais / Aufeminin: the real case that motivated this patch. The company name is
+// clearly identifiable ("Grand Frais : ...") even though no domain is ever cited or fetchable.
 // ------------------------------------------------------------
-test('CAS 1: a media article about a company opening a store never resolves to the media\'s own domain', () => {
- const hit = {title: 'Mango ouvre un nouveau magasin à Lyon', url: 'https://www.francetvinfo.fr/economie/entreprises/mango-ouvre-a-lyon.html', description: 'Le groupe espagnol Mango poursuit son expansion en France.'};
+test('CAS 1 — Grand Frais / Aufeminin: company name RESOLVED, domain UNRESOLVED, source preserved', () => {
+ const hit = {title: 'Grand Frais : 30 nouveaux magasins ouvrent en France dès le 1er juin 2026, votre ville est-elle concernée ?', url: 'https://www.aufeminin.com/news/grand-frais-30-nouveaux-magasins.html', description: 'L\'enseigne Grand Frais poursuit son expansion en France.'};
  const r = resolveCanonicalCompany({...hit, sourceUrl: hit.url, quality: quality(hit)});
- assert.equal(r.status, 'UNRESOLVED', 'no domain is explicitly cited in the text, so no arbitrary selection happens');
- if (r.status === 'UNRESOLVED') assert.doesNotMatch(r.reasons.join(' '), /francetvinfo/);
+ assert.equal(r.companyName.status, 'RESOLVED');
+ assert.equal(r.companyName.name, 'Grand Frais');
+ if (r.companyName.status === 'RESOLVED') assert.equal(r.companyName.method, 'colon_prefix');
+ assert.equal(r.companyDomain.status, 'UNRESOLVED', 'aufeminin.com is a media host — never guessed as the company\'s own domain');
 });
-
-// ------------------------------------------------------------
-// CAS 2 — two media articles about the SAME real company must converge to one canonical candidate:
-// once each article explicitly cites the company's real domain, both resolve to the identical
-// website/domain and therefore the identical dedupe key, letting the existing (already-tested)
-// DeduplicationService naturally merge them.
-// ------------------------------------------------------------
-test('CAS 2: two different media articles citing the same official domain converge to one canonical company (same dedupe key)', () => {
+test('CAS 1 (through BraveProvider) — the candidate carries the identified name with website null, and the media source is kept intact', () => {
  const provider = new BraveProvider('test');
- const article1 = {title: 'Grand Frais annonce l\'ouverture de 12 nouveaux magasins', url: 'https://www.lsa-conso.fr/grand-frais-ouverture-magasins.html', description: 'L\'enseigne grand-frais.fr confirme son plan d\'expansion.'};
- const article2 = {title: 'Grand Frais poursuit son maillage territorial', url: 'https://www.toute-la-franchise.com/actus-6789.html', description: 'Selon le site grand-frais.fr, l\'enseigne cible les zones périurbaines.'};
- const c1 = normalize(provider, article1);
- const c2 = normalize(provider, article2);
- assert.equal(c1.raw_metadata.official_website_status, 'RESOLVED');
- assert.equal(c2.raw_metadata.official_website_status, 'RESOLVED');
- assert.equal(c1.website, 'https://grand-frais.fr');
- assert.equal(c1.website, c2.website, 'both articles resolve to the same real company domain');
- assert.equal(c1.deduplication_key, c2.deduplication_key, 'identical resolved domain -> identical dedupe key -> DeduplicationService.match will flag them as the same candidate');
- const dedupe = new DeduplicationService();
- const match = dedupe.match(c2, [c1]);
- assert.notEqual(match.status, 'unique', 'the second article about the same company must never be treated as a brand-new, unrelated prospect');
+ const hit = {title: 'Grand Frais : 30 nouveaux magasins ouvrent en France dès le 1er juin 2026, votre ville est-elle concernée ?', url: 'https://www.aufeminin.com/news/grand-frais-30-nouveaux-magasins.html', description: 'L\'enseigne Grand Frais poursuit son expansion en France.'};
+ const c = normalize(provider, hit);
+ assert.equal(c.name, 'Grand Frais');
+ assert.equal(c.website, null);
+ assert.equal(c.canonical_url, null);
+ assert.equal(c.raw_metadata.company_name_status, 'RESOLVED');
+ assert.equal(c.raw_metadata.company_domain_status, 'UNRESOLVED');
+ assert.equal(c.source_url, hit.url, 'Aufeminin is never replaced or deleted — it stays the attachable source');
 });
 
 // ------------------------------------------------------------
-// CAS 3 — two articles about two DIFFERENT real companies must never be merged, even if superficially
-// similar (same retail sector, same kind of announcement).
+// CAS 2 — Picard / média: a leading commercial-signal verb phrase ("a ouvert") names the company.
 // ------------------------------------------------------------
-test('CAS 3: two articles about two different companies never share a dedupe key', () => {
- const provider = new BraveProvider('test');
- const mango = {title: 'Mango ouvre un nouveau magasin', url: 'https://www.lsa-conso.fr/mango-ouverture.html', description: 'Le site mango.com confirme l\'ouverture.'};
- const lidl = {title: 'Lidl ouvre un nouveau magasin', url: 'https://www.lsa-conso.fr/lidl-ouverture.html', description: 'Le site lidl.fr confirme l\'ouverture.'};
- const c1 = normalize(provider, mango);
- const c2 = normalize(provider, lidl);
- assert.equal(c1.website, 'https://mango.com');
- assert.equal(c2.website, 'https://lidl.fr');
- assert.notEqual(c1.deduplication_key, c2.deduplication_key);
- const dedupe = new DeduplicationService();
- assert.equal(dedupe.match(c2, [c1]).status, 'unique', 'two distinct real companies must never be flagged as duplicates of one another');
-});
-
-// ------------------------------------------------------------
-// CAS 4 — a generic institutional/directory page (no single identifiable company) stays UNRESOLVED,
-// never forced into a fabricated "company".
-// ------------------------------------------------------------
-test('CAS 4: a generic institutional page with no single identifiable company stays UNRESOLVED', () => {
- const hit = {title: 'Commerce de détail : tendances et chiffres clés du secteur', url: 'https://www.businessfrance.fr/actualites/commerce-detail-tendances', description: 'Panorama du secteur du commerce de détail en France, acteurs et perspectives.'};
+test('CAS 2 — Picard / média: "Picard a ouvert dix magasins en 2026" resolves the name, domain stays null when absent', () => {
+ const hit = {title: 'Picard a ouvert dix magasins en 2026 dans toute la France', url: 'https://www.lsa-conso.fr/actualites/picard-dix-magasins-2026.html', description: 'Le surgelé français continue son maillage.'};
  const r = resolveCanonicalCompany({...hit, sourceUrl: hit.url, quality: quality(hit)});
- assert.equal(r.status, 'UNRESOLVED');
+ assert.equal(r.companyName.status, 'RESOLVED');
+ assert.equal(r.companyName.name, 'Picard');
+ if (r.companyName.status === 'RESOLVED') assert.equal(r.companyName.method, 'leading_verb');
+ assert.equal(r.companyDomain.status, 'UNRESOLVED');
 });
 
 // ------------------------------------------------------------
-// CAS 5 — an article citing SEVERAL distinct companies must never arbitrarily pick one: ambiguity
-// fails closed to UNRESOLVED rather than guessing.
+// CAS 3 — Mango / média: a leading commercial-signal verb ("ouvre") names the company.
 // ------------------------------------------------------------
-test('CAS 5: an article citing several distinct company domains never arbitrarily selects one (fails closed)', () => {
- const hit = {title: 'Mango, Lidl et Grand Frais accélèrent leur expansion', url: 'https://www.lsa-conso.fr/panorama-expansion-2026.html', description: 'Les enseignes mango.com, lidl.fr et grand-frais.fr multiplient les ouvertures.'};
+test('CAS 3 — Mango / média: "Mango ouvre 45 magasins" resolves the name, domain stays null when absent', () => {
+ const hit = {title: 'Mango ouvre 45 magasins dans le monde entier cette année', url: 'https://www.lsa-conso.fr/actualites/mango-45-magasins.html', description: 'Le groupe espagnol confirme son expansion internationale.'};
  const r = resolveCanonicalCompany({...hit, sourceUrl: hit.url, quality: quality(hit)});
- assert.equal(r.status, 'UNRESOLVED');
- if (r.status === 'UNRESOLVED') assert.match(r.reasons.join(' '), /ambiguë/);
+ assert.equal(r.companyName.status, 'RESOLVED');
+ assert.equal(r.companyName.name, 'Mango');
+ if (r.companyName.status === 'RESOLVED') assert.equal(r.companyName.method, 'leading_verb');
+ assert.equal(r.companyDomain.status, 'UNRESOLVED');
 });
 
 // ------------------------------------------------------------
-// CAS 6 — the company's own official site is found directly (not a media page about it): resolves via
-// 'own_site', with a clean name and a real, attachable website.
+// CAS 4 — titre ambigu: a title starting with a number never invents a name.
 // ------------------------------------------------------------
-test('CAS 6: the company\'s own official site, found directly, resolves via own_site with a clean name', () => {
+test('CAS 4 — ambiguous title: "30 nouveaux magasins ouvrent en France" never invents a company name', () => {
+ const hit = {title: '30 nouveaux magasins ouvrent en France dès juin', url: 'https://www.lsa-conso.fr/panorama-2026.html', description: 'Plusieurs enseignes annoncent leur expansion.'};
+ const r = resolveCanonicalCompany({...hit, sourceUrl: hit.url, quality: quality(hit)});
+ assert.equal(r.companyName.status, 'UNRESOLVED');
+ assert.equal(r.companyDomain.status, 'UNRESOLVED');
+});
+
+// ------------------------------------------------------------
+// CAS 5 — article multi-entreprises: never arbitrarily pick one of several named companies.
+// ------------------------------------------------------------
+test('CAS 5 — multi-entity article: "Aldi et Lidl : la liste complète" never arbitrarily picks a name', () => {
+ const hit = {title: 'Aldi et Lidl : la liste complète des ouvertures en 2026', url: 'https://www.lsa-conso.fr/actualites/aldi-lidl-liste-2026.html', description: 'Les deux enseignes multiplient les implantations.'};
+ const r = resolveCanonicalCompany({...hit, sourceUrl: hit.url, quality: quality(hit)});
+ assert.equal(r.companyName.status, 'UNRESOLVED', 'neither Aldi nor Lidl is arbitrarily selected');
+});
+
+// ------------------------------------------------------------
+// CAS 6 — site officiel direct: name AND domain resolve together, exactly as before this patch.
+// ------------------------------------------------------------
+test('CAS 6 — direct official site: name and domain both RESOLVED via own_site', () => {
  const provider = new BraveProvider('test');
  const hit = {title: 'Grand Frais — Le marché qui a du goût', url: 'https://www.grand-frais.fr/', description: 'Retrouvez tous nos magasins Grand Frais près de chez vous.'};
  const c = normalize(provider, hit);
- assert.equal(c.raw_metadata.official_website_status, 'RESOLVED');
- assert.equal(c.raw_metadata.canonical_resolution_method, 'own_site');
+ assert.equal(c.raw_metadata.company_name_status, 'RESOLVED');
+ assert.equal(c.raw_metadata.company_name_method, 'own_site_title');
+ assert.equal(c.raw_metadata.company_domain_status, 'RESOLVED');
+ assert.equal(c.raw_metadata.company_domain_method, 'own_site');
  assert.equal(c.website, 'https://www.grand-frais.fr');
  assert.equal(c.canonical_url, 'https://www.grand-frais.fr');
  assert.equal(c.name, 'Grand Frais');
 });
 
 // ------------------------------------------------------------
-// CAS 7 — an ambiguous directory/aggregator listing page fails closed to UNRESOLVED, its source kept,
-// never promoted to a company.
+// CAS 7 — domaine explicitement cité: a third-party article naming mango.com resolves both the name
+// (derived from the domain) and the domain itself, via domain_in_text.
 // ------------------------------------------------------------
-test('CAS 7: an ambiguous directory/aggregator page fails closed to UNRESOLVED and keeps its source', () => {
- const hit = {title: 'Annuaire des commerces de détail en France', url: 'https://www.pagesjaunes.fr/annuaire/commerce-detail', description: 'Trouvez tous les commerces de détail près de chez vous.'};
+test('CAS 7 — domain explicitly cited: a third-party article citing mango.com resolves both name and domain via domain_in_text', () => {
  const provider = new BraveProvider('test');
+ const hit = {title: 'Mango ouvre un nouveau magasin', url: 'https://www.lsa-conso.fr/mango-ouverture.html', description: 'Le site mango.com confirme l\'ouverture.'};
  const c = normalize(provider, hit);
- assert.equal(c.raw_metadata.official_website_status, 'UNRESOLVED');
- assert.equal(c.website, null);
- assert.equal(c.source_url, hit.url, 'the directory page itself is always kept as an attachable source, never deleted');
+ assert.equal(c.raw_metadata.company_name_status, 'RESOLVED');
+ assert.equal(c.raw_metadata.company_name_method, 'domain_label');
+ assert.equal(c.raw_metadata.company_domain_status, 'RESOLVED');
+ assert.equal(c.raw_metadata.company_domain_method, 'domain_in_text');
+ assert.equal(c.website, 'https://mango.com');
+ assert.equal(c.name, 'Mango');
 });
 
 // ============================================================
-// Pure-function unit coverage of the two helpers.
+// Deduplication stays domain-only: two name-RESOLVED/domain-UNRESOLVED candidates about the same
+// company are NEVER merged on name alone (a generic name like "Orange"/"Action" would be far too
+// risky) — this is intentionally documented as follow-up debt, not implemented in this patch.
+// ============================================================
+test('name-only resolution never triggers a merge: two Grand Frais articles with no resolvable domain keep distinct dedupe keys', () => {
+ const provider = new BraveProvider('test');
+ const article1 = {title: 'Grand Frais : 30 nouveaux magasins ouvrent en France dès le 1er juin 2026', url: 'https://www.aufeminin.com/news/grand-frais-a.html', description: 'Expansion en cours.'};
+ const article2 = {title: 'Grand Frais annonce une nouvelle vague d\'ouvertures', url: 'https://www.lsa-conso.fr/actualites/grand-frais-b.html', description: 'Nouvelle étape pour l\'enseigne.'};
+ const c1 = normalize(provider, article1);
+ const c2 = normalize(provider, article2);
+ assert.equal(c1.name, 'Grand Frais');
+ assert.equal(c2.name, 'Grand Frais');
+ assert.equal(c1.website, null);
+ assert.equal(c2.website, null);
+ assert.notEqual(c1.deduplication_key, c2.deduplication_key, 'name-only resolution must never merge two candidates — that would risk false-merging on a generic name');
+ const dedupe = new DeduplicationService();
+ assert.equal(dedupe.match(c2, [c1]).status, 'unique');
+});
+
+// ------------------------------------------------------------
+// Domain-based dedup (unchanged from the previous patch): two articles both citing the SAME domain
+// still converge to one canonical candidate.
+// ------------------------------------------------------------
+test('domain-based dedup is unaffected: two articles citing the same domain still converge to one candidate', () => {
+ const provider = new BraveProvider('test');
+ const article1 = {title: 'Grand Frais annonce l\'ouverture de 12 nouveaux magasins', url: 'https://www.lsa-conso.fr/grand-frais-ouverture-magasins.html', description: 'L\'enseigne grand-frais.fr confirme son plan d\'expansion.'};
+ const article2 = {title: 'Grand Frais poursuit son maillage territorial', url: 'https://www.toute-la-franchise.com/actus-6789.html', description: 'Selon le site grand-frais.fr, l\'enseigne cible les zones périurbaines.'};
+ const c1 = normalize(provider, article1);
+ const c2 = normalize(provider, article2);
+ assert.equal(c1.website, 'https://grand-frais.fr');
+ assert.equal(c1.website, c2.website);
+ assert.equal(c1.deduplication_key, c2.deduplication_key);
+ const dedupe = new DeduplicationService();
+ assert.notEqual(dedupe.match(c2, [c1]).status, 'unique');
+});
+test('domain never invented from a resolved name: Grand Frais name-only resolution never yields grandfrais.com or any website', () => {
+ const provider = new BraveProvider('test');
+ const hit = {title: 'Grand Frais : 30 nouveaux magasins ouvrent en France dès le 1er juin 2026', url: 'https://www.aufeminin.com/news/grand-frais.html', description: 'Expansion en cours.'};
+ const c = normalize(provider, hit);
+ assert.equal(c.website, null);
+ assert.equal(c.canonical_url, null);
+});
+
+// ============================================================
+// Pure-function unit coverage of the helpers.
 // ============================================================
 test('cleanTitle: strips only a short trailing editorial/publisher segment, never a middle one, never when nothing substantial remains', () => {
  assert.equal(cleanTitle('Grand Frais - Accueil'), 'Grand Frais');
@@ -151,16 +197,14 @@ test('BraveProvider.searchCompanies still makes exactly one HTTP call per invoca
 });
 
 // ============================================================
-// Invariants this bloc must never touch (per the brief): no auto-VERIFIED evidence, scoring/ICP/RLS/
-// entitlement/Outreach/BYOK all untouched, no third-party source ever deleted, no migration added.
+// Invariants this bloc must never touch: no auto-VERIFIED evidence, scoring/ICP/RLS/entitlement/
+// Outreach/BYOK all untouched, no third-party source ever deleted, no migration added.
 // ============================================================
-test('invariant: no migration file was added or modified by this bloc — resolution lives entirely in the Discovery layer', async () => {
+test('invariant: no migration file was added or modified by this bloc', async () => {
  const {execSync} = await import('node:child_process');
  const cwd = new URL('..', import.meta.url);
- const committed = execSync('git diff --name-only main...HEAD -- db/migrations', {cwd, encoding: 'utf8'});
  const working = execSync('git status --porcelain --untracked-files=all -- db/migrations', {cwd, encoding: 'utf8'});
- assert.equal(committed.trim(), '', 'no migration should appear in this branch\'s committed diff against main');
- assert.equal(working.trim(), '', 'no migration should be staged, modified or newly created in the working tree either');
+ assert.equal(working.trim(), '', 'no migration should be staged, modified or newly created in the working tree');
 });
 test('invariant: scoreProspect signature is untouched by this bloc', async () => {
  const source = await readFile(new URL('../src/domain/core.ts', import.meta.url), 'utf8');

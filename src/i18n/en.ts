@@ -288,6 +288,12 @@ export const en={
  'discovery.unresolvedCompany':'Unresolved company — source detected',
  'discovery.methodOwnSite':'direct detection of the company’s own site',
  'discovery.methodDomainInText':'domain cited by the source',
+ 'discovery.identifiedCompanyLabel':'Identified company',
+ 'discovery.companyWebsiteLabel':'Company website',
+ 'discovery.websitePendingReview':'To review',
+ 'discovery.resolutionLabel':'Resolution',
+ 'discovery.resolutionBothLabel':'Company name and domain identified',
+ 'discovery.resolutionNameOnlyLabel':'Company name identified · domain unresolved',
 
  'account.title':'Account',
  'account.email':'Email',

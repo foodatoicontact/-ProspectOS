@@ -290,6 +290,15 @@ export const fr={
  'discovery.unresolvedCompany':'Entreprise non résolue — source détectée',
  'discovery.methodOwnSite':'détection directe du site de l’entreprise',
  'discovery.methodDomainInText':'domaine cité par la source',
+ // V2 — company name and company domain are resolved independently: a media article can clearly name
+ // a real company while citing no verifiable domain at all. Never present that as "unresolved
+ // company" — the name IS identified, only the website still needs review.
+ 'discovery.identifiedCompanyLabel':'Entreprise identifiée',
+ 'discovery.companyWebsiteLabel':'Site d’entreprise',
+ 'discovery.websitePendingReview':'À confirmer',
+ 'discovery.resolutionLabel':'Résolution',
+ 'discovery.resolutionBothLabel':'Nom et domaine identifiés',
+ 'discovery.resolutionNameOnlyLabel':'Nom identifié · domaine à confirmer',
 
  'account.title':'Compte',
  'account.email':'Email',

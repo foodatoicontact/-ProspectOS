@@ -16,14 +16,22 @@ import {translate} from '../src/i18n/useLocale.ts';
 // 1/2 — RESOLVED display exists in both locales, via the dictionary, and the two locales are
 // genuinely distinct strings (never a placeholder/untranslated copy).
 // ------------------------------------------------------------
-test('1/2 — RESOLVED company/website/method labels exist in both FR and EN, and are genuinely distinct', () => {
- for (const key of ['discovery.companyLabel', 'discovery.identifiedWebsiteLabel', 'discovery.signalFoundVia', 'discovery.methodOwnSite', 'discovery.methodDomainInText'] as const) {
+test('1/2 — RESOLVED company/website/resolution labels exist in both FR and EN, and are genuinely distinct', () => {
+ for (const key of ['discovery.identifiedCompanyLabel', 'discovery.companyWebsiteLabel', 'discovery.websitePendingReview', 'discovery.signalFoundVia', 'discovery.resolutionLabel', 'discovery.resolutionBothLabel', 'discovery.resolutionNameOnlyLabel'] as const) {
   assert.equal(typeof fr[key], 'string');
   assert.equal(typeof en[key], 'string');
   assert.notEqual(fr[key], en[key], `${key} must actually be translated, not copy-pasted`);
  }
- assert.equal(translate('fr', 'discovery.companyLabel'), 'Entreprise :');
- assert.equal(translate('en', 'discovery.companyLabel'), 'Company:');
+ assert.equal(translate('fr', 'discovery.identifiedCompanyLabel'), 'Entreprise identifiée');
+ assert.equal(translate('en', 'discovery.identifiedCompanyLabel'), 'Identified company');
+ assert.equal(translate('fr', 'discovery.resolutionNameOnlyLabel'), 'Nom identifié · domaine à confirmer');
+ assert.equal(translate('en', 'discovery.resolutionNameOnlyLabel'), 'Company name identified · domain unresolved');
+});
+test('1/2 (RESOLVED-NAME wording) — never uses "Verified" or a French/English equivalent anywhere in the entity-resolution dictionary keys', () => {
+ for (const key of ['discovery.identifiedCompanyLabel', 'discovery.companyWebsiteLabel', 'discovery.websitePendingReview', 'discovery.signalFoundVia', 'discovery.resolutionLabel', 'discovery.resolutionBothLabel', 'discovery.resolutionNameOnlyLabel'] as const) {
+  assert.doesNotMatch(fr[key], /v[ée]rifi/i);
+  assert.doesNotMatch(en[key], /verified/i);
+ }
 });
 
 // ------------------------------------------------------------
@@ -43,14 +51,16 @@ test('3/4 — UNRESOLVED company label exists in both FR and EN, and is genuinel
 // ------------------------------------------------------------
 test('5 — DiscoveryPanel\'s entity-resolution block contains no hardcoded label text, only tr() lookups', async () => {
  const source = await readFile(new URL('../src/components/DiscoveryPanel.tsx', import.meta.url), 'utf8');
- const forbiddenLiterals = ['Entreprise :', 'Site officiel', 'Signal trouvé via', 'non résolue', 'Company:', 'Identified company website', 'Signal found via', 'Unresolved company'];
+ const forbiddenLiterals = ['Entreprise identifiée', 'Site d’entreprise', 'À confirmer', 'Signal trouvé via', 'non résolue', 'Identified company', 'Company website', 'To review', 'Signal found via', 'Unresolved company'];
  for (const literal of forbiddenLiterals) assert.doesNotMatch(source, new RegExp(literal.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')), `"${literal}" must live only in fr.ts/en.ts, never hardcoded in the component`);
- assert.match(source, /tr\('discovery\.companyLabel'\)/);
- assert.match(source, /tr\('discovery\.identifiedWebsiteLabel'\)/);
+ assert.match(source, /tr\('discovery\.identifiedCompanyLabel'\)/);
+ assert.match(source, /tr\('discovery\.companyWebsiteLabel'\)/);
+ assert.match(source, /tr\('discovery\.websitePendingReview'\)/);
  assert.match(source, /tr\('discovery\.unresolvedCompany'\)/);
  assert.match(source, /tr\('discovery\.signalFoundVia'\)/);
- assert.match(source, /tr\('discovery\.methodOwnSite'\)/);
- assert.match(source, /tr\('discovery\.methodDomainInText'\)/);
+ assert.match(source, /tr\('discovery\.resolutionLabel'\)/);
+ assert.match(source, /tr\('discovery\.resolutionBothLabel'\)/);
+ assert.match(source, /tr\('discovery\.resolutionNameOnlyLabel'\)/);
 });
 
 // ------------------------------------------------------------
@@ -62,7 +72,7 @@ test('5 — DiscoveryPanel\'s entity-resolution block contains no hardcoded labe
 test('6/7 — company name, website and domain values are rendered raw, never wrapped in tr()/translate()', async () => {
  const source = await readFile(new URL('../src/components/DiscoveryPanel.tsx', import.meta.url), 'utf8');
  assert.match(source, /\{r\.normalized_payload\.name\}/);
- assert.match(source, /\{r\.normalized_payload\.website\}/);
+ assert.match(source, /\{r\.normalized_payload\.website\?\?tr\(/);
  assert.doesNotMatch(source, /tr\(r\.normalized_payload/, 'business data must never be passed as a translation key');
  assert.doesNotMatch(source, /translate\([^,]+,\s*r\.normalized_payload/, 'business data must never be passed as a translation key');
 });
@@ -153,4 +163,52 @@ test('15 — BraveProvider.searchCompanies still makes exactly one HTTP call aft
  const provider = new BraveProvider('test', async () => { calls++; return Response.json({web: {results: [{title: 'Grand Frais', url: 'https://www.grand-frais.fr/'}]}}); });
  await provider.searchCompanies({project_id: 'p', query: 'grand frais', location: 'France', categories: [], max_results: 3, optional_filters: {}});
  assert.equal(calls, 1);
+});
+
+// ============================================================
+// V2 — name/domain decoupling: the Grand Frais / Aufeminin intermediate state (name RESOLVED, domain
+// UNRESOLVED) rendered fully in both locales, with source/name/domain data never translated, locale
+// persistence untouched, and the evidence workflow (observations.ts) untouched.
+// ============================================================
+test('V2/1 — FR: the name-resolved/domain-unresolved state renders "Entreprise identifiée", "À confirmer" and the name-only resolution summary', () => {
+ assert.equal(translate('fr', 'discovery.identifiedCompanyLabel'), 'Entreprise identifiée');
+ assert.equal(translate('fr', 'discovery.companyWebsiteLabel'), 'Site d’entreprise');
+ assert.equal(translate('fr', 'discovery.websitePendingReview'), 'À confirmer');
+ assert.equal(translate('fr', 'discovery.resolutionLabel'), 'Résolution');
+ assert.equal(translate('fr', 'discovery.resolutionNameOnlyLabel'), 'Nom identifié · domaine à confirmer');
+});
+test('V2/2 — EN: the same name-resolved/domain-unresolved state renders "Identified company", "To review" and the English resolution summary', () => {
+ assert.equal(translate('en', 'discovery.identifiedCompanyLabel'), 'Identified company');
+ assert.equal(translate('en', 'discovery.companyWebsiteLabel'), 'Company website');
+ assert.equal(translate('en', 'discovery.websitePendingReview'), 'To review');
+ assert.equal(translate('en', 'discovery.resolutionLabel'), 'Resolution');
+ assert.equal(translate('en', 'discovery.resolutionNameOnlyLabel'), 'Company name identified · domain unresolved');
+});
+test('V2/3 — the fully-resolved (name+domain) summary is also distinct in both locales', () => {
+ assert.equal(translate('fr', 'discovery.resolutionBothLabel'), 'Nom et domaine identifiés');
+ assert.equal(translate('en', 'discovery.resolutionBothLabel'), 'Company name and domain identified');
+});
+test('V2/4 — company name and source domain end up different values for the Grand Frais / Aufeminin case, and neither is translated', async () => {
+ const {BraveProvider} = await import('../src/discovery/providers/brave.ts');
+ const provider = new BraveProvider('test');
+ const hit = {title: 'Grand Frais : 30 nouveaux magasins ouvrent en France dès le 1er juin 2026, votre ville est-elle concernée ?', url: 'https://www.aufeminin.com/news/grand-frais-30-nouveaux-magasins.html', description: 'L\'enseigne Grand Frais poursuit son expansion en France.'};
+ const c = provider.normalizeResult(Object.assign({}, hit, {__quality: {confidence: .45, signal: 'ambiguous' as const, reasons: []}}));
+ assert.equal(c.name, 'Grand Frais', 'the company name is the real extracted value, never a translated placeholder');
+ assert.equal(new URL(c.source_url).hostname.replace(/^www\./, ''), 'aufeminin.com', 'the source domain is the real, untranslated hostname');
+ assert.equal(c.website, null, 'no domain is ever invented from the resolved name');
+});
+test('V2/5 — locale persistence (useLocale.ts) is unaffected: still saves to LOCALE_STORAGE_KEY on every setLocale call', async () => {
+ const source = await readFile(new URL('../src/i18n/useLocale.ts', import.meta.url), 'utf8');
+ assert.match(source, /localStorage\.setItem\(LOCALE_STORAGE_KEY,next\)/);
+});
+test('V2/6 — evidence workflow (observations.ts) is untouched by this micro-patch', async () => {
+ const {execSync} = await import('node:child_process');
+ const cwd = new URL('..', import.meta.url);
+ const diff = execSync('git diff --name-only 9604248dcba8f1ea96e76238933b350d0d0cc331 -- src/discovery/observations.ts', {cwd, encoding: 'utf8'});
+ assert.equal(diff.trim(), '');
+});
+test('V2/7 — domain is never derived from a resolved company name: entity-resolution.ts never calls a domain-guessing function on the name', async () => {
+ const source = await readFile(new URL('../src/discovery/entity-resolution.ts', import.meta.url), 'utf8');
+ assert.doesNotMatch(source, /companyName\.name.*\.(com|fr|net|org)/i);
+ assert.doesNotMatch(source, /toLowerCase\(\)\.replace\(\/\\s\+\/g,\s*''\)\s*\+\s*['"`]\.(com|fr)/);
 });

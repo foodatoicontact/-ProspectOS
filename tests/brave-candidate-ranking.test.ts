@@ -94,24 +94,26 @@ test('normalizeResult never produces a VERIFIED status, whatever its quality sig
  const {provider} = mockBrave([{title: 'Chez Mario', url: 'https://chezmario.fr/'}]);
  const [raw] = await provider.searchCompanies(baseInput);
  const candidate = provider.normalizeResult(raw);
- assert.notEqual(candidate.raw_metadata.official_website_status, 'VERIFIED');
- assert.ok(['RESOLVED', 'UNRESOLVED'].includes(candidate.raw_metadata.official_website_status as string));
+ assert.notEqual(candidate.raw_metadata.company_name_status, 'VERIFIED');
+ assert.notEqual(candidate.raw_metadata.company_domain_status, 'VERIFIED');
+ assert.ok(['RESOLVED', 'UNRESOLVED'].includes(candidate.raw_metadata.company_domain_status as string));
  assert.equal(candidate.city, null);
 });
 test('normalizeResult: a shallow-path, short-title homepage now resolves its own website via entity resolution (the exact bug this bloc fixes)', async () => {
  const {provider} = mockBrave([{title: 'Chez Mario', url: 'https://chezmario.fr/'}]);
  const [raw] = await provider.searchCompanies(baseInput);
  const candidate = provider.normalizeResult(raw);
- assert.equal(candidate.raw_metadata.official_website_status, 'RESOLVED');
- assert.equal(candidate.raw_metadata.canonical_resolution_method, 'own_site');
+ assert.equal(candidate.raw_metadata.company_domain_status, 'RESOLVED');
+ assert.equal(candidate.raw_metadata.company_domain_method, 'own_site');
  assert.equal(candidate.website, 'https://chezmario.fr');
  assert.equal(candidate.canonical_url, 'https://chezmario.fr');
 });
-test('normalizeResult: a listicle/editorial/aggregator hit with no identifiable official domain stays UNRESOLVED, and its source is never dropped', async () => {
+test('normalizeResult: a listicle/editorial/aggregator hit with no identifiable official domain or company name stays UNRESOLVED, and its source is never dropped', async () => {
  const {provider} = mockBrave([{title: '10 meilleurs restaurants à Toulouse', url: 'https://guide-sortir.fr/toulouse/top10'}]);
  const [raw] = await provider.searchCompanies(baseInput);
  const candidate = provider.normalizeResult(raw);
- assert.equal(candidate.raw_metadata.official_website_status, 'UNRESOLVED');
+ assert.equal(candidate.raw_metadata.company_name_status, 'UNRESOLVED');
+ assert.equal(candidate.raw_metadata.company_domain_status, 'UNRESOLVED');
  assert.equal(candidate.website, null);
  assert.equal(candidate.canonical_url, null);
  assert.equal(candidate.source_url, 'https://guide-sortir.fr/toulouse/top10', 'the media source itself is always kept, attachable as evidence');

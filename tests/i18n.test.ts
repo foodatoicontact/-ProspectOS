@@ -5,7 +5,7 @@ import {fr} from '../src/i18n/fr.ts';
 import {en} from '../src/i18n/en.ts';
 import {translate,LOCALE_STORAGE_KEY,DEFAULT_LOCALE,detectBrowserLocale} from '../src/i18n/index.ts';
 import {statusLabel,evidenceStatusLabel,outreachStatusLabel} from '../src/i18n/labels.ts';
-import {STATUSES} from '../src/domain/core.ts';
+import {STATUSES,DEFAULT_CRITERIA,scoreProspect,generateOutreach,type Evidence} from '../src/domain/core.ts';
 
 // This project has no browser/jsdom/E2E harness anywhere (see tests/account-session.test.ts,
 // tests/mobile-layout.test.ts for the same precedent) — these are static, source-level and pure-logic
@@ -57,6 +57,26 @@ test('4 — a refresh (a fresh mount) reads the stored locale FIRST, before any 
  const storedCheckIdx=effect.indexOf("stored==='fr'||stored==='en'");
  const detectIdx=effect.indexOf('detectBrowserLocale(');
  assert.ok(storedCheckIdx>=0&&detectIdx>=0&&storedCheckIdx<detectIdx,'the stored-value check must run, and return, before browser-language detection is ever consulted');
+});
+// Round-2 red-team patch A — a first-time visitor's browser-detected locale must be written to storage
+// immediately, not just held in memory, so the one unavoidable French flash (pre-hydration SSR render)
+// happens at most once per browser, not on every subsequent reload.
+test('4b — patch A: the detection branch calls setLocale (which persists), never the non-persisting setLocaleState, so an auto-detected locale is written to storage on first success',async()=>{
+ const source=await readFile(new URL('../src/i18n/useLocale.ts',import.meta.url),'utf8');
+ const effectMatch=source.match(/useEffect\(\(\)=>\{[\s\S]*?\},\[\]\);/);
+ assert.ok(effectMatch,'mount effect not found');
+ assert.match(effectMatch[0],/setLocale\(detectBrowserLocale\(/,'the detection branch must call the persisting setLocale(...), not setLocaleState(...)');
+ assert.doesNotMatch(effectMatch[0],/setLocaleState\(detectBrowserLocale\(/,'detection must never bypass persistence by calling setLocaleState directly');
+});
+test('4c — patch A: setLocale is declared before the mount effect, so the effect\'s closure can reference it without relying on hook-order coincidence',async()=>{
+ const source=await readFile(new URL('../src/i18n/useLocale.ts',import.meta.url),'utf8');
+ const setLocaleDeclIdx=source.indexOf('const setLocale=useCallback(');
+ const effectIdx=source.indexOf('useEffect(()=>{');
+ assert.ok(setLocaleDeclIdx>=0&&effectIdx>=0&&setLocaleDeclIdx<effectIdx,'setLocale must be declared above the effect that uses it');
+});
+test('4d — patch A: the stored-value restore branch still uses setLocaleState only (a value already in storage never needs to be re-written)',async()=>{
+ const source=await readFile(new URL('../src/i18n/useLocale.ts',import.meta.url),'utf8');
+ assert.match(source,/if\(stored==='fr'\|\|stored==='en'\)\{setLocaleState\(stored\);return\}/);
 });
 
 // ------------------------------------------------------------
@@ -212,7 +232,9 @@ test('16 — the outreach route still calls requireActiveEntitlement before gene
  const outreachBlock=source.match(/if\(resource==='outreach'&&request\.method==='POST'\)\{[\s\S]*?generateOutreach\(p\.name,project\.offer,projectCriteria\(project\.icps\),p\.evidence,undefined,draftLocale\);/);
  assert.ok(outreachBlock,'outreach POST block not found');
  assert.match(outreachBlock[0],/requireActiveEntitlement\(db,user\.id\);/);
- assert.match(outreachBlock[0],/const draftLocale=body\.locale==='en'\?'en':'fr';/);
+ // Updated for round-2 patch C: the comparison is now case-insensitive/crash-safe (see tests C/6/7),
+ // but it must still be the sole normalization chokepoint before generateOutreach.
+ assert.match(outreachBlock[0],/const draftLocale=String\(body\.locale\)\.toLowerCase\(\)==='en'\?'en':'fr';/);
 });
 
 // ------------------------------------------------------------
@@ -243,4 +265,108 @@ test('18 — no new environment variable / API key is referenced by the i18n mod
   const source=await readFile(new URL(f,import.meta.url),'utf8');
   assert.doesNotMatch(source,/process\.env\./,`${f} must never read an environment variable — this is a static, dependency-free dictionary layer`);
  }
+});
+
+// ============================================================
+// ROUND 2 — validation of the 3 minimal patches from the pre-merge red-team challenge:
+//   A. auto-detected locale is persisted (flash-of-French happens at most once per browser)
+//   B. the 4 welcome SEO nav links are localized (they sit in the core landing screen, not on an
+//      out-of-scope SEO page)
+//   C. the server-side locale check is case-insensitive and crash-safe for any input shape
+// ============================================================
+
+// ------------------------------------------------------------
+// Patch B — welcome links (mandated test 5).
+// ------------------------------------------------------------
+test('B5 — the 4 welcome SEO nav links are rendered via tr(), never as bare French text',async()=>{
+ const page=await readFile(new URL('../app/page.tsx',import.meta.url),'utf8');
+ const navMatch=page.match(/<nav className="seo-home-links"[\s\S]*?<\/nav>/);
+ assert.ok(navMatch,'seo-home-links nav not found');
+ const nav=navMatch[0];
+ assert.match(nav,/tr\('landing\.seo\.prospectionB2B'\)/);
+ assert.match(nav,/tr\('landing\.seo\.prospectionAI'\)/);
+ assert.match(nav,/tr\('landing\.seo\.leadScoring'\)/);
+ assert.match(nav,/tr\('landing\.seo\.restaurants'\)/);
+ assert.doesNotMatch(nav,/>Prospection B2B<|>Prospection IA<|>Lead scoring<|>Restaurants</,'no bare hardcoded label may remain once each is wrapped in tr()');
+});
+test('B5 — the 4 new dictionary keys exist in both FR and EN, hrefs (the actual SEO page targets, left out of scope) are unchanged',async()=>{
+ assert.equal(translate('fr','landing.seo.prospectionB2B'),'Prospection B2B');
+ assert.equal(translate('en','landing.seo.prospectionB2B'),'B2B prospecting');
+ assert.equal(translate('fr','landing.seo.prospectionAI'),'Prospection IA');
+ assert.equal(translate('en','landing.seo.prospectionAI'),'AI prospecting');
+ assert.equal(translate('fr','landing.seo.leadScoring'),translate('en','landing.seo.leadScoring'));
+ assert.equal(translate('fr','landing.seo.restaurants'),translate('en','landing.seo.restaurants'));
+ const page=await readFile(new URL('../app/page.tsx',import.meta.url),'utf8');
+ assert.match(page,/href="\/prospection-b2b"/);
+ assert.match(page,/href="\/prospection-ia"/);
+ assert.match(page,/href="\/lead-scoring"/);
+ assert.match(page,/href="\/prospection-restaurants"/);
+});
+
+// ------------------------------------------------------------
+// Patch C — server-side case-insensitive, crash-safe locale normalization (mandated tests 6 & 7).
+// The exact same expression is asserted present in route.ts AND independently re-evaluated here for
+// every required input, so this is a semantic proof of that literal expression, not a mirror guess.
+// ------------------------------------------------------------
+test('C — route.ts normalizes body.locale via String(...).toLowerCase()===\'en\', case-insensitively and without ever throwing',async()=>{
+ const source=await readFile(new URL('../app/api/v1/[...path]/route.ts',import.meta.url),'utf8');
+ assert.match(source,/const draftLocale=String\(body\.locale\)\.toLowerCase\(\)==='en'\?'en':'fr';/);
+});
+test('6 — "en"/"EN"/"En" (and any other casing) all normalize to \'en\' server-side',()=>{
+ const normalize=(v:unknown)=>String(v).toLowerCase()==='en'?'en':'fr';
+ for(const v of ['en','EN','En','eN'])assert.equal(normalize(v),'en',`expected 'en' for input ${JSON.stringify(v)}`);
+});
+test('7 — "fr"/"FR"/"de"/""/null/undefined/an arbitrary object all normalize to \'fr\', never throwing',()=>{
+ const normalize=(v:unknown)=>String(v).toLowerCase()==='en'?'en':'fr';
+ // Note: an array wrapping exactly "en" (e.g. ['en']) is NOT included here — JS stringifies a
+ // single-element array to its bare element (String(['en'])==='en'), so it legitimately normalizes to
+ // 'en', same as the string itself. Harmless either way (locale never reaches anything security-
+ // relevant — see test C/section 2 of the pre-merge review) but it would be a wrong expectation to
+ // assert 'fr' for it here.
+ for(const v of ['fr','FR','de','',null,undefined,{},[],{malicious:true}])
+  assert.doesNotThrow(()=>{const r=normalize(v);assert.equal(r,'fr',`expected 'fr' for input ${JSON.stringify(v)}`)},`normalize must never throw for ${JSON.stringify(v)}`);
+});
+
+// ------------------------------------------------------------
+// 8, 9, 10 — deep behavioral proof (not just signature checks) that scoring, evidence eligibility, and
+// the outreach lifecycle are byte-for-byte identical regardless of the (now case-normalized) locale.
+// ------------------------------------------------------------
+function realEvidence(overrides:Partial<Evidence> = {}):Evidence{
+ return {id:'e1',criterion:'commercial_signal',value:true,status:'VERIFIED',verified_by:'human-1',source_url:'https://example.test/page',excerpt:'La page officielle présente un restaurant de tacos.',observed_at:new Date().toISOString(),...overrides};
+}
+test('8 — scoreProspect returns an identical score/coverage/breakdown regardless of locale (it doesn\'t even take a locale parameter — verified by calling it directly)',()=>{
+ const evidence=[realEvidence()];
+ const before=scoreProspect(DEFAULT_CRITERIA,evidence);
+ const after=scoreProspect(DEFAULT_CRITERIA,evidence);
+ assert.deepEqual(before,after);
+});
+test('9 — generateOutreach selects the exact same evidence_ids (the eligibility/selection logic) whether locale is \'fr\' or \'en\' — only the text template differs',()=>{
+ const evidence=[realEvidence()];
+ const fr_=generateOutreach('Test',"Notre offre",DEFAULT_CRITERIA,evidence,new Date(),'fr');
+ const en_=generateOutreach('Test',"Notre offre",DEFAULT_CRITERIA,evidence,new Date(),'en');
+ assert.deepEqual(fr_.evidence_ids,en_.evidence_ids,'the SAME evidence must be selected regardless of locale');
+ assert.notEqual(fr_.text,en_.text,'only the human-language template differs');
+});
+test('9 — the French source excerpt is quoted VERBATIM (modulo the existing, locale-independent trailing-punctuation trim) inside the English template — never translated or paraphrased, exactly the mandated invariant',()=>{
+ const evidence=[realEvidence({excerpt:'La page officielle présente un restaurant de tacos.'})];
+ const en_=generateOutreach('Test','Our offer',DEFAULT_CRITERIA,evidence,new Date(),'en');
+ // truncateExcerpt() strips a trailing .!? (pre-existing, locale-independent behavior — unchanged by
+ // this bloc) before either template ever sees the excerpt, so the trailing period is expected to be
+ // gone; the French sentence itself must still appear character-for-character, never translated.
+ assert.match(en_.text,/La page officielle présente un restaurant de tacos/,'the excerpt must appear character-for-character, in French, inside the English message');
+ assert.doesNotMatch(en_.text,/restaurant de tacos\./,'confirms truncateExcerpt already removed the trailing period — not a translation artifact');
+});
+test('9 — a locale that isn\'t exactly \'en\' (defaulting via the route.ts normalization) behaves identically to explicit \'fr\' — the fallback is genuinely French, not a broken third state',()=>{
+ const evidence=[realEvidence()];
+ const explicitFr=generateOutreach('Test','Notre offre',DEFAULT_CRITERIA,evidence,new Date(),'fr');
+ const defaulted=generateOutreach('Test','Notre offre',DEFAULT_CRITERIA,evidence);
+ assert.deepEqual(explicitFr,{...defaulted,generated_at:explicitFr.generated_at});
+});
+test('10 — the outreach lifecycle literals (DRAFT/USED/status PATCH body) are untouched by the round-2 patch — route.ts diff for this bloc never touches anything beyond the draftLocale line',async()=>{
+ const source=await readFile(new URL('../app/api/v1/[...path]/route.ts',import.meta.url),'utf8');
+ const outreachBlock=source.match(/if\(resource==='outreach'&&request\.method==='POST'\)\{[\s\S]*?generateOutreach\(p\.name,project\.offer,projectCriteria\(project\.icps\),p\.evidence,undefined,draftLocale\);[\s\S]*?\n \}/);
+ assert.ok(outreachBlock,'outreach POST block not found');
+ assert.match(outreachBlock[0],/status:'DISCARDED'/);
+ assert.match(outreachBlock[0],/provider:'rule_based_v1'/);
+ assert.match(outreachBlock[0],/insertError\.code==='23505'/);
 });

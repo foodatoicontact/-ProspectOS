@@ -86,7 +86,9 @@ async function handler(request:Request,context:{params:Promise<{path:string[]}>}
  const project=await checked(db.from('projects').select('*,icps(*)').eq('id',p.project_id).single());
  // Locale only ever picks the fixed human-language template inside generateOutreach — never a new
  // input to scoring or evidence eligibility (both computed identically inside it regardless of locale).
- const draftLocale=body.locale==='en'?'en':'fr';
+ // Case-insensitive by design ("EN"/"En" from a non-standard caller must not silently fall back to
+ // French) and safe against non-string input (String() never throws, even on an object/array/null).
+ const draftLocale=String(body.locale).toLowerCase()==='en'?'en':'fr';
  const draft=generateOutreach(p.name,project.offer,projectCriteria(project.icps),p.evidence,undefined,draftLocale);
  // At most one live DRAFT per prospect: a regeneration supersedes the previous one instead of
  // leaving an ambiguous pile of undecided drafts. Already-decided rows (APPROVED/USED/DISCARDED)

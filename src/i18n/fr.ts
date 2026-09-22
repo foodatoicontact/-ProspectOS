@@ -27,6 +27,11 @@ export const fr={
  'landing.proof2':'Sources visibles',
  'landing.proof3':'Actions humaines',
  'landing.seoNavAria':'Découvrir ProspectOS',
+ // Link labels only — the destination SEO pages themselves stay French-only, explicitly out of scope.
+ 'landing.seo.prospectionB2B':'Prospection B2B',
+ 'landing.seo.prospectionAI':'Prospection IA',
+ 'landing.seo.leadScoring':'Lead scoring',
+ 'landing.seo.restaurants':'Restaurants',
  'landing.loginPill':'VOTRE ESPACE DE PROSPECTION',
  'landing.loginTitle':'Retrouvez vos projets',
  'landing.loginSubtitle':'Connectez-vous pour enregistrer vos prospects dans votre organisation.',

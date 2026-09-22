@@ -85,13 +85,36 @@ test('regression: a real individual-business result buried behind 3 low-quality 
 // ============================================================
 // Nothing about candidate quality ever touches the evidence-first invariants.
 // ============================================================
-test('normalizeResult never marks a result as an official/verified website, whatever its quality signal', async () => {
+// Superseded by the entity-resolution bloc: a shallow-path, short-title homepage like this one is now
+// exactly the case that SHOULD resolve to its own site (this was the bug — see
+// tests/entity-resolution.test.ts CAS 6/"own_site"). What must still never happen, whatever the
+// resolution outcome, is a status of VERIFIED — that stays exclusively the human-gated
+// ObservationsReview flow, which this module never touches.
+test('normalizeResult never produces a VERIFIED status, whatever its quality signal or resolution outcome', async () => {
  const {provider} = mockBrave([{title: 'Chez Mario', url: 'https://chezmario.fr/'}]);
  const [raw] = await provider.searchCompanies(baseInput);
  const candidate = provider.normalizeResult(raw);
- assert.equal(candidate.raw_metadata.official_website_status, 'NOT_VERIFIED');
- assert.equal(candidate.website, null);
+ assert.notEqual(candidate.raw_metadata.official_website_status, 'VERIFIED');
+ assert.ok(['RESOLVED', 'UNRESOLVED'].includes(candidate.raw_metadata.official_website_status as string));
  assert.equal(candidate.city, null);
+});
+test('normalizeResult: a shallow-path, short-title homepage now resolves its own website via entity resolution (the exact bug this bloc fixes)', async () => {
+ const {provider} = mockBrave([{title: 'Chez Mario', url: 'https://chezmario.fr/'}]);
+ const [raw] = await provider.searchCompanies(baseInput);
+ const candidate = provider.normalizeResult(raw);
+ assert.equal(candidate.raw_metadata.official_website_status, 'RESOLVED');
+ assert.equal(candidate.raw_metadata.canonical_resolution_method, 'own_site');
+ assert.equal(candidate.website, 'https://chezmario.fr');
+ assert.equal(candidate.canonical_url, 'https://chezmario.fr');
+});
+test('normalizeResult: a listicle/editorial/aggregator hit with no identifiable official domain stays UNRESOLVED, and its source is never dropped', async () => {
+ const {provider} = mockBrave([{title: '10 meilleurs restaurants à Toulouse', url: 'https://guide-sortir.fr/toulouse/top10'}]);
+ const [raw] = await provider.searchCompanies(baseInput);
+ const candidate = provider.normalizeResult(raw);
+ assert.equal(candidate.raw_metadata.official_website_status, 'UNRESOLVED');
+ assert.equal(candidate.website, null);
+ assert.equal(candidate.canonical_url, null);
+ assert.equal(candidate.source_url, 'https://guide-sortir.fr/toulouse/top10', 'the media source itself is always kept, attachable as evidence');
 });
 test('confidence stays within the existing Candidate schema bounds (0..1) for every quality bucket', async () => {
  const {provider} = mockBrave([

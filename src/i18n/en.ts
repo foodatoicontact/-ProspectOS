@@ -282,6 +282,12 @@ export const en={
  'discovery.addedToProject':'ADDED TO PROJECT',
  'discovery.ignoredBadge':'IGNORED',
  'discovery.mergeReviewRequired':'Duplicate review required.',
+ 'discovery.companyLabel':'Company:',
+ 'discovery.identifiedWebsiteLabel':'Identified company website:',
+ 'discovery.signalFoundVia':'Signal found via',
+ 'discovery.unresolvedCompany':'Unresolved company — source detected',
+ 'discovery.methodOwnSite':'direct detection of the company’s own site',
+ 'discovery.methodDomainInText':'domain cited by the source',
 
  'account.title':'Account',
  'account.email':'Email',

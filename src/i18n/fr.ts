@@ -282,6 +282,14 @@ export const fr={
  'discovery.addedToProject':'AJOUTÉ AU PROJET',
  'discovery.ignoredBadge':'IGNORÉ',
  'discovery.mergeReviewRequired':'Revue du doublon nécessaire.',
+ // Entity resolution (RESOLVED != VERIFIED): a domain is identified by a deterministic heuristic, never
+ // human-confirmed at this stage — the wording must never claim it as legally/certainly "officiel".
+ 'discovery.companyLabel':'Entreprise :',
+ 'discovery.identifiedWebsiteLabel':'Site d’entreprise identifié :',
+ 'discovery.signalFoundVia':'Signal trouvé via',
+ 'discovery.unresolvedCompany':'Entreprise non résolue — source détectée',
+ 'discovery.methodOwnSite':'détection directe du site de l’entreprise',
+ 'discovery.methodDomainInText':'domaine cité par la source',
 
  'account.title':'Compte',
  'account.email':'Email',

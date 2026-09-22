@@ -238,9 +238,9 @@ test('G — the CGU/confidentialité links are present in the signup form, openi
 test('G — "Créer un compte" is disabled until the checkbox is checked; "Se connecter" (existing accounts) is never gated by it',()=>{
  const welcomeMatch=page.match(/if\(mode==='welcome'\)return <main className="welcome">[\s\S]*?<\/main>;/);
  const welcome=welcomeMatch![0];
- assert.match(welcome,/onClick=\{\(\)=>login\(true\)\}>Créer un compte/);
- const createAccountButton=welcome.match(/<button type="button" disabled=\{[^}]*\} onClick=\{\(\)=>login\(true\)\}>Créer un compte<\/button>/);
- assert.ok(createAccountButton,'Créer un compte button not found with an expected disabled expression');
+ assert.match(welcome,/onClick=\{\(\)=>login\(true\)\}>Démarrer mon essai gratuit/);
+ const createAccountButton=welcome.match(/<button type="button" disabled=\{[^}]*\} onClick=\{\(\)=>login\(true\)\}>Démarrer mon essai gratuit<\/button>/);
+ assert.ok(createAccountButton,'signup CTA button not found with an expected disabled expression');
  assert.match(createAccountButton[0],/!legalAccepted/);
  const loginButton=welcome.match(/<button className="primary" disabled=\{[^}]*\}>Se connecter<\/button>/);
  assert.ok(loginButton,'Se connecter button not found');
@@ -268,11 +268,13 @@ test('H — the acceptance metadata is never read back anywhere in the codebase 
   assert.doesNotMatch(source,/terms_accepted_at|terms_version|privacy_version/,`${path} must never read the acceptance metadata — it must never become a gate`);
  }
 });
-test('H — no new migration file was introduced for versioned acceptance (011 remains the latest — the BETA hotfix, untouched by this bloc)',async()=>{
+test('H — no migration exists for versioned acceptance specifically (it uses Supabase Auth user_metadata instead) — 012, when present, belongs to the unrelated later self-service-trial bloc, never to this one',async()=>{
  const {readdir}=await import('node:fs/promises');
  const files=await readdir(new URL('../db/migrations/',import.meta.url));
- const latest=files.filter(f=>/^\d+_/.test(f)).sort().at(-1);
- assert.equal(latest,'011_beta_entitlement_gate.sql','no migration 012+ should exist for this bloc — versioned acceptance uses Supabase Auth user_metadata instead');
+ for(const f of files.filter(f=>/^\d+_/.test(f))){
+  const content=await readFile(new URL(`../db/migrations/${f}`,import.meta.url),'utf8');
+  assert.doesNotMatch(content,/terms_accepted_at|terms_version|privacy_version/,`${f} must never persist versioned-acceptance fields — that stays in Supabase Auth user_metadata`);
+ }
 });
 
 // ------------------------------------------------------------

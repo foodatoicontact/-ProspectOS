@@ -97,15 +97,15 @@ test('setup sanity: the delete-account modal block was found in the source',()=>
  assert.ok(deleteModal,'delete-account modal JSX not found — later assertions would be vacuous');
 });
 
-test('access status: Interne/Aucun accès bêta actif/Bêta/Bêta terminé is shown, and the expiry date only when actually on an active, non-INTERNAL beta',()=>{
- assert.match(accountModal,/entitlementPlan==='INTERNAL'\?'Interne':betaActive===null\?'Aucun accès bêta actif':betaActive\?'Bêta':'Bêta terminé'/);
+test('access status: Interne/Essai gratuit non activé/Essai gratuit · N jours restants/terminé is shown, and the expiry date only when actually on an active, non-INTERNAL trial',()=>{
+ assert.match(accountModal,/entitlementPlan==='INTERNAL'\?'Interne':betaActive===null\?'Essai gratuit non activé':betaActive\?`Essai gratuit · \$\{trialDaysRemaining\}/);
  assert.match(accountModal,/entitlementPlan!=='INTERNAL'&&betaActive&&betaExpiresAt&&<p className="muted">Expire le/);
 });
-test('an expired beta account still sees a clear "access ended" message, never a silent data loss',()=>{
- assert.match(accountModal,/betaActive===false&&<p className="muted">Votre accès bêta est terminé\./);
+test('an expired trial still sees a clear "trial ended" message, never a silent data loss',()=>{
+ assert.match(accountModal,/betaActive===false&&<p className="muted">Votre essai gratuit est terminé\./);
 });
 test('a user with no entitlement at all sees a clear, non-alarming explanation — never the old "Actif" legacy label',()=>{
- assert.match(accountModal,/entitlementPlan!=='INTERNAL'&&betaActive===null&&<p className="muted">Invitation bêta nécessaire/);
+ assert.match(accountModal,/entitlementPlan!=='INTERNAL'&&betaActive===null&&<p className="muted">Activation de l.essai gratuit indisponible/);
  assert.doesNotMatch(accountModal,/betaActive===null\?'Actif'/,'the old legacy "no entitlement = Actif" label must not reappear');
 });
 

@@ -199,6 +199,16 @@ async function handler(request:Request,context:{params:Promise<{path:string[]}>}
  try{await db.rpc('log_account_export')}catch{/* best-effort audit only — never blocks the export itself */}
  return new Response(zip as BodyInit,{headers:{'content-type':'application/zip','content-disposition':`attachment; filename="prospectos-export-${new Date().toISOString().slice(0,10)}.zip"`,'Cache-Control':'no-store'}});
  }
+ if(id==='activate-trial'&&request.method==='POST'){
+ // Never takes a target from the client: activate_trial() derives auth.uid() itself. Idempotent by
+ // construction (see migration 012) — safe to call on every login, never re-extends an existing row.
+ const {data,error:rpcError}=await db.rpc('activate_trial');
+ if(rpcError){
+  if(rpcError.message?.includes('BETA_CAPACITY_REACHED'))return json({error:'Les accès à la bêta sont momentanément complets. Votre compte a bien été créé.',code:'BETA_CAPACITY_REACHED'},409);
+  throw Error('DATABASE_REQUEST_FAILED');
+ }
+ return json(data,201);
+ }
  if(id==='delete'&&request.method==='POST'){
  // A typed confirmation is required at the API layer too — this is never enforced by the UI alone.
  if(body.confirm!=='SUPPRIMER')return json({error:'Confirmation requise'},400);

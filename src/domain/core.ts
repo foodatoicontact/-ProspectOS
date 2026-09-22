@@ -45,7 +45,11 @@ export function scoreProspect(criteria:Criterion[],evidence:Evidence[],now=new D
 // Truncates at a word boundary — never mid-word — so a long excerpt stays a short, readable quote
 // instead of an unreadable wall of text. Pure truncation, never a summary: it cannot add meaning.
 function truncateExcerpt(text:string,max=220):string{const t=text.length<=max?text:text.slice(0,max).replace(/\s+\S*$/,'')+'…';return t.replace(/[.!?]+$/,'')}
-export function generateOutreach(name:string,offer:string,criteria:Criterion[],evidence:Evidence[],now=new Date()){
+// `locale` only ever selects which fixed human-language template wraps the message — it never changes
+// which evidence is eligible, which criterion is chosen, or the scoreProspect call above. Defaults to
+// 'fr' so every pre-existing call site (route.ts before this bloc, every test) is byte-for-byte
+// unchanged unless it explicitly opts into 'en'.
+export function generateOutreach(name:string,offer:string,criteria:Criterion[],evidence:Evidence[],now=new Date(),locale:'fr'|'en'='fr'){
  const s=scoreProspect(criteria,evidence,now);
  // The highest-weight satisfied criterion of THIS project's own ICP — never a hardcoded per-sector
  // key (no "phone_orders"/"platforms" special-casing): the same engine must read a Foodatoi ICP, a
@@ -57,12 +61,11 @@ export function generateOutreach(name:string,offer:string,criteria:Criterion[],e
  // "RECRUITING_SIGNAL"). Quoting the human-verified source text verbatim, rather than attempting a
  // free paraphrase, guarantees by construction that nothing is added beyond what was actually
  // observed and confirmed — natural without ever risking an invented nuance.
- const hook=provingEvidence
-  ?`j’ai remarqué ceci sur votre site : « ${truncateExcerpt(provingEvidence.excerpt.trim())} ».`
-  :'je me permets de vous contacter au sujet de votre activité.';
- const value=offer.trim()||'Je souhaite vous présenter notre offre et vérifier si elle correspond à vos besoins.';
- const text=`Bonjour l’équipe ${name}, ${hook} ${value} Seriez-vous ouvert à un court échange ?`;
- return {text,evidence_ids:chosen?.evidence_ids??[],mode:'Modèle factuel',generated_at:now.toISOString()};
+ const excerpt=provingEvidence?truncateExcerpt(provingEvidence.excerpt.trim()):null;
+ const text=locale==='en'
+  ?`Hello ${name} team, ${excerpt?`I noticed this on your website: “${excerpt}”.`:'I’m reaching out about your business.'} ${offer.trim()||'I’d like to introduce our offer and check whether it fits your needs.'} Would you be open to a short conversation?`
+  :`Bonjour l’équipe ${name}, ${excerpt?`j’ai remarqué ceci sur votre site : « ${excerpt} ».`:'je me permets de vous contacter au sujet de votre activité.'} ${offer.trim()||'Je souhaite vous présenter notre offre et vérifier si elle correspond à vos besoins.'} Seriez-vous ouvert à un court échange ?`;
+ return {text,evidence_ids:chosen?.evidence_ids??[],mode:locale==='en'?'Factual template':'Modèle factuel',generated_at:now.toISOString()};
 }
 export function csv(rows:unknown[][]){return '\uFEFF'+rows.map(row=>row.map(value=>{let s=String(value??'');if(/^[\s]*[=+@\-]/.test(s))s="'"+s;return '"'+s.replaceAll('"','""')+'"'}).join(',')).join('\r\n')}
 export function allowedAction(action:string){return ['analyze_company','build_icp','find_prospects','analyze_prospect','score_prospect','find_contact_channels','generate_outreach','prepare_connection_message','prepare_followup','mark_contacted','copy','open_profile'].includes(action)}

@@ -4,6 +4,8 @@ import {readFile} from 'node:fs/promises';
 import {DEMO_PROSPECTS,DEMO_ONBOARDING_STEPS,DEMO_REAL_LABEL,DEMO_LIVE_LIMITATIONS} from '../src/domain/demo.ts';
 import {scoreProspect,FOODATOI_CRITERIA,NO_UNAUTHORIZED_LINKEDIN_AUTOMATION} from '../src/domain/core.ts';
 import {FIXTURE_LABEL} from '../src/discovery/providers/fixture.ts';
+import {fr} from '../src/i18n/fr.ts';
+import {evidenceStatusLabel} from '../src/i18n/labels.ts';
 
 // ------------------------------------------------------------
 // A — onboarding content: exists, is the factual 7-step mechanism (no marketing language), and is
@@ -18,7 +20,9 @@ test('A — DEMO_ONBOARDING_STEPS has exactly the 7 factual steps of the evidenc
 test('A — app/page.tsx imports and renders DEMO_ONBOARDING_STEPS, dismissibly, only in demo mode',async()=>{
  const source=await readFile(new URL('../app/page.tsx',import.meta.url),'utf8');
  assert.match(source,/DEMO_ONBOARDING_STEPS/);
- assert.match(source,/DEMO_ONBOARDING_STEPS\.map/);
+ // The i18n bloc picks between the FR/EN sibling arrays by locale — still exactly DEMO_ONBOARDING_STEPS
+ // (or its EN sibling) driving the same .map(), never a third, different list.
+ assert.match(source,/\(locale==='fr'\?DEMO_ONBOARDING_STEPS:DEMO_ONBOARDING_STEPS_EN\)\.map/);
  assert.match(source,/mode==='demo'&&showDemoHelp/);
  assert.match(source,/dismissDemoHelp/);
 });
@@ -30,7 +34,8 @@ test('A — app/page.tsx imports and renders DEMO_ONBOARDING_STEPS, dismissibly,
 test('B — the prospect detail view gives an actionable hint (not just a generic caption) when coverage is 0',async()=>{
  const source=await readFile(new URL('../app/page.tsx',import.meta.url),'utf8');
  assert.match(source,/scored\.coverage===0/);
- assert.match(source,/J.ai vérifié la source : valider/);
+ assert.match(source,/tr\('detail\.coverageZero'\)/);
+ assert.match(fr['detail.coverageZero'],/J.ai vérifié la source : valider/);
 });
 
 // ------------------------------------------------------------
@@ -58,8 +63,9 @@ test('C — app/page.tsx imports isFixtureUrl from the fixture module rather tha
 // ------------------------------------------------------------
 test('D — the offer-analysis form is disabled and explained up front in demo mode, not just erroring on submit',async()=>{
  const source=await readFile(new URL('../app/page.tsx',import.meta.url),'utf8');
- assert.match(source,/mode==='demo'&&<p className="muted">L.analyse IA devient disponible après activation bêta/);
- assert.match(source,/disabled=\{busy\|\|mode==='demo'\}>Analyser l.offre/);
+ assert.match(source,/mode==='demo'&&<p className="muted">\{tr\('icp\.demoAnalyzeNote'\)\}/);
+ assert.match(source,/disabled=\{busy\|\|mode==='demo'\}>\{tr\('icp\.analyzeOffer'\)\}/);
+ assert.match(fr['icp.demoAnalyzeNote'],/L.analyse IA devient disponible après activation bêta/);
 });
 test('D — analyze-company is still only ever called through the api() helper (server-side, entitlement-gated), never a direct provider call from the client',async()=>{
  const source=await readFile(new URL('../app/page.tsx',import.meta.url),'utf8');
@@ -83,8 +89,10 @@ test('E — scoring an untouched demo prospect still yields score 0 and coverage
 });
 test('E — Copy vs Marquer contacté remain two distinct, human-driven actions',async()=>{
  const source=await readFile(new URL('../app/page.tsx',import.meta.url),'utf8');
- assert.match(source,/Ce clic ne prouve pas un envoi/);
- assert.match(source,/Marquer contacté/);
+ assert.match(source,/tr\('outreach\.copyNotice'\)/);
+ assert.match(source,/tr\('outreach\.markContacted'\)/);
+ assert.match(fr['outreach.copyNotice'],/Ce clic ne prouve pas un envoi/);
+ assert.match(fr['outreach.markContacted'],/Marquer contacté/);
 });
 test('E — no LinkedIn automation was introduced; the product invariant flag is unchanged',()=>{
  assert.equal(NO_UNAUTHORIZED_LINKEDIN_AUTOMATION,true);
@@ -132,9 +140,9 @@ test('F — resetDemo never removes any localStorage key other than the two demo
 // ------------------------------------------------------------
 test('G — DiscoveryPanel explicitly discloses TEST/synthetic data and "no real search" in demo mode',async()=>{
  const source=await readFile(new URL('../src/components/DiscoveryPanel.tsx',import.meta.url),'utf8');
- assert.match(source,/mode==='demo'&&<div className="note">Mode démonstration/);
- assert.match(source,/entreprises TEST synthétiques/);
- assert.match(source,/aucune recherche web réelle/);
+ assert.match(source,/mode==='demo'&&<div className="note">\{tr\('discovery\.demoNote'\)\}/);
+ assert.match(fr['discovery.demoNote'],/entreprises TEST synthétiques/);
+ assert.match(fr['discovery.demoNote'],/aucune recherche web réelle/);
 });
 test('H — Brave is still unconditionally disabled in demo mode (no real Discovery activated)',async()=>{
  const source=await readFile(new URL('../src/components/DiscoveryPanel.tsx',import.meta.url),'utf8');
@@ -156,8 +164,12 @@ test('I — DEMO_REAL_LABEL never implies the data is already verified',()=>{
 // "Vérifiée" that could be mistaken for an automatic/system check.
 // ------------------------------------------------------------
 test('J — evidence verified by the demo self-declaration flow is labeled as a human declaration, not a bare "Vérifiée"',async()=>{
+ // This branching now lives in evidenceStatusLabel (src/i18n/labels.ts), called from app/page.tsx as
+ // evidenceStatusLabel(e.status,e.verified_by,locale) — verified directly here at the behavioral level.
  const source=await readFile(new URL('../app/page.tsx',import.meta.url),'utf8');
- assert.match(source,/e\.verified_by==='demo-human'\?'Vérifiée · déclaration humaine \(démo\)':'Vérifiée'/);
+ assert.match(source,/evidenceStatusLabel\(e\.status,e\.verified_by,locale\)/);
+ assert.equal(evidenceStatusLabel('VERIFIED','demo-human','fr'),'Vérifiée · déclaration humaine (démo)');
+ assert.equal(evidenceStatusLabel('VERIFIED',null,'fr'),'Vérifiée');
 });
 
 // ------------------------------------------------------------
@@ -174,7 +186,7 @@ test('K — DEMO_LIVE_LIMITATIONS states the real limitation without overclaimin
 });
 test('K — app/page.tsx renders DEMO_LIVE_LIMITATIONS inside the onboarding panel',async()=>{
  const source=await readFile(new URL('../app/page.tsx',import.meta.url),'utf8');
- assert.match(source,/DEMO_LIVE_LIMITATIONS\.map/);
+ assert.match(source,/\(locale==='fr'\?DEMO_LIVE_LIMITATIONS:DEMO_LIVE_LIMITATIONS_EN\)\.map/);
 });
 
 // ------------------------------------------------------------

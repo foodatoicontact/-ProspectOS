@@ -69,3 +69,14 @@ export const FUNNEL_STAGE_LABELS:Record<FunnelStage,string>={
  DISCOVERY_STARTED:'Discovery lancée',
  PROSPECTS_CREATED:'Prospects obtenus',
 };
+// English UI labels for the same funnel stages — added for the FR/EN interface switcher (i18n bloc).
+// The FunnelStage identifiers themselves (SIGNED_UP, TRIAL_ACTIVE, …) are the actual, already-English
+// internal values used everywhere else (funnelStage(), funnelCounts()) and are never touched here.
+export const FUNNEL_STAGE_LABELS_EN:Record<FunnelStage,string>={
+ SIGNED_UP:'Signed up',
+ TRIAL_ACTIVE:'Trial activated',
+ ORGANIZATION_CREATED:'Organization created',
+ PROJECT_CREATED:'Project created',
+ DISCOVERY_STARTED:'Discovery started',
+ PROSPECTS_CREATED:'Prospects obtained',
+};

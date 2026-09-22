@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
+import {fr} from '../src/i18n/fr.ts';
 // This project has no browser/E2E harness (no jsdom/React Testing Library anywhere in the repo —
 // see tests/mobile-layout.test.ts for the same precedent). These are static, source-level proofs of
 // the Compte/déconnexion invariants: they read app/page.tsx and app/globals.css as text and assert on
@@ -97,41 +98,55 @@ test('setup sanity: the delete-account modal block was found in the source',()=>
  assert.ok(deleteModal,'delete-account modal JSX not found — later assertions would be vacuous');
 });
 
+// Text content itself (is the wording accurate/non-alarming/correctly describes anonymization, etc.)
+// is now asserted against the FR dictionary value — the single source of truth for that copy — while
+// page.tsx is only checked for correctly WIRING the right key/helper in the right place. An i18n bloc
+// added a FR/EN switcher (src/i18n/) that replaced every inline string in these blocks with tr('key')
+// calls and a couple of small formatting helpers; the underlying behavioral guarantees are unchanged.
 test('access status: Interne/Essai gratuit non activé/Essai gratuit · N jours restants/terminé is shown, and the expiry date only when actually on an active, non-INTERNAL trial',()=>{
- assert.match(accountModal,/entitlementPlan==='INTERNAL'\?'Interne':betaActive===null\?'Essai gratuit non activé':betaActive\?`Essai gratuit · \$\{trialDaysRemaining\}/);
- assert.match(accountModal,/entitlementPlan!=='INTERNAL'&&betaActive&&betaExpiresAt&&<p className="muted">Expire le/);
+ assert.match(accountModal,/entitlementPlan==='INTERNAL'\?tr\('account\.internal'\):betaActive===null\?tr\('account\.trialNotActivated'\):betaActive\?trialRemainingLabel\(locale,trialDaysRemaining\):tr\('account\.trialEnded'\)/);
+ assert.match(accountModal,/entitlementPlan!=='INTERNAL'&&betaActive&&betaExpiresAt&&<p className="muted">\{expiresOnLabel\(locale,betaExpiresAt\)\}/);
+ assert.equal(fr['account.internal'],'Interne');
+ assert.equal(fr['account.trialNotActivated'],'Essai gratuit non activé');
+ assert.equal(fr['account.trialEnded'],'Votre essai gratuit est terminé.');
 });
 test('an expired trial still sees a clear "trial ended" message, never a silent data loss',()=>{
- assert.match(accountModal,/betaActive===false&&<p className="muted">Votre essai gratuit est terminé\./);
+ assert.match(accountModal,/betaActive===false&&<p className="muted">\{tr\('account\.trialEndedNote'\)\}/);
+ assert.match(fr['account.trialEndedNote'],/Votre essai gratuit est terminé\./);
 });
 test('a user with no entitlement at all sees a clear, non-alarming explanation — never the old "Actif" legacy label',()=>{
- assert.match(accountModal,/entitlementPlan!=='INTERNAL'&&betaActive===null&&<p className="muted">Activation de l.essai gratuit indisponible/);
+ assert.match(accountModal,/entitlementPlan!=='INTERNAL'&&betaActive===null&&<p className="muted">\{tr\('account\.trialUnavailableNote'\)\}/);
+ assert.match(fr['account.trialUnavailableNote'],/Activation de l.essai gratuit indisponible/);
  assert.doesNotMatch(accountModal,/betaActive===null\?'Actif'/,'the old legacy "no entitlement = Actif" label must not reappear');
 });
 
 test('export: a dedicated button triggers a real authenticated server call, not a client-side fabrication',()=>{
- assert.match(accountModal,/onClick=\{\(\)=>work\(exportAccount\)\}>Exporter mes données/);
+ assert.match(accountModal,/onClick=\{\(\)=>work\(exportAccount\)\}>\{tr\('account\.exportData'\)\}/);
  assert.match(page,/fetch\('\/api\/v1\/account\/export',\{method:'POST',headers:\{Authorization:`Bearer \$\{token\}`\}\}\)/);
+ assert.equal(fr['account.exportData'],'Exporter mes données');
 });
 test('export never renders/exposes the raw token or blob URL in visible UI text',()=>{
  assert.doesNotMatch(accountModal,/exportAccount.*token/s);
 });
 
 test('delete: the account panel only opens a dedicated confirmation flow, it never deletes on a single click',()=>{
- assert.match(accountModal,/onClick=\{\(\)=>\{setModal\('delete-account'\);setDeleteStep\(1\)\}\}>Supprimer mon compte/);
+ assert.match(accountModal,/onClick=\{\(\)=>\{setModal\('delete-account'\);setDeleteStep\(1\)\}\}>\{tr\('account\.deleteAccount'\)\}/);
+ assert.equal(fr['account.deleteAccount'],'Supprimer mon compte');
 });
 test('delete step 1: the irreversibility warning and data-handling explanation are shown before any confirmation input exists',()=>{
- assert.match(deleteModal,/Cette action est irréversible/);
+ assert.match(deleteModal,/\{tr\('account\.deleteIrreversible'\)\}/);
+ assert.equal(fr['account.deleteIrreversible'],'Cette action est irréversible.');
  assert.match(deleteModal,/deleteStep===1/);
  assert.doesNotMatch(deleteModal.split('deleteStep===2')[0],/<input/,'no confirmation input exists before the user explicitly continues past the warning');
 });
 test('delete step 1: the warning accurately describes anonymization (not physical erasure) of personal auth info, retention of organizational data, and retention of audit references',()=>{
- assert.match(deleteModal,/informations d.authentification personnelles \(email, mot de passe\) sont anonymisées/,'must not imply personal auth data is physically deleted — the real behavior is anonymization in place');
- assert.match(deleteModal,/Les données appartenant à votre organisation[^<]*sont conservées/,'must state organizational/shared data is retained, not erased');
- assert.match(deleteModal,/références d.audit[^<]*sont conservées pour préserver l.intégrité des preuves et de l.historique/,'must state audit references (evidence.verified_by / events.actor_id) are retained, never described as merely possible');
+ assert.match(deleteModal,/\{tr\('account\.deleteBody'\)\}/,'the deletion warning must be rendered via the dictionary key, not an inline literal');
+ assert.match(fr['account.deleteBody'],/informations d.authentification personnelles \(email, mot de passe\) sont anonymisées/,'must not imply personal auth data is physically deleted — the real behavior is anonymization in place');
+ assert.match(fr['account.deleteBody'],/Les données appartenant à votre organisation[^.]*sont conservées/,'must state organizational/shared data is retained, not erased');
+ assert.match(fr['account.deleteBody'],/références d.audit[^.]*sont conservées pour préserver l.intégrité des preuves et de l.historique/,'must state audit references (evidence.verified_by / events.actor_id) are retained, never described as merely possible');
 });
 test('delete step 2: the literal word SUPPRIMER must be typed, and the destructive button is disabled until it matches exactly',()=>{
- assert.match(deleteModal,/Pour confirmer, saisissez <b>SUPPRIMER<\/b>/);
+ assert.match(deleteModal,/\{tr\('account\.deleteConfirmPrefix'\)\} <b>SUPPRIMER<\/b> \{tr\('account\.deleteConfirmSuffix'\)\}/,'the required confirmation word itself is never translated — only the surrounding instructional text is');
  assert.match(deleteModal,/disabled=\{busy\|\|deleteConfirm!=='SUPPRIMER'\}/);
 });
 test('delete: the server call carries the same typed confirmation, the API is never trusted to accept a bare click',()=>{

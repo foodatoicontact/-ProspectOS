@@ -84,7 +84,10 @@ async function handler(request:Request,context:{params:Promise<{path:string[]}>}
  await requireActiveEntitlement(db,user.id);
  const p=await checked(db.from('prospects').select('*,evidence(*)').eq('id',body.prospect_id).single());
  const project=await checked(db.from('projects').select('*,icps(*)').eq('id',p.project_id).single());
- const draft=generateOutreach(p.name,project.offer,projectCriteria(project.icps),p.evidence);
+ // Locale only ever picks the fixed human-language template inside generateOutreach — never a new
+ // input to scoring or evidence eligibility (both computed identically inside it regardless of locale).
+ const draftLocale=body.locale==='en'?'en':'fr';
+ const draft=generateOutreach(p.name,project.offer,projectCriteria(project.icps),p.evidence,undefined,draftLocale);
  // At most one live DRAFT per prospect: a regeneration supersedes the previous one instead of
  // leaving an ambiguous pile of undecided drafts. Already-decided rows (APPROVED/USED/DISCARDED)
  // are historical record and are never touched here. The invariant itself is enforced by a partial

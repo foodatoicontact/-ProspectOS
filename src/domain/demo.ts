@@ -15,6 +15,9 @@ DEMO_PROSPECTS.push(
  {id:'bapz',project_id:DEMO_PROJECT.id,organization_id:DEMO_ORG,name:'Bapz',city:'Toulouse',website:'https://www.bapz.fr/',status:'À analyser',evidence:facts('https://www.bapz.fr/',[['food',true,'Nos pâtisseries à emporter ou à commander en ligne'],['region',true,'salon de thé à Toulouse']]),channels:[]}
 );
 export const DEMO_NOTES:Record<string,string>={pimpmyburger:'Une commande et un retrait sont proposés. Aucun déficit de click & collect établi.',bapz:'Commande en ligne et retrait sur place déjà annoncés : vérifier le besoin réel avant approche.',newschool:'Un lien de commande en ligne existe. Le fonctionnement du retrait et l’autonomie du franchisé restent à vérifier.',ofuzion:'Une solution directe Rushour est déjà liée. Cela ne prouve pas une livraison par une équipe interne. Audience et commandes sociales à confirmer.',lombezienne:'Un panier web et une préparation SMS existent. Ne pas présenter cet établissement comme dépourvu de solution numérique.'};
+// English sibling of DEMO_NOTES — ProspectOS's own editorial commentary about each fixture, translated;
+// the fixtures' own business data (names, cities, websites, evidence excerpts) is never touched here.
+export const DEMO_NOTES_EN:Record<string,string>={pimpmyburger:'Ordering and pickup are offered. No established gap in click & collect.',bapz:'Online ordering and in-store pickup already advertised: verify the real need before reaching out.',newschool:'An online ordering link exists. How pickup works and the franchisee’s autonomy still need verification.',ofuzion:'A direct Rushour solution is already linked. This doesn’t prove delivery by an in-house team. Audience and social orders need confirming.',lombezienne:'A web cart and SMS ordering exist. Don’t present this business as lacking a digital solution.'};
 // Shown once when a visitor enters the demo — explains the evidence-first mechanics before they see a
 // 0/100 score, so that state reads as "nothing reviewed yet" instead of "the engine is broken". Kept to
 // exactly the 7 factual steps of the product's own mechanism — no marketing language, nothing a human
@@ -28,12 +31,24 @@ export const DEMO_ONBOARDING_STEPS:string[]=[
  'ProspectOS prépare ensuite l’approche.',
  'L’envoi reste humain.',
 ];
+// English sibling of DEMO_ONBOARDING_STEPS for the FR/EN interface switcher (i18n bloc) — same 7
+// factual steps, never a different or embellished sequence.
+export const DEMO_ONBOARDING_STEPS_EN:string[]=[
+ 'ProspectOS discovers a business.',
+ 'It collects observations from public sources.',
+ 'Observations don’t automatically become evidence.',
+ 'A human verifies.',
+ 'Only verified evidence feeds the score.',
+ 'ProspectOS then prepares the outreach.',
+ 'Sending stays human.',
+];
 // A visible, honest marker — never mixed with the fixture label below. These 5 establishments are real
 // public businesses (see the excerpts' own source URLs); nothing here is invented or private. Wording
 // deliberately separates "this company exists" from "this data is already verified" — a prior version
 // ("sources publiques") read as if the data were already trustworthy, when every evidence row here
 // starts NOT_VERIFIED until a human reviews it.
 export const DEMO_REAL_LABEL='Entreprise réelle · données publiques à vérifier';
+export const DEMO_REAL_LABEL_EN='Real business · public data to verify';
 // Read alongside DEMO_ONBOARDING_STEPS. States plainly what this public demo does and does not run live,
 // so nobody concludes from the 5 real establishments or from a fixture "Analyser le site" run that the
 // demo just demonstrated a live web search or a live site analysis — neither ever happens here. Never
@@ -44,4 +59,12 @@ export const DEMO_LIVE_LIMITATIONS:string[]=[
  '« Trouver des prospects » fonctionne uniquement sur des exemples TEST synthétiques dans cette démo — aucune recherche web réelle n’est jamais lancée.',
  'L’extraction ou l’analyse d’un site réel en direct n’est pas exécutée dans cette démo publique.',
  'Cette capacité est disponible dans l’espace bêta connecté, selon les droits applicables.',
+];
+// English sibling of DEMO_LIVE_LIMITATIONS — same 4 disclosures, never a different claim about what
+// this public demo does or doesn't run live.
+export const DEMO_LIVE_LIMITATIONS_EN:string[]=[
+ 'The 5 Foodatoi businesses are real companies; their public data is presented here for human review, not generated on the fly.',
+ '"Find prospects" only works on synthetic TEST examples in this demo — no real web search is ever run.',
+ 'Live extraction or analysis of a real website is not performed in this public demo.',
+ 'This capability is available in the connected beta workspace, subject to applicable access.',
 ];

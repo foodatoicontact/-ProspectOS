@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
+import {fr} from '../src/i18n/fr.ts';
 
 // ============================================================
 // Self-service 7-day trial (migration 012). Concurrency/idempotency/capacity/cross-user-isolation
@@ -72,19 +73,27 @@ test('route.ts: grant_beta_access / grant_internal_access (admin-only) are never
 // Product wording: CTA/subtext framed as a free trial, capacity handled gracefully (account kept),
 // countdown based on the real expires_at, expiry message matches the brief exactly.
 // ------------------------------------------------------------
+// An i18n bloc (src/i18n/) replaced these inline literals with tr('key') calls / a small formatting
+// helper for a FR/EN switcher; the wording itself now lives in the FR dictionary (checked here) and
+// page.tsx is checked only for wiring the right key/helper at the right place.
 test('UI: signup CTA is framed as a free trial with the required subtext',async()=>{
  const source=await readFile(new URL('../app/page.tsx',import.meta.url),'utf8');
- assert.match(source,/Démarrer mon essai gratuit/);
- assert.match(source,/7 jours gratuits · Aucune carte bancaire requise/);
+ assert.match(source,/tr\('landing\.trialCta'\)/);
+ assert.match(source,/tr\('landing\.trialSub'\)/);
+ assert.equal(fr['landing.trialCta'],'Démarrer mon essai gratuit');
+ assert.equal(fr['landing.trialSub'],'7 jours gratuits · Aucune carte bancaire requise');
 });
 test('UI: trial countdown is computed from the real expires_at, not a hardcoded number',async()=>{
  const source=await readFile(new URL('../app/page.tsx',import.meta.url),'utf8');
  assert.match(source,/const trialDaysRemaining=betaExpiresAt\?Math\.max\(0,Math\.ceil\(\(new Date\(betaExpiresAt\)\.getTime\(\)-Date\.now\(\)\)\/86400000\)\):0/);
- assert.match(source,/Essai gratuit · \$\{trialDaysRemaining\}/);
+ assert.match(source,/trialRemainingLabel\(locale,trialDaysRemaining\)/);
+ const format=await readFile(new URL('../src/i18n/format.ts',import.meta.url),'utf8');
+ assert.match(format,/Essai gratuit · \$\{days\}/);
 });
 test('UI: expiry message matches the brief exactly',async()=>{
  const source=await readFile(new URL('../app/page.tsx',import.meta.url),'utf8');
- assert.match(source,/Votre essai gratuit est terminé\./);
+ assert.match(source,/tr\('account\.trialEnded'\)/);
+ assert.equal(fr['account.trialEnded'],'Votre essai gratuit est terminé.');
 });
 test('UI: account deletion stays behind its own explicit typed confirmation — expiry has no path to it',async()=>{
  const source=await readFile(new URL('../app/page.tsx',import.meta.url),'utf8');

@@ -242,16 +242,16 @@ test('G — the CGU/confidentialité links are present in the signup form, openi
 test('G — "Créer un compte" is disabled until the checkbox is checked; "Se connecter" (existing accounts) is never gated by it',()=>{
  const welcomeMatch=page.match(/if\(mode==='welcome'\)return <main className="welcome">[\s\S]*?<\/main>;/);
  const welcome=welcomeMatch![0];
- assert.match(welcome,/onClick=\{\(\)=>login\(true\)\}>Démarrer mon essai gratuit/);
- const createAccountButton=welcome.match(/<button type="button" disabled=\{[^}]*\} onClick=\{\(\)=>login\(true\)\}>Démarrer mon essai gratuit<\/button>/);
+ assert.match(welcome,/onClick=\{\(\)=>login\(true\)\}>\{tr\('landing\.trialCta'\)\}/);
+ const createAccountButton=welcome.match(/<button type="button" disabled=\{[^}]*\} onClick=\{\(\)=>login\(true\)\}>\{tr\('landing\.trialCta'\)\}<\/button>/);
  assert.ok(createAccountButton,'signup CTA button not found with an expected disabled expression');
  assert.match(createAccountButton[0],/!legalAccepted/);
- const loginButton=welcome.match(/<button className="primary" disabled=\{[^}]*\}>Se connecter<\/button>/);
+ const loginButton=welcome.match(/<button className="primary" disabled=\{[^}]*\}>\{tr\('landing\.loginButton'\)\}<\/button>/);
  assert.ok(loginButton,'Se connecter button not found');
  assert.doesNotMatch(loginButton[0],/legalAccepted/,'the existing-account login button must never depend on the new signup-only checkbox');
 });
 test('G — login() re-checks acceptance server-request-side (not just via the disabled button) before ever calling signUp, so a bypassed disabled attribute still can\'t sign up without acceptance',()=>{
- assert.match(page,/if\(signup&&!legalAccepted\)\{setNotice\('[^']*'\);return\}/);
+ assert.match(page,/if\(signup&&!legalAccepted\)\{setNotice\(tr\('login\.legalRequired'\)\);return\}/);
 });
 
 // ------------------------------------------------------------

@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
 import {funnelStage,funnelCounts,funnelWithPercentages,daysRemaining,lastBusinessActivity,FUNNEL_STAGES,FUNNEL_STAGE_LABELS,type BetaAnalyticsUser} from '../src/domain/beta-analytics.ts';
+import {fr} from '../src/i18n/fr.ts';
 
 // ============================================================
 // Pure derivation layer over public.beta_analytics()'s raw facts. RLS/authorization/no-leak/real-DB
@@ -162,12 +163,15 @@ test('app/page.tsx: loadBetaAnalytics calls the admin route through the authenti
 });
 test('app/page.tsx: no business event renders literally "Aucun événement métier enregistré", never a fallback to a login timestamp and never a bare "Aucune activité" claim',async()=>{
  const source=await readFile(new URL('../app/page.tsx',import.meta.url),'utf8');
- assert.match(source,/Aucun événement métier enregistré/);
+ assert.match(source,/tr\('betaAnalytics\.noEvent'\)/);
  assert.doesNotMatch(source,/Aucune activité/,'must never read as "no activity at all" — it measures tracked events, not product usage');
+ assert.equal(fr['betaAnalytics.noEvent'],'Aucun événement métier enregistré');
 });
 test('app/page.tsx: the small-sample funnel caveat is shown to the user, never presented as statistically significant',async()=>{
  const source=await readFile(new URL('../app/page.tsx',import.meta.url),'utf8');
- assert.match(source,/non statistiquement significatifs/);
+ assert.match(source,/funnelSampleNote\(locale,betaAnalytics\.users\.length\)/);
+ const format=await readFile(new URL('../src/i18n/format.ts',import.meta.url),'utf8');
+ assert.match(format,/non statistiquement significatifs/);
 });
 test('src/server/entitlement.ts (the sole access gate) never references the new admin function — this bloc adds a separate, narrower authorization path, not a change to the existing gate',async()=>{
  const source=await readFile(new URL('../src/server/entitlement.ts',import.meta.url),'utf8');

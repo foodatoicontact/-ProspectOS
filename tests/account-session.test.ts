@@ -63,7 +63,7 @@ test('E — logout resets the app to the public welcome screen',()=>{
 // an in-memory-only flag, and the auth-state listener independently reaches the same cleared state
 // on any SIGNED_OUT event — including one fired by a restored, already-invalid session after reload) ---
 test('F — the auth-state listener independently clears identity on any signed-out session (covers a post-refresh SIGNED_OUT event, not just the explicit logout() call path)',()=>{
- const listenerMatch=page.match(/onAuthStateChange\(\(_event,session\)=>\{[\s\S]*?\}\);return/);
+ const listenerMatch=page.match(/onAuthStateChange\(\((?:_event|event),session\)=>\{[\s\S]*?\}\);return/);
  const listener=listenerMatch?.[0]??'';
  assert.ok(listener,'onAuthStateChange listener not found');
  assert.match(listener,/else \{identity\.current=null;setToken\(''\);setUserEmail\(''\);setOrgName\(''\);clearWorkspace\(\);setMode\('welcome'\)\}/);

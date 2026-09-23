@@ -33,5 +33,6 @@ jobs:
       - run: npm run build
       - run: npm run test:discovery-db
       - run: npm run test:discovery-trust-db
+      - run: npm run test:beta-auto-db
       - run: node tests/discovery-db-upsert-fix.mjs
       - run: node tests/ai-quota-db.mjs

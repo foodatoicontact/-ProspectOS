@@ -38,12 +38,14 @@ test('A — official site with an SEO-style title: the company name comes from t
 });
 
 // ------------------------------------------------------------
-// B — a job board ad about an identifiable company: the job board is never the prospect; it can only
-// be a SIGNAL_SOURCE attached to the company that is explicitly named.
+// B — a job board ad about an identifiable company: the job board is never the prospect. The result is
+// the company it explicitly names (COMPANY_CANDIDATE), with the job board kept only as provenance
+// (source_type/source_url) and never as the company's website.
 // ------------------------------------------------------------
-test('B — Indeed ad "… chez Grand Frais": SIGNAL_SOURCE for Grand Frais, company_domain never indeed.com', () => {
+test('B — Indeed ad "… chez Grand Frais": the candidate is Grand Frais, Indeed stays provenance and is never its website', () => {
  const c = normalize({title: 'Chargé de marketing digital H/F chez Grand Frais - Lyon | Indeed', url: 'https://fr.indeed.com/viewjob?jk=abc123', description: 'Poste en CDI basé à Lyon.'}, 'marketing digital');
- assert.equal(meta(c).source_class, 'SIGNAL_SOURCE');
+ assert.equal(meta(c).source_class, 'COMPANY_CANDIDATE');
+ assert.equal(c.source_url, 'https://fr.indeed.com/viewjob?jk=abc123', 'the job ad is kept as the provenance');
  assert.equal(meta(c).source_type, 'job_board');
  assert.equal(meta(c).company_name, 'Grand Frais');
  assert.equal(meta(c).company_domain, null);
@@ -51,9 +53,10 @@ test('B — Indeed ad "… chez Grand Frais": SIGNAL_SOURCE for Grand Frais, com
  assert.equal(c.website, null, 'the job board domain is never promoted to the company website');
  assert.equal(c.name, 'Grand Frais');
 });
-test('B — unknown job board host, structural only: "X recrute …" is a SIGNAL_SOURCE for X', () => {
+test('B — unknown job board host, structural only: "X recrute …" yields X as the candidate, the job page as provenance', () => {
  const c = normalize({title: 'Grand Frais recrute un chef de rayon (CDI)', url: 'https://www.emplois-regionaux.fr/offre/12345', description: 'Candidature en ligne.'}, 'chef de rayon');
- assert.equal(meta(c).source_class, 'SIGNAL_SOURCE');
+ assert.equal(meta(c).source_class, 'COMPANY_CANDIDATE');
+ assert.equal(meta(c).source_type, 'job_board');
  assert.equal(meta(c).company_name, 'Grand Frais');
  assert.equal(c.website, null);
 });
@@ -125,9 +128,10 @@ test('F — listicle article with no named company: IRRELEVANT', () => {
  const c = normalize({title: '10 meilleures agences marketing digital à Paris', url: 'https://blog-marketing.example/classement-agences-paris', description: 'Notre sélection.'}, 'agence marketing digital');
  assert.equal(meta(c).source_class, 'IRRELEVANT');
 });
-test('F — editorial article naming Grand Frais: SIGNAL_SOURCE for Grand Frais, the media domain is never the company', () => {
+test('F — editorial article naming Grand Frais: the candidate is Grand Frais, the media domain is never the company', () => {
  const c = normalize({title: 'Grand Frais : 30 nouveaux magasins ouvrent en France dès le 1er juin 2026, votre ville est-elle concernée ?', url: 'https://www.aufeminin.com/news/grand-frais-30-nouveaux-magasins.html', description: 'L\'enseigne poursuit son expansion en France avec de nouveaux magasins.'}, 'enseignes ouvrant de nouveaux magasins');
- assert.equal(meta(c).source_class, 'SIGNAL_SOURCE');
+ assert.equal(meta(c).source_class, 'COMPANY_CANDIDATE');
+ assert.equal(meta(c).source_type, 'editorial');
  assert.equal(meta(c).company_name, 'Grand Frais');
  assert.equal(meta(c).company_domain, null);
  assert.equal(meta(c).source_domain, 'aufeminin.com');
@@ -156,14 +160,16 @@ test('relevance gate: an official site whose snippet shows none of the query ter
 // ------------------------------------------------------------
 // Invariants.
 // ------------------------------------------------------------
-test('invariant: a SIGNAL_SOURCE never carries its own source domain as the company domain', () => {
+test('invariant: a candidate resolved from a third-party page never carries that page\'s domain as the company domain', () => {
  for (const [hit, q] of [
   [{title: 'Chargé de marketing digital H/F chez Grand Frais - Lyon | Indeed', url: 'https://fr.indeed.com/viewjob?jk=abc123'}, 'marketing digital'],
   [{title: 'Grand Frais : 30 nouveaux magasins ouvrent en France', url: 'https://www.aufeminin.com/news/grand-frais.html', description: 'nouveaux magasins'}, 'nouveaux magasins'],
  ] as Array<[Hit, string]>) {
   const c = normalize(hit, q);
-  assert.equal(meta(c).source_class, 'SIGNAL_SOURCE');
+  assert.equal(meta(c).source_class, 'COMPANY_CANDIDATE');
+  assert.notEqual(meta(c).source_type, 'official_site');
   assert.notEqual(meta(c).company_domain, meta(c).source_domain);
+  assert.equal(c.website, null);
  }
 });
 test('invariant: classification never produces a VERIFIED status anywhere', async () => {
@@ -173,21 +179,25 @@ test('invariant: classification never produces a VERIFIED status anywhere', asyn
   assert.doesNotMatch(source, /fetch\(|anthropic|openai/i, 'deterministic only: no network, no LLM');
  }
 });
-test('accept gate: only COMPANY_CANDIDATE / SIGNAL_SOURCE (and legacy/fixture rows with no class) can become prospects', async () => {
- const {isAcceptableCandidate} = await import('../src/discovery/source-classification.ts');
- assert.equal(isAcceptableCandidate({raw_metadata: {source_class: 'COMPANY_CANDIDATE'}}), true);
- assert.equal(isAcceptableCandidate({raw_metadata: {source_class: 'SIGNAL_SOURCE'}}), true);
- assert.equal(isAcceptableCandidate({raw_metadata: {source_class: 'IRRELEVANT'}}), false);
- assert.equal(isAcceptableCandidate({raw_metadata: {source_class: 'UNCERTAIN'}}), false);
- assert.equal(isAcceptableCandidate({raw_metadata: {fixture: true}}), true, 'fixture/legacy rows keep their existing behavior');
- assert.equal(isAcceptableCandidate(null), true, 'a missing payload is left to the existing RPC checks, never guessed');
+test('accept rule: only COMPANY_CANDIDATE; SIGNAL_SOURCE, IRRELEVANT, UNCERTAIN, NULL and unknown values fail closed', async () => {
+ const {isAcceptableSourceClass} = await import('../src/discovery/source-classification.ts');
+ assert.equal(isAcceptableSourceClass('COMPANY_CANDIDATE'), true);
+ for (const refused of ['SIGNAL_SOURCE', 'IRRELEVANT', 'UNCERTAIN', null, undefined, '', 'company_candidate', 'VERIFIED', {}])
+  assert.equal(isAcceptableSourceClass(refused), false, String(refused));
 });
-test('accept gate is enforced server-side before accept_discovery_result is called', async () => {
+test('privileged write: only a known class computed by the server is sent; anything else becomes NULL (refused on accept)', async () => {
+ const {trustedSourceClass} = await import('../src/discovery/source-classification.ts');
+ for (const cls of ['COMPANY_CANDIDATE', 'SIGNAL_SOURCE', 'IRRELEVANT', 'UNCERTAIN']) assert.equal(trustedSourceClass({source_class: cls}), cls);
+ for (const bad of [{source_class: 'VERIFIED'}, {source_class: 'company_candidate'}, {source_class: 1}, {}, null, undefined]) assert.equal(trustedSourceClass(bad), null);
+});
+test('API accept: pre-checks the dedicated source_class column, then maps the database refusal to the same stable code', async () => {
  const source = await readFile(new URL('../src/discovery/api.ts', import.meta.url), 'utf8');
- const gate = source.indexOf('isAcceptableCandidate(');
+ const gate = source.indexOf("select('status,source_class')");
  const rpc = source.indexOf("db.rpc('accept_discovery_result'");
- assert.ok(gate > 0 && rpc > gate, 'the classification gate runs before the accept RPC');
- assert.match(source, /CANDIDATE_NOT_ACCEPTABLE/);
+ assert.ok(gate > 0 && rpc > gate, 'the API pre-check runs before the accept RPC');
+ assert.match(source, /row\?\.status==='pending'&&!isAcceptableSourceClass\(row\?\.source_class\)\)return notAcceptable\(\)/);
+ assert.match(source, /accepted\.error\?\.message\?\.includes\('CANDIDATE_NOT_ACCEPTABLE'\)\)return notAcceptable\(\)/);
+ assert.doesNotMatch(source, /select\('normalized_payload'\)/, 'the jsonb payload is never the authority for acceptance');
 });
 test('FixtureProvider is unchanged in behavior: its curated TEST companies stay COMPANY_CANDIDATE with their own website', async () => {
  const {FixtureProvider} = await import('../src/discovery/providers/fixture.ts');
@@ -200,10 +210,15 @@ test('FixtureProvider is unchanged in behavior: its curated TEST companies stay 
   assert.equal((c.raw_metadata as Record<string, unknown>).source_class, 'COMPANY_CANDIDATE');
  }
 });
-test('scoring invariant: src/domain/core.ts (scoreProspect) is byte-identical to main', async () => {
+test('scoring invariant: src/domain/core.ts (scoreProspect) and the entitlement gate are byte-identical to main; no existing migration was modified', async () => {
  const {execSync} = await import('node:child_process');
- const diff = execSync('git diff --name-only daf49e39848f79f4459b6dc426ec8580b4cb69ff -- src/domain/core.ts src/server/entitlement.ts db/migrations', {cwd: new URL('..', import.meta.url), encoding: 'utf8'});
- assert.equal(diff.trim(), '');
+ const cwd = new URL('..', import.meta.url);
+ assert.equal(execSync('git diff --name-only daf49e39848f79f4459b6dc426ec8580b4cb69ff -- src/domain/core.ts src/server/entitlement.ts', {cwd, encoding: 'utf8'}).trim(), '');
+ // New migrations are allowed (the trust boundary adds 014); rewriting an already-applied one never is.
+ const migrations = execSync('git diff --name-status daf49e39848f79f4459b6dc426ec8580b4cb69ff -- db/migrations', {cwd, encoding: 'utf8'}).trim().split('\n').filter(Boolean);
+ for (const line of migrations) assert.match(line, /^A\s/, `an existing migration was changed: ${line}`);
+ const untracked = execSync('git status --porcelain --untracked-files=all -- db/migrations', {cwd, encoding: 'utf8'}).trim().split('\n').filter(Boolean);
+ for (const line of untracked) assert.match(line, /^(\?\?|A )/, `an existing migration was changed: ${line}`);
 });
 test('Brave budget invariant: still exactly one HTTP call per search, context tagging adds no request', async () => {
  let calls = 0;
@@ -227,12 +242,14 @@ test('UI: DiscoveryPanel distinguishes Entreprise candidate / Source de signal /
 });
 test('UI: IRRELEVANT results are never rendered as candidate cards, only in the collapsed discarded list', async () => {
  const source = await readFile(new URL('../src/components/DiscoveryPanel.tsx', import.meta.url), 'utf8');
- assert.match(source, /results\.filter\(r=>metaOf\(r\)\.source_class!=='IRRELEVANT'\)\.map\(/);
+ assert.match(source, /results\.filter\(r=>classOf\(r\)!=='IRRELEVANT'\)\.map\(/);
  assert.match(source, /<details className="note discovery-discarded">/);
 });
-test('UI: "Entreprise identifiée" is only reachable for a resolved, addable organization; UNCERTAIN has no add button', async () => {
+test('UI: only a COMPANY_CANDIDATE gets "Entreprise identifiée" and an add button; the DB column is the class source; legacy rows are flagged', async () => {
  const source = await readFile(new URL('../src/components/DiscoveryPanel.tsx', import.meta.url), 'utf8');
- assert.match(source, /const canAdd=cls!=='UNCERTAIN';const nameResolved=canAdd&&meta\.company_name_status==='RESOLVED'/);
+ assert.match(source, /const classOf=\(r:DiscoveryResult\):SourceClass\|null=>r\.source_class!==undefined\?r\.source_class:metaOf\(r\)\.source_class\?\?null;/);
+ assert.match(source, /const canAdd=cls==='COMPANY_CANDIDATE';const legacy=cls===null;const nameResolved=canAdd&&meta\.company_name_status==='RESOLVED'/);
+ assert.match(source, /legacy\?tr\('discovery\.legacyUnclassified'\)/);
  assert.match(source, /\{nameResolved\?<><h3>\{r\.normalized_payload\.name\}<\/h3><p><b>\{tr\('discovery\.identifiedCompanyLabel'\)\}/);
  assert.match(source, /r\.status==='pending'&&!canAdd\?<><p className="muted">\{tr\('discovery\.notAddable'\)\}<\/p><button disabled=\{busy\} onClick=\{\(\)=>ignore\(r\)\}>/);
  assert.match(source, /\{tr\('discovery\.currentScore'\)\} <b>0\/100<\/b>/, 'the 0/100 score line is preserved');
@@ -240,8 +257,8 @@ test('UI: "Entreprise identifiée" is only reachable for a resolved, addable org
 test('i18n: every new key exists in FR and EN with genuinely distinct values; no key claims "verified"', async () => {
  const {fr} = await import('../src/i18n/fr.ts');
  const {en} = await import('../src/i18n/en.ts');
- const keys = Object.keys(fr).filter(k => k.startsWith('discovery.class.') || k.startsWith('discovery.sourceType.') || ['discovery.notAddable', 'discovery.discardedTitle', 'discovery.discardedNote', 'discovery.signalSourceNote', 'error.candidateNotAcceptable'].includes(k)) as Array<keyof typeof fr>;
- assert.equal(keys.length, 16, "3 class + 8 source-type + 5 notice/error keys");
+ const keys = Object.keys(fr).filter(k => k.startsWith('discovery.class.') || k.startsWith('discovery.sourceType.') || ['discovery.notAddable', 'discovery.discardedTitle', 'discovery.discardedNote', 'discovery.signalSourceNote', 'discovery.legacyUnclassified', 'error.candidateNotAcceptable'].includes(k)) as Array<keyof typeof fr>;
+ assert.equal(keys.length, 17, "3 class + 8 source-type + 6 notice/error keys");
  for (const k of keys) {
   assert.notEqual(fr[k], en[k], k);
   assert.doesNotMatch(fr[k], /v[ée]rifi/i, k);

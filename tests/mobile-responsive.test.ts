@@ -64,8 +64,8 @@ test('Discovery cards on phones: primary CTA full width, secondary action below,
 test('hotfix scope: no palette change, no new dependency, no scoring/ICP-model/DB change', async () => {
  const {execSync} = await import('node:child_process');
  const cwd = new URL('..', import.meta.url);
- const diff = execSync('git diff 062f0b9a87629c96ccb48abb193efd04e62d9b17 -- app/globals.css', {cwd, encoding: 'utf8'});
+ const diff = execSync('git diff 062f0b9a87629c96ccb48abb193efd04e62d9b17 ee60794 -- app/globals.css', {cwd, encoding: 'utf8'});
  assert.doesNotMatch(diff.split('\n').filter(l => l.startsWith('+')).join('\n'), /--(ink|green|muted|line|paper|lime)\s*:|#[0-9a-f]{3,8}\b/i, 'no color is introduced or changed');
- const untouched = execSync('git diff --name-only 062f0b9a87629c96ccb48abb193efd04e62d9b17 -- package.json package-lock.json src/domain db/migrations src/discovery', {cwd, encoding: 'utf8'});
+ const untouched = execSync('git diff --name-only 062f0b9a87629c96ccb48abb193efd04e62d9b17 ee60794 -- package.json package-lock.json src/domain db/migrations src/discovery', {cwd, encoding: 'utf8'});
  assert.equal(untouched.trim(), '');
 });

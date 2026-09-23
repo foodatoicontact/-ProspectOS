@@ -3,10 +3,13 @@
 //      page, article, individual profile, or unknown;
 //   2. resolve the ORGANIZATION the page is about — company name and company domain, independently —
 //      with rules gated by that page type;
-//   3. derive the result's class: COMPANY_CANDIDATE (the page is the organization's own site),
-//      SIGNAL_SOURCE (a third-party page that explicitly names a resolved organization — the page is
-//      the signal, the organization is the candidate), IRRELEVANT (a third-party page with no resolvable
-//      organization — never a prospect), UNCERTAIN (cannot tell — never presented as a company).
+//   3. derive the result's class: COMPANY_CANDIDATE (the resolved organization — the page is either its
+//      own site, or a third-party page such as a job ad or an article that explicitly names it; then the
+//      page only remains the provenance: source_type/source_url describe it and its domain is never the
+//      company's website), IRRELEVANT (a third-party page with no resolvable organization — never a
+//      prospect), UNCERTAIN (cannot tell — never presented as a company). SIGNAL_SOURCE stays a valid
+//      class but is not produced here; the database refuses it on accept like everything but
+//      COMPANY_CANDIDATE (migration 014).
 // Invariants: a search title is never blindly a company name (a title-derived name must be corroborated
 // by the page's own domain, or come from an explicit naming pattern on a non-listing page); a source's
 // own domain is only ever the company domain when the page IS that company's own site; a domain is never
@@ -164,7 +167,7 @@ export function resolveCanonicalCompany(input: {title: string; description: stri
   const website = `https://${domain}`;
   if (sourceType === 'official_site' || sourceType === 'unknown') sourceType = 'editorial';
   reasons.push('cites_external_company_domain');
-  return finish({status: 'RESOLVED', name: nameFromDomain(domain), method: 'domain_label'}, {status: 'RESOLVED', method: 'domain_in_text', website, canonical_url: website, reasons: [`domaine cité dans le texte : ${domain}`]}, 'SIGNAL_SOURCE');
+  return finish({status: 'RESOLVED', name: nameFromDomain(domain), method: 'domain_label'}, {status: 'RESOLVED', method: 'domain_in_text', website, canonical_url: website, reasons: [`domaine cité dans le texte : ${domain}`]}, 'COMPANY_CANDIDATE');
  }
  if (mentioned.length > 1) {
   reasons.push('multiple_company_domains_cited');
@@ -192,6 +195,6 @@ export function resolveCanonicalCompany(input: {title: string; description: stri
  // 3. Any other page is third-party content: it can only point AT an organization it explicitly names.
  //    Its own domain is never the company domain.
  const thirdPartyDomain = unresolvedDomain(sourceType === 'unknown' ? 'aucun domaine identifiable dans le titre ou la description' : `page tierce (${sourceType}) : son domaine n’est jamais celui de l’entreprise`);
- if (extracted) return finish({status: 'RESOLVED', name: extracted.name, method: extracted.method}, thirdPartyDomain, 'SIGNAL_SOURCE');
+ if (extracted) return finish({status: 'RESOLVED', name: extracted.name, method: extracted.method}, thirdPartyDomain, 'COMPANY_CANDIDATE');
  return finish({status: 'UNRESOLVED', name: fallbackName}, thirdPartyDomain, THIRD_PARTY_TYPES_WITHOUT_COMPANY_ARE_IRRELEVANT.has(sourceType) ? 'IRRELEVANT' : 'UNCERTAIN');
 }

@@ -18,7 +18,11 @@ jobs:
   test:
     runs-on: ubuntu-latest
     steps:
+      # Full history: several scope tests assert on fixed commit ranges (git diff <sha> <sha>), which a
+      # depth-1 checkout cannot resolve — main CI failed on daf49e3 for exactly that reason.
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
@@ -28,5 +32,6 @@ jobs:
       - run: npm run typecheck
       - run: npm run build
       - run: npm run test:discovery-db
+      - run: npm run test:discovery-trust-db
       - run: node tests/discovery-db-upsert-fix.mjs
       - run: node tests/ai-quota-db.mjs

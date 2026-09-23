@@ -1,7 +1,8 @@
 import {createClient} from '@supabase/supabase-js';
 // Server-only, privileged client: bypasses RLS. Never imported by client code, never reachable from
 // the browser. Used exclusively for writes/reads that must never be reachable through any
-// `authenticated`-scoped RPC or grant (cost ledger writes, BYOK secret decryption) — the same pattern
+// `authenticated`-scoped RPC or grant (cost ledger writes, BYOK secret decryption, Discovery result
+// writes via save_discovery_results — see migration 014) — the same pattern
 // already used by anonymizeAuthUser in src/server/account.ts.
 export function createAdminClient() {
  const url=process.env.NEXT_PUBLIC_SUPABASE_URL;

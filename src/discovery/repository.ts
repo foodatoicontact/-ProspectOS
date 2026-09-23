@@ -3,6 +3,7 @@ import type {DiscoveryRepository} from './services.ts';
 import type {Candidate,DiscoveryInput,DiscoveryResult,DiscoveryRun,Observation} from './types.ts';
 import type {DeduplicationService} from './deduplication.ts';
 import {projectCriteria as resolveProjectCriteria} from '../domain/relations.ts';
+import {trustedSourceClass} from './source-classification.ts';
 // The original Postgres error (message/code) is kept as .cause for server-side logging only — the
 // thrown message itself is unchanged, so existing error-code routing and the user-facing text stay
 // exactly as before. Never exposed to the client: routes only ever return the generic mapped message.
@@ -15,14 +16,24 @@ export async function checked(query:PromiseLike<any>){const {data,error}=await q
 // never silently dropped, never given a fabricated value, and never mistaken for "no information
 // found" (UNKNOWN, which always has an empty excerpt).
 export function toStorageSafeObservation(o:Observation):Observation{return o.status!=='UNKNOWN'&&o.criterion!==null&&o.value===null?{...o,criterion:null}:o}
+// Discovery results are written only through the server's privileged client (migration 014): the
+// `authenticated` role can no longer insert or update them, so a member can never forge a result or its
+// classification. userId is the identity the server verified from the request's JWT — never a value
+// taken from the request body.
+export type PrivilegedWriter={db:SupabaseClient;userId:string};
 export class SupabaseDiscoveryRepository implements DiscoveryRepository {
- db:SupabaseClient;
- constructor(db:SupabaseClient){this.db=db}
+ db:SupabaseClient;writer?:PrivilegedWriter;
+ constructor(db:SupabaseClient,writer?:PrivilegedWriter){this.db=db;this.writer=writer}
  async start(input:DiscoveryInput,provider:string){return checked(this.db.rpc('start_discovery',{p_project_id:input.project_id,p_query:input.query,p_location:input.location,p_categories:input.categories,p_provider:provider,p_max_results:input.max_results,p_filters:input.optional_filters}))}
  async existing(projectId:string){const rows=await checked(this.db.from('prospects').select('id,name,website,city,channels(kind,value)').eq('project_id',projectId));return rows.map((p:any)=>({...p,phone:p.channels?.find((c:any)=>c.kind==='phone')?.value??null,address:null}))}
  async saveResults(run:DiscoveryRun,rows:Array<{candidate:Candidate;dedupe:ReturnType<DeduplicationService['match']>}>):Promise<DiscoveryResult[]>{
- const full=await checked(this.db.from('discovery_runs').select('*').eq('id',run.id).single());if(!rows.length)return [];
- return checked(this.db.from('discovery_results').insert(rows.map(({candidate:c,dedupe:d})=>({organization_id:full.organization_id,project_id:full.project_id,discovery_run_id:run.id,company_name:c.name,website:c.website,phone:c.phone,address:c.address,city:c.city,source_url:c.source_url,source_title:c.source_title,provider:c.discovered_source,raw_payload:c.raw_metadata,normalized_payload:c,dedupe_key:c.deduplication_key,dedupe_status:d.status,duplicate_of:d.duplicate_of,reason:d.reason}))).select('*'));
+ // 1. Read the run with the USER's client: RLS returns it only to a member of its organization, so the
+ //    privileged write below can never be reached for a run the authenticated user does not belong to.
+ await checked(this.db.from('discovery_runs').select('id').eq('id',run.id).single());if(!rows.length)return [];
+ if(!this.writer)throw Error('CONFIGURATION_REQUIRED');
+ // 2. Privileged write. The database re-checks membership of userId and takes organization, project and
+ //    provider from the run itself; source_class is the value this server computed, validated here.
+ return checked(this.writer.db.rpc('save_discovery_results',{p_user_id:this.writer.userId,p_run_id:run.id,p_rows:rows.map(({candidate:c,dedupe:d})=>({company_name:c.name,website:c.website,phone:c.phone,address:c.address,city:c.city,source_url:c.source_url,source_title:c.source_title,raw_payload:c.raw_metadata,normalized_payload:c,dedupe_key:c.deduplication_key,dedupe_status:d.status,duplicate_of:d.duplicate_of,reason:d.reason,source_class:trustedSourceClass(c.raw_metadata)}))}));
  }
  async finish(id:string,count:number,metrics:Record<string,unknown>,error?:string){await checked(this.db.from('discovery_runs').update({status:error?'failed':'completed',result_count:count,completed_at:new Date().toISOString(),metrics,error_message:error??null}).eq('id',id))}
  async prospect(id:string){return checked(this.db.from('prospects').select('id,website,organization_id,project_id').eq('id',id).single())}

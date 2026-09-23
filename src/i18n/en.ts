@@ -300,6 +300,7 @@ export const en={
  'discovery.class.uncertain':'Unresolved / to review',
  'discovery.signalSourceNote':'This page is not the prospect: it mentions the company above.',
  'discovery.notAddable':'No organization resolved: cannot be added as a prospect.',
+ 'discovery.legacyUnclassified':'Earlier result — run the discovery again to classify it',
  'discovery.discardedTitle':'Discarded results',
  'discovery.discardedNote':'Pages with no resolved organization (job boards, marketplaces, searches, articles): shown for transparency, never added as prospects.',
  'discovery.sourceType.official_site':'Organization’s own site',

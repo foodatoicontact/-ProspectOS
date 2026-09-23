@@ -214,7 +214,10 @@ test('15 — this bloc adds no database migration whatsoever — RLS is unaffect
  const fs=await import('node:fs/promises');
  const files=(await fs.readdir(new URL('../db/migrations/',import.meta.url))).filter(f=>f.endsWith('.sql')).sort();
  assert.ok(files.includes('013_beta_analytics_admin.sql'),'the last known migration before this bloc must still be there, unmodified');
- assert.ok(!files.some(f=>/^01[4-9]|^0[2-9][0-9]/.test(f)),'no migration numbered 014 or higher exists — this bloc is purely client-side');
+ // Commit-scoped: the i18n bloc spans 9242034..9206f67; later blocs may add their own migrations.
+ const {execSync}=await import('node:child_process');
+ const changed=execSync('git diff --name-only 9242034053529a09d743a4f490a4ed326fb9ad50 9206f670944008b980505b735759aaf4c68b789a -- db/migrations',{cwd:new URL('..',import.meta.url),encoding:'utf8'});
+ assert.equal(changed.trim(),'','no migration was added or modified by the i18n commits — this bloc is purely client-side');
 });
 
 // ------------------------------------------------------------

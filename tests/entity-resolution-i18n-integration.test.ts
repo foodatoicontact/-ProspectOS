@@ -136,15 +136,15 @@ test('13 — requireActiveEntitlement is untouched by this integration', async (
 
 // ------------------------------------------------------------
 // 14 — RLS/migrations untouched: no migration file appears in the diff against the i18n-validated
-// commit, committed or in the working tree.
+// commit, over this bloc's commit range.
 // ------------------------------------------------------------
 test('14 — no migration file was added or modified by this integration', async () => {
  const {execSync} = await import('node:child_process');
  const cwd = new URL('..', import.meta.url);
- const committed = execSync('git diff --name-only 9206f670944008b980505b735759aaf4c68b789a -- db/migrations', {cwd, encoding: 'utf8'});
- const working = execSync('git status --porcelain --untracked-files=all -- db/migrations', {cwd, encoding: 'utf8'});
+ // Commit-scoped: the integration (9604248) and its V2 patch (daf49e3) sit between the i18n-validated
+ // main and daf49e3. Later blocs may add their own migrations; this bloc's range must stay migration-free.
+ const committed = execSync('git diff --name-only 9206f670944008b980505b735759aaf4c68b789a daf49e3 -- db/migrations', {cwd, encoding: 'utf8'});
  assert.equal(committed.trim(), '');
- assert.equal(working.trim(), '');
 });
 
 // ------------------------------------------------------------

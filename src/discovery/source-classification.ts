@@ -114,10 +114,15 @@ export function observedQueryTerms(text: string, context: QueryContext | undefin
  return terms.filter(t => haystack.includes(t) || (t.length > 4 && haystack.includes(t.replace(/[sx]$/, ''))));
 }
 
-// Server-side accept gate: only a result whose organization is actually resolved may become a
-// prospect. Rows without a class (fixture, or created before this classification existed) keep their
-// existing behavior — the gate never guesses about data it cannot read.
-export function isAcceptableCandidate(normalizedPayload: unknown): boolean {
- const cls = (normalizedPayload as {raw_metadata?: {source_class?: unknown}} | null)?.raw_metadata?.source_class;
- return cls !== 'IRRELEVANT' && cls !== 'UNCERTAIN';
+// Acceptance rule, mirrored by the database (migration 014, the final authority): only a
+// COMPANY_CANDIDATE may become a prospect. SIGNAL_SOURCE, IRRELEVANT, UNCERTAIN, a missing class (rows
+// written before classification existed) and any unexpected value all fail closed.
+export const isAcceptableSourceClass = (sourceClass: unknown): boolean => sourceClass === 'COMPANY_CANDIDATE';
+
+const SOURCE_CLASSES: ReadonlySet<string> = new Set(['COMPANY_CANDIDATE', 'SIGNAL_SOURCE', 'IRRELEVANT', 'UNCERTAIN']);
+// The value handed to the privileged write path: only a class the server itself computed, and only a
+// known one — anything else is stored as NULL, which the database refuses on accept.
+export function trustedSourceClass(rawMetadata: unknown): SourceClass | null {
+ const cls = (rawMetadata as {source_class?: unknown} | null)?.source_class;
+ return typeof cls === 'string' && SOURCE_CLASSES.has(cls) ? cls as SourceClass : null;
 }

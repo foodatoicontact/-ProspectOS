@@ -9,7 +9,8 @@ import {DiscoveryInputSchema} from './types.ts';
 import {requireActiveEntitlement} from '../server/entitlement.ts';
 import {recordApiUsage} from '../server/usage.ts';
 import {computeRunCostMetrics} from './cost-metrics.ts';
-import {isAcceptableCandidate} from './source-classification.ts';
+import {isAcceptableSourceClass} from './source-classification.ts';
+import {createAdminClient} from '../server/admin-client.ts';
 const uuid=z.string().uuid();
 const json=(data:unknown,status=200)=>Response.json(data,{status,headers:{'Cache-Control':'no-store'}});
 const log=(event:Record<string,string|number|null>)=>console.info(JSON.stringify({component:'discovery',...event}));
@@ -26,7 +27,10 @@ export async function handleDiscovery(request:Request,path:string[],body:unknown
  if(resource==='discovery-config'&&method==='GET')return json({providers:[{id:'fixture',available:true,mode:'test',label:'TEST — entreprises synthétiques'},{id:'brave',available:!!process.env.BRAVE_SEARCH_API_KEY,mode:'live',label:'Brave Search API'}],website_policy:'Domaines autorisés par l’opérateur et robots.txt vérifié',max_results_transport:100});
  if(resource==='projects'&&action==='discovery'&&method==='POST'){
  uuid.parse(id);const input=DiscoveryInputSchema.parse({...z.record(z.string(),z.unknown()).parse(body),project_id:id});const name=input.optional_filters.provider??'fixture';const provider=name==='brave'?new BraveProvider(process.env.BRAVE_SEARCH_API_KEY??''):new FixtureProvider();
- const result=await new DiscoveryService(repo,provider,log).find_prospects(input);
+ // Results are persisted only through the server's privileged client (migration 014). Obtained before
+ // the run starts, so a server missing its configuration fails fast without spending a search.
+ let writer;try{writer=createAdminClient()}catch{return json({error:'Discovery indisponible : configuration serveur incomplète.',code:'CONFIGURATION_REQUIRED'},503)}
+ const result=await new DiscoveryService(new SupabaseDiscoveryRepository(db,{db:writer,userId:user.id}),provider,log).find_prospects(input);
  // Real Brave call that just happened: exactly one billed search request. Never written for the
  // fixture/TEST provider — a synthetic run must never leave a real-looking cost trace.
  if(name==='brave'){const run=result as unknown as {id:string;organization_id:string};try{await recordApiUsage({organizationId:run.organization_id,projectId:id,discoveryRunId:run.id,userId:user.id,provider:'brave',operation:'search',requestCount:1})}catch{/* Cost-ledger visibility is best-effort; the search itself already succeeded. */}}
@@ -37,12 +41,14 @@ export async function handleDiscovery(request:Request,path:string[],body:unknown
  }
  if(resource==='discovery-results'&&method==='POST'){
  uuid.parse(id);if(action==='accept'){const b=z.object({force_separate:z.boolean().default(false)}).strict().parse(body);
- // A page that is not a resolved organization (job board, marketplace, article or search page with no
- // company, individual profile, ambiguous result) never becomes a prospect. Read through the caller's
- // own RLS-scoped client, before the RPC.
- const row=await checked(db.from('discovery_results').select('normalized_payload').eq('id',id).single());if(!isAcceptableCandidate(row?.normalized_payload))return json({error:'Ce résultat n’est pas une entreprise résolue (job board, marketplace, article, profil individuel ou page ambiguë) : il ne peut pas être ajouté comme prospect.',code:'CANDIDATE_NOT_ACCEPTABLE'},400);
- return json(await checked(db.rpc('accept_discovery_result',{p_result_id:id,p_force_separate:b.force_separate})));}
- if(action==='ignore'){return json(await checked(db.from('discovery_results').update({status:'ignored'}).eq('id',id).eq('status','pending').select().single()))}
+ // Only a COMPANY_CANDIDATE becomes a prospect. Checked here on the dedicated source_class column (read
+ // through the caller's RLS-scoped client) and enforced again by accept_discovery_result itself, which is
+ // the final authority. An already-accepted result is left to the RPC's idempotent return.
+ const notAcceptable=()=>json({error:'Ce résultat n’est pas une entreprise résolue (job board, marketplace, article, profil individuel ou page ambiguë) : il ne peut pas être ajouté comme prospect.',code:'CANDIDATE_NOT_ACCEPTABLE'},400);
+ const row=await checked(db.from('discovery_results').select('status,source_class').eq('id',id).single());if(row?.status==='pending'&&!isAcceptableSourceClass(row?.source_class))return notAcceptable();
+ const accepted=await db.rpc('accept_discovery_result',{p_result_id:id,p_force_separate:b.force_separate});if(accepted.error?.message?.includes('CANDIDATE_NOT_ACCEPTABLE'))return notAcceptable();
+ return json(await checked(Promise.resolve(accepted)));}
+ if(action==='ignore'){return json(await checked(db.rpc('ignore_discovery_result',{p_result_id:id})))}
  }
  if(resource==='prospects'){
  uuid.parse(id);

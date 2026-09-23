@@ -306,6 +306,7 @@ export const fr={
  'discovery.class.uncertain':'Non résolu / à confirmer',
  'discovery.signalSourceNote':'Cette page n’est pas le prospect : elle mentionne l’entreprise ci-dessus.',
  'discovery.notAddable':'Aucune organisation résolue : ne peut pas être ajouté comme prospect.',
+ 'discovery.legacyUnclassified':'Ancien résultat — relancer la découverte pour le classifier',
  'discovery.discardedTitle':'Résultats écartés',
  'discovery.discardedNote':'Pages sans organisation résolue (job boards, marketplaces, recherches, articles) : affichées pour transparence, jamais ajoutées comme prospects.',
  'discovery.sourceType.official_site':'Site de l’organisation',

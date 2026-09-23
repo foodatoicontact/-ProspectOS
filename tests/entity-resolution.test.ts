@@ -203,8 +203,9 @@ test('BraveProvider.searchCompanies still makes exactly one HTTP call per invoca
 test('invariant: no migration file was added or modified by this bloc', async () => {
  const {execSync} = await import('node:child_process');
  const cwd = new URL('..', import.meta.url);
- const working = execSync('git status --porcelain --untracked-files=all -- db/migrations', {cwd, encoding: 'utf8'});
- assert.equal(working.trim(), '', 'no migration should be staged, modified or newly created in the working tree');
+ // Commit-scoped: entity resolution landed between the i18n-validated main (9206f67) and daf49e3.
+ const committed = execSync('git diff --name-only 9206f670944008b980505b735759aaf4c68b789a daf49e3 -- db/migrations', {cwd, encoding: 'utf8'});
+ assert.equal(committed.trim(), '', 'no migration was added or modified by the entity-resolution commits');
 });
 test('invariant: scoreProspect signature is untouched by this bloc', async () => {
  const source = await readFile(new URL('../src/domain/core.ts', import.meta.url), 'utf8');

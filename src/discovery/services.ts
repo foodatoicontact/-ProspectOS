@@ -3,6 +3,7 @@ import type {Criterion} from '../domain/core.ts';
 import {DiscoveryInputSchema,ObservationSchema,type DiscoveryInput,type DiscoveryProvider,type Candidate,type Observation,type DiscoveryResult,type DiscoveryRun} from './types.ts';
 import {DeduplicationService,type Identity} from './deduplication.ts';
 import {ObservationService,EvidenceProposalService} from './observations.ts';
+import {diagnoseDiscoveryFailure,type DiscoveryStage} from './failure-diagnostics.ts';
 export interface DiscoveryRepository {
  start(input:DiscoveryInput,provider:string):Promise<DiscoveryRun>;
  existing(projectId:string):Promise<Identity[]>;
@@ -21,10 +22,12 @@ export class DiscoveryService {
  constructor(repo:DiscoveryRepository,provider:DiscoveryProvider,log:SafeLogger=noop){this.repo=repo;this.provider=provider;this.dedupe=new DeduplicationService();this.log=log}
  async find_prospects(raw:unknown){
  const input=DiscoveryInputSchema.parse(raw);const run=await this.repo.start(input,this.provider.id);const start=Date.now();
- try{const known=await this.repo.existing(input.project_id);const rawResults=await this.provider.searchCompanies(input);const candidates:Array<{candidate:Candidate;dedupe:ReturnType<DeduplicationService['match']>}>=[];const seen:Identity[]=[];
- for(const raw of rawResults.slice(0,input.max_results)){const candidate=this.provider.normalizeResult(raw);const dedupe=this.dedupe.match(candidate,known);const within=this.dedupe.match(candidate,seen);if(dedupe.status==='unique'&&within.status!=='unique'){dedupe.status='merge_review_required';dedupe.reason='Résultat similaire dans cette recherche : revue nécessaire'}candidates.push({candidate,dedupe});seen.push(candidate)}
- const results=await this.repo.saveResults(run,candidates);const metrics={provider:this.provider.id,duration_ms:Date.now()-start,results:results.length,ai_tokens:0,ai_cost_estimate:0};await this.repo.finish(run.id,results.length,metrics);this.log(metrics);return {...run,status:'completed',provider_mode:this.provider.mode,results,result_count:results.length};
- }catch{await this.repo.finish(run.id,0,{duration_ms:Date.now()-start},'DISCOVERY_FAILED');this.log({provider:this.provider.id,duration_ms:Date.now()-start,error:'DISCOVERY_FAILED'});throw Error('DISCOVERY_FAILED')}
+ // Tracks which step was running, for the server-side failure diagnosis only (see failure-diagnostics.ts).
+ let stage:DiscoveryStage='existing';
+ try{const known=await this.repo.existing(input.project_id);stage='provider_search';const rawResults=await this.provider.searchCompanies(input);const candidates:Array<{candidate:Candidate;dedupe:ReturnType<DeduplicationService['match']>}>=[];const seen:Identity[]=[];
+ for(const raw of rawResults.slice(0,input.max_results)){stage='normalize';const candidate=this.provider.normalizeResult(raw);stage='dedupe';const dedupe=this.dedupe.match(candidate,known);const within=this.dedupe.match(candidate,seen);if(dedupe.status==='unique'&&within.status!=='unique'){dedupe.status='merge_review_required';dedupe.reason='Résultat similaire dans cette recherche : revue nécessaire'}candidates.push({candidate,dedupe});seen.push(candidate)}
+ stage='save';const results=await this.repo.saveResults(run,candidates);const metrics={provider:this.provider.id,duration_ms:Date.now()-start,results:results.length,ai_tokens:0,ai_cost_estimate:0};stage='finish';await this.repo.finish(run.id,results.length,metrics);this.log(metrics);return {...run,status:'completed',provider_mode:this.provider.mode,results,result_count:results.length};
+ }catch(error){await this.repo.finish(run.id,0,{duration_ms:Date.now()-start},'DISCOVERY_FAILED');this.log({provider:this.provider.id,duration_ms:Date.now()-start,error:'DISCOVERY_FAILED',...diagnoseDiscoveryFailure(stage,error)});throw Error('DISCOVERY_FAILED')}
  }
 }
 export class CompanyAnalysisService {

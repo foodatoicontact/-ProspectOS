@@ -1,6 +1,8 @@
 import {z} from 'zod';
 import type {CriterionRules} from '../domain/core.ts';
-const publicUrl=z.string().max(2048).url().refine(v=>{const u=new URL(v);return ['http:','https:'].includes(u.protocol)&&!u.username&&!u.password},'HTTP(S) requis');
+// zod still runs this refinement when .url() has already failed: new URL must never throw out of the
+// schema (a TypeError instead of a validation failure) — an unparseable URL simply fails validation.
+const publicUrl=z.string().max(2048).url().refine(v=>{try{const u=new URL(v);return ['http:','https:'].includes(u.protocol)&&!u.username&&!u.password}catch{return false}},'HTTP(S) requis');
 // User-authored, explicit values only — trimmed, bounded, deduplicated. Never a hint for an LLM or a
 // similarity model: every value here is later matched literally (see strategies/text-match.ts).
 const RuleValue=z.string().trim().min(2).max(80);

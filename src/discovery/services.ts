@@ -24,9 +24,13 @@ export class DiscoveryService {
  const input=DiscoveryInputSchema.parse(raw);const run=await this.repo.start(input,this.provider.id);const start=Date.now();
  // Tracks which step was running, for the server-side failure diagnosis only (see failure-diagnostics.ts).
  let stage:DiscoveryStage='existing';
- try{const known=await this.repo.existing(input.project_id);stage='provider_search';const rawResults=await this.provider.searchCompanies(input);const candidates:Array<{candidate:Candidate;dedupe:ReturnType<DeduplicationService['match']>}>=[];const seen:Identity[]=[];
- for(const raw of rawResults.slice(0,input.max_results)){stage='normalize';const candidate=this.provider.normalizeResult(raw);stage='dedupe';const dedupe=this.dedupe.match(candidate,known);const within=this.dedupe.match(candidate,seen);if(dedupe.status==='unique'&&within.status!=='unique'){dedupe.status='merge_review_required';dedupe.reason='Résultat similaire dans cette recherche : revue nécessaire'}candidates.push({candidate,dedupe});seen.push(candidate)}
- stage='save';const results=await this.repo.saveResults(run,candidates);const metrics={provider:this.provider.id,duration_ms:Date.now()-start,results:results.length,ai_tokens:0,ai_cost_estimate:0};stage='finish';await this.repo.finish(run.id,results.length,metrics);this.log(metrics);return {...run,status:'completed',provider_mode:this.provider.mode,results,result_count:results.length};
+ try{const known=await this.repo.existing(input.project_id);stage='provider_search';const rawResults=await this.provider.searchCompanies(input);const candidates:Array<{candidate:Candidate;dedupe:ReturnType<DeduplicationService['match']>}>=[];const seen:Identity[]=[];let normalizationRejected=0;
+ for(const raw of rawResults.slice(0,input.max_results)){stage='normalize';
+ // A result that cannot be normalized is dropped on its own — never repaired, never guessed — and
+ // counted; the other results of the same single search are kept. The log carries codes only.
+ let candidate:Candidate;try{candidate=this.provider.normalizeResult(raw)}catch(error){normalizationRejected++;this.log({provider:this.provider.id,event:'normalization_rejected',...diagnoseDiscoveryFailure('normalize',error)});continue}
+ stage='dedupe';const dedupe=this.dedupe.match(candidate,known);const within=this.dedupe.match(candidate,seen);if(dedupe.status==='unique'&&within.status!=='unique'){dedupe.status='merge_review_required';dedupe.reason='Résultat similaire dans cette recherche : revue nécessaire'}candidates.push({candidate,dedupe});seen.push(candidate)}
+ stage='save';const results=await this.repo.saveResults(run,candidates);const metrics={provider:this.provider.id,duration_ms:Date.now()-start,results:results.length,normalization_rejected:normalizationRejected,ai_tokens:0,ai_cost_estimate:0};stage='finish';await this.repo.finish(run.id,results.length,metrics);this.log(metrics);return {...run,status:'completed',provider_mode:this.provider.mode,results,result_count:results.length};
  }catch(error){await this.repo.finish(run.id,0,{duration_ms:Date.now()-start},'DISCOVERY_FAILED');this.log({provider:this.provider.id,duration_ms:Date.now()-start,error:'DISCOVERY_FAILED',...diagnoseDiscoveryFailure(stage,error)});throw Error('DISCOVERY_FAILED')}
  }
 }

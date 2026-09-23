@@ -59,9 +59,14 @@ test('Brave body with an invalid result shape → PROVIDER_RESPONSE_PARSE with t
  const log=await failWith(braveReturning(json({web:{results:[{title:'',url:'https://acme-secrete.fr/?token=tok_prospect_secret'}]}})));
  assert.equal(log.cause,'PROVIDER_RESPONSE_PARSE');assert.equal(log.fields,'web.results.0.title:too_small');
 });
-test('normalization/validation failure → NORMALIZATION_INVALID with field:code only', async () => {
- const log=await failWith(braveReturning(json({web:{results:[{...sensitiveResult,title:'   '}]}})));
+test('normalization/validation failure → NORMALIZATION_INVALID with field:code only, for that result alone', async () => {
+ // Since the per-result isolation, an invalid result no longer fails the run: it is dropped and logged.
+ const logs:Record<string,unknown>[]=[];const repo=new Repo();
+ const found=await new DiscoveryService(repo,braveReturning(json({web:{results:[{...sensitiveResult,title:'   '}]}})),e=>logs.push(e)).find_prospects(input);
+ assert.equal(found.status,'completed');assert.deepEqual(repo.finished,[{error:undefined}]);
+ const log=logs.find(l=>l.event==='normalization_rejected')!;
  assert.equal(log.stage,'normalize');assert.equal(log.cause,'NORMALIZATION_INVALID');assert.equal(log.fields,'name:too_small');
+ const text=JSON.stringify(logs);for(const s of SECRETS)assert.ok(!text.includes(s),`log must not contain ${s}`);
 });
 test('duplicate matching failure → DEDUPE_FAILED', async () => {
  const log=await failWith(braveReturning(json({web:{results:[sensitiveResult]}})),new Repo(),s=>{s.dedupe.match=()=>{throw Error('Acme Secrète SARL acme-secrete.fr')}});

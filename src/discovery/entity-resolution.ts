@@ -16,7 +16,7 @@
 // inferred from a name; ambiguity always fails closed; nothing here ever produces an evidence
 // verification status — that stays exclusively the human-gated ObservationsReview flow. No LLM, no
 // network: runs only on the title/description/URL already fetched by the single search request.
-import {getDomain} from 'tldts';
+import {parse as parseDomain} from 'tldts';
 import {isKnownAggregatorHost} from './candidate-quality.ts';
 import type {QualityAssessment} from './candidate-quality.ts';
 import {classifySourceType,isKnownPlatformDomain,isListingTitle,isQueryEchoOrGeneric,observedQueryTerms,sourceDomainOf,titleSegments,type QueryContext,type SourceClass,type SourceType} from './source-classification.ts';
@@ -113,12 +113,19 @@ export type CompanyDomainResolution =
 // Domain-like tokens validated against the real Public Suffix List (tldts). The source's own domain,
 // aggregators and known job boards / marketplaces are never a cited company domain ("disponible sur
 // Indeed.com" names the platform, not an employer).
+// A dotted number ("23.09.2026", "1.500", "0.08", "v2.0") also matches DOMAIN_TOKEN, and tldts treats
+// an unknown suffix as public by default — so only a suffix from the ICANN section of the list counts,
+// never an IP, and only a domain that is itself a valid, unchanged URL host: never a website made up
+// from a number.
 const DOMAIN_TOKEN = /\b[a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\.[a-z0-9-]+)+\b/gi;
+const isUrlHost = (domain: string): boolean => { try { return new URL(`https://${domain}`).hostname === domain; } catch { return false; } };
 function extractMentionedDomains(text: string, ownDomain: string | null): string[] {
  const found = new Set<string>();
  for (const token of text.match(DOMAIN_TOKEN) ?? []) {
-  const domain = getDomain(token.toLowerCase());
-  if (!domain || domain === ownDomain || isKnownAggregatorHost(domain) || isKnownPlatformDomain(domain)) continue;
+  const parsed = parseDomain(token.toLowerCase());
+  const domain = parsed.domain;
+  if (!domain || parsed.isIcann !== true || parsed.isIp || !isUrlHost(domain)) continue;
+  if (domain === ownDomain || isKnownAggregatorHost(domain) || isKnownPlatformDomain(domain)) continue;
   found.add(domain);
  }
  return [...found];

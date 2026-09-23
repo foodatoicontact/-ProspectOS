@@ -151,11 +151,17 @@ test('14 — no migration file was added or modified by this integration', async
 // 15 — Brave quota/call budget untouched: discovery/api.ts (the quota-enforcing route layer) has no
 // diff against the i18n-validated commit, and BraveProvider still makes exactly one HTTP call.
 // ------------------------------------------------------------
-test('15 — discovery/api.ts (quota enforcement) is untouched by this integration', async () => {
+// api.ts later gained the classification accept gate (discovery-source-classification hotfix), so a
+// whole-file diff is no longer a meaningful proxy: this pins the quota/entitlement lines themselves and
+// proves no changed line since the i18n-validated commit touches them.
+test('15 — discovery/api.ts quota and entitlement enforcement is untouched', async () => {
  const {execSync} = await import('node:child_process');
  const cwd = new URL('..', import.meta.url);
- const diff = execSync('git diff --name-only 9206f670944008b980505b735759aaf4c68b789a -- src/discovery/api.ts', {cwd, encoding: 'utf8'});
- assert.equal(diff.trim(), '');
+ const source = await readFile(new URL('../src/discovery/api.ts', import.meta.url), 'utf8');
+ assert.match(source, /if\(\(resource==='projects'&&action==='discovery'&&method==='POST'\)\|\|\(resource==='prospects'&&action==='analyze'&&method==='POST'\)\)await requireActiveEntitlement\(db,user\.id\);/);
+ assert.match(source, /provider:'brave',operation:'search',requestCount:1/);
+ const changed = execSync('git diff -U0 9206f670944008b980505b735759aaf4c68b789a -- src/discovery/api.ts', {cwd, encoding: 'utf8'}).split('\n').filter(l => /^[+-][^+-]/.test(l));
+ for (const line of changed) assert.doesNotMatch(line, /quota|recordApiUsage|requireActiveEntitlement|consume_analysis|max_results/i, `quota/entitlement line changed: ${line}`);
 });
 test('15 — BraveProvider.searchCompanies still makes exactly one HTTP call after integration', async () => {
  const {BraveProvider} = await import('../src/discovery/providers/brave.ts');

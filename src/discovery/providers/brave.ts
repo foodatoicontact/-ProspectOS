@@ -4,11 +4,12 @@ import {DeduplicationService} from '../deduplication.ts';
 import {assessCandidateQuality,type QualityAssessment} from '../candidate-quality.ts';
 import {selectDiverseCandidates} from '../candidate-diversity.ts';
 import {resolveCanonicalCompany} from '../entity-resolution.ts';
+import {sourceDomainOf,type QueryContext} from '../source-classification.ts';
 const RawSchema=z.object({title:z.string().min(1),url:z.string().url(),description:z.string().optional()}).passthrough();
 // Attached in-memory onto each raw result between searchCompanies and normalizeResult — never
 // serialized, never persisted as its own column; it only ever ends up inside Candidate.raw_metadata
 // (quality_signal/quality_reasons) and Candidate.confidence, both pre-existing, generic fields.
-type QualityTagged={__quality?:QualityAssessment};
+type QualityTagged={__quality?:QualityAssessment;__context?:QueryContext};
 // Brave bills per request, not per result ($5/1,000 requests — see provider_pricing, unchanged by this
 // module): requesting the maximum single-call page size (20, Brave's own ceiling) costs exactly the
 // same one request as asking for 3, but gives the quality ranking below an actual pool to rank instead
@@ -35,7 +36,10 @@ export class BraveProvider implements DiscoveryProvider {
  // asked for — a stable sort so Brave's own relative ordering among equally-scored results is kept.
  // Deliberately a re-rank, never a drop: every fetched result is still returned, just reordered, so a
  // heuristic false positive never silently hides a possibly-real business (see candidate-quality.ts).
- const tagged=results.map(r=>Object.assign(r,{__quality:assessCandidateQuality(r,input.location)} satisfies QualityTagged));
+ // The user's own query is tagged alongside, in memory only, so classification can tell a query echoed
+ // back by a job board ("Freelance Media : 100 emplois") from a real organization name.
+ const context:QueryContext={query:input.query,categories:input.categories};
+ const tagged=results.map(r=>Object.assign(r,{__quality:assessCandidateQuality(r,input.location),__context:context} satisfies QualityTagged));
  tagged.sort((a,b)=>(b.__quality?.confidence??0)-(a.__quality?.confidence??0));
  // Diversity selection runs on the FULL quality-sorted pool, strictly before truncation: it can only
  // ever substitute a near-duplicate for a genuinely distinct candidate already present lower in the
@@ -52,7 +56,7 @@ export class BraveProvider implements DiscoveryProvider {
  // can clearly name a real company while citing no verifiable domain at all (e.g. "Grand Frais : 30
  // nouveaux magasins..." on Aufeminin), which is a normal, honest outcome: name RESOLVED, domain
  // UNRESOLVED. Never a domain guessed from the name alone. See entity-resolution.ts.
- const resolution=resolveCanonicalCompany({title,description,sourceUrl:r.url,quality:quality??{confidence:.45,signal:'ambiguous',reasons:[]}});
+ const resolution=resolveCanonicalCompany({title,description,sourceUrl:r.url,quality:quality??{confidence:.45,signal:'ambiguous',reasons:[]},context:r.__context});
  const identity={name:resolution.companyName.name,website:resolution.companyDomain.status==='RESOLVED'?resolution.companyDomain.website:null,city:null,address:null,phone:null};
  // Deduplication is domain-based only (never by name alone — a name like "Orange" or "Action" is far
  // too generic to safely merge on): a RESOLVED domain dedupes by that real domain (letting the
@@ -66,6 +70,16 @@ export class BraveProvider implements DiscoveryProvider {
  company_domain_status:resolution.companyDomain.status,
  company_domain_method:resolution.companyDomain.status==='RESOLVED'?resolution.companyDomain.method:null,
  company_domain_reasons:resolution.companyDomain.reasons,
+ // Explicit separation of the organization from the page that surfaced it. company_name/company_domain
+ // are null unless actually resolved; source_class decides whether this result may ever become a
+ // prospect (see isAcceptableCandidate, enforced server-side on accept).
+ source_class:resolution.sourceClass,
+ source_type:resolution.sourceType,
+ source_domain:resolution.sourceDomain,
+ company_name:resolution.companyName.status==='RESOLVED'?resolution.companyName.name:null,
+ company_domain:resolution.companyDomain.status==='RESOLVED'?sourceDomainOf(resolution.companyDomain.website):null,
+ classification_reasons:resolution.classificationReasons,
+ relevance_terms:resolution.relevanceTerms,
  quality_signal:quality?.signal??'ambiguous',
  quality_reasons:quality?.reasons??[],
  },deduplication_key:dedupeKey});

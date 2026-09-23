@@ -64,5 +64,5 @@ export class FixtureProvider implements DiscoveryProvider {
  id='fixture';mode='test' as const;
  async searchCompanies(input:DiscoveryInput){return pickFixtureDataset(input).slice(0,input.max_results)}
  async fetchCompanyDetails(candidate:Candidate){return candidate}
- normalizeResult(raw:unknown):Candidate {const r=raw as FixtureCompany;return CandidateSchema.parse({name:r.name,website:r.website,city:r.city,address:r.address,phone:r.phone,canonical_url:r.website,discovered_source:this.id,source_url:r.website,source_title:FIXTURE_LABEL,discovery_timestamp:new Date().toISOString(),confidence:1,raw_metadata:{fixture:true,notice:FIXTURE_LABEL},deduplication_key:new DeduplicationService().key(r)})}
+ normalizeResult(raw:unknown):Candidate {const r=raw as FixtureCompany;return CandidateSchema.parse({name:r.name,website:r.website,city:r.city,address:r.address,phone:r.phone,canonical_url:r.website,discovered_source:this.id,source_url:r.website,source_title:FIXTURE_LABEL,discovery_timestamp:new Date().toISOString(),confidence:1,raw_metadata:{fixture:true,notice:FIXTURE_LABEL,source_class:'COMPANY_CANDIDATE',source_type:'official_site',company_name_status:'RESOLVED',company_domain_status:'RESOLVED',company_name:r.name,company_domain:new URL(r.website).hostname},deduplication_key:new DeduplicationService().key(r)})}
 }

@@ -9,6 +9,7 @@ import {DiscoveryInputSchema} from './types.ts';
 import {requireActiveEntitlement} from '../server/entitlement.ts';
 import {recordApiUsage} from '../server/usage.ts';
 import {computeRunCostMetrics} from './cost-metrics.ts';
+import {isAcceptableCandidate} from './source-classification.ts';
 const uuid=z.string().uuid();
 const json=(data:unknown,status=200)=>Response.json(data,{status,headers:{'Cache-Control':'no-store'}});
 const log=(event:Record<string,string|number|null>)=>console.info(JSON.stringify({component:'discovery',...event}));
@@ -35,7 +36,12 @@ export async function handleDiscovery(request:Request,path:string[],body:unknown
  uuid.parse(id);const run=await checked(db.from('discovery_runs').select('*').eq('id',id).single());if(action==='results')return json(await checked(db.from('discovery_results').select('*').eq('discovery_run_id',run.id).order('created_at')));if(action==='cost')return json(await computeRunCostMetrics(db,run.id));if(!action)return json(run);
  }
  if(resource==='discovery-results'&&method==='POST'){
- uuid.parse(id);if(action==='accept'){const b=z.object({force_separate:z.boolean().default(false)}).strict().parse(body);return json(await checked(db.rpc('accept_discovery_result',{p_result_id:id,p_force_separate:b.force_separate})));}
+ uuid.parse(id);if(action==='accept'){const b=z.object({force_separate:z.boolean().default(false)}).strict().parse(body);
+ // A page that is not a resolved organization (job board, marketplace, article or search page with no
+ // company, individual profile, ambiguous result) never becomes a prospect. Read through the caller's
+ // own RLS-scoped client, before the RPC.
+ const row=await checked(db.from('discovery_results').select('normalized_payload').eq('id',id).single());if(!isAcceptableCandidate(row?.normalized_payload))return json({error:'Ce résultat n’est pas une entreprise résolue (job board, marketplace, article, profil individuel ou page ambiguë) : il ne peut pas être ajouté comme prospect.',code:'CANDIDATE_NOT_ACCEPTABLE'},400);
+ return json(await checked(db.rpc('accept_discovery_result',{p_result_id:id,p_force_separate:b.force_separate})));}
  if(action==='ignore'){return json(await checked(db.from('discovery_results').update({status:'ignored'}).eq('id',id).eq('status','pending').select().single()))}
  }
  if(resource==='prospects'){

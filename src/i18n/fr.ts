@@ -146,6 +146,7 @@ export const fr={
  'icp.icpTitle':'Les signaux qui comptent',
  'icp.icpNote':'Les poids doivent totaliser 100. Seules les preuves vérifiées et récentes comptent.',
  'icp.remove':'Supprimer',
+ 'icp.weightLabel':'Poids',
  'icp.targetFitSummary':'Règle de correspondance (facultatif)',
  'icp.categoriesLabel':'Catégories/activités attendues, séparées par une virgule',
  'icp.categoriesPlaceholder':'ex. restaurant, pizzeria',

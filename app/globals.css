@@ -36,3 +36,25 @@
 /* Landing footer */
 .site-footer{max-width:1300px;margin:40px auto 0;padding:24px 60px 40px;display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;font-size:11px;color:#8b968a;border-top:1px solid var(--line)}.site-footer nav{display:flex;gap:16px;flex-wrap:wrap}.site-footer a{color:#647c58;text-decoration:none}
 @media(max-width:700px){.site-footer{padding:20px 23px 30px;flex-direction:column;align-items:flex-start;gap:12px}}
+
+/* ICP criterion row + mobile hotfix. The name field takes the remaining width (it used to inherit the
+   67px weight-field width at every screen size) and grows to show the whole name. When the ICP card is
+   narrow (container query: phones and the two-column tablet layout; the ≤640px media query below is the
+   fallback for browsers without container queries) the row stacks: full-width name, then
+   "Poids [n] … Supprimer", then the full-width rule editors. */
+html{-webkit-text-size-adjust:100%;text-size-adjust:100%}
+.weight-name{flex:1 1 auto;min-width:0;width:auto;margin:0;resize:none;overflow:hidden;line-height:1.4;field-sizing:content;overflow-wrap:anywhere}
+.weight-value{display:flex;align-items:center;gap:8px;flex:0 0 auto;margin:0;font-weight:400}
+.weight-caption{display:none}
+.weight-editor>.text-button{flex:0 0 auto}
+.modal{max-height:90dvh}
+.icp-grid>section{container-type:inline-size}
+@container (max-width:400px){.weight-editor{flex-wrap:wrap;gap:10px 12px;padding:12px 0 8px}.weight-name{flex:1 1 100%}.weight-caption{display:inline;font-size:13px;font-weight:600}.weight-value input{width:76px}.weight-editor>.text-button{margin-left:auto;min-height:44px;padding:10px 2px;font-size:12px}.weight-row .rule-editor{margin:0 0 12px}.weight-row .rule-editor summary{font-size:13px;padding:10px 0}.rule-editor label,.rule-editor p{overflow-wrap:anywhere}}
+@media(max-width:640px){
+ /* iOS Safari zooms the page on focus of any field under 16px. */
+ input,textarea,select{font-size:16px!important}
+ .weight-editor{flex-wrap:wrap;gap:10px 12px;padding:12px 0 8px}.weight-name{flex:1 1 100%}.weight-caption{display:inline;font-size:13px;font-weight:600}.weight-value input{width:76px}.weight-editor>.text-button{margin-left:auto;min-height:44px;padding:10px 2px;font-size:12px}.weight-row .rule-editor{margin:0 0 12px}.weight-row .rule-editor summary{font-size:13px;padding:10px 0}.rule-editor label,.rule-editor p{overflow-wrap:anywhere}
+ .discovery-result{padding:16px}
+ .discovery-result .actions{flex-direction:column;align-items:stretch}
+ .discovery-result .actions button{width:100%;min-height:44px;font-size:13px;white-space:normal;text-align:center}
+}

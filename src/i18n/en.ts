@@ -146,6 +146,7 @@ export const en={
  'icp.icpTitle':'The signals that matter',
  'icp.icpNote':'Weights must total 100. Only verified, recent evidence counts.',
  'icp.remove':'Remove',
+ 'icp.weightLabel':'Weight',
  'icp.targetFitSummary':'Matching rule (optional)',
  'icp.categoriesLabel':'Expected categories/activities, comma-separated',
  'icp.categoriesPlaceholder':'e.g. restaurant, pizzeria',

@@ -41,8 +41,8 @@ test('3/4 — UNRESOLVED company label exists in both FR and EN, and is genuinel
  assert.equal(typeof fr['discovery.unresolvedCompany'], 'string');
  assert.equal(typeof en['discovery.unresolvedCompany'], 'string');
  assert.notEqual(fr['discovery.unresolvedCompany'], en['discovery.unresolvedCompany']);
- assert.equal(translate('fr', 'discovery.unresolvedCompany'), 'Entreprise non résolue — source détectée');
- assert.equal(translate('en', 'discovery.unresolvedCompany'), 'Unresolved company — source detected');
+ assert.equal(translate('fr', 'discovery.unresolvedCompany'), 'Source détectée — entité non résolue');
+ assert.equal(translate('en', 'discovery.unresolvedCompany'), 'Source detected — entity not resolved');
 });
 
 // ------------------------------------------------------------

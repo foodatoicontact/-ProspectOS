@@ -11,7 +11,14 @@ import {isKnownAggregatorHost,type QualityAssessment} from './candidate-quality.
 
 export type SourceClass = 'COMPANY_CANDIDATE' | 'SIGNAL_SOURCE' | 'IRRELEVANT' | 'UNCERTAIN';
 export type SourceType = 'official_site' | 'editorial' | 'job_board' | 'marketplace' | 'directory' | 'search_page' | 'individual_profile' | 'unknown';
-export interface QueryContext { query: string; categories: string[] }
+// location: the zone the user typed for this search (Discovery input), used by the admissibility gate.
+export interface QueryContext { query: string; categories: string[]; location?: string }
+
+// An exclusion written in the query ("Exclure organismes de formation et pages DEJEPS", "sauf…", "hors…").
+// The clause is an instruction, not a search term: it is never sent to the search engine (it would
+// attract exactly the excluded pages) and never counts as relevance. Parsed by admissibility.ts.
+export const EXCLUSION_CLAUSE = /(^|[.;!?\n]\s*|\s)(exclure|excluez|en excluant|[àa] l['’]exclusion d(?:e|es|u)|sauf|hors|ne pas (?:inclure|retenir|proposer|garder|cibler))\s+([^.;!?\n]+)/gi;
+export const stripExclusionClauses = (query: string): string => query.replace(EXCLUSION_CLAUSE, (_all, lead: string) => lead).replace(/\s{2,}/g, ' ').trim();
 
 // Reinforcing signal only (see module doc): widely used, cross-sector job boards and freelance
 // marketplaces. Everything these catch is also caught structurally for an unknown host.
@@ -89,11 +96,13 @@ export function classifySourceType(input: {title: string; description: string; u
 // entity — no company name may ever be extracted from it.
 export const isListingTitle = (title: string): boolean => JOB_LISTING_COUNT.test(title) || PROFILE_LISTING_COUNT.test(title) || RESULTS_COUNT.test(title);
 
-const STOPWORDS = new Set(['les', 'des', 'une', 'pour', 'avec', 'dans', 'sur', 'par', 'aux', 'est', 'son', 'ses', 'leur', 'leurs', 'qui', 'que', 'site', 'officiel', 'france', 'the', 'and', 'for']);
+const STOPWORDS = new Set(['les', 'des', 'une', 'pour', 'avec', 'dans', 'sur', 'par', 'aux', 'est', 'son', 'ses', 'leur', 'leurs', 'qui', 'que', 'site', 'officiel', 'france', 'the', 'and', 'for',
+ // Instruction words of a natural-language brief ("Trouver… Prioriser… Chercher des signaux…"): never evidence of relevance.
+ 'trouver', 'chercher', 'rechercher', 'prioriser', 'privilegier', 'cibler', 'identifier', 'lister', 'pouvant', 'autour', 'signaux', 'signal']);
 const ROLE_WORDS = new Set(['freelance', 'freelances', 'consultant', 'consultante', 'consultants', 'emploi', 'emplois', 'job', 'jobs', 'mission', 'missions', 'offre', 'offres', 'stage', 'stages', 'alternance', 'recrutement', 'annonce', 'annonces', 'independant', 'independante', 'independants']);
 const fold = (s: string): string => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
 export const queryTerms = (context: QueryContext | undefined): string[] =>
- context ? [...new Set(fold(`${context.query} ${context.categories.join(' ')}`).split(/[^a-z0-9]+/).filter(t => t.length >= 3 && !STOPWORDS.has(t)))] : [];
+ context ? [...new Set(fold(`${stripExclusionClauses(context.query)} ${context.categories.join(' ')}`).split(/[^a-z0-9]+/).filter(t => t.length >= 3 && !STOPWORDS.has(t)))] : [];
 
 // A name made only of the user's own query words and generic role/listing words is the search echoed
 // back by the page ("Freelance Media" for the query "freelance media"), not an organization.

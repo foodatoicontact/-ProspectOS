@@ -4,6 +4,7 @@ import {DiscoveryService,type DiscoveryRepository} from '../src/discovery/servic
 import {BraveProvider} from '../src/discovery/providers/brave.ts';
 import {assessCandidateQuality} from '../src/discovery/candidate-quality.ts';
 import {CandidateSchema,ObservationSchema,type Candidate} from '../src/discovery/types.ts';
+import {resolveCanonicalCompany} from '../src/discovery/entity-resolution.ts';
 
 // Production regression (smoke after 862bed3: stage=normalize, NORMALIZATION_FAILED, TypeError): a dotted
 // number in a Brave snippet ("Publié le 23.09.2026") was taken for a cited company domain; tldts accepts
@@ -30,8 +31,18 @@ for(const token of ['23.09.2026','0.08','v2.0','450.000','1.500','12.000']){
  });
 }
 
+// Domain recognition itself (entity resolution). Whether the organization then becomes a candidate is
+// the admissibility gate's decision — a purely generic name such as "Freelance" (freelance.dev) is not.
 for(const [domain,website] of [['acme.fr','https://acme.fr'],['grandfrais.com','https://grandfrais.com'],['freelance.dev','https://freelance.dev'],['acme.co.uk','https://acme.co.uk']]){
  test(`a real cited domain is still recognized: ${domain}`, () => {
+  const r=resolveCanonicalCompany({title:'Missions freelance Paid Media',description:`Mission freelance Paid Media longue chez notre client, détails sur ${domain}.`,sourceUrl:'https://www.example-jobs.fr/paid-media',quality:{confidence:.45,signal:'ambiguous',reasons:[]},context:{query:QUERY,categories:[]}});
+  assert.equal(r.companyDomain.status,'RESOLVED');
+  assert.equal(r.companyDomain.status==='RESOLVED'&&r.companyDomain.website,website);
+  assert.equal(r.companyDomain.status==='RESOLVED'&&r.companyDomain.method,'domain_in_text');
+ });
+}
+for(const [domain,website] of [['acme.fr','https://acme.fr'],['grandfrais.com','https://grandfrais.com'],['acme.co.uk','https://acme.co.uk']]){
+ test(`a real cited company domain becomes the candidate's website: ${domain}`, () => {
   const c=normalize(`Mission freelance Paid Media longue chez notre client, détails sur ${domain}.`);
   assert.equal(c.website,website);assert.equal(c.canonical_url,website);
   const meta=c.raw_metadata as Record<string,unknown>;

@@ -113,7 +113,9 @@ test('D — marketplace homepage when the query explicitly targets platforms: ma
 // ------------------------------------------------------------
 test('E — kerline.fr "Consultant Freelance en Marketing Digital": never an identified company', () => {
  const c = normalize({title: 'Consultant Freelance en Marketing Digital', url: 'https://www.kerline.fr/', description: 'Consultant freelance en marketing digital à Paris.'}, 'marketing digital');
- assert.equal(meta(c).source_class, 'UNCERTAIN');
+ // Admissibility gate: a non-admissible result is never in the candidate list (IRRELEVANT, reason kept).
+ assert.equal(meta(c).source_class, 'IRRELEVANT');
+ assert.equal((meta(c).admissibility as {reason_code: string}).reason_code, 'SOCIAL_PROFILE_PAGE');
  assert.equal(meta(c).source_type, 'individual_profile');
  assert.equal(meta(c).company_name, null);
  assert.equal(meta(c).company_domain, null);
@@ -140,9 +142,10 @@ test('F — editorial article naming Grand Frais: the candidate is Grand Frais, 
 // ------------------------------------------------------------
 // G — an ambiguous result stays UNCERTAIN; a company is never invented.
 // ------------------------------------------------------------
-test('G — ambiguous deep page: UNCERTAIN, no company name invented from the title', () => {
+test('G — ambiguous deep page: not admissible (ENTITY_UNRESOLVED), no company name invented from the title', () => {
  const c = normalize({title: 'Accompagnement stratégique et croissance', url: 'https://www.example-conseil.fr/accompagnement/strategie-croissance-pme', description: 'Nous aidons les PME à structurer leur croissance.'}, 'accompagnement croissance pme');
- assert.equal(meta(c).source_class, 'UNCERTAIN');
+ assert.equal(meta(c).source_class, 'IRRELEVANT');
+ assert.equal((meta(c).admissibility as {reason_code: string}).reason_code, 'ENTITY_UNRESOLVED');
  assert.equal(meta(c).company_name, null);
  assert.equal(meta(c).company_domain, null);
 });
@@ -151,9 +154,10 @@ test('G — ambiguous deep page: UNCERTAIN, no company name invented from the ti
 // Relevance gate — Brave's semantic relevance is never ICP validation; a candidate must at least have
 // an observable link to the user's query in its own snippet.
 // ------------------------------------------------------------
-test('relevance gate: an official site whose snippet shows none of the query terms is downgraded to UNCERTAIN', () => {
+test('relevance gate: an official site whose snippet shows none of the query terms is never a candidate (NO_OBSERVABLE_RELEVANCE)', () => {
  const c = normalize({title: 'La Collab — Agence de collaboration créative', url: 'https://lacollab.com/', description: 'Agence créative.'}, 'plombier toulouse');
- assert.equal(meta(c).source_class, 'UNCERTAIN');
+ assert.equal(meta(c).source_class, 'IRRELEVANT');
+ assert.equal((meta(c).admissibility as {reason_code: string}).reason_code, 'NO_OBSERVABLE_RELEVANCE');
  assert.deepEqual(meta(c).relevance_terms, []);
 });
 

@@ -69,7 +69,7 @@ export class BraveProvider implements DiscoveryProvider {
  // A resolved organization rejected only for relevance or zone keeps its observed identity (never
  // acceptable either way); an unresolved page keeps only its own label as a name.
  const entity=gate.resolvedEntity;
- const nameMethod=!entity?null:entity.method==='job_title_employer'||entity.method==='own_job_page'?entity.method
+ const nameMethod=!entity?null:['job_title_employer','own_job_page','labeled_field','title_organization'].includes(entity.method)?entity.method
   :resolution.companyName.status==='RESOLVED'&&resolution.companyName.name===entity.name?resolution.companyName.method:entity.method==='cited_domain'?'domain_label':entity.method==='own_site'?'own_site_title':'explicit_title_pattern';
  const identity={name:entity?.name??pageLabel(title),website:entity?.website??null,city:null,address:null,phone:null};
  // Deduplication is domain-based only (never by name alone — a name like "Orange" or "Action" is far
@@ -82,6 +82,8 @@ export class BraveProvider implements DiscoveryProvider {
  company_name_status:entity?'RESOLVED':'UNRESOLVED',
  company_name_method:nameMethod,
  entity_method:entity?.method??null,
+ // RESOLVED_HIGH / RESOLVED_MEDIUM / UNRESOLVED — see admissibility.ts. Never an evidence status.
+ entity_confidence:entity?.confidence??'UNRESOLVED',
  company_domain_status:entity?.website?'RESOLVED':'UNRESOLVED',
  company_domain_method:entity?.website?(entity.method==='cited_domain'?'domain_in_text':'own_site'):null,
  company_domain_reasons:resolution.companyDomain.reasons,

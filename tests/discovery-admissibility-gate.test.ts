@@ -157,7 +157,9 @@ const ANAIS_RESULTS = [
 test('Anaïs replay — only real, in-zone, non-excluded organizations become candidates', async () => {
  const {repo, urls} = await runSearch(ANAIS_RESULTS);
  const candidates = repo.saved.filter(c => meta(c).source_class === 'COMPANY_CANDIDATE').map(c => c.name).sort();
- assert.deepEqual(candidates, ['Fédération ADMR du Tarn', 'MJC de Gaillac']);
+ // Entity resolution V2: an article explicitly naming an organization ("Centre social de Gaillac : …") now
+ // yields it (RESOLVED_MEDIUM, the news site stays the source) — a real organization, in the zone.
+ assert.deepEqual(candidates, ['Centre social de Gaillac', 'Fédération ADMR du Tarn', 'MJC de Gaillac']);
  const byUrl = (u: string) => repo.saved.find(c => c.source_url === u)!;
  assert.equal(meta(byUrl('https://www.trajectoire-formation.com/formations/dejeps-asec')).admissibility.reason_code, 'TRAINING_COURSE_PAGE');
  assert.equal(meta(byUrl('https://www.trajectoire-formation.com/')).admissibility.reason_code, 'EXCLUDED_BY_QUERY');

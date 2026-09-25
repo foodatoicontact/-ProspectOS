@@ -4,7 +4,7 @@ import {DiscoveryInputSchema,ObservationSchema,type DiscoveryInput,type Discover
 import {DeduplicationService,type Identity} from './deduplication.ts';
 import {ObservationService,EvidenceProposalService} from './observations.ts';
 import {diagnoseDiscoveryFailure,type DiscoveryStage} from './failure-diagnostics.ts';
-import {mergeSameEntityCandidates} from './admissibility.ts';
+import {mergeSameEntityCandidates,sameCanonicalOrganization} from './admissibility.ts';
 export interface DiscoveryRepository {
  start(input:DiscoveryInput,provider:string):Promise<DiscoveryRun>;
  existing(projectId:string):Promise<Identity[]>;
@@ -35,7 +35,10 @@ export class DiscoveryService {
  // several sources (admissibility.ts) — never one prospect per page.
  const {kept,merged:entitiesMerged}=mergeSameEntityCandidates(normalized);
  for(const candidate of kept){
- stage='dedupe';const dedupe=this.dedupe.match(candidate,known);const within=this.dedupe.match(candidate,seen);if(dedupe.status==='unique'&&within.status!=='unique'){dedupe.status='merge_review_required';dedupe.reason='Résultat similaire dans cette recherche : revue nécessaire'}candidates.push({candidate,dedupe});seen.push(candidate)}
+ stage='dedupe';const dedupe=this.dedupe.match(candidate,known);
+ // Resolution first, project dedup second: a resolved organization already in the project by name is
+ // flagged for review (never silently merged, never dropped) even without a shared website/phone.
+ if(dedupe.status==='unique'&&candidate.raw_metadata.source_class==='COMPANY_CANDIDATE'){const same=known.find(k=>sameCanonicalOrganization(k.name,candidate.name));if(same){dedupe.status='merge_review_required';dedupe.duplicate_of=same.id??null;dedupe.reason='Organisation déjà présente dans ce projet (même nom canonique) : revue nécessaire'}}const within=this.dedupe.match(candidate,seen);if(dedupe.status==='unique'&&within.status!=='unique'){dedupe.status='merge_review_required';dedupe.reason='Résultat similaire dans cette recherche : revue nécessaire'}candidates.push({candidate,dedupe});seen.push(candidate)}
  stage='save';const results=await this.repo.saveResults(run,candidates);const metrics={provider:this.provider.id,duration_ms:Date.now()-start,results:results.length,normalization_rejected:normalizationRejected,entities_merged:entitiesMerged,ai_tokens:0,ai_cost_estimate:0};stage='finish';await this.repo.finish(run.id,results.length,metrics);this.log(metrics);return {...run,status:'completed',provider_mode:this.provider.mode,results,result_count:results.length};
  }catch(error){await this.repo.finish(run.id,0,{duration_ms:Date.now()-start},'DISCOVERY_FAILED');this.log({provider:this.provider.id,duration_ms:Date.now()-start,error:'DISCOVERY_FAILED',...diagnoseDiscoveryFailure(stage,error)});throw Error('DISCOVERY_FAILED')}
  }

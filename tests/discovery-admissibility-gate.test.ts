@@ -171,11 +171,14 @@ test('Anaïs replay — only real, in-zone, non-excluded organizations become ca
  assert.notEqual(meta(byUrl('https://www.ladepeche.fr/2026/09/01/centre-social-gaillac.html')).company_name, 'Gaillac');
  // Every non-candidate is IRRELEVANT (out of the main list, never acceptable) — no "entreprise non résolue" is actionable.
  for (const c of repo.saved) assert.ok(['COMPANY_CANDIDATE', 'IRRELEVANT'].includes(meta(c).source_class));
- // The exclusion clause never reaches Brave; still exactly one request.
- assert.equal(urls.length, 1);
- const q = new URL(urls[0]!).searchParams.get('q')!;
- assert.doesNotMatch(q, /exclure|DEJEPS|organismes de formation/i);
- assert.match(q, /Structures employeuses autour de Gaillac/);
+ // The exclusion clause never reaches Brave, in any of the (at most 3, V3) short queries; each keeps the
+ // organization kind sought and the zone.
+ assert.ok(urls.length >= 1 && urls.length <= 3);
+ for (const url of urls) {
+  const q = new URL(url).searchParams.get('q')!;
+  assert.doesNotMatch(q, /exclure|DEJEPS|organismes de formation/i);
+  assert.match(q, /^structures employeuses .+ gaillac/);
+ }
 });
 
 test('query exclusions: parsed from natural language, removed from the search terms', () => {

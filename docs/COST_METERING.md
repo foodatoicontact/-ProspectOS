@@ -8,7 +8,7 @@ Exactement deux appels fournisseur payants existent dans tout le produit :
 
 | Appel | Fichier | Facturé par |
 |---|---|---|
-| Recherche Brave | `src/discovery/providers/brave.ts` (`BraveProvider.searchCompanies`) | requête |
+| Recherche Brave | `src/discovery/providers/brave.ts` (`BraveProvider.searchCompanies`) | requête — 1 à 3 par Discovery depuis Recall V3, `request_count` = nombre réel envoyé (voir `docs/DISCOVERY_RECALL_V3.md`) |
 | Analyse d'offre IA | `src/server/ai.ts` (`analyzeOffer`, Anthropic ou OpenAI) | tokens d'entrée/sortie |
 
 L'analyse d'un prospect (`CompanyAnalysisService.analyze_company`, HTML + `cheerio`) n'appelle aucune IA

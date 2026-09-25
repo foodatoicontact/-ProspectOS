@@ -1,6 +1,6 @@
 import {load} from 'cheerio';
 import type {Criterion} from '../domain/core.ts';
-import {DiscoveryInputSchema,ObservationSchema,type DiscoveryInput,type DiscoveryProvider,type Candidate,type Observation,type DiscoveryResult,type DiscoveryRun} from './types.ts';
+import {DiscoveryInputSchema,ObservationSchema,type DiscoveryInput,type DiscoveryProvider,type Candidate,type Observation,type DiscoveryResult,type DiscoveryRun,type ProviderSearchReport} from './types.ts';
 import {DeduplicationService,type Identity} from './deduplication.ts';
 import {ObservationService,EvidenceProposalService} from './observations.ts';
 import {diagnoseDiscoveryFailure,type DiscoveryStage} from './failure-diagnostics.ts';
@@ -18,14 +18,29 @@ export interface DiscoveryRepository {
 export type PageFetcher=(url:string)=>Promise<{url:string;html:string}>;
 export type SafeLogger=(event:Record<string,string|number|null>)=>void;
 const noop:SafeLogger=()=>{};
+// Records the provider requests a run actually sent (the cost ledger) — called at most once per run, as
+// soon as the search step is over, whether it succeeded, partly failed or failed: a request that was
+// sent is never left unmetered, and N requests are never recorded as one.
+export type SearchMeter=(run:DiscoveryRun,requestCount:number)=>Promise<void>;
+// Run metrics describing the search step: counts, codes and the market only — never a query or a URL.
+function searchMetrics(report:ProviderSearchReport|undefined):Record<string,string|number|null>{
+ return report?{search_queries_planned:report.queries_planned,search_requests:report.requests_sent,search_requests_failed:report.requests_failed,search_failure_codes:report.failure_codes.join(',')||null,search_country:report.country,search_country_reason:report.country_reason}:{};
+}
 export class DiscoveryService {
- repo:DiscoveryRepository;provider:DiscoveryProvider;dedupe:DeduplicationService;log:SafeLogger;
- constructor(repo:DiscoveryRepository,provider:DiscoveryProvider,log:SafeLogger=noop){this.repo=repo;this.provider=provider;this.dedupe=new DeduplicationService();this.log=log}
+ repo:DiscoveryRepository;provider:DiscoveryProvider;dedupe:DeduplicationService;log:SafeLogger;meter?:SearchMeter;
+ constructor(repo:DiscoveryRepository,provider:DiscoveryProvider,log:SafeLogger=noop,meter?:SearchMeter){this.repo=repo;this.provider=provider;this.dedupe=new DeduplicationService();this.log=log;this.meter=meter}
+ // Read through a method: the provider sets it during the awaited search, which flow analysis cannot see.
+ lastSearch():ProviderSearchReport|undefined{return this.provider.lastSearch}
  async find_prospects(raw:unknown){
- const input=DiscoveryInputSchema.parse(raw);const run=await this.repo.start(input,this.provider.id);const start=Date.now();
+ const input=DiscoveryInputSchema.parse(raw);this.provider.lastSearch=undefined;const run=await this.repo.start(input,this.provider.id);const start=Date.now();
+ let metered=false;const meterSearch=async()=>{const sent=this.lastSearch()?.requests_sent??0;if(metered||!this.meter||sent<1)return;metered=true;try{await this.meter(run,sent)}catch{/* Cost-ledger visibility is best-effort (see usage.ts). */}};
  // Tracks which step was running, for the server-side failure diagnosis only (see failure-diagnostics.ts).
  let stage:DiscoveryStage='existing';
- try{const known=await this.repo.existing(input.project_id);stage='provider_search';const rawResults=await this.provider.searchCompanies(input);const candidates:Array<{candidate:Candidate;dedupe:ReturnType<DeduplicationService['match']>}>=[];const seen:Identity[]=[];let normalizationRejected=0;
+ try{const known=await this.repo.existing(input.project_id);stage='provider_search';const rawResults=await this.provider.searchCompanies(input);await meterSearch();
+ const search=this.lastSearch();
+ // Partial search failure: some queries failed, at least one succeeded — the run continues on the results
+ // actually received (nothing is retried or invented) and the failure stays observable (log + run metrics).
+ if(search&&search.requests_failed>0)this.log({provider:this.provider.id,event:'search_partial_failure',search_requests:search.requests_sent,search_requests_failed:search.requests_failed,search_failure_codes:search.failure_codes.join(',')});const candidates:Array<{candidate:Candidate;dedupe:ReturnType<DeduplicationService['match']>}>=[];const seen:Identity[]=[];let normalizationRejected=0;
  const normalized:Candidate[]=[];
  for(const raw of rawResults.slice(0,input.max_results)){stage='normalize';
  // A result that cannot be normalized is dropped on its own — never repaired, never guessed — and
@@ -39,8 +54,8 @@ export class DiscoveryService {
  // Resolution first, project dedup second: a resolved organization already in the project by name is
  // flagged for review (never silently merged, never dropped) even without a shared website/phone.
  if(dedupe.status==='unique'&&candidate.raw_metadata.source_class==='COMPANY_CANDIDATE'){const same=known.find(k=>sameCanonicalOrganization(k.name,candidate.name));if(same){dedupe.status='merge_review_required';dedupe.duplicate_of=same.id??null;dedupe.reason='Organisation déjà présente dans ce projet (même nom canonique) : revue nécessaire'}}const within=this.dedupe.match(candidate,seen);if(dedupe.status==='unique'&&within.status!=='unique'){dedupe.status='merge_review_required';dedupe.reason='Résultat similaire dans cette recherche : revue nécessaire'}candidates.push({candidate,dedupe});seen.push(candidate)}
- stage='save';const results=await this.repo.saveResults(run,candidates);const metrics={provider:this.provider.id,duration_ms:Date.now()-start,results:results.length,normalization_rejected:normalizationRejected,entities_merged:entitiesMerged,ai_tokens:0,ai_cost_estimate:0};stage='finish';await this.repo.finish(run.id,results.length,metrics);this.log(metrics);return {...run,status:'completed',provider_mode:this.provider.mode,results,result_count:results.length};
- }catch(error){await this.repo.finish(run.id,0,{duration_ms:Date.now()-start},'DISCOVERY_FAILED');this.log({provider:this.provider.id,duration_ms:Date.now()-start,error:'DISCOVERY_FAILED',...diagnoseDiscoveryFailure(stage,error)});throw Error('DISCOVERY_FAILED')}
+ stage='save';const results=await this.repo.saveResults(run,candidates);const metrics={provider:this.provider.id,duration_ms:Date.now()-start,...searchMetrics(search),results:results.length,normalization_rejected:normalizationRejected,entities_merged:entitiesMerged,ai_tokens:0,ai_cost_estimate:0};stage='finish';await this.repo.finish(run.id,results.length,metrics);this.log(metrics);return {...run,status:'completed',provider_mode:this.provider.mode,results,result_count:results.length};
+ }catch(error){await meterSearch();await this.repo.finish(run.id,0,{duration_ms:Date.now()-start,...searchMetrics(this.lastSearch())},'DISCOVERY_FAILED');this.log({provider:this.provider.id,duration_ms:Date.now()-start,error:'DISCOVERY_FAILED',...searchMetrics(this.lastSearch()),...diagnoseDiscoveryFailure(stage,error)});throw Error('DISCOVERY_FAILED')}
  }
 }
 export class CompanyAnalysisService {

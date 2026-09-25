@@ -12,7 +12,7 @@
 // network, no LLM; never produces an evidence status and never touches scoring.
 import {getDomain} from 'tldts';
 import type {QualityAssessment} from './candidate-quality.ts';
-import {EXCLUSION_CLAUSE,isKnownPlatformDomain,isListingTitle,isQueryEchoOrGeneric,titleSegments,type QueryContext} from './source-classification.ts';
+import {EXCLUSION_CLAUSE,isKnownPlatformDomain,isListingTitle,isQueryEchoOrGeneric,nameSegments,titleSegments,type QueryContext} from './source-classification.ts';
 import {cleanTitle,nameFromDomain,type CanonicalResolution} from './entity-resolution.ts';
 import {compareLocation,isPlaceName,locationTarget,placesIn,type LocationState} from './geo-fr.ts';
 
@@ -111,6 +111,20 @@ function sameEntityAsDomain(name: string, domain: string | null): boolean {
  if (label.startsWith(core) || (label.length >= 4 && core.startsWith(label))) return true;
  const distinctive = distinctiveCore(name);
  return distinctive.length >= 5 && distinctive === label;
+}
+
+const OWN_NAME_MAX_WORDS = 6;
+function ownNameInTitle(title: string, domain: string | null): string | undefined {
+ const segments = nameSegments(title);
+ const whole = segments.find(s => s.split(/\s+/).length <= OWN_NAME_MAX_WORDS && sameEntityAsDomain(s, domain) && !isPlaceName(s));
+ if (whole) return whole;
+ const label = alnum(domain?.split('.')[0] ?? '');
+ if (label.length < 4) return undefined;
+ for (const s of segments) {
+  const words = s.split(/\s+/);
+  for (const n of [1, 2, 3]) { const lead = words.slice(0, n).join(' '); if (n <= words.length && alnum(lead) === label && !isPlaceName(lead)) return lead; }
+ }
+ return undefined;
 }
 
 function urlParts(url: string): {host: string; domain: string | null; segments: string[]; params: string[]} {
@@ -274,8 +288,10 @@ export function resolveCandidateEntity(pageType: PageType, input: {title: string
   case 'OFFICIAL_ORGANIZATION_SITE':
   case 'TRAINING_PROVIDER': {
    // The site's own name as written in its title ("MJC de Gaillac" on mjc-gaillac.fr) beats a name
-   // merely capitalized from the domain ("Mjc Gaillac").
-   const segment = titleSegments(input.title).find(s => sameEntityAsDomain(s, domain) && !isPlaceName(s));
+   // merely capitalized from the domain ("Mjc Gaillac"). A name, not a tagline: a segment of more than
+   // OWN_NAME_MAX_WORDS words that merely starts with the name ("Marocfourniture Votre spécialiste de…")
+   // only lends its leading words that spell the domain.
+   const segment = ownNameInTitle(input.title, domain);
    // A page of a site whose title names ANOTHER organization ("CCAS GAILLAC - …" on the town's site): that
    // organization, without claiming the host site as its website — never the host renamed from its domain.
    const named = !segment && !(r.companyName.status === 'RESOLVED' && r.companyName.method === 'own_site_title') ? titleSegments(input.title).map(cleanSegment).find(s => isOrganizationSegment(s, domain)) : undefined;
@@ -389,7 +405,9 @@ export function mergeSameEntityCandidates<T extends Mergeable>(candidates: T[]):
    {source_url: secondary.source_url, source_title: secondary.source_title, source_type: secondary.raw_metadata.source_type ?? null, page_type: secondary.raw_metadata.page_type ?? null}];
   // Several concordant public sources, one of them the organization's own site: the best confidence wins.
   const confidence = [target, c].some(x => x.raw_metadata.entity_confidence === 'RESOLVED_HIGH') ? 'RESOLVED_HIGH' : primary.raw_metadata.entity_confidence;
-  const next = {...primary, raw_metadata: {...primary.raw_metadata, additional_sources: sources, entity_confidence: confidence}} as T;
+  // Every search query that reached any of the merged pages (provenance only).
+  const queries = [...new Set([target, c].flatMap(x => (x.raw_metadata.search_queries as string[] | undefined) ?? []))];
+  const next = {...primary, raw_metadata: {...primary.raw_metadata, additional_sources: sources, entity_confidence: confidence, ...(queries.length ? {search_queries: queries} : {})}} as T;
   kept[kept.indexOf(target)] = next;
  }
  return {kept, merged};

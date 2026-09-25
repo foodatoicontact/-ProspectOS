@@ -86,7 +86,7 @@ const input={project_id:'p',query:QUERY,location:'France',categories:[],max_resu
 function run(results:unknown[],tweak?:(p:BraveProvider)=>void){
  let requests=0;const brave=new BraveProvider('BRAVE-KEY-SECRET',(async()=>{requests++;return new Response(JSON.stringify({web:{results}}),{status:200})}) as typeof fetch);tweak?.(brave);
  const repo=new Repo();const logs:Record<string,unknown>[]=[];
- return {repo,logs,requests:()=>requests,done:new DiscoveryService(repo,brave,e=>logs.push(e)).find_prospects(input)};
+ return {repo,logs,brave,requests:()=>requests,done:new DiscoveryService(repo,brave,e=>logs.push(e)).find_prospects(input)};
 }
 const good=(n:number)=>({title:`Agence ${n} recrute un freelance Paid Media`,url:`https://agence-${n}.fr/carrieres`,description:'Missions freelance Paid Media longues et récurrentes.'});
 const sensitive={title:'   ',url:'https://acme-secrete.fr/jobs?token=tok_secret',description:'contact@acme-secrete.fr'};
@@ -105,7 +105,8 @@ test('one result failing normalization is dropped alone and counted; the others 
  assert.equal(found.status,'completed');assert.equal(found.results.length,2);
  assert.equal(r.repo.finished.length,1);assert.equal(r.repo.finished[0]!.error,undefined);assert.equal(r.repo.finished[0]!.count,2);
  assert.equal(r.repo.finished[0]!.metrics.normalization_rejected,1);
- assert.equal(r.requests(),1,'still exactly one Brave request — no retry');
+ assert.equal(r.requests(),r.brave.lastSearch!.queries_planned,'one Brave request per planned query (V3, at most 3) — no retry');
+ assert.ok(r.requests()<=3);
  const rejected=r.logs.filter(l=>l.event==='normalization_rejected');
  assert.equal(rejected.length,1);assert.equal(rejected[0]!.cause,'NORMALIZATION_INVALID');assert.equal(rejected[0]!.fields,'name:too_small');
  assert.ok(!r.logs.some(l=>l.error==='DISCOVERY_FAILED'));

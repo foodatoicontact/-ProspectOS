@@ -7,7 +7,7 @@
 // cross-sector platforms is only a reinforcing signal, never the mechanism. Pure, no network, no LLM,
 // never produces or references an evidence verification status.
 import {getDomain} from 'tldts';
-import {isKnownAggregatorHost,type QualityAssessment} from './candidate-quality.ts';
+import {DIRECTORY_PHRASES,isKnownAggregatorHost,type QualityAssessment} from './candidate-quality.ts';
 
 export type SourceClass = 'COMPANY_CANDIDATE' | 'SIGNAL_SOURCE' | 'IRRELEVANT' | 'UNCERTAIN';
 export type SourceType = 'official_site' | 'editorial' | 'job_board' | 'marketplace' | 'directory' | 'search_page' | 'individual_profile' | 'unknown';
@@ -51,6 +51,10 @@ const PLATFORM_INTENT = /\b(marketplaces?|plateformes?|job ?boards?|sites? d['�
 
 const TITLE_SPLIT = /\s[-\u2013\u2014|:]\s|\s:\s?/;
 export const titleSegments = (title: string): string[] => title.split(TITLE_SPLIT).map(s => s.trim()).filter(Boolean);
+// Candidate spellings of the site's own name in its title: the title segments, further cut at commas and
+// double bars ("MAROC BUREAU, N°1 du mobilier…" -> "MAROC BUREAU"; "A Propos - Fournituk || Distributeur…").
+// Used only to NAME an organization whose own site this is — never to find an employer or a place.
+export const nameSegments = (title: string): string[] => titleSegments(title).flatMap(s => s.split(/,\s*|\s*\|\|\s*/)).map(s => s.trim()).filter(Boolean);
 
 export function sourceDomainOf(url: string): string | null {
  try { return getDomain(new URL(url).hostname.toLowerCase()); } catch { return null; }
@@ -79,7 +83,7 @@ export function classifySourceType(input: {title: string; description: string; u
   return {type: 'job_board', reasons: [knownJobBoard ? 'known_job_board' : 'job_structure']};
  if (knownMarketplace || PROFILE_LISTING_COUNT.test(title) || MARKETPLACE_VOCABULARY.test(titleAndDescription))
   return {type: 'marketplace', reasons: [knownMarketplace ? 'known_marketplace' : 'marketplace_structure']};
- if (isKnownAggregatorHost(hostname) || DIRECTORY_VOCABULARY.test(title))
+ if (isKnownAggregatorHost(hostname) || DIRECTORY_VOCABULARY.test(title) || DIRECTORY_PHRASES.test(titleAndDescription))
   return {type: 'directory', reasons: ['directory_structure']};
  if (paramKeys.some(k => SEARCH_PARAM_KEYS.has(k)) || segments.some(s => SEARCH_PATH_SEGMENT.test(s)) || RESULTS_COUNT.test(title))
   return {type: 'search_page', reasons: ['search_page_structure']};

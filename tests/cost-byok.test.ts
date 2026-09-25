@@ -41,12 +41,12 @@ test('last4 always returns exactly 4 characters, even for a very short input', (
 // ============================================================
 // Z — the fixture/TEST provider never produces a real-looking cost record. Static, source-level proof
 // (same convention as tests/account-session.test.ts's server-enforcement checks): the ONLY call to
-// recordApiUsage in the Discovery search path is inside the `if(name==='brave')` branch — the fixture
-// branch of the very same handler never reaches it.
+// recordApiUsage in the Discovery search path is inside the meter built for `name==='brave'` only
+// (Discovery Recall V3: the meter records the real request count) — the fixture path gets no meter.
 // ============================================================
 const discoveryApi=readFileSync(new URL('../src/discovery/api.ts',import.meta.url),'utf8');
 test('Z — recordApiUsage for a search is only ever called for the real Brave provider, never for fixture/TEST', () => {
- const braveBranch=discoveryApi.match(/if\(name==='brave'\)\{[\s\S]*?recordApiUsage\(/);
+ const braveBranch=discoveryApi.match(/const meter=name==='brave'\?async\([^)]*\)=>\{[^\n]*?recordApiUsage\([^\n]*\}:undefined;/);
  assert.ok(braveBranch,'recordApiUsage must be called from inside the brave-only branch');
  // And the inverse: the whole discovery POST handler contains exactly one recordApiUsage call — nothing
  // in the fixture path (which runs unconditionally before the brave-only guard) reaches it either.

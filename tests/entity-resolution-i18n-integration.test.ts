@@ -159,9 +159,11 @@ test('15 — discovery/api.ts quota and entitlement enforcement is untouched', a
  const cwd = new URL('..', import.meta.url);
  const source = await readFile(new URL('../src/discovery/api.ts', import.meta.url), 'utf8');
  assert.match(source, /if\(\(resource==='projects'&&action==='discovery'&&method==='POST'\)\|\|\(resource==='prospects'&&action==='analyze'&&method==='POST'\)\)await requireActiveEntitlement\(db,user\.id\);/);
- assert.match(source, /provider:'brave',operation:'search',requestCount:1/);
- const changed = execSync('git diff -U0 9206f670944008b980505b735759aaf4c68b789a -- src/discovery/api.ts', {cwd, encoding: 'utf8'}).split('\n').filter(l => /^[+-][^+-]/.test(l));
- for (const line of changed) assert.doesNotMatch(line, /quota|recordApiUsage|requireActiveEntitlement|consume_analysis|max_results/i, `quota/entitlement line changed: ${line}`);
+ // Discovery Recall V3 changed the metering line on purpose: the real number of Brave requests sent
+ // (1 to 3) is recorded instead of a constant 1. Quota and entitlement lines stay untouched.
+ assert.match(source, /provider:'brave',operation:'search',requestCount\}/);
+ const changed = execSync('git diff -U0 9206f670944008b980505b735759aaf4c68b789a -- src/discovery/api.ts', {cwd, encoding: 'utf8'}).split('\n').filter(l => /^[+-][^+-]/.test(l) && !/recordApiUsage|requests that were actually sent|their exact count once the search step|for the fixture\/TEST provider/.test(l));
+ for (const line of changed) assert.doesNotMatch(line, /quota|requireActiveEntitlement|consume_analysis|max_results/i, `quota/entitlement line changed: ${line}`);
 });
 test('15 — BraveProvider.searchCompanies still makes exactly one HTTP call after integration', async () => {
  const {BraveProvider} = await import('../src/discovery/providers/brave.ts');

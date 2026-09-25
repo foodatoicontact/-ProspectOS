@@ -19,7 +19,7 @@
 import {parse as parseDomain} from 'tldts';
 import {isKnownAggregatorHost} from './candidate-quality.ts';
 import type {QualityAssessment} from './candidate-quality.ts';
-import {classifySourceType,isKnownPlatformDomain,isListingTitle,isQueryEchoOrGeneric,observedQueryTerms,sourceDomainOf,titleSegments,type QueryContext,type SourceClass,type SourceType} from './source-classification.ts';
+import {classifySourceType,isKnownPlatformDomain,isListingTitle,isQueryEchoOrGeneric,nameSegments,observedQueryTerms,sourceDomainOf,type QueryContext,type SourceClass,type SourceType} from './source-classification.ts';
 
 // ------------------------------------------------------------
 // Company NAME resolution
@@ -193,7 +193,7 @@ export function resolveCanonicalCompany(input: {title: string; description: stri
   let origin = '';
   try { origin = new URL(input.sourceUrl).origin; } catch { /* unreachable: sourceDomain was parsed from it */ }
   if (origin) {
-   const ownName = titleSegments(input.title).find(segment => corroborates(segment, sourceDomain));
+   const ownName = nameSegments(input.title).find(segment => corroborates(segment, sourceDomain));
    const companyName: CompanyNameResolution = ownName ? {status: 'RESOLVED', name: ownName, method: 'own_site_title'} : {status: 'RESOLVED', name: nameFromDomain(sourceDomain), method: 'domain_label'};
    return finish(companyName, {status: 'RESOLVED', method: 'own_site', website: origin, canonical_url: origin, reasons: [...page.reasons, `page source = domaine ${sourceDomain}`]}, 'COMPANY_CANDIDATE');
   }

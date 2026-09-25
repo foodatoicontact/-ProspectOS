@@ -33,6 +33,9 @@ Aucun autre fichier touché. `types.ts` (schémas), `services.ts`, `deduplicatio
 
 ### 1. Construction de requête (légèrement biaisée, générique)
 
+> **Remplacé par Discovery Recall V3** (`docs/DISCOVERY_RECALL_V3.md`) : 1 à 3 requêtes courtes planifiées
+> (`query-plan.ts`), sans « site officiel ». Section conservée pour l'historique.
+
 Ajout du terme `"site officiel"` à la requête existante (`query + location + categories`) — une
 expression générique, valable pour n'importe quel secteur (un restaurant, un cabinet comptable, une
 agence immobilière ont tous potentiellement « un site officiel »), jamais un nom de secteur/marque/ville.

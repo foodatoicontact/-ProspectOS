@@ -14,14 +14,17 @@ function mockBrave(results: Array<{title: string; url: string; description?: str
 // ============================================================
 // Query construction — generic, never hardcodes a sector/brand/city.
 // ============================================================
-test('query construction carries the caller-supplied terms plus a generic, vertical-agnostic entity-seeking phrase — nothing sector-specific is injected', async () => {
+// Discovery Recall V3: the brief is no longer sent verbatim with every category and "site officiel"
+// appended (a long multi-concept query that directory category pages match best) — short queries built
+// from the caller's own words only (query-plan.ts).
+test('query construction uses only the caller-supplied concepts and zone, compacted — nothing sector-specific is injected', async () => {
  const {provider, requested} = mockBrave([]);
  await provider.searchCompanies(baseInput);
+ assert.equal(requested.length, 1, 'the category only repeats the subject ("Restaurant"/"restaurants"): one query');
  const q = requested[0]!.searchParams.get('q')!;
- assert.match(q, /restaurants Toulouse commande en ligne/);
- assert.match(q, /Toulouse, occitanie/);
- assert.match(q, /Restaurant/);
- assert.match(q, /site officiel/, 'the generic entity-seeking bias phrase is present');
+ assert.equal(q, 'restaurants commande ligne toulouse occitanie');
+ assert.doesNotMatch(q, /site officiel/);
+ assert.equal(requested[0]!.searchParams.get('country'), 'FR', 'a French zone keeps the France market');
 });
 test('query construction is generic across sectors — no restaurant/Foodatoi-specific term is hardcoded anywhere in the module', async () => {
  const {provider, requested} = mockBrave([]);

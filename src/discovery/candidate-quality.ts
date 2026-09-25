@@ -9,6 +9,7 @@
 // (the result is still shown, just lower in the list and with a lower confidence badge); a false
 // negative (missing a real listicle) is preferable to silently hiding a possibly-real business. See
 // docs/DISCOVERY_CANDIDATE_QUALITY.md for the full rationale and residual known gaps.
+import {getDomain} from 'tldts';
 export type QualitySignal = 'likely_business_site' | 'listicle_pattern' | 'editorial_pattern' | 'aggregator_pattern' | 'multi_entity_page' | 'ambiguous';
 export interface QualityAssessment { confidence: number; signal: QualitySignal; reasons: string[] }
 
@@ -21,11 +22,18 @@ const BASELINE_CONFIDENCE = 0.45;
 // comptables..." all share this shape regardless of sector.
 const LISTICLE_NUMBER_PATTERN = /^\s*(les\s+)?\d{1,3}\s+\S/i;
 
-// Generic French ranking/guide vocabulary — none of these words name a sector, a brand, or a place.
-const EDITORIAL_WORDS = /\b(meilleurs?|meilleures?|top|classement|comparatif|guide|s[ée]lection|palmar[eè]s)\b/i;
+// Generic French ranking/guide vocabulary — none of these words name a sector, a brand, or a place. Read
+// in the TITLE only: a ranking page announces itself there ("Top 10…", "Les meilleurs…", "Guide…"),
+// while a company's own snippet uses the same words in passing ("… dont 300 entreprises parmi les Top
+// 500"), which says nothing about what the page is.
+const EDITORIAL_WORDS = /\b(meilleurs?|meilleures?|top|classement|comparatif|guide|s[ée]lection|palmar[eè]s|liste)\b/i;
 
 // Generic multi-entity/marketplace vocabulary — again sector-agnostic.
 const AGGREGATOR_WORDS = /\b(annuaire|comparateur|plateforme|marketplace|trouvez)\b/i;
+// Generic phrases of a page listing many organizations (business directories, "yellow pages", B2B
+// classified-ad and supplier-listing sites), whatever the sector or the country: a directory describes
+// itself this way, a single organization's own page does not. Shared with source-classification.ts.
+export const DIRECTORY_PHRASES = /\b(annuaires?|r[ée]pertoire (des|d['’])|pages jaunes|entreprises et fournisseurs|fournisseurs et (entreprises|fabricants)|listes? (des|de) (fournisseurs|entreprises|soci[ée]t[ée]s|prestataires|grossistes)|tous (les )?fournisseurs|trouve[rz] (des|un|les|vos) fournisseurs|annonces b2b|business directory|suppliers directory)\b/i;
 
 // Small, explicitly secondary signal (never the primary mechanism): a handful of very well-known
 // cross-sector aggregator/marketplace/directory/social domains that are structurally never a single
@@ -53,6 +61,28 @@ const clamp = (value: number): number => Math.min(MAX_CONFIDENCE, Math.max(MIN_C
 const isShallowPath = (path: string): boolean => path === '' || path === '/' || /^\/[^/]{1,40}\/?$/.test(path);
 const looksLikeHomepageTitle = (title: string): boolean => title.trim().length <= 60;
 
+// The page names its OWN site: its registrable domain written in the title ("… en 1 clic Fournipro.ma"),
+// or a run of 1-3 consecutive words of the title — or the words opening the snippet ("FOURNIPRO est
+// votre spécialiste…") — that spells exactly the domain's label ("MAROC BUREAU, N°1…" on marocbureau.ma,
+// "… – Delta Bureau" on deltabureau.ma). Title and domain corroborate each other; a long, sentence-like
+// title is then no reason to doubt the page is the organization's own. A resemblance is not enough
+// (a label merely starting like a word), and a short label (< 4 characters) never counts. Only on the
+// site's root or its corporate "about/contact" page: an article title also ends with its site's name
+// ("La liste des festivals… - OPUS Musiques"), which makes the site the publisher, not the subject.
+const CORPORATE_PAGE = /^\/(a-propos|apropos|about|about-us|qui-sommes-nous|presentation|notre-(societe|entreprise|histoire)|l-entreprise|la-societe|entreprise|societe|contact|contactez-nous|accueil|home|index(\.html?|\.php)?)\/?$/i;
+const isRootOrCorporatePage = (path: string): boolean => path === '' || path === '/' || CORPORATE_PAGE.test(path);
+const alnum = (s: string): string => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]/g, '');
+function namesOwnSite(title: string, description: string, hostname: string): boolean {
+ const domain = hostname ? getDomain(hostname) : null;
+ const label = alnum(domain?.split('.')[0] ?? '');
+ if (!domain || label.length < 4) return false;
+ if (title.toLowerCase().includes(domain)) return true;
+ const words = (text: string) => text.split(/[^\p{L}\p{N}]+/u).filter(Boolean).map(alnum);
+ const spells = (w: string[], i: number) => [1, 2, 3].some(n => i + n <= w.length && w.slice(i, i + n).join('') === label);
+ const t = words(title);
+ return t.some((_, i) => spells(t, i)) || spells(words(description).slice(0, 3), 0);
+}
+
 export function assessCandidateQuality(result: { title: string; url: string; description?: string }, location: string): QualityAssessment {
  const reasons: string[] = [];
  let confidence = BASELINE_CONFIDENCE;
@@ -60,11 +90,12 @@ export function assessCandidateQuality(result: { title: string; url: string; des
  let path = '';
  try { const u = new URL(result.url); hostname = u.hostname.toLowerCase(); path = u.pathname; } catch { /* left blank — normalizeResult's own schema validation handles an invalid URL */ }
  const text = `${result.title} ${result.description ?? ''}`.toLowerCase();
+ const title = result.title.toLowerCase();
 
  if (isKnownAggregatorHost(hostname)) { reasons.push('aggregator_pattern', 'multi_entity_page'); confidence -= 0.30; }
  if (LISTICLE_NUMBER_PATTERN.test(result.title)) { reasons.push('listicle_pattern'); confidence -= 0.25; }
- if (EDITORIAL_WORDS.test(text)) { reasons.push('editorial_pattern'); confidence -= 0.20; }
- if (AGGREGATOR_WORDS.test(text)) { reasons.push('aggregator_pattern'); confidence -= 0.20; }
+ if (EDITORIAL_WORDS.test(title)) { reasons.push('editorial_pattern'); confidence -= 0.20; }
+ if (AGGREGATOR_WORDS.test(text) || DIRECTORY_PHRASES.test(text)) { reasons.push('aggregator_pattern'); confidence -= 0.20; }
  const hasNegativeSignal = reasons.length > 0;
 
  // Only ever evaluated when NOTHING negative was found — this is a positive marker, never a way to
@@ -72,6 +103,8 @@ export function assessCandidateQuality(result: { title: string; url: string; des
  // matches neither bucket stays honestly 'ambiguous' rather than being fabricated into either extreme.
  if (!hasNegativeSignal && isShallowPath(path) && looksLikeHomepageTitle(result.title)) {
   reasons.push('likely_business_site'); confidence += 0.15;
+ } else if (!hasNegativeSignal && isRootOrCorporatePage(path) && namesOwnSite(result.title, result.description ?? '', hostname)) {
+  reasons.push('likely_business_site', 'title_domain_match'); confidence += 0.15;
  }
 
  // Purely observational — does the result even mention the requested zone? Never invents a location,

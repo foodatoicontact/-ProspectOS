@@ -11,7 +11,18 @@ import {recordApiUsage} from '../server/usage.ts';
 import {computeRunCostMetrics} from './cost-metrics.ts';
 import {isAcceptableSourceClass} from './source-classification.ts';
 import {createAdminClient} from '../server/admin-client.ts';
+import {analyzeProspectWebsite,createPolicyFetcher} from './website-analysis.ts';
+import {createSupabaseAnalysisAudit} from './analysis-audit.ts';
+import {dynamicAnalysisEnabled} from './analysis-authorization.ts';
 const uuid=z.string().uuid();
+// Refusals of "Analyser le site" decided by the server-side authorization or by robots.txt.
+const ANALYSIS_REFUSALS:Record<string,[string,number]>={
+ SOURCE_POLICY_REQUIRED:['Analyse bloquée : ce site n’a pas été découvert et accepté via ProspectOS, et l’opérateur ne l’a pas autorisé (DISCOVERY_ALLOWED_HOSTS).',503],
+ DYNAMIC_ANALYSIS_DISABLED:['Analyse des sites découverts désactivée par l’opérateur pour le moment.',503],
+ DISCOVERY_CAPABILITY_INVALID:['Analyse bloquée : ce prospect ne provient pas d’un site officiel découvert et accepté.',403],
+ WEBSITE_MISMATCH:['Analyse bloquée : le site du prospect ne correspond plus au site découvert et accepté.',403],
+ ROBOTS_DENIED:['Analyse refusée : le robots.txt du site ne l’autorise pas. Aucune preuve validée.',422],
+};
 const json=(data:unknown,status=200)=>Response.json(data,{status,headers:{'Cache-Control':'no-store'}});
 const log=(event:Record<string,string|number|null>)=>console.info(JSON.stringify({component:'discovery',...event}));
 export async function handleDiscovery(request:Request,path:string[],body:unknown,db:SupabaseClient,user:{id:string}):Promise<Response|null>{
@@ -58,16 +69,26 @@ export async function handleDiscovery(request:Request,path:string[],body:unknown
  return json(await checked(db.from('prospects').update({website:b.website}).eq('id',id).select().single()));
  }
  if(action==='analyze'&&method==='POST'){
- const p=await repo.prospect(id);const origin=await checked(db.from('discovery_results').select('provider').eq('prospect_id',id).eq('status','accepted').limit(1));
- const fixture=origin[0]?.provider==='fixture';if(fixture&&(!p.website||!isFixtureUrl(p.website)))throw Error('FIXTURE_WEBSITE_MISMATCH');
- const allowedHosts=(process.env.DISCOVERY_ALLOWED_HOSTS??'').split(',').map(s=>s.trim().toLowerCase()).filter(Boolean);
- if(!fixture&&!allowedHosts.length)throw Error('SOURCE_POLICY_REQUIRED');
+ // The request body is never read here: the destination is decided from server data only.
+ const p=await repo.prospect(id);
+ // Accepted discovery results of this prospect, read under RLS (same organization only). Members can no
+ // longer write discovery_results (migration 014), so these rows are server-written facts.
+ const accepted=await checked(db.from('discovery_results').select('status,provider,source_class,website,source_url,raw_payload').eq('prospect_id',id).eq('status','accepted'));
  // A fixture-accepted prospect never touches the network: its known .fixture.example pages resolve
- // deterministically. Every other prospect goes through the same policy-checked safeFetch as before —
- // no branch here decides that, the composite fetcher does, based solely on the URL's own shape.
- const realFetcher=(url:string)=>safeFetch(url,{allowedHosts,respectRobots:true,maxBytes:500000,timeoutMs:12000,maxRedirects:3});
- const fetcher=createCompositePageFetcher(realFetcher);
- return json(await new CompanyAnalysisService(repo,fetcher,log).analyze_company(id,fixture?'test_fixture':'official_website'));
+ // deterministically (unchanged path, no audit — nothing real is fetched).
+ const fixture=accepted.length>0&&accepted.every((r:{provider:string})=>r.provider==='fixture');
+ if(fixture){if(!p.website||!isFixtureUrl(p.website))throw Error('FIXTURE_WEBSITE_MISMATCH');return json(await new CompanyAnalysisService(repo,createCompositePageFetcher(()=>Promise.reject(Error('FIXTURE_ONLY'))),log).analyze_company(id,'test_fixture'))}
+ // Real website: server-derived authorization (dynamic Discovery capability behind its kill switch, or the
+ // operator allowlist), audited through the privileged client — obtained first, so a server that cannot
+ // audit never fetches.
+ let auditWriter;try{auditWriter=createAdminClient()}catch{return json({error:'Analyse indisponible : configuration serveur incomplète.',code:'CONFIGURATION_REQUIRED'},503)}
+ const audit=createSupabaseAnalysisAudit(auditWriter,user.id);
+ const staticAllowlist=(process.env.DISCOVERY_ALLOWED_HOSTS??'').split(',').map(s=>s.trim().toLowerCase()).filter(Boolean);
+ const fetchPage=createPolicyFetcher(safeFetch);
+ try{return json(await analyzeProspectWebsite({repo,prospectId:id,userId:user.id,acceptedResults:accepted,staticAllowlist,dynamicEnabled:dynamicAnalysisEnabled(process.env.DISCOVERY_DYNAMIC_ANALYSIS_ENABLED),audit,fetchPage,log}))}
+ // Authorization and robots refusals: their own codes, a generic sentence, no address or host detail.
+ // Every other error goes to the shared handler below, unchanged.
+ catch(e){const code=e instanceof Error?e.message:'';const refusal=ANALYSIS_REFUSALS[code];if(refusal)return json({error:refusal[0],code},refusal[1]);throw e}
  }
  if(action==='observations'&&method==='GET'&&!observationId)return json(await checked(db.from('prospect_observations').select('*').eq('prospect_id',id).order('created_at')));
  if(action==='observations'&&method==='POST'&&observationId&&['confirm','contradict','unverify'].includes(decision)){

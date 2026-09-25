@@ -98,7 +98,7 @@ Dans un projet, cliquer **Trouver des prospects**, choisir le provider, saisir r
 
 Les cinq prospects réels préchargés sont un instantané de recherche distinct du provider TEST. Leur score initial est zéro tant que leurs preuves ne sont pas confirmées. Les données localStorage d'une ancienne démo restent conservées ; elles ne sont pas écrasées par le nouveau jeu initial. Voir `docs/DEMO_DISCOVERY.md`.
 
-Pour analyser un site réel, définir `DISCOVERY_ALLOWED_HOSTS` (hôtes exacts séparés par des virgules) après vérification de l’autorisation d’accès. Les hôtes de redirection doivent aussi être autorisés. Sans cette configuration, l’analyse est refusée. La démo locale analyse uniquement les fixtures TEST ; l’analyse réelle nécessite Supabase et l’API serveur.
+Pour analyser un site réel : soit `DISCOVERY_DYNAMIC_ANALYSIS_ENABLED=true` (site officiel découvert par ProspectOS puis accepté par l’utilisateur, voir `docs/DYNAMIC_SAFE_ANALYSIS.md`), soit `DISCOVERY_ALLOWED_HOSTS` (hôtes séparés par des virgules, surcharge opérateur, après vérification de l’autorisation d’accès ; les hôtes de redirection doivent aussi y figurer). Sans l’un ou l’autre, l’analyse est refusée. La démo locale analyse uniquement les fixtures TEST ; l’analyse réelle nécessite Supabase et l’API serveur.
 
 Quotas : modifier, avec un rôle administrateur SQL, `prospectos_private.discovery_quota_settings` (`runs_per_hour`, `max_results`, `analyses_per_hour`). La consommation est isolée par organisation, même si les réglages initiaux sont globaux. Brave renvoie au maximum 20 résultats par appel dans cette V1.
 

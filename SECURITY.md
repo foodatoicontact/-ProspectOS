@@ -6,7 +6,7 @@
 
 Le provider `fixture` produit exclusivement des exemples synthétiques identifiés TEST. Le provider Brave utilise son API officielle, sous réserve d'une clé et des conditions de votre abonnement ; il n'a pas été appelé avec une clé réelle pendant cette livraison. Un résultat de recherche n'est pas déclaré site officiel. L'utilisateur confirme le site avant analyse.
 
-Le téléchargement de sites requiert une liste d'hôtes explicitement autorisés (`DISCOVERY_ALLOWED_HOSTS`) et respecte robots.txt. L'administrateur doit vérifier les conditions d'accès de chaque hôte avant de l'ajouter : robots.txt ne constitue pas à lui seul une autorisation contractuelle. Pas d'exécution JavaScript. Au maximum trois pages pertinentes du même site sont analysées.
+Le téléchargement d'un site réel requiert une autorisation décidée par le serveur (`docs/DYNAMIC_SAFE_ANALYSIS.md`) : soit une capacité **dynamique** — le prospect provient d'un résultat Discovery Brave accepté par l'utilisateur, classé `COMPANY_CANDIDATE`, dont le domaine est le site propre de la page (`own_site`), et le site du prospect est toujours ce même hôte ; activable seulement par `DISCOVERY_DYNAMIC_ANALYSIS_ENABLED=true` —, soit la liste opérateur `DISCOVERY_ALLOWED_HOSTS` (prospects manuels, sources revues). Le navigateur ne fournit jamais la destination. L'administrateur reste responsable de la décision contractuelle : robots.txt ne constitue pas à lui seul une autorisation contractuelle, et une autorisation réseau n'est ni une validation ICP ni une preuve. Pas d'exécution JavaScript. Au maximum trois pages du même site sont analysées. Chaque tentative sur un site réel est journalisée (`website_analysis_audit`, métadonnées seulement).
 
 Chaque page conserve URL exacte, titre, extrait, date et hash. Une absence de signal reste UNKNOWN ; elle ne prouve pas l'absence de click & collect. Les métriques sociales ne sont pas inventées. L'extraction est déterministe ; aucun LLM ne transforme les sources en données vérifiées.
 
@@ -14,7 +14,7 @@ Les propositions sont NOT_VERIFIED ou INFERRED_UNCONFIRMED. Une confirmation hum
 
 ## SSRF et ressources
 
-HTTP/HTTPS seulement, ports standards, pas d'identifiants dans l'URL. Rejet des IP non publiques, localhost, plages privées/réservées, adresses IPv4 mappées et metadata cloud. Toutes les réponses DNS sont contrôlées et l'adresse validée est fixée à la connexion. Chaque redirection repasse les contrôles et la politique d'hôtes. Le transport natif évite une seconde résolution DNS.
+HTTP/HTTPS seulement, ports standards, pas d'identifiants dans l'URL. Rejet des IP non publiques, localhost, plages privées/réservées, adresses IPv4 mappées et metadata cloud. Toutes les réponses DNS sont contrôlées et l'adresse validée est fixée à la connexion. Chaque redirection repasse les contrôles et la politique d'hôtes ; sous une autorisation dynamique, elle doit rester dans le même domaine enregistrable (Public Suffix List, section privée incluse) et ne peut pas passer de HTTPS à HTTP. Le transport natif évite une seconde résolution DNS.
 
 Limites par téléchargement : URL 2 048 caractères, réponse 500 Ko, échéance 12 secondes, trois redirections ; le corps est détruit en cas de refus ou dépassement. Le collecteur vérifie également robots.txt. Les analyses sont limitées à 40 observations enregistrées.
 
@@ -22,7 +22,7 @@ Limites par téléchargement : URL 2 048 caractères, réponse 500 Ko, échéanc
 
 Le client serveur réutilise le JWT de l'utilisateur ; aucune service_role dans l'application. RLS organisation et FK composites empêchent les associations entre tenants. Les mutations privilégiées utilisent des RPC avec contrôle d'appartenance, search_path vide et droits explicites ; les RPC ne sont pas accessibles au rôle anon. Les quotas sont persistants, par organisation, réservés avant l'appel externe et protégés par verrou transactionnel. Les échecs consomment leur réservation.
 
-Les réglages sont administratifs dans `prospectos_private.discovery_quota_settings` ; les valeurs initiales (10 recherches/heure, 20 résultats/recherche, 20 analyses/heure) sont techniques, configurables, sans engagement commercial.
+Les réglages sont administratifs dans `prospectos_private.discovery_quota_settings` ; les valeurs initiales (10 recherches/heure, 20 résultats/recherche, 20 analyses/heure par organisation **et** 20 analyses/heure par utilisateur, migration 015) sont techniques, configurables, sans engagement commercial.
 
 ## Journalisation et limites
 

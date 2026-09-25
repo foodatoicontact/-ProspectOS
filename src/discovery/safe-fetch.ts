@@ -3,6 +3,8 @@ import https from 'node:https';
 import {lookup as dnsLookup} from 'node:dns/promises';
 import ipaddr from 'ipaddr.js';
 import robotsParser from 'robots-parser';
+import {getDomain} from 'tldts';
+import {SITE_URL} from '../domain/seo.ts';
 
 export interface SafeFetchOptions {
   maxBytes?: number;
@@ -10,6 +12,12 @@ export interface SafeFetchOptions {
   maxRedirects?: number;
   allowedHosts?: string[];
   respectRobots?: boolean;
+  // Dynamic (Discovery-derived) authorization: every URL requested — the page, each redirect, robots.txt
+  // and its redirects — must belong to this registrable domain, compared by the Public Suffix List with
+  // its private section (so "a.github.io" and "b.github.io" are different sites). Never a string suffix.
+  registrableDomain?: string;
+  // Refuse a redirect from https: to http:.
+  forbidHttpsDowngrade?: boolean;
 }
 
 export interface TransportResponse {
@@ -32,7 +40,10 @@ export interface SafeFetchDependencies {
   now(): number;
 }
 
-const USER_AGENT = 'ProspectOS/1.0';
+// Identifies the fetcher and points to the publisher's public legal notice (contact details). robots.txt
+// groups are matched on the product token only ("ProspectOS"), as robots-parser does itself.
+const ROBOTS_TOKEN = 'ProspectOS';
+export const USER_AGENT = `${ROBOTS_TOKEN}/1.0 (+${SITE_URL}/mentions-legales)`;
 const SOCIAL_HOSTS = ['linkedin.com', 'instagram.com', 'facebook.com', 'tiktok.com', 'snapchat.com'];
 const DEFAULT_MAX_BYTES = 2 * 1024 * 1024;
 const DEFAULT_TIMEOUT_MS = 10_000;
@@ -42,6 +53,14 @@ function hostMatches(hostname: string, domain: string): boolean {
   const host = hostname.toLowerCase().replace(/\.$/, '');
   const suffix = domain.toLowerCase().replace(/\.$/, '');
   return host === suffix || host.endsWith(`.${suffix}`);
+}
+
+// Registrable domain of a hostname by the Public Suffix List, private section included; null for an IP,
+// localhost or anything without a recognized public suffix (which then never matches an authorization).
+export function registrableDomainOf(hostname: string): string | null {
+  const host = hostname.toLowerCase().replace(/^\[|\]$/g, '').replace(/\.$/, '');
+  if (!host || ipaddr.isValid(host)) return null;
+  return getDomain(host, {allowPrivateDomains: true});
 }
 
 export function isPublicAddress(address: string): boolean {
@@ -171,8 +190,15 @@ export function createSafeFetch(dependencies: SafeFetchDependencies) {
       return response;
     };
 
+    // Policy of the authorization on top of validateUrl (which is always applied first, unchanged).
+    const enforcePolicy = (url: URL, from?: URL): URL => {
+      if (options.registrableDomain !== undefined && registrableDomainOf(url.hostname) !== options.registrableDomain) throw new Error('Host is outside the authorized domain');
+      if (options.forbidHttpsDowngrade && from?.protocol === 'https:' && url.protocol !== 'https:') throw new Error('HTTPS downgrade is forbidden');
+      return url;
+    };
+
     const fetchFollowingRedirects = async (initial: URL, expected: 'html' | 'robots', beforeRequest?: (url: URL) => Promise<void>) => {
-      let current = initial;
+      let current = enforcePolicy(initial);
       for (let redirects = 0; ; redirects++) {
         await beforeRequest?.(current);
         const response = await requestOnce(current);
@@ -181,7 +207,7 @@ export function createSafeFetch(dependencies: SafeFetchDependencies) {
           if (redirects >= maxRedirects) throw new Error('Maximum redirects exceeded');
           const location = header(response, 'location');
           if (!location) throw new Error('Redirect response has no location');
-          current = validateUrl(new URL(location, current).toString(), options.allowedHosts);
+          current = enforcePolicy(validateUrl(new URL(location, current).toString(), options.allowedHosts), current);
           continue;
         }
         if (expected === 'robots' && response.statusCode === 404) {
@@ -214,7 +240,11 @@ export function createSafeFetch(dependencies: SafeFetchDependencies) {
       try {
         const robotsUrl = new URL('/robots.txt', target);
         const robots = await fetchFollowingRedirects(robotsUrl, 'robots');
-        if (robots.response.statusCode !== 404 && robotsParser(robots.url.toString(), robots.body).isAllowed(target.toString(), USER_AGENT) !== true) throw new Error('Blocked by robots.txt');
+        // RFC 9309 §2.3.1.2: a robots.txt reached through redirects is applied in the context of the initial
+        // authority (bebureau.com/robots.txt -> www.bebureau.com/robots.txt still governs bebureau.com).
+        // Parsed against the final URL instead, every such site was refused. Still fail-closed: any
+        // answer other than an explicit "allowed" blocks.
+        if (robots.response.statusCode !== 404 && robotsParser(robotsUrl.toString(), robots.body).isAllowed(target.toString(), ROBOTS_TOKEN) !== true) throw new Error('Blocked by robots.txt');
       } catch (error) {
         if (error instanceof Error && /robots\.txt$|Blocked by robots/.test(error.message)) throw error;
         throw new Error(`Robots check failed: ${error instanceof Error ? error.message : String(error)}`);
@@ -222,7 +252,7 @@ export function createSafeFetch(dependencies: SafeFetchDependencies) {
     };
 
     try {
-      const target = validateUrl(rawUrl, options.allowedHosts);
+      const target = enforcePolicy(validateUrl(rawUrl, options.allowedHosts));
       const result = await fetchFollowingRedirects(target, 'html', options.respectRobots === false ? undefined : checkRobots);
       return {url: result.url.toString(), html: result.body, contentType: header(result.response, 'content-type') ?? ''};
     } finally {

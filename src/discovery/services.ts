@@ -58,19 +58,30 @@ export class DiscoveryService {
  }catch(error){await meterSearch();await this.repo.finish(run.id,0,{duration_ms:Date.now()-start,...searchMetrics(this.lastSearch())},'DISCOVERY_FAILED');this.log({provider:this.provider.id,duration_ms:Date.now()-start,error:'DISCOVERY_FAILED',...searchMetrics(this.lastSearch()),...diagnoseDiscoveryFailure(stage,error)});throw Error('DISCOVERY_FAILED')}
  }
 }
+// Depth 1, same origin, at most MAX_EXTRA_PAGES pages besides the first one (3 in total, unchanged). The
+// link words used to be restaurant-only (menu, carte, commande, livraison); they are kept, and the generic
+// pages any organization publishes are added — the number of pages fetched is not.
+const MAX_EXTRA_PAGES=2;
+const RELEVANT_INTERNAL_LINK=/contact|about|a-propos|apropos|qui-sommes-nous|produits?|products?|services?|solutions?|catalogue|menu|carte|command|order|livraison/i;
 export class CompanyAnalysisService {
  repo:DiscoveryRepository;fetchPage:PageFetcher;log:SafeLogger;
  constructor(repo:DiscoveryRepository,fetchPage:PageFetcher,log:SafeLogger=noop){this.repo=repo;this.fetchPage=fetchPage;this.log=log}
- async analyze_company(prospectId:string,sourceType:Observation['source_type']='official_website'){
- const p=await this.repo.prospect(prospectId);if(!p.website)throw Error('OFFICIAL_WEBSITE_REQUIRED');
+ // options.url: the destination the server authorized (analysis-authorization.ts) — for a Discovery-derived
+ // authorization, the accepted result's own website rather than the member-editable prospects.website.
+ // Never a URL from the request.
+ async analyze_company(prospectId:string,sourceType:Observation['source_type']='official_website',options:{url?:string}={}){
+ const p=await this.repo.prospect(prospectId);if(!p.website)throw Error('OFFICIAL_WEBSITE_REQUIRED');const target=options.url??p.website;
  const criteria=await this.repo.projectCriteria(p.project_id);
  await this.repo.consumeAnalysis(prospectId);const start=Date.now();
- try{const page=await this.fetchPage(p.website);const pages=[page];const links=new Set<string>();const $=load(page.html);
- $('a[href]').each((_,element)=>{try{const href=$(element).attr('href')!;const url=new URL(href,page.url);url.hash='';if(url.origin===new URL(page.url).origin&&url.href!==page.url&&/menu|contact|carte|command|order|livraison/i.test(url.pathname+' '+$(element).text()))links.add(url.href)}catch{/* Invalid links are not fetched. */}});
- let failedPages=0;for(const url of [...links].slice(0,2)){try{pages.push(await this.fetchPage(url))}catch{failedPages++}}
+ try{const page=await this.fetchPage(target);const pages=[page];const links=new Set<string>();const $=load(page.html);
+ $('a[href]').each((_,element)=>{try{const href=$(element).attr('href')!;const url=new URL(href,page.url);url.hash='';if(url.origin===new URL(page.url).origin&&url.href!==page.url&&RELEVANT_INTERNAL_LINK.test(url.pathname+' '+$(element).text()))links.add(url.href)}catch{/* Invalid links are not fetched. */}});
+ let failedPages=0;for(const url of [...links].slice(0,MAX_EXTRA_PAGES)){try{pages.push(await this.fetchPage(url))}catch{failedPages++}}
  const observations=pages.flatMap(item=>new ObservationService().extract(item.html,item.url,criteria,sourceType)).map(o=>ObservationSchema.parse(o)).slice(0,40);const proposed=new EvidenceProposalService().propose(observations,criteria);const saved=await this.repo.saveObservations(prospectId,observations);this.log({provider:'http_html',duration_ms:Date.now()-start,pages:pages.length,failed_pages:failedPages,proposed_evidence:proposed.length,ai_tokens:0,ai_cost_estimate:0});return {observations:saved,pages_analyzed:pages.length,failed_pages:failedPages,proposals:proposed.length,ai_tokens:0,ai_cost_estimate:0};
  // The original cause (never sent to the client — the route always returns the generic mapped
  // message) is logged here so a real failure stays diagnosable from server logs alone.
- }catch(cause){const originalCause=cause instanceof Error?cause.cause:undefined;const original=originalCause instanceof Error?originalCause.message:cause instanceof Error?cause.message:String(cause);this.log({provider:'http_html',duration_ms:Date.now()-start,pages:0,error:'ANALYSIS_FAILED',cause:original});throw Error('ANALYSIS_FAILED')}
+ // A robots.txt refusal of the site itself is reported as such; every other failure (network, SSRF policy,
+ // redirect, size, content type, timeout) stays the generic ANALYSIS_FAILED — no address or host detail
+ // ever reaches the client.
+ }catch(cause){const originalCause=cause instanceof Error?cause.cause:undefined;const original=originalCause instanceof Error?originalCause.message:cause instanceof Error?cause.message:String(cause);const code=original==='Blocked by robots.txt'?'ROBOTS_DENIED':'ANALYSIS_FAILED';this.log({provider:'http_html',duration_ms:Date.now()-start,pages:0,error:code,cause:original});throw Error(code)}
  }
 }

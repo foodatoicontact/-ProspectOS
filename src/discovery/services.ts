@@ -5,6 +5,7 @@ import {DeduplicationService,type Identity} from './deduplication.ts';
 import {ObservationService,EvidenceProposalService} from './observations.ts';
 import {diagnoseDiscoveryFailure,type DiscoveryStage} from './failure-diagnostics.ts';
 import {mergeSameEntityCandidates,sameCanonicalOrganization} from './admissibility.ts';
+import {pageIntentsFor,internalLinkScore} from './strategies/icp-intents.ts';
 export interface DiscoveryRepository {
  start(input:DiscoveryInput,provider:string):Promise<DiscoveryRun>;
  existing(projectId:string):Promise<Identity[]>;
@@ -61,8 +62,18 @@ export class DiscoveryService {
 // Depth 1, same origin, at most MAX_EXTRA_PAGES pages besides the first one (3 in total, unchanged). The
 // link words used to be restaurant-only (menu, carte, commande, livraison); they are kept, and the generic
 // pages any organization publishes are added — the number of pages fetched is not.
-const MAX_EXTRA_PAGES=2;
+export const MAX_EXTRA_PAGES=2;
+const COVERED_CONFIDENCE=.5;
 const RELEVANT_INTERNAL_LINK=/contact|about|a-propos|apropos|qui-sommes-nous|produits?|products?|services?|solutions?|catalogue|menu|carte|command|order|livraison/i;
+// Which internal pages to read with that fixed budget: the ones naming what the ICP asks for and the first
+// page did not already show (pricing, schedule, activities, booking, events… — icp-intents.ts), before the
+// generic pages above; ties keep the page's own link order. Only the ORDER changes: same origin, same
+// fetcher (robots.txt, SSRF policy, redirects, size and time limits), same number of pages.
+export function selectInternalPages(links:Array<{url:string;text:string}>,criteria:Criterion[],covered:Set<string>):string[]{
+ const intents=pageIntentsFor(criteria.filter(c=>!covered.has(c.key)));
+ return links.map((l,order)=>{const path=new URL(l.url).pathname;return {url:l.url,order,score:internalLinkScore(`${path} ${l.text}`,intents,RELEVANT_INTERNAL_LINK.test(`${path} ${l.text}`))}})
+  .filter(l=>l.score>0).sort((a,b)=>b.score-a.score||a.order-b.order).slice(0,MAX_EXTRA_PAGES).map(l=>l.url);
+}
 // What one analysis saves (the RPC accepts at most 40 rows): every observation that carries information
 // first — proposals and observed facts of every page — then ONE "absent from the analyzed pages" row per
 // criterion that no page informed. The bound can therefore never drop a proposal of page 2 behind the
@@ -82,10 +93,13 @@ export class CompanyAnalysisService {
  const p=await this.repo.prospect(prospectId);if(!p.website)throw Error('OFFICIAL_WEBSITE_REQUIRED');const target=options.url??p.website;
  const criteria=await this.repo.projectCriteria(p.project_id);
  await this.repo.consumeAnalysis(prospectId);const start=Date.now();
- try{const page=await this.fetchPage(target);const pages=[page];const links=new Set<string>();const $=load(page.html);
- $('a[href]').each((_,element)=>{try{const href=$(element).attr('href')!;const url=new URL(href,page.url);url.hash='';if(url.origin===new URL(page.url).origin&&url.href!==page.url&&RELEVANT_INTERNAL_LINK.test(url.pathname+' '+$(element).text()))links.add(url.href)}catch{/* Invalid links are not fetched. */}});
- let failedPages=0;for(const url of [...links].slice(0,MAX_EXTRA_PAGES)){try{pages.push(await this.fetchPage(url))}catch{failedPages++}}
- const observations=prioritizeObservations(pages.flatMap(item=>new ObservationService().extract(item.html,item.url,criteria,sourceType)).map(o=>ObservationSchema.parse(o)));const proposed=new EvidenceProposalService().propose(observations,criteria);const saved=await this.repo.saveObservations(prospectId,observations);this.log({provider:'http_html',duration_ms:Date.now()-start,pages:pages.length,failed_pages:failedPages,proposed_evidence:proposed.length,ai_tokens:0,ai_cost_estimate:0});return {observations:saved,pages_analyzed:pages.length,failed_pages:failedPages,proposals:proposed.length,ai_tokens:0,ai_cost_estimate:0};
+ try{const page=await this.fetchPage(target);const pages=[page];const links=new Map<string,string>();const $=load(page.html);
+ $('a[href]').each((_,element)=>{try{const href=$(element).attr('href')!;const url=new URL(href,page.url);url.hash='';if(url.origin===new URL(page.url).origin&&url.href!==page.url)links.set(url.href,`${links.get(url.href)??''} ${$(element).text()}`.trim())}catch{/* Invalid links are not fetched. */}});
+ const extractor=new ObservationService();const firstObservations=extractor.extract(page.html,page.url,criteria,sourceType);
+ // A weak proposal (a menu heading such as "Tarifs & planning") does not make the page behind it useless.
+ const covered=new Set(firstObservations.filter(o=>o.criterion&&o.value===true&&o.confidence>=COVERED_CONFIDENCE).map(o=>o.criterion!));
+ let failedPages=0;for(const url of selectInternalPages([...links].map(([url,text])=>({url,text})),criteria,covered)){try{pages.push(await this.fetchPage(url))}catch{failedPages++}}
+ const observations=prioritizeObservations([...firstObservations,...pages.slice(1).flatMap(item=>extractor.extract(item.html,item.url,criteria,sourceType))].map(o=>ObservationSchema.parse(o)));const proposed=new EvidenceProposalService().propose(observations,criteria);const saved=await this.repo.saveObservations(prospectId,observations);this.log({provider:'http_html',duration_ms:Date.now()-start,pages:pages.length,failed_pages:failedPages,proposed_evidence:proposed.length,ai_tokens:0,ai_cost_estimate:0});return {observations:saved,pages_analyzed:pages.length,failed_pages:failedPages,proposals:proposed.length,ai_tokens:0,ai_cost_estimate:0};
  // The original cause (never sent to the client — the route always returns the generic mapped
  // message) is logged here so a real failure stays diagnosable from server logs alone.
  // A robots.txt refusal of the site itself is reported as such; every other failure (network, SSRF policy,

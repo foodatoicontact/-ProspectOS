@@ -1,0 +1,118 @@
+{
+ "engine_commit": "52bc1f3",
+ "generated_by": "runBenchmark() from tests/fixtures/semantic-icp-benchmark.ts, run on the unmodified engine before P0-a",
+ "expected": 22,
+ "correct": 3,
+ "falsePositives": 0,
+ "missed": 19,
+ "sites": [
+  {
+   "site": "studio-a",
+   "fetched": [
+    "/",
+    "/a-propos",
+    "/contact"
+   ],
+   "correct": [],
+   "missed": [
+    "s_activity",
+    "s_schedule",
+    "s_contact",
+    "s_discipline"
+   ],
+   "falsePositives": [],
+   "debatable": []
+  },
+  {
+   "site": "studio-b",
+   "fetched": [
+    "/",
+    "/qui-sommes-nous",
+    "/contact"
+   ],
+   "correct": [],
+   "missed": [
+    "s_activity",
+    "s_schedule",
+    "s_contact",
+    "s_discipline"
+   ],
+   "falsePositives": [],
+   "debatable": []
+  },
+  {
+   "site": "box-c",
+   "fetched": [
+    "/",
+    "/contact"
+   ],
+   "correct": [],
+   "missed": [
+    "s_activity",
+    "s_schedule",
+    "s_events",
+    "s_contact"
+   ],
+   "falsePositives": [],
+   "debatable": []
+  },
+  {
+   "site": "club-1",
+   "fetched": [
+    "/",
+    "/contact"
+   ],
+   "correct": [
+    "p_capacity"
+   ],
+   "missed": [
+    "p_events",
+    "p_contact",
+    "p_offer"
+   ],
+   "falsePositives": [],
+   "debatable": []
+  },
+  {
+   "site": "club-2",
+   "fetched": [
+    "/",
+    "/contact"
+   ],
+   "correct": [
+    "p_capacity"
+   ],
+   "missed": [
+    "p_contact"
+   ],
+   "falsePositives": [],
+   "debatable": []
+  },
+  {
+   "site": "club-3",
+   "fetched": [
+    "/"
+   ],
+   "correct": [
+    "p_capacity"
+   ],
+   "missed": [
+    "p_events",
+    "p_booking",
+    "p_contact"
+   ],
+   "falsePositives": [],
+   "debatable": []
+  },
+  {
+   "site": "negatives",
+   "fetched": [
+    "/"
+   ],
+   "correct": [],
+   "missed": [],
+   "falsePositives": [],
+   "debatable": []
+  }
+ ]
+}

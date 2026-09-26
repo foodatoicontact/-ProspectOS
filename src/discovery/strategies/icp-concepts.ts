@@ -29,10 +29,15 @@ const NUMBER=`(\\d{1,3}|${Object.keys(NUMBER_WORDS).join('|')})`;
 const toNumber=(s:string)=>/^\d+$/.test(s)?Number(s):NUMBER_WORDS[s]??0;
 const unitPlural=(w:string)=>w.split(' ').map((p,i,a)=>i===0||a.length===1?`${p}s?`:p).join(' ');
 
-// A line is ambiguous when it negates something ("pas de", "sans", "aucun"…). The courtesy formula
-// "n'hésitez pas" is not a negation of the facts it introduces.
-const NEGATION=/(^|[^a-z])(pas|aucun|aucune|jamais|sans|ni|ne|n'|no|not|without)([^a-z]|$)/;
-const isNegated=(n:string)=>NEGATION.test(n.replace(/n'hesitez pas|n'hesite pas/g,' '));
+// A line is ambiguous when it negates something ("pas de", "sans", "aucun", "n'organisons plus"…). The single
+// definition shared with icp-intents.ts, on NORMALIZED text. The elided "n'" ("n'est plus", "n'organisons",
+// "n'avons pas") has no word boundary after it and is matched on its own. Courtesy and marketing formulas
+// ("n'hésitez pas", "sans engagement"…) are not negations of the facts they introduce: they are blanked
+// out first, with spaces of the same length so positions in the line stay valid.
+export const NEGATION_EXEMPT=/n'hesitez pas|n'hesite pas|sans engagement|sans frais|sans attendre|sans surcout|sans limite|ne manquez pas|ne ratez pas/g;
+export const NEGATION=/(?:^|[^a-z0-9])(?:pas|aucun|aucune|jamais|sans|ni|ne|no|not|without)(?=[^a-z0-9]|$)|(?:^|[^a-z0-9])n'(?=[a-z])/;
+export const withoutNegationExemptions=(n:string)=>n.replace(NEGATION_EXEMPT,m=>' '.repeat(m.length));
+export const isNegated=(n:string)=>NEGATION.test(withoutNegationExemptions(n));
 
 // `label` is always the NORMALIZED label (see norm); `reason` is the human explanation of what was seen.
 type Proposal={line:string;reason:string;confidence:number};

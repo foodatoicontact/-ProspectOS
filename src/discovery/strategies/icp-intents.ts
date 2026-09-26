@@ -2,7 +2,7 @@ import {createHash} from 'node:crypto';
 import type {Observation} from '../types.ts';
 import type {Criterion} from '../../domain/core.ts';
 import type {ObservationContext} from './restaurant.ts';
-import {icpSignalType,icpSignalHash,conceptsForLabel} from './icp-concepts.ts';
+import {icpSignalType,icpSignalHash,conceptsForLabel,NEGATION,withoutNegationExemptions} from './icp-concepts.ts';
 // Semantic ICP mapping, deterministic: what a criterion ASKS FOR (its intent, read from the label the user
 // wrote) against what a sentence of the page SAYS (an explicit construction, not a lone keyword).
 //
@@ -35,9 +35,7 @@ const EMAIL=/[a-z0-9._%+-]+@[a-z0-9-]+(?:\.[a-z0-9-]+)+/;
 const hasContactData=(n:string)=>PHONE.test(n)||EMAIL.test(n);
 
 // ---------------------------------------------------------------- guards (all on the normalized line)
-const NEG_EXEMPT=/n'hesitez pas|n'hesite pas|sans engagement|sans frais|sans attendre|sans surcout|sans limite|ne manquez pas|ne ratez pas/g;
-// "n'" is elided before a verb ("n'organisons", "n'est"): it has no word boundary after it.
-const NEGATION=new RegExp(`${W}(?:pas|aucun|aucune|jamais|sans|ni|ne|no|not|without)${E}|${W}n'(?=[a-z])`);
+// NEGATION / withoutNegationExemptions: the single definition shared with the rule engine (icp-concepts.ts).
 const NEGATED_CUE=/(?:^|[^a-z])(?:pas de|pas d'|aucun|aucune|sans|jamais de|plus aucun|ni)\s+(?:\S+\s+)?$/;
 const TENTATIVE=words("bientot|prochainement|coming soon|en construction|en projet|ouverture prochaine|sera disponible|seront disponibles|a venir");
 const PAST_WORDS=words("retour sur|ancien|ancienne|anciens|anciennes|archives?|a eu lieu|s'est deroule|s'est deroulee|edition precedente|derniere edition");
@@ -211,7 +209,7 @@ function evaluateLine(intent:Intent,raw:string,n:string,label:string,year:number
  const named=intent.id==='ACTIVITY_OR_SERVICE'?namedActivities(label):[];
  const cue=named.length?new RegExp(`${W}(${named.join('|')})s?${E}`):intent.cue;
  const cueMatch=cue.exec(n);if(!cueMatch)return null;
- const plain=n.replace(NEG_EXEMPT,m=>' '.repeat(m.length)); // same length: cue positions stay valid
+ const plain=withoutNegationExemptions(n); // same length: cue positions stay valid
  const support=intent.support(n,label);
  if(intent.id==='CONTACTABILITY'||intent.id==='PRICING_OR_OFFER'||intent.id==='LOCATION_OR_PHYSICAL_PRESENCE'){if(!support)return null} // cue = any text: only a supported line counts
  if(NEGATED_CUE.test(plain.slice(0,cueMatch.index+1)))return {polarity:'negative',line:raw,reason:'Le site indique explicitement l’absence de cet élément',confidence:.3,intent:intent.id};

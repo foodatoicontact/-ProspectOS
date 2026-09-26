@@ -222,3 +222,38 @@ test('Invariant — bounded work on hostile pages: an unpunctuated 200 000-chara
  const obs=extract([huge,'Prenez votre premier cours'],[COURSES,CONTACT]);
  assert.ok(Date.now()-t<2000);assert.ok(positive(obs,COURSES));
 });
+
+// ---------------------------------------------------------------- final hardening: elided French negation
+test('Rule engine — elided negation ("n\'organisons plus", "n\'est plus", "n\'acceptons pas") never yields a positive proposal',async()=>{
+ const {extractIcpConceptProposals,isNegated}=await import('../src/discovery/strategies/icp-concepts.ts');
+ const GROUPS=C('groups','Offres groupes / entreprises / événements'),INFRA=C('infra','Infrastructure sportive physique réservable'),SLOT=C('slot','Réservation par créneau / à l’heure');
+ const direct=(line:string,c:Criterion)=>extractIcpConceptProposals({lines:[line],text:line,make:(criterion,type,excerpt,value,status,claim,confidence)=>({criterion,observation_type:type,claim,value,status,source_url:URL_,source_title:'t',source_excerpt:excerpt,source_type:'official_website',confidence,collected_at:NOW.toISOString(),expires_at:NOW.toISOString(),content_hash:'h'})},[c]);
+ const negated:Array<[string,Criterion]>=[
+  ['Nous n’organisons plus de tournois d’entreprise.',GROUPS],['Nous n\'organisons plus de tournois',GROUPS],
+  ['Nous n’acceptons pas les réservations en ligne de terrains.',INFRA],['Nous n\'acceptons pas les réservations de créneaux à l\'heure.',SLOT],
+  ['Réservation de terrain : ce service n’est plus disponible.',INFRA],['La location de salles n\'est plus proposée.',INFRA],
+  ['Nous n’avons pas de privatisation pour les anniversaires.',GROUPS],
+ ];
+ for(const [line,c] of negated){
+  assert.equal(direct(line,c).length,0,`rule engine: ${line}`);
+  // End to end (rule engine, then the intent fallback): still no positive proposal for the criterion.
+  const obs=extract([line],[c]);
+  assert.equal(obs.find(o=>o.criterion===c.key&&o.value===true),undefined,`pipeline: ${line}`);
+ }
+ for(const n of ["nous n'organisons plus de tournois","ce service n'est plus disponible","nous n'avons pas de terrain","nous n'acceptons pas"])assert.ok(isNegated(n),n);
+ // Harmonized: one definition for both layers — the intent layer imports the rule engine's.
+ const intentsSrc=await readFile(new URL('../src/discovery/strategies/icp-intents.ts',import.meta.url),'utf8');
+ assert.doesNotMatch(intentsSrc,/const NEGATION\s*=|const NEG_EXEMPT\s*=/,'no second negation definition in the intent layer');
+ assert.match(intentsSrc,/import \{[^}]*\bNEGATION\b[^}]*withoutNegationExemptions[^}]*\} from '\.\/icp-concepts\.ts'/);
+});
+test('Rule engine — affirmative sentences (and courtesy formulas) still produce their proposal',async()=>{
+ const GROUPS=C('groups','Offres groupes / entreprises / événements'),INFRA=C('infra','Infrastructure sportive physique réservable'),SLOT=C('slot','Réservation par créneau / à l’heure');
+ const positives:Array<[string,Criterion]>=[
+  ['Nous organisons des tournois d’entreprise.',GROUPS],['Réservez votre terrain en ligne.',INFRA],['Créneaux de 1h30 à réserver en ligne.',SLOT],
+  ['4 terrains indoor + 1 terrain de badminton',MULTI],['N’hésitez pas à réserver votre terrain en ligne.',INFRA],['Location de salles sans engagement.',INFRA],
+ ];
+ for(const [line,c] of positives){
+  const p=extract([line],[c]).find(o=>o.criterion===c.key&&o.value===true);
+  assert.ok(p,line);assert.equal(p.status,'INFERRED');assert.equal(p.observation_type,ICP_SIGNAL_PREFIX+c.key);
+ }
+});

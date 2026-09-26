@@ -1,3 +1,4 @@
+import {summarizeRuns} from './run-history.ts';
 import {z} from 'zod';
 import type {SupabaseClient} from '@supabase/supabase-js';
 import {DiscoveryService,CompanyAnalysisService} from './services.ts';
@@ -36,6 +37,15 @@ export async function handleDiscovery(request:Request,path:string[],body:unknown
  if((resource==='projects'&&action==='discovery'&&method==='POST')||(resource==='prospects'&&action==='analyze'&&method==='POST'))await requireActiveEntitlement(db,user.id);
  const repo=new SupabaseDiscoveryRepository(db);
  if(resource==='discovery-config'&&method==='GET')return json({providers:[{id:'fixture',available:true,mode:'test',label:'TEST — entreprises synthétiques'},{id:'brave',available:!!process.env.BRAVE_SEARCH_API_KEY,mode:'live',label:'Brave Search API'}],website_policy:'Domaines autorisés par l’opérateur et robots.txt vérifié',max_results_transport:100});
+ // History of the project's searches: reads only, through the caller's RLS-scoped client (runs and results
+ // of the member's own organization). Never a provider call, never a write: nothing is consumed.
+ if(resource==='projects'&&action==='discovery'&&method==='GET'){
+ uuid.parse(id);
+ const runs=await checked(db.from('discovery_runs').select('id,query,location,categories,provider,filters_json,status,started_at,completed_at,result_count').eq('project_id',id).order('started_at',{ascending:false}).limit(50));
+ const ids=runs.map((r:{id:string})=>r.id);
+ const decided=ids.length?await checked(db.from('discovery_results').select('discovery_run_id,status').in('discovery_run_id',ids).in('status',['accepted','ignored'])):[];
+ return json(summarizeRuns(runs,decided));
+ }
  if(resource==='projects'&&action==='discovery'&&method==='POST'){
  uuid.parse(id);const input=DiscoveryInputSchema.parse({...z.record(z.string(),z.unknown()).parse(body),project_id:id});const name=input.optional_filters.provider??'fixture';const provider=name==='brave'?new BraveProvider(process.env.BRAVE_SEARCH_API_KEY??''):new FixtureProvider();
  // Results are persisted only through the server's privileged client (migration 014). Obtained before

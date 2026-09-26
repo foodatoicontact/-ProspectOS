@@ -46,3 +46,14 @@ export function proposalScoreNote(locale:Locale,weight:number,reviewStatus:strin
  if(reviewStatus==='CONTRADICTED')return locale==='fr'?'Contredit : aucun point.':'Contradicted: no points.';
  return locale==='fr'?`0 point tant que vous ne l’avez pas confirmé. Après confirmation : +${weight} points.`:`0 points until you confirm it. Once confirmed: +${weight} points.`;
 }
+// Discovery history cards: when a run was started (the viewer's own clock) and what came out of it.
+export function runDateLabel(locale:Locale,iso:string):string{
+ const d=new Date(iso);if(Number.isNaN(d.getTime()))return '';
+ const f=new Intl.DateTimeFormat(locale==='fr'?'fr-FR':'en-GB',{day:'2-digit',month:'2-digit',year:'numeric'}).format(d);
+ const t=new Intl.DateTimeFormat(locale==='fr'?'fr-FR':'en-GB',{hour:'2-digit',minute:'2-digit'}).format(d);
+ return `${f} — ${t}`;
+}
+export function runCountsLabel(locale:Locale,results:number,accepted:number,ignored:number):string{
+ if(locale==='fr')return [`${results} résultat${results>1?'s':''}`,accepted?`${accepted} ajouté${accepted>1?'s':''} au projet`:'',ignored?`${ignored} ignoré${ignored>1?'s':''}`:''].filter(Boolean).join(' · ');
+ return [`${results} result${results===1?'':'s'}`,accepted?`${accepted} added to the project`:'',ignored?`${ignored} ignored`:''].filter(Boolean).join(' · ');
+}

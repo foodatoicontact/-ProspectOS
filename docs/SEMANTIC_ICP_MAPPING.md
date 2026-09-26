@@ -43,6 +43,32 @@ Quand un concept du rule engine possède le libellé mais ne trouve rien, une in
   pourquoi le critère reste « À confirmer ».
 - Les données de contact (téléphone, e-mail) ne soutiennent **que** un critère de contact.
 
+### Lecture d'un libellé (correctif « écart réel n°2 »)
+
+- **Alternatives** : un libellé se découpe sur `/`, `ou`, `,`, `|`, `;` — une seule alternative suffit
+  (« Cours / séances / réservation active » : un cours explicite soutient le critère, sans exiger aussi la
+  réservation). Les intentions sont lues **par segment** puis réunies.
+- **Qualificatifs par segment** : « activité **régulière** » → régularité ; « activité exploitable
+  **localement** » / « sur place » → présence physique ; une réservation → réservation. Jamais sur le
+  libellé entier. Une exigence posée pour tout le libellé (« Réservation ou inscription **en ligne** »)
+  continue de s'appliquer à toutes ses alternatives.
+- **Activités / disciplines cibles** : jamais devinées à partir des mots du libellé (« physique » de
+  « Lieu physique » n'est pas une discipline). Deux sources structurées seulement :
+  une énumération écrite dans le libellé (« Discipline : X ou Y », « Activités (X, Y) »), ou les
+  catégories de la règle ICP `target_fit`. Un critère « discipline cible » sans l'une d'elles reste
+  **non mappé**.
+- **Indice par mot-clé** : pour un critère que la couche d'intentions a compris mais sans preuve sur la
+  page, aucun `GENERIC_KEYWORD_MATCH` n'est plus émis — le critère reste « À confirmer ».
+
+Cas réels (Studio Pilates, `tests/fixtures/semantic-icp-real-cases.ts`, 7 attendus), mesurés avec le même
+harnais sur trois états :
+
+| | A — main 52bc1f3 | B — Preview 1ba6bd7 | C — corrigé |
+|---|---|---|---|
+| Propositions correctes | 0 / 7 | 2 / 7 | 7 / 7 |
+| Faux positifs | 0 | 2 (« forme physique » → lieu physique) | 0 |
+| Encore non mappés | 7 | 5 | 0 |
+
 ## Pages internes analysées
 
 Toujours **3 pages maximum** (page d'accueil + 2), même origine, même fetcher (robots.txt, politique

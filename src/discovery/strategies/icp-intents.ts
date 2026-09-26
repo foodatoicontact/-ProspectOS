@@ -52,8 +52,8 @@ type Intent={
  label:RegExp;blockedBy?:RegExp;
  // Words of a sentence that make it ABOUT the intent (a guard can then turn it negative/insufficient).
  cue:RegExp;
- // An explicit construction that supports the intent. `label` is the normalized criterion label.
- support(n:string,label:string):Support|null;
+ // An explicit construction that supports the intent, given how the criterion was interpreted.
+ support(n:string,criterion:Interpretation):Support|null;
  // Promotional wording is not proof of this intent (it is proof of an offer).
  priceIsNotProof?:boolean;
  // Internal page names worth fetching for this intent (path + link text, normalized).
@@ -65,20 +65,21 @@ const ACTIVITY_CONTEXT=words(`${ACT_NOUN}|pratique\\w*|studio|club|discipline|te
 // "cours" also means course/price/flow: "au cours de", "en cours", "cours de bourse", "cours d'eau"… — never an activity.
 const NOT_AN_ACTIVITY=/(?:^|[^a-z])(?:au cours (?:de|du|des)|en cours|cours d'eau|cours (?:de|du|des) (?:la |l')?(?:bourse|change|actions?|action|marche|matieres?|or|devises?|eau|validite|route))(?=[^a-z]|$)/g;
 const DAYS='lundi|mardi|mercredi|jeudi|vendredi|samedi|dimanche|monday|tuesday|wednesday|thursday|friday|saturday|sunday';
-// Words that describe the kind of criterion rather than name an activity: never a "named activity".
-const LABEL_GENERIC=new Set(['cours','seance','seances','lecon','lecons','atelier','ateliers','stage','stages','entrainement','entrainements','session','sessions','partie','parties','classe','classes','initiation','initiations','coaching','training','trainings','workshop','workshops','lesson','lessons','activite','activites','activity','activities','prestation','prestations','service','services','discipline','disciplines','pratique','pratiquee','pratiquees','pratiques','pratiquer','propose','proposee','proposees','proposes','proposer','actif','active','actives','actifs','regulier','reguliere','reguliers','regulieres','cible','ciblee','type','types','secteur','offre','offres','clients','client','proposition','presence','presente','present','reelle','reel','existante','existant','existe','ouverte','ouvert','offerte','offert','sport','sports','sportive','sportif','loisir','loisirs','bien','etre','pour','avec','dans','sans','leur','leurs','votre','notre','nous','vous','des','les','une','ou','et','de','du','la','le']);
-function namedActivities(label:string):string[]{return [...new Set(label.split(/[^a-z0-9]+/).filter(w=>w.length>=4&&!LABEL_GENERIC.has(w)))]}
+// Activity names ("which disciplines?") are never guessed from the words of a label: a word of a label may
+// be an adjective ("physique" in "Lieu physique"), a qualifier ("exploitable") or any other ordinary word.
+// They come only from a structured source — see interpretCriterion.
 
+const escapeRe=(s:string)=>s.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
+const namedPattern=(names:string[])=>new RegExp(`${W}(${names.map(n=>escapeRe(n)+'s?').join('|')})${E}`);
 const activity:Intent={
  id:'ACTIVITY_OR_SERVICE',
- label:words(`${ACT_NOUN}|activites?|activity|activities|prestations?|disciplines?|pratique\\w*`),
+ label:words(`${ACT_NOUN}|activites?|activite|activity|activities|prestations?|disciplines?|pratique\\w*`),
  cue:words(ACT_NOUN),priceIsNotProof:true,
- support(n,label){
-  const named=namedActivities(label);
-  if(named.length){
-   // The label names the activity itself: it must appear in an activity context of the sentence.
-   const hit=named.find(w=>new RegExp(`${W}${w}s?${E}`).test(n));
-   return hit&&ACTIVITY_CONTEXT.test(n.replace(new RegExp(`${W}${hit}s?${E}`,'g'),' '))?{reason:`Le site présente une activité nommée dans le critère (« ${hit} »)`,confidence:.55}:null;
+ support(n,criterion){
+  if(criterion.named.length){
+   // A target activity from a structured source must appear, in an activity context of the sentence.
+   const m=namedPattern(criterion.named).exec(n);
+   return m&&ACTIVITY_CONTEXT.test(n.replace(namedPattern(criterion.named),' '))?{reason:`Le site présente une activité cible (« ${m[1].trim()} », ${criterion.namedSource==='label'?'nommée dans le critère':'catégorie de la règle ICP'})`,confidence:.55}:null;
   }
   if(new RegExp(`${W}(premier|premiere|1er|1ere) (cours|seance|lecon|session|entrainement|partie|atelier)`).test(n))return {reason:'Le site invite à un premier cours ou une première séance',confidence:.55};
   if(new RegExp(`${W}(prenez|reservez|essayez|decouvrez|rejoignez|inscrivez-vous a|inscrivez vous a) (votre |vos |un |une |nos |le |la |les |des )?(${ACT_NOUN})${E}`).test(n))return {reason:'Le site invite à suivre un cours ou une séance',confidence:.55};
@@ -94,7 +95,8 @@ const booking:Intent={
  id:'BOOKING_OR_REGISTRATION',
  label:words('reserv\\w*|booking|book|inscri\\w*|register|registration|rendez-vous|rendez vous|rdv|prise de rendez-vous'),
  cue:words('reserv\\w*|booking|book\\w*|inscri\\w*|register\\w*|rendez-vous|rendez vous|rdv'),
- support(n,label){
+ support(n,criterion){
+  const label=criterion.label;
   const channel=new RegExp(`${W}(en ligne|online|via|sur (notre |l'|le |votre )?(site|application|appli|app|plateforme)|application|appli|app|plateforme|internet)${E}`).test(n);
   if(channel)return {reason:'Le site indique une réservation ou une inscription par un canal en ligne',confidence:.55};
   // A label asking for an online booking is not supported by a booking without a stated channel.
@@ -180,7 +182,7 @@ const pricing:Intent={
 
 const location:Intent={
  id:'LOCATION_OR_PHYSICAL_PRESENCE',
- label:words("adresse|implantation|presence physique|lieu physique|locaux|local physique|sur place|physical|address|premises"),
+ label:words("adresse|implantation|presence physique|lieux?|locaux|local|sur place|physical|address|premises|place of business"),
  cue:/[a-z0-9]/,
  support(n){
   if(/(?:^|[^0-9])\d{1,4}\s*(?:bis |ter )?,?\s*(?:rue|avenue|av\.?|boulevard|bd|chemin|route|place|allee|impasse|quai|zone|za|zi|zac)\s+[a-z]/.test(n))return {reason:'Le site indique une adresse physique',confidence:.55};
@@ -192,25 +194,66 @@ const location:Intent={
 
 export const INTENTS:Intent[]=[activity,booking,schedule,capacity,events,contact,pricing,location];
 
-// Intents the label asks for. A label asking for regularity or a booking channel is about that, not about
-// the mere existence of an activity ("Planning / activité régulière", "Réservation de cours en ligne").
-export function intentsForLabel(label:string):Intent[]{
- const l=normText(label);
- let found=INTENTS.filter(i=>i.label.test(l)&&!(i.blockedBy?.test(l)));
- if(found.some(i=>i.id==='SCHEDULE_OR_REGULARITY'||i.id==='BOOKING_OR_REGISTRATION'))found=found.filter(i=>i.id!=='ACTIVITY_OR_SERVICE');
+// ---------------------------------------------------------------- reading a criterion label
+// A label is a set of ALTERNATIVES ("Cours / séances / réservation active", "Lieu physique ou activité
+// exploitable localement"): any one of them is enough. Intents are read per alternative (segment) and
+// united; a qualifier only narrows its own segment:
+//  - regularity ("activité régulière") or a booking ("réservation de cours") → that intent, not a bare activity;
+//  - local presence ("activité exploitable localement", "sur place") → physical presence, not a bare activity.
+// A requirement stated once for the whole label ("Réservation ou inscription EN LIGNE") keeps applying to
+// the whole label (see booking.support).
+// Target activities ("discipline cible", "activité ciblée") are only ever taken from a structured source —
+// an enumeration written in the label ("Discipline : X ou Y", "Activités (X, Y)") or the categories of the
+// ICP's own target_fit rule. Without one, such a segment asks for something unknowable: it stays unmapped.
+export type Interpretation={label:string;intents:Intent[];named:string[];namedSource:'label'|'target_fit'|null;understood:boolean};
+const ALTERNATIVES=/\s*(?:\/|\||;|,|(?:^|\s)ou(?:\s|$)|(?:^|\s)or(?:\s|$))\s*/;
+const LOCAL_QUALIFIER=words('localement|sur place|en local|de proximite|local|locale|locaux');
+// The segment asks for a TARGET activity ("discipline cible", "activité ciblée", "correspondant à…"): only a
+// structured source can say which one.
+const TARGET_REQUIREMENT=words("disciplines?|cibles?|ciblees?|target\\w*|correspondant\\w*");
+const listItems=(s:string)=>s.split(ALTERNATIVES).map(x=>x.replace(/^(le|la|les|l'|du|de la|des)\s+/,'').trim()).filter(x=>x.length>=2&&x.length<=40);
+function targetFitCategories(criteria:Criterion[]):string[]{
+ const out:string[]=[];
+ for(const c of criteria)if(c.rules?.type==='target_fit')for(const v of c.rules.config.categories??[])out.push(normText(v));
+ return [...new Set(out.filter(v=>v.length>=2))];
+}
+function segmentIntents(segment:string,label:string):Intent[]{
+ let found=INTENTS.filter(i=>i.label.test(segment)&&!(i.blockedBy?.test(label)));
+ if(LOCAL_QUALIFIER.test(segment)&&!found.includes(location))found=[...found,location];
+ if(found.some(i=>i.id!=='ACTIVITY_OR_SERVICE'&&i.id!=='CAPACITY'&&i.id!=='EVENT_OR_COMMUNITY'&&i.id!=='CONTACTABILITY'&&i.id!=='PRICING_OR_OFFER'))found=found.filter(i=>i.id!=='ACTIVITY_OR_SERVICE');
  return found;
 }
+export function interpretCriterion(rawLabel:string,criteria:Criterion[]=[]):Interpretation{
+ const label=normText(rawLabel);
+ // "Discipline : X ou Y" / "Activités (X, Y)": a head naming activities, then their structured list.
+ const enumeration=/^([^:()]+?)\s*(?::\s*(.+)|\((.+)\)\s*)$/.exec(label);
+ const head=enumeration?enumeration[1]:label;
+ const enumerated=enumeration&&activity.label.test(head)?listItems(enumeration[2]??enumeration[3]):[];
+ const segments=enumerated.length?[head]:label.split(ALTERNATIVES).filter(Boolean);
+ const ids=new Set<IntentId>();let genericActivity=false,namedRequired=false;
+ for(const segment of segments){
+  for(const i of segmentIntents(segment,label)){
+   if(i.id!=='ACTIVITY_OR_SERVICE'){ids.add(i.id);continue}
+   if(enumerated.length||TARGET_REQUIREMENT.test(segment))namedRequired=true;else genericActivity=true;
+  }
+ }
+ const fromRule=namedRequired&&!enumerated.length?targetFitCategories(criteria):[];
+ const named=genericActivity?[]:enumerated.length?enumerated:fromRule;
+ if(genericActivity||named.length)ids.add('ACTIVITY_OR_SERVICE');
+ return {label,intents:INTENTS.filter(i=>ids.has(i.id)),named,namedSource:named.length?(enumerated.length?'label':'target_fit'):null,understood:ids.size>0||namedRequired};
+}
+// Intents a label asks for (without the ICP's structured sources — used for display and page selection).
+export function intentsForLabel(label:string):Intent[]{return interpretCriterion(label).intents}
 
 // ---------------------------------------------------------------- one criterion, one page
 type Candidate={polarity:Polarity;line:string;reason:string;confidence:number;intent:IntentId};
-function evaluateLine(intent:Intent,raw:string,n:string,label:string,year:number):Candidate|null{
+function evaluateLine(intent:Intent,raw:string,n:string,criterion:Interpretation,year:number):Candidate|null{
  if(intent.id!=='CONTACTABILITY'&&hasContactData(n))return null; // contact data only ever supports a contact criterion
  if(intent.id==='ACTIVITY_OR_SERVICE')n=n.replace(NOT_AN_ACTIVITY,m=>' '.repeat(m.length));
- const named=intent.id==='ACTIVITY_OR_SERVICE'?namedActivities(label):[];
- const cue=named.length?new RegExp(`${W}(${named.join('|')})s?${E}`):intent.cue;
+ const cue=intent.id==='ACTIVITY_OR_SERVICE'&&criterion.named.length?namedPattern(criterion.named):intent.cue;
  const cueMatch=cue.exec(n);if(!cueMatch)return null;
  const plain=withoutNegationExemptions(n); // same length: cue positions stay valid
- const support=intent.support(n,label);
+ const support=intent.support(n,criterion);
  if(intent.id==='CONTACTABILITY'||intent.id==='PRICING_OR_OFFER'||intent.id==='LOCATION_OR_PHYSICAL_PRESENCE'){if(!support)return null} // cue = any text: only a supported line counts
  if(NEGATED_CUE.test(plain.slice(0,cueMatch.index+1)))return {polarity:'negative',line:raw,reason:'Le site indique explicitement l’absence de cet élément',confidence:.3,intent:intent.id};
  if(NEGATION.test(plain))return support?{polarity:'insufficient',line:raw,reason:'Formulation négative ou ambiguë : ne permet pas de conclure',confidence:.3,intent:intent.id}:null;
@@ -236,14 +279,16 @@ const CONCEPT_BLOCKS:Record<string,IntentId[]>={
  BOOKABLE_FACILITY:['BOOKING_OR_REGISTRATION','CAPACITY'],GROUP_EVENT_OFFERS:['PRICING_OR_OFFER'],
 };
 // `now`: the analysis date (the real clock in production — an analysis always reads the page as it is today).
-export function evaluateCriterionIntents(ctx:ObservationContext,criterion:Criterion,now=new Date()):Candidate|null{
+// `criteria`: the project's whole ICP (the structured sources of target activities).
+export function evaluateCriterionIntents(ctx:ObservationContext,criterion:Criterion,now=new Date(),criteria:Criterion[]=[criterion]):Candidate|null{
  const blocked=new Set(conceptsForLabel(criterion.label).flatMap(c=>CONCEPT_BLOCKS[c.id]??[]));
- const label=normText(criterion.label);const intents=intentsForLabel(criterion.label).filter(i=>!blocked.has(i.id));if(!intents.length)return null;
+ const interpretation=interpretCriterion(criterion.label,criteria);
+ const intents=interpretation.intents.filter(i=>!blocked.has(i.id));if(!intents.length)return null;
  const year=now.getUTCFullYear();
  let best:Candidate|null=null,negative:Candidate|null=null,insufficient:Candidate|null=null;
  for(const {raw,n} of normalizedLines(ctx.lines)){
   for(const intent of intents){
-   const c=evaluateLine(intent,raw,n,label,year);if(!c)continue;
+   const c=evaluateLine(intent,raw,n,interpretation,year);if(!c)continue;
    if(c.polarity==='positive'){if(!best||c.confidence>best.confidence)best=c}
    else if(c.polarity==='negative')negative??=c;else insufficient??=c;
   }
@@ -251,9 +296,16 @@ export function evaluateCriterionIntents(ctx:ObservationContext,criterion:Criter
  return best??negative??insufficient;
 }
 
+// The intent layer understood what this criterion asks for (or knows it cannot be answered without a
+// structured source): when it found no evidence, no weaker keyword guess is made for it either.
+export function intentLayerUnderstands(criterion:Criterion,criteria:Criterion[]=[criterion]):boolean{
+ const blocked=new Set(conceptsForLabel(criterion.label).flatMap(c=>CONCEPT_BLOCKS[c.id]??[]));
+ const i=interpretCriterion(criterion.label,criteria);
+ return i.intents.some(x=>!blocked.has(x.id))||(i.understood&&!i.intents.length);
+}
 // Called only when no rule-engine concept produced a proposal for this criterion (strategies/generic.ts).
-export function extractIntentObservation(ctx:ObservationContext,criterion:Criterion,now=new Date()):{observation:Observation;polarity:Polarity;intent:IntentId}|null{
- const c=evaluateCriterionIntents(ctx,criterion,now);if(!c)return null;
+export function extractIntentObservation(ctx:ObservationContext,criterion:Criterion,now=new Date(),criteria:Criterion[]=[criterion]):{observation:Observation;polarity:Polarity;intent:IntentId}|null{
+ const c=evaluateCriterionIntents(ctx,criterion,now,criteria);if(!c)return null;
  const excerpt=c.line.slice(0,500);const label=criterion.label.trim();
  if(c.polarity==='positive'){
   const claim=`${c.reason} : cela peut correspondre au critère « ${label} ». Proposition à confirmer par un humain.`;
@@ -270,7 +322,7 @@ export function extractIntentObservation(ctx:ObservationContext,criterion:Criter
 export function pageIntentsFor(criteria:Criterion[]):Intent[]{
  const ids=new Set<IntentId>();
  for(const c of criteria){
-  for(const i of intentsForLabel(c.label))ids.add(i.id);
+  for(const i of interpretCriterion(c.label,criteria).intents)ids.add(i.id);
   for(const concept of conceptsForLabel(c.label))for(const id of CONCEPT_PAGE_INTENTS[concept.id]??[])ids.add(id);
  }
  return INTENTS.filter(i=>ids.has(i.id));

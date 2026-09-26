@@ -6,7 +6,7 @@ import {findCommercialSignalCriterion,matchCommercialSignal} from './commercial-
 import {findTargetFitCriterion,evaluateTargetFit,TARGET_FIT_DIMENSION_LABELS} from './target-fit.ts';
 import {findNeedFitCriterion,matchNeedFitSignal} from './need-fit.ts';
 import {extractIcpConceptProposals} from './icp-concepts.ts';
-import {extractIntentObservation} from './icp-intents.ts';
+import {extractIntentObservation,intentLayerUnderstands} from './icp-intents.ts';
 // Sector-agnostic extraction: works from the project's own ICP labels instead of any hardcoded vertical.
 // A criterion never seen at compile time can still receive a proposal as long as it exists in the ICP passed in.
 const STOPWORDS=new Set(['dans','pour','avec','sans','plus','votre','vos','vous','notre','nos','nous','cette','ces','sont','être','avoir','leur','leurs','qui','que','dont','tout','tous','toute','toutes','fait','faire','très','bien','aussi','donc','ainsi','comme','the','and','for','with','this','that','from','your','have']);
@@ -64,8 +64,11 @@ export function extractGenericObservations(ctx:ObservationContext,criteria:Crite
   // what the label asks for becomes the same kind of INFERRED proposal; a negated, tentative, past or
   // price-only one becomes a contextual note explaining why nothing is proposed. Either replaces the
   // weaker keyword guess below for that criterion.
-  const intent=extractIntentObservation(ctx,criterion);
+  const intent=extractIntentObservation(ctx,criterion,undefined,criteria);
   if(intent){out.push(intent.observation);continue}
+  // Understood by the intent layer but no evidence on this page: the criterion stays "À confirmer" (UNKNOWN)
+  // rather than receiving a lexical guess from one of its words ("physique" of "Lieu physique"…).
+  if(intentLayerUnderstands(criterion,criteria))continue;
   const words=significantWords(criterion.label);if(!words.length)continue;
   const line=lines.find(l=>{const normalized=' '+l.normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase()+' ';return words.some(w=>normalized.includes(' '+w))});
   // A bare keyword overlap is a candidate excerpt, never a determination: no deterministic rule

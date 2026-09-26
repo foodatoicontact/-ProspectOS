@@ -1,0 +1,159 @@
+{
+ "generated_by": "runRealCases() from tests/fixtures/semantic-icp-real-cases.ts, run unchanged in a worktree of each commit",
+ "states": {
+  "main_52bc1f3": {
+   "real": {
+    "expected": 7,
+    "correct": 0,
+    "falsePositives": 0,
+    "missed": 7
+   },
+   "real_detail": [
+    {
+     "id": "studio-with-address",
+     "missed": [
+      "r_lieu",
+      "r_cours"
+     ],
+     "fp": []
+    },
+    {
+     "id": "studio-without-address",
+     "missed": [
+      "r_cours"
+     ],
+     "fp": []
+    },
+    {
+     "id": "studio-dates-only",
+     "missed": [
+      "r_cours"
+     ],
+     "fp": []
+    },
+    {
+     "id": "discipline-from-target-rule",
+     "missed": [
+      "r_discipline"
+     ],
+     "fp": []
+    },
+    {
+     "id": "discipline-from-enumeration",
+     "missed": [
+      "r_enum"
+     ],
+     "fp": []
+    },
+    {
+     "id": "discipline-physique-trap",
+     "missed": [],
+     "fp": []
+    },
+    {
+     "id": "online-channel-required",
+     "missed": [],
+     "fp": []
+    },
+    {
+     "id": "online-channel-present",
+     "missed": [
+      "r_online"
+     ],
+     "fp": []
+    },
+    {
+     "id": "lexical-traps",
+     "missed": [],
+     "fp": []
+    }
+   ],
+   "initial": {
+    "expected": 22,
+    "correct": 3,
+    "falsePositives": 0,
+    "missed": 19
+   }
+  },
+  "preview_1ba6bd7": {
+   "real": {
+    "expected": 7,
+    "correct": 2,
+    "falsePositives": 2,
+    "missed": 5
+   },
+   "real_detail": [
+    {
+     "id": "studio-with-address",
+     "missed": [
+      "r_lieu",
+      "r_cours"
+     ],
+     "fp": [
+      {
+       "criterion": "r_lieu",
+       "excerpt": "Une pratique régulière du Pilates améliore de façon significative la forme physique et mentale"
+      }
+     ]
+    },
+    {
+     "id": "studio-without-address",
+     "missed": [
+      "r_cours"
+     ],
+     "fp": [
+      {
+       "criterion": "r_lieu",
+       "excerpt": "Une pratique régulière du Pilates améliore de façon significative la forme physique et mentale"
+      }
+     ]
+    },
+    {
+     "id": "studio-dates-only",
+     "missed": [
+      "r_cours"
+     ],
+     "fp": []
+    },
+    {
+     "id": "discipline-from-target-rule",
+     "missed": [
+      "r_discipline"
+     ],
+     "fp": []
+    },
+    {
+     "id": "discipline-from-enumeration",
+     "missed": [],
+     "fp": []
+    },
+    {
+     "id": "discipline-physique-trap",
+     "missed": [],
+     "fp": []
+    },
+    {
+     "id": "online-channel-required",
+     "missed": [],
+     "fp": []
+    },
+    {
+     "id": "online-channel-present",
+     "missed": [],
+     "fp": []
+    },
+    {
+     "id": "lexical-traps",
+     "missed": [],
+     "fp": []
+    }
+   ],
+   "initial": {
+    "expected": 22,
+    "correct": 22,
+    "falsePositives": 0,
+    "missed": 0
+   }
+  }
+ }
+}

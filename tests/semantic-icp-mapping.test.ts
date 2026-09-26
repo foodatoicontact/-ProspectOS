@@ -7,11 +7,12 @@ import {readFile,readdir} from 'node:fs/promises';
 import {ObservationService,EvidenceProposalService} from '../src/discovery/observations.ts';
 import {CompanyAnalysisService,selectInternalPages,MAX_EXTRA_PAGES,type DiscoveryRepository} from '../src/discovery/services.ts';
 import {toStorageSafeObservation} from '../src/discovery/repository.ts';
-import {evaluateCriterionIntents,intentsForLabel,INTENT_NOTE_TYPES} from '../src/discovery/strategies/icp-intents.ts';
+import {evaluateCriterionIntents,intentsForLabel,interpretCriterion,INTENT_NOTE_TYPES} from '../src/discovery/strategies/icp-intents.ts';
 import {ICP_SIGNAL_PREFIX} from '../src/discovery/strategies/icp-concepts.ts';
 import {scoreProspect,type Criterion,type Evidence} from '../src/domain/core.ts';
 import type {Observation} from '../src/discovery/types.ts';
 import {runBenchmark} from './fixtures/semantic-icp-benchmark.ts';
+import {runRealCases} from './fixtures/semantic-icp-real-cases.ts';
 
 const NOW=new Date('2026-09-26T10:00:00Z');
 const URL_='https://site.fixture.example/';
@@ -256,4 +257,101 @@ test('Rule engine — affirmative sentences (and courtesy formulas) still produc
   const p=extract([line],[c]).find(o=>o.criterion===c.key&&o.value===true);
   assert.ok(p,line);assert.equal(p.status,'INFERRED');assert.equal(p.observation_type,ICP_SIGNAL_PREFIX+c.key);
  }
+});
+
+// ---------------------------------------------------------------- real gap #2: composite labels, structured disciplines
+const LIEU=C('r_lieu','Lieu physique ou activité exploitable localement',30),COMPOSITE=C('r_cours','Cours / séances / réservation active',40);
+const CIBLE=C('r_discipline','Activité correspondant explicitement à une discipline cible',30);
+const REAL_ICP=[LIEU,COMPOSITE,CIBLE];
+const onlyUnknown=(obs:Observation[],c:Criterion)=>{const rows=obs.filter(o=>o.criterion===c.key);return rows.length===1&&rows[0].status==='UNKNOWN'};
+
+test('G1 — "forme physique et mentale" + "Lieu physique ou activité exploitable localement" → no proposal, no keyword guess from "physique"',()=>{
+ const obs=extract(['Une pratique régulière du Pilates améliore de façon significative la forme physique et mentale'],REAL_ICP);
+ assert.equal(positive(obs,LIEU),undefined);
+ assert.ok(onlyUnknown(obs,LIEU),'the criterion stays "À confirmer" (UNKNOWN), no GENERIC_KEYWORD_MATCH');
+ assert.ok(!obs.some(o=>/physique »/.test(o.claim)),'no reason built from the adjective');
+ assert.deepEqual(interpretCriterion(LIEU.label).intents.map(i=>i.id),['LOCATION_OR_PHYSICAL_PRESENCE'],'both alternatives ask for a physical/local presence');
+});
+test('G2 — an explicit address → correct proposal for the same criterion',()=>{
+ const obs=extract(['Une pratique régulière du Pilates améliore de façon significative la forme physique et mentale','Studio : 12 rue de la Paix, 84000'],REAL_ICP);
+ const p=positive(obs,LIEU);assert.ok(p);assert.equal(p.source_excerpt,'Studio : 12 rue de la Paix, 84000');assert.match(p.claim,/adresse physique/);
+});
+test('G3 / G4 — "Prenez votre premier cours" and "Début des cours : …" support "Cours / séances / réservation active" (any alternative is enough)',()=>{
+ assert.deepEqual(interpretCriterion(COMPOSITE.label).intents.map(i=>i.id).sort(),['ACTIVITY_OR_SERVICE','BOOKING_OR_REGISTRATION']);
+ assert.equal(positive(extract(['Prenez votre premier cours'],REAL_ICP),COMPOSITE)?.source_excerpt,'Prenez votre premier cours');
+ assert.equal(positive(extract(['Début des cours : mercredi 2 septembre 2026'],REAL_ICP),COMPOSITE)?.source_excerpt,'Début des cours : mercredi 2 septembre 2026');
+ assert.ok(positive(extract(['Des cours personnalisés adaptés à votre niveau'],REAL_ICP),COMPOSITE));
+});
+test('G5 — "Planning / activité régulière" → SCHEDULE only (the qualifier narrows its own segment)',()=>{
+ assert.deepEqual(interpretCriterion('Planning / activité régulière').intents.map(i=>i.id),['SCHEDULE_OR_REGULARITY']);
+ assert.equal(positive(extract(['Prenez votre premier cours'],[SCHEDULE]),SCHEDULE),undefined);
+});
+test('G6 — "Réservation ou inscription en ligne" → booking, the channel requirement still applies to the whole label',()=>{
+ assert.deepEqual(interpretCriterion(BOOKING.label).intents.map(i=>i.id),['BOOKING_OR_REGISTRATION']);
+ for(const line of ['Réservez votre séance','Réservez votre cours dès aujourd’hui','Réservation obligatoire'])assert.equal(positive(extract([line],[BOOKING]),BOOKING),undefined,line);
+ assert.ok(positive(extract(['Inscription en ligne sur notre site'],[BOOKING]),BOOKING));
+ // Without a channel in the label, a direct booking invitation is enough.
+ const plain=C('c_plain','Réservation ou inscription possible');
+ assert.ok(positive(extract(['Réservez votre séance d’essai'],[plain]),plain));
+});
+test('G7 — "discipline cible" without a structured source → unmapped: no proposal, no guess, no keyword hint',()=>{
+ const i=interpretCriterion(CIBLE.label,REAL_ICP);
+ assert.deepEqual(i.intents,[]);assert.deepEqual(i.named,[]);assert.equal(i.understood,true);
+ const obs=extract(['Cours de Pilates au sol, en petits groupes.','Prenez votre premier cours','Studio de yoga'],REAL_ICP);
+ assert.equal(positive(obs,CIBLE),undefined);assert.ok(onlyUnknown(obs,CIBLE));
+});
+test('G8 — structured enumeration "Discipline : X ou Y" → X / Y are the target activities',()=>{
+ const enumerated=C('r_enum','Discipline : Pilates ou Yoga');
+ const i=interpretCriterion(enumerated.label);
+ assert.deepEqual(i.named,['pilates','yoga']);assert.equal(i.namedSource,'label');
+ assert.ok(positive(extract(['Cours de yoga vinyasa en petits groupes.'],[enumerated]),enumerated));
+ assert.equal(positive(extract(['Prenez votre premier cours'],[enumerated]),enumerated),undefined,'another activity is not a target one');
+ assert.equal(positive(extract(['Travailler sa condition physique en douceur grâce à nos cours.'],[enumerated]),enumerated),undefined);
+ // Parenthesized enumeration is a structured list too.
+ assert.deepEqual(interpretCriterion('Activités (danse, escalade)').named,['danse','escalade']);
+});
+test('G9 — the ICP target_fit categories are the structured source of target disciplines',()=>{
+ const rule:Criterion={key:'target_fit',label:'Correspond à la cible définie',weight:30,rules:{type:'target_fit',config:{categories:['Pilates','Yoga'],match:'any_defined'}}};
+ const icp=[CIBLE,rule];
+ const i=interpretCriterion(CIBLE.label,icp);
+ assert.deepEqual(i.named,['pilates','yoga']);assert.equal(i.namedSource,'target_fit');
+ const p=positive(extract(['Cours de Pilates au sol, en petits groupes.'],icp),CIBLE);
+ assert.ok(p);assert.match(p.claim,/catégorie de la règle ICP/);
+ assert.equal(positive(extract(['Cours de boxe anglaise'],icp),CIBLE),undefined,'a category outside the rule is not a target');
+});
+test('G10 — forbidden lexical matches: a label word in another sense never maps',()=>{
+ const traps:Array<[string,Criterion]>=[
+  ['Le contact humain est au cœur de notre démarche.',C('r_canal','Canal de contact professionnel')],
+  ['Une offre adaptée à chacun.',C('r_offre','Offre commerciale')],
+  ['Un espace exploitable pour vos projets.',C('r_exploitable','Lieu exploitable')],
+  ['Une activité pour tous les âges.',C('r_regulier','Activité régulière')],
+  ['Travailler sa condition physique en douceur.',CIBLE],
+  ['Travailler sa condition physique en douceur.',C('r_disc2','Discipline pratiquée')],
+ ];
+ for(const [line,c] of traps){
+  const obs=extract([line],[c]);
+  assert.equal(obs.find(o=>o.criterion===c.key&&o.value===true),undefined,`${line} → ${c.label}`);
+  assert.ok(!obs.some(o=>o.criterion===c.key&&o.observation_type==='GENERIC_KEYWORD_MATCH'),`no keyword hint: ${c.label}`);
+ }
+});
+test('G12 / G13 — unverified proposals give 0 point, nothing is ever auto-validated',()=>{
+ const obs=extract(['Prenez votre premier cours','Studio : 12 rue de la Paix, 84000','Une pratique régulière du Pilates améliore la forme physique'],REAL_ICP);
+ const evidence=new EvidenceProposalService().propose(obs,REAL_ICP);
+ assert.equal(evidence.length,2);
+ assert.ok(evidence.every(e=>e.status==='INFERRED_UNCONFIRMED'&&e.verified_by===null));
+ assert.ok(obs.every(o=>o.status==='INFERRED'||o.status==='UNKNOWN'||o.status==='OBSERVED'));
+ assert.equal(scoreProspect(REAL_ICP,evidence,NOW).score,0);
+ const confirmed=evidence.map(e=>e.criterion==='r_cours'?{...e,status:'VERIFIED' as const,verified_by:'human-1'}:e);
+ assert.equal(scoreProspect(REAL_ICP,confirmed,NOW).score,40,'exact existing score after a human confirmation');
+});
+test('Real cases — A main 52bc1f3 / B preview 1ba6bd7 / C corrected (A and B measured in worktrees, never edited)',async()=>{
+ const frozen=JSON.parse(await readFile(new URL('./fixtures/semantic-icp-real-cases-baseline.json',import.meta.url),'utf8')).states;
+ const A=frozen.main_52bc1f3.real,B=frozen.preview_1ba6bd7.real,Cc=await runRealCases();
+ const initial=await runBenchmark();
+ console.log(`# real cases (expected ${Cc.expected}): correct A ${A.correct} | B ${B.correct} | C ${Cc.correct} — false positives A ${A.falsePositives} | B ${B.falsePositives} | C ${Cc.falsePositives} — unmapped A ${A.missed} | B ${B.missed} | C ${Cc.missed}`);
+ console.log(`# initial fixtures (expected ${initial.expected}): correct A ${frozen.main_52bc1f3.initial.correct} | B ${frozen.preview_1ba6bd7.initial.correct} | C ${initial.correct} — false positives C ${initial.falsePositives}`);
+ for(const c of Cc.cases)if(c.missed.length||c.falsePositives.length)console.log(`#  ${c.id}: missed ${c.missed.join(',')||'-'} | FP ${c.falsePositives.map(f=>f.criterion).join(',')||'-'}`);
+ assert.equal(B.falsePositives,2,'the Preview false positive is reproduced by the frozen measurement');
+ assert.equal(Cc.falsePositives,0);assert.ok(Cc.correct>B.correct&&Cc.correct>A.correct);
+ assert.equal(initial.falsePositives,0);assert.equal(initial.correct,frozen.preview_1ba6bd7.initial.correct,'no regression on the initial fixtures');
 });

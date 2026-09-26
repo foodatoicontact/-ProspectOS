@@ -108,6 +108,45 @@ try {
     assert.equal(await score(), 40);
     assert.equal((await signal('c_schedule')).review_status, 'NOT_VERIFIED', 'the unreviewed proposal stays a proposal');
   });
+
+  // Real benchmark ICP (composite labels, a target discipline without structured source).
+  const REAL_ICP = [
+    { key: 'r_lieu', label: 'Lieu physique ou activité exploitable localement', weight: 30 },
+    { key: 'r_cours', label: 'Cours / séances / réservation active', weight: 40 },
+    { key: 'r_discipline', label: 'Activité correspondant explicitement à une discipline cible', weight: 30 },
+  ];
+  const realProject = (await as(A, `insert into public.projects(organization_id,name) values($1,'Real') returning id`, [org])).rows[0].id;
+  await sql(`insert into public.icps(project_id,organization_id,criteria) values ($1,$2,$3::jsonb)`, [realProject, org, JSON.stringify(REAL_ICP)]);
+  const studio = (await as(A, `insert into public.prospects(organization_id,project_id,name,website,status) values($1,$2,'Studio réel',$3,'À analyser') returning id`, [org, realProject, URL_A])).rows[0].id;
+  const realExtract = lines => prioritizeObservations(new ObservationService().extract(page(lines), URL_A, REAL_ICP, 'official_website')).map(toStorageSafeObservation);
+  const realRows = async () => (await as(A, 'select * from public.prospect_observations where prospect_id=$1', [studio])).rows;
+  const realEvidence = async () => (await as(A, 'select * from public.evidence where prospect_id=$1', [studio])).rows.map(e => ({ ...e, observed_at: new Date(e.observed_at).toISOString() }));
+  const STUDIO = ['Une pratique régulière du Pilates améliore de façon significative la forme physique et mentale', 'Prenez votre premier cours', 'Début des cours : mercredi 2 septembre 2026', 'Studio : 12 rue de la Paix, 84000'];
+
+  await check('REAL_ICP: composite criterion proposed from "premier cours", address for the physical place, nothing from "forme physique", discipline unmapped', async () => {
+    await as(A, 'select public.save_discovery_observations($1,$2::jsonb)', [studio, JSON.stringify(realExtract(STUDIO))]);
+    const rows = await realRows();
+    const cours = rows.filter(o => o.observation_type === 'ICP_SIGNAL:r_cours'), lieu = rows.filter(o => o.observation_type === 'ICP_SIGNAL:r_lieu');
+    assert.ok(cours.length >= 1 && cours.every(o => o.status === 'INFERRED' && o.review_status === 'NOT_VERIFIED'));
+    assert.deepEqual(lieu.map(o => o.source_excerpt), ['Studio : 12 rue de la Paix, 84000']);
+    assert.ok(!rows.some(o => o.criterion === 'r_lieu' && /forme physique/.test(o.source_excerpt)));
+    assert.ok(!rows.some(o => o.observation_type === 'ICP_SIGNAL:r_discipline'));
+    assert.ok(!rows.some(o => o.observation_type === 'GENERIC_KEYWORD_MATCH' && /physique/.test(o.source_excerpt)));
+    assert.ok((await realEvidence()).every(e => e.status === 'INFERRED_UNCONFIRMED' && e.verified_by === null));
+    assert.equal(scoreProspect(REAL_ICP, await realEvidence()).score, 0);
+  });
+  await check('REAL_ICP_11: a confirmed proposal stays VERIFIED through re-analyses (sentence gone, negation added); exact score 40', async () => {
+    const target = (await realRows()).find(o => o.observation_type === 'ICP_SIGNAL:r_cours' && o.source_excerpt === 'Prenez votre premier cours');
+    await as(A, 'select public.review_discovery_observation($1,$2)', [target.id, 'confirm']);
+    const before = (await realEvidence()).find(e => e.id === target.evidence_id);
+    assert.equal(before.status, 'VERIFIED'); assert.equal(before.verified_by, A);
+    await as(A, 'select public.save_discovery_observations($1,$2::jsonb)', [studio, JSON.stringify(realExtract(STUDIO))]);
+    await as(A, 'select public.save_discovery_observations($1,$2::jsonb)', [studio, JSON.stringify(realExtract(['Aucun cours cet été.', 'Une pratique régulière du Pilates améliore la forme physique']))]);
+    const after = (await realRows()).find(o => o.id === target.id);
+    assert.equal(after.review_status, 'VERIFIED');
+    assert.deepEqual((await realEvidence()).find(e => e.id === target.evidence_id), before);
+    assert.equal(scoreProspect(REAL_ICP, await realEvidence()).score, 40);
+  });
 } finally {
   await db.close();
 }

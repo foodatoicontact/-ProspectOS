@@ -115,8 +115,9 @@ test('7 + 8 — an accepted candidate shows "Ajouté au projet" and "Voir le pro
 test('9 — navigation: the open run is kept per project and restored; back returns to Discovery', () => {
  assert.match(page, /activeRunId=\{discoveryRuns\[projectId\]\?\?null\}/);
  assert.match(page, /onOpenProspect=\{openFromDiscovery\}/);
- assert.match(page, /history\.pushState\(\{prospectosView:'prospects'\},''\)/);
- assert.match(page, /window\.addEventListener\('popstate',onPop\)/);
+ // History entries come from the pure planner (tests/discovery-back-navigation.test.ts); popstate restores from the entry's state.
+ assert.match(page, /function openFromDiscovery\(prospectId:string\)\{applyHistory\(planOpenProspect\(history\.state,projectId,discoveryRuns\[projectId\]\?\?null,prospectId\)\)/);
+ assert.match(page, /const onPop=\(e:PopStateEvent\)=>restoreRef\.current\(e\.state\);window\.addEventListener\('popstate',onPop\)/);
  assert.match(page, /\{fromDiscovery&&<button className="text-button back-to-discovery" onClick=\{backToDiscovery\}>/);
  assert.match(panel, /if\(summary\)void viewRun\(summary,true\)/, 'the remembered run is reopened with its scroll position');
 });

@@ -271,6 +271,8 @@ export const en={
  'evidence.sourceSearch':'search result',
  'evidence.sourceDirectory':'public directory',
  'evidence.sourceFixture':'test page',
+ 'evidence.proofsFound':'Evidence found',
+ 'evidence.moreProofs':'Show the other evidence',
  'evidence.reviewEvidence':'Review the evidence',
  'evidence.signalToConfirm':'Signal found — to confirm',
  'evidence.pointsPending':'0 pts',

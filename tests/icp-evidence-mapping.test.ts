@@ -7,7 +7,7 @@ import {ObservationService,EvidenceProposalService} from '../src/discovery/obser
 import {prioritizeObservations} from '../src/discovery/services.ts';
 import {toStorageSafeObservation} from '../src/discovery/repository.ts';
 import {ICP_SIGNAL_PREFIX,icpSignalType,icpSignalHash,conceptsForLabel} from '../src/discovery/strategies/icp-concepts.ts';
-import {presentObservations,presentObservation,ICP_SIGNAL_TYPE_PREFIX,evidenceAnchorId} from '../src/components/evidence-presentation.ts';
+import {presentObservations,presentObservation,ICP_SIGNAL_TYPE_PREFIX,evidenceAnchorId,criterionAnchorId} from '../src/components/evidence-presentation.ts';
 import {scoreProspect,type Criterion,type Evidence} from '../src/domain/core.ts';
 import type {Observation,StoredObservation} from '../src/discovery/types.ts';
 
@@ -169,12 +169,16 @@ test('11 — the source link is the safe, original URL; a non-HTTP(S) URL is nev
  const evil=presentObservation({...card.row,source_url:'javascript:alert(1)'},ICP,'fr');
  assert.equal(evil.sourceHref,null);
 });
-test('11 — the card renders that link in a new tab without opener, and the anchor the ICP section scrolls to',async()=>{
+test('11 — the proof renders that link in a new tab without opener; the ICP section scrolls to the criterion block by its own anchor',async()=>{
  const src=await readFile(new URL('../src/components/ObservationsReview.tsx',import.meta.url),'utf8');
  assert.match(src,/<a href=\{c\.sourceHref\} target="_blank" rel="noopener noreferrer">/);
- assert.match(src,/id=\{c\.anchorId\?\?undefined\}/);
+ assert.match(src,/<article key=\{g\.anchorId\} id=\{g\.anchorId\} tabIndex=\{-1\}/);
  const page=await readFile(new URL('../app/page.tsx',import.meta.url),'utf8');
- assert.match(page,/document\.getElementById\(evidenceAnchorId\(e\.id\)\)/);
+ assert.match(page,/onClick=\{\(\)=>reviewCriterion\(g\.anchorId\)\}/);
+ assert.match(page,/function reviewCriterion\(anchorId:string\)\{const el=document\.getElementById\(anchorId\)/);
+ // The ICP section derives its state from the review summary only — the expression mirrored by icpLine() below.
+ assert.ok(page.includes("const g=reviewSummary.criteria[b.key];")&&page.includes("const pending=b.state!=='TRUE'&&!!g&&g.pending>0;"));
+ assert.doesNotMatch(page,/reviewTargets/);
  assert.equal(evidenceAnchorId('abc'),'evidence-review-abc');
 });
 test('12 — display: a sentence already reviewed by a human is shown with its review, never replaced by a newer unreviewed copy',()=>{
@@ -264,12 +268,16 @@ test('BLOCKER — a legacy stored PHONE_RAW attached to "contactability" (relabe
   assert.ok(view.missing.includes('Amplitude horaire étendue'),'the criterion is still "not found"');
  }
 });
-test('BLOCKER — buttons and the "+N points" line exist only on proposal cards (static wiring)',async()=>{
+test('BLOCKER — buttons and the "+N points" line exist only in ICP proposal blocks, never on context cards (static wiring)',async()=>{
  const src=await readFile(new URL('../src/components/ObservationsReview.tsx',import.meta.url),'utf8');
- assert.match(src,/\{c\.kind==='proposal'&&<div className="actions evidence-actions">/);
- assert.match(src,/\{c\.kind==='proposal'&&<><p className="evidence-label">\{tr\('evidence\.whyRelevant'\)\}<\/p><p>\{o\.claim\}<\/p>\{c\.criterion&&<p className="muted">\{proposalScoreNote\(/);
+ const context=src.slice(src.indexOf(' const card=(c:EvidenceCard)=>'),src.indexOf(' const proof=('));
+ const proofs=src.slice(src.indexOf(' const proof=('),src.indexOf(' return <section className="observations-review">'));
+ assert.ok(context.length>100&&proofs.length>100);
+ assert.doesNotMatch(context,/review\(|proposalScoreNote|<button/,'a context card has no action and no score line');
+ assert.equal((proofs.match(/review\(o,'confirm'\)/g)??[]).length,1);
  assert.equal((src.match(/proposalScoreNote\(/g)??[]).length,1);
- assert.equal((src.match(/review\(o,'confirm'\)/g)??[]).length,1);
+ assert.match(src,/\{view\.groups\.length\?view\.groups\.map\(group\)/);
+ assert.match(src,/\{view\.others\.map\(card\)\}/);
 });
 test('BLOCKER — multi-terrain sentence → only "Capacité multi-terrains / multi-espaces"; schedule → only "Amplitude" and "Réservation par créneau"',()=>{
  const obs=extract(PROD_PAGE,PROD_ICP).filter(o=>o.status!=='UNKNOWN'&&o.criterion);
@@ -302,4 +310,91 @@ test('BLOCKER — the UI trusts a stored criterion only through an explicit rule
  assert.equal(as({criterion:'target_fit',observation_type:'GENERIC_KEYWORD_MATCH'}),'context');
  assert.equal(as({criterion:'target_fit',observation_type:'SOMETHING_NEW'}),'context','unknown rule type');
  assert.equal(as({criterion:'target_fit',observation_type:'TARGET_FIT_RULE_MATCH'}),'proposal','a user-authored target_fit rule');
+});
+
+// ---------------- Final pre-merge UX: the ICP summary reads the same groups as the review section ----------------
+// The production shape after the second preview analysis (read-only): 5 criteria with proposals, two for
+// "Infrastructure…" and two for "Amplitude…", duplicated sentences on two pages, phones as context.
+function productionRows():StoredObservation[]{
+ const H='https://www.padeltolosa.fr/',C=H+'contact/',G='criterion_27f71a18-bb19-41f8-a113-b80762f9d61e';
+ const spec:[string,string|null,string,string][]=[
+  ['ICP_SIGNAL:contactability','contactability','7h30 – 00h',C],['ICP_SIGNAL:'+G,G,'Accueil de Groupes',C],['ICP_SIGNAL:target_fit','target_fit','Réserver un terrain / Tarifs',C],['PHONE_RAW',null,PHONE,C],
+  ['ICP_SIGNAL:commercial_signal','commercial_signal',OBS_A,H],['ICP_SIGNAL:contactability','contactability',OBS_B,H],['ICP_SIGNAL:'+G,G,'Accueil de Groupes',H],
+  ['ICP_SIGNAL:need_fit','need_fit',OBS_B,H],['ICP_SIGNAL:target_fit','target_fit','Réserver un terrain',H],['PHONE_RAW',null,PHONE,H],
+  ['GENERIC_KEYWORD_MATCH',null,'des groupes',H],['UNKNOWN','target_fit','',H]];
+ return spec.map(([type,criterion,excerpt,url],i)=>{const signal=type.startsWith(ICP_SIGNAL_PREFIX);return {criterion,observation_type:type,claim:'…',value:signal?true:null,
+  status:signal?'INFERRED':type==='UNKNOWN'?'UNKNOWN':type==='PHONE_RAW'?'OBSERVED':'INFERRED',source_url:url,source_title:'Padel Tolosa',source_excerpt:excerpt,source_type:'official_website',
+  confidence:.55,collected_at:`2026-09-26T13:23:${String(10+i).padStart(2,'0')}.000Z`,expires_at:'2026-12-25T00:00:00.000Z',content_hash:'h'+i,id:'o'+i,prospect_id:'p',organization_id:'o',
+  evidence_id:signal?'e'+i:null,review_status:'NOT_VERIFIED'} as StoredObservation});
+}
+// What the ICP section shows for a criterion — the same expressions as app/page.tsx, fed by the same summary.
+function icpLine(b:{key:string;state:string;points:number;reason:string},summary:ReturnType<typeof presentObservations>['summary']){
+ const g=summary.criteria[b.key];const pending=b.state!=='TRUE'&&!!g&&g.pending>0;
+ return {state:pending?'Signal trouvé — à confirmer':b.reason,points:b.points?`Vérifié +${b.points}`:pending?'0 pt':'—',action:g?g.anchorId:null};
+}
+const evidenceOf=(rows:StoredObservation[]):Evidence[]=>rows.filter(o=>o.evidence_id).map(o=>({id:o.evidence_id!,criterion:o.criterion!,value:true,
+ status:o.review_status==='VERIFIED'?'VERIFIED':o.review_status==='CONTRADICTED'?'CONTRADICTED':'INFERRED_UNCONFIRMED',source_url:o.source_url,excerpt:o.source_excerpt,observed_at:'2026-09-26T13:23:00.000Z',verified_by:o.review_status==='NOT_VERIFIED'?null:'human-1'}));
+const summaryLines=(rows:StoredObservation[],criteria=PROD_ICP)=>{const view=presentObservations(rows,criteria,'fr');const s=scoreProspect(criteria,evidenceOf(rows),new Date('2026-09-27T00:00:00Z'));return {view,score:s.score,lines:Object.fromEntries(s.breakdown.map(b=>[b.key,icpLine(b,view.summary)]))}};
+
+test('UX 1 — a criterion with no proposal: summary "À confirmer" / "—", no review action',()=>{
+ const {lines}=summaryLines(productionRows().filter(o=>o.criterion!=='need_fit'));
+ assert.deepEqual(lines.need_fit,{state:'À confirmer',points:'—',action:null});
+});
+test('UX 2 — one unverified ICP_SIGNAL: summary "Signal trouvé — à confirmer" / "0 pt", score stays 0',()=>{
+ const {lines,score}=summaryLines(productionRows());
+ assert.deepEqual(lines.commercial_signal,{state:'Signal trouvé — à confirmer',points:'0 pt',action:criterionAnchorId('commercial_signal')});
+ for(const c of PROD_ICP)assert.equal(lines[c.key].state,'Signal trouvé — à confirmer',c.label);
+ assert.equal(score,0);
+});
+test('UX 3 — several proposals for one criterion: one summary entry and one review block, every proof kept and reviewable',()=>{
+ const {view,lines}=summaryLines(productionRows());
+ assert.equal(Object.keys(lines).length,5);
+ assert.deepEqual(view.groups.map(g=>g.criterion.key),PROD_ICP.map(c=>c.key),'one block per criterion, ICP order');
+ const infra=view.groups.find(g=>g.criterion.key==='target_fit')!;
+ assert.deepEqual(infra.cards.map(c=>c.row.source_excerpt).sort(),['Réserver un terrain','Réserver un terrain / Tarifs']);
+ assert.ok(infra.cards.every(c=>c.kind==='proposal'&&c.anchorId&&c.sourceHref),'each proof keeps its own source and review target');
+ assert.equal(view.summary.criteria.target_fit.total,2);
+ // The same sentence found on two pages stays one proof (display), both evidences remain linked (none re-listed as manual).
+ assert.equal(view.groups.find(g=>g.criterion.key==='criterion_27f71a18-bb19-41f8-a113-b80762f9d61e')!.cards.length,1);
+ assert.equal(view.summary.linkedEvidenceIds.length,8);
+});
+test('UX 4 — "Examiner la preuve" targets the block of that criterion (its own anchor, never a position)',()=>{
+ const {view,lines}=summaryLines(productionRows());
+ for(const c of PROD_ICP){
+  const g=view.groups.find(x=>x.criterion.key===c.key)!;
+  assert.equal(lines[c.key].action,g.anchorId);assert.equal(g.criterion.label,c.label);
+ }
+ assert.equal(new Set(view.groups.map(g=>g.anchorId)).size,5);
+ assert.equal(criterionAnchorId('criterion_27f71a18-bb19-41f8-a113-b80762f9d61e'),'criterion-review-criterion_27f71a18-bb19-41f8-a113-b80762f9d61e');
+ assert.match(criterionAnchorId('a b"c'),/^criterion-review-a-b-c$/);
+});
+test('UX 5 + 6 — human confirmation: the summary becomes "Vérifié +20" (exact weight), no other criterion changes',()=>{
+ const before=summaryLines(productionRows());
+ const rows=productionRows().map(o=>o.observation_type==='ICP_SIGNAL:commercial_signal'?{...o,review_status:'VERIFIED' as const}:o);
+ const after=summaryLines(rows);
+ assert.equal(after.score,20);
+ assert.equal(after.lines.commercial_signal.points,'Vérifié +20');
+ assert.equal(after.view.summary.criteria.commercial_signal.statusLabel,'Vérifié');
+ for(const c of PROD_ICP.filter(c=>c.key!=='commercial_signal'))assert.deepEqual(after.lines[c.key],before.lines[c.key],c.label);
+});
+test('UX 5b — contradicted only: never presented as verified, no point, back to the existing "À confirmer"',()=>{
+ const rows=productionRows().map(o=>o.observation_type==='ICP_SIGNAL:commercial_signal'?{...o,review_status:'CONTRADICTED' as const}:o);
+ const {lines,score,view}=summaryLines(rows);
+ assert.deepEqual({state:lines.commercial_signal.state,points:lines.commercial_signal.points},{state:'À confirmer',points:'—'});
+ assert.equal(view.summary.criteria.commercial_signal.statusLabel,'Contredit');
+ assert.equal(score,0);
+});
+test('UX 5c — one proof confirmed while another of the same criterion is still pending: "Vérifié +30", block shows the pending one',()=>{
+ const rows=productionRows().map(o=>o.observation_type==='ICP_SIGNAL:target_fit'&&o.source_excerpt==='Réserver un terrain'?{...o,review_status:'VERIFIED' as const}:o);
+ const {lines,score,view}=summaryLines(rows);
+ assert.equal(score,30);assert.equal(lines.target_fit.points,'Vérifié +30');
+ assert.equal(view.summary.criteria.target_fit.pending,1);
+});
+test('UX 7 — a phone in context never creates an ICP "Signal trouvé", not even with a legacy criterion attached',()=>{
+ const legacy=productionRows().filter(o=>o.observation_type==='PHONE_RAW').map(o=>({...o,criterion:'contactability',value:true,evidence_id:'legacy-'+o.id}));
+ const {lines,view}=summaryLines(legacy);
+ assert.deepEqual(lines.contactability,{state:'À confirmer',points:'—',action:null});
+ assert.equal(view.groups.length,0);
+ assert.deepEqual(view.summary.linkedEvidenceIds,[]);
+ assert.equal(view.summary.contextEvidenceIds.length,2,'hidden from the ICP section as well');
 });

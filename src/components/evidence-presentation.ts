@@ -36,14 +36,22 @@ export type EvidenceCard={
  anchorId:string|null;
  technical:{type:string;confidencePct:number;sourceType:string;collectedAt:string;expiresAt:string};
 };
+// One block per ICP criterion: every proposal of that criterion, each still reviewable on its own row.
+export type CriterionGroup={criterion:Criterion;anchorId:string;cards:EvidenceCard[];tone:StatusTone;statusLabel:string;pending:number;verified:number};
+// What the "Pourquoi cet établissement ?" section reads — derived from the very groups displayed below it,
+// never from a second, separately loaded list. linkedEvidenceIds covers every row of a group (duplicate
+// copies included) so the section never re-lists them as manual evidence.
+export type CriterionReviewSummary={anchorId:string;pending:number;total:number;tone:StatusTone;statusLabel:string;excerpts:{text:string;statusLabel:string}[]};
+export type ReviewSummary={criteria:Record<string,CriterionReviewSummary>;linkedEvidenceIds:string[];contextEvidenceIds:string[]};
 // contextEvidenceIds: evidences linked to rows shown as context only — the ICP section must not list them
 // under a criterion either (unless a human already verified them).
-export type EvidencePresentation={proposals:EvidenceCard[];others:EvidenceCard[];missing:string[];contextEvidenceIds:string[]};
+export type EvidencePresentation={proposals:EvidenceCard[];groups:CriterionGroup[];others:EvidenceCard[];missing:string[];contextEvidenceIds:string[];summary:ReviewSummary};
 
 const normalizeExcerpt=(s:string)=>s.normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase().replace(/\s+/g,' ').trim();
 const SOURCE_TYPE_KEYS:Record<string,Key>={official_website:'evidence.sourceOfficial',search_result:'evidence.sourceSearch',public_directory:'evidence.sourceDirectory',test_fixture:'evidence.sourceFixture'};
 
 export const evidenceAnchorId=(evidenceId:string)=>`evidence-review-${evidenceId}`;
+export const criterionAnchorId=(key:string)=>`criterion-review-${key.replace(/[^A-Za-z0-9_-]/g,'-')}`;
 
 // Which criterion each extraction rule is allowed to speak for. A stored criterion is only trusted when the
 // rule that produced the row explicitly maps to it — never by position, order or "first criterion" — so a
@@ -133,5 +141,20 @@ export function presentObservations(rows:StoredObservation[],criteria:Criterion[
  const missing=rows.length?criteria.filter(c=>!informed.has(c.key)).map(c=>c.label):[];
  // Every row, not only the displayed one of a duplicate group: a hidden copy must not surface either.
  const contextEvidenceIds=rows.filter(o=>o.evidence_id&&!isReviewable(o,criteria)).map(o=>o.evidence_id!);
- return {proposals,others,missing,contextEvidenceIds};
+ // Group the proposals by criterion (ICP order): a block's state is pending as soon as one proof still
+ // waits for a human, verified when one was confirmed and none waits, contradicted otherwise. Display only.
+ const groups:CriterionGroup[]=[];
+ for(const c of proposals){
+  const g=groups.find(x=>x.criterion.key===c.criterion!.key);
+  if(g)g.cards.push(c);else groups.push({criterion:c.criterion!,anchorId:criterionAnchorId(c.criterion!.key),cards:[c],tone:'pending',statusLabel:'',pending:0,verified:0});
+ }
+ for(const g of groups){
+  g.pending=g.cards.filter(c=>c.tone==='pending').length;g.verified=g.cards.filter(c=>c.tone==='verified').length;
+  g.tone=g.pending?'pending':g.verified?'verified':'contradicted';
+  g.statusLabel=t(locale,g.tone==='pending'?'evidence.statusToConfirm':g.tone==='verified'?'evidence.statusVerified':'evidence.statusContradicted');
+ }
+ const linkedEvidenceIds=rows.filter(o=>o.evidence_id&&isReviewable(o,criteria)).map(o=>o.evidence_id!);
+ const summary:ReviewSummary={criteria:Object.fromEntries(groups.map(g=>[g.criterion.key,{anchorId:g.anchorId,pending:g.pending,total:g.cards.length,tone:g.tone,statusLabel:g.statusLabel,
+  excerpts:g.cards.map(c=>({text:c.row.source_excerpt,statusLabel:c.statusLabel}))}])),linkedEvidenceIds,contextEvidenceIds};
+ return {proposals,groups,others,missing,contextEvidenceIds,summary};
 }

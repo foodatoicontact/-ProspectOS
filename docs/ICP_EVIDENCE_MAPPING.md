@@ -59,6 +59,18 @@ ligne téléphone (même page) et supprime sa preuve non vérifiée (règle exis
 - Section ICP : « Signal trouvé — à confirmer », « 0 pt », bouton « Examiner la preuve » (défile vers la
   carte) ; après confirmation « Vérifié +N ».
 
+## Résumé ICP et regroupement (une seule source)
+
+- La revue affiche **un bloc par critère** (ordre de l'ICP) : première preuve visible, les autres repliées
+  (« Voir les autres preuves (n) »). Chaque preuve garde son extrait, sa source et ses boutons : rien n'est
+  fusionné ni supprimé en base. Une même phrase trouvée sur deux pages reste une seule preuve affichée.
+- « Pourquoi cet établissement ? » lit **le même résumé** que ces blocs (`ReviewSummary`, calculé par
+  `presentObservations`) : au moins une proposition non revue → « Signal trouvé — à confirmer · 0 pt » +
+  liste des preuves + « Examiner la preuve » ; preuve confirmée → état du moteur de score existant
+  (« Vérifié +N ») ; contredite seulement → comportement existant (« À confirmer »). Aucun second calcul.
+- « Examiner la preuve » cible le bloc du critère par son ancre (`criterion-review-<clé>`), déplie ses
+  preuves supplémentaires, fait défiler et donne le focus.
+
 ## Limites connues
 
 - Détection déterministe en français (et quelques mots anglais) ; pas de synonymes hors libellé.

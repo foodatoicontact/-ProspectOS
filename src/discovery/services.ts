@@ -63,6 +63,15 @@ export class DiscoveryService {
 // pages any organization publishes are added — the number of pages fetched is not.
 const MAX_EXTRA_PAGES=2;
 const RELEVANT_INTERNAL_LINK=/contact|about|a-propos|apropos|qui-sommes-nous|produits?|products?|services?|solutions?|catalogue|menu|carte|command|order|livraison/i;
+// What one analysis saves (the RPC accepts at most 40 rows): every observation that carries information
+// first — proposals and observed facts of every page — then ONE "absent from the analyzed pages" row per
+// criterion that no page informed. The bound can therefore never drop a proposal of page 2 behind the
+// UNKNOWN rows of page 1, and a criterion is never listed as missing once per page.
+export function prioritizeObservations(all:Observation[]):Observation[]{
+ const informative=all.filter(o=>o.status!=='UNKNOWN');const informed=new Set(informative.map(o=>o.criterion));
+ const unknown=all.filter(o=>{if(o.status!=='UNKNOWN'||informed.has(o.criterion))return false;informed.add(o.criterion);return true});
+ return [...informative,...unknown].slice(0,40);
+}
 export class CompanyAnalysisService {
  repo:DiscoveryRepository;fetchPage:PageFetcher;log:SafeLogger;
  constructor(repo:DiscoveryRepository,fetchPage:PageFetcher,log:SafeLogger=noop){this.repo=repo;this.fetchPage=fetchPage;this.log=log}
@@ -76,7 +85,7 @@ export class CompanyAnalysisService {
  try{const page=await this.fetchPage(target);const pages=[page];const links=new Set<string>();const $=load(page.html);
  $('a[href]').each((_,element)=>{try{const href=$(element).attr('href')!;const url=new URL(href,page.url);url.hash='';if(url.origin===new URL(page.url).origin&&url.href!==page.url&&RELEVANT_INTERNAL_LINK.test(url.pathname+' '+$(element).text()))links.add(url.href)}catch{/* Invalid links are not fetched. */}});
  let failedPages=0;for(const url of [...links].slice(0,MAX_EXTRA_PAGES)){try{pages.push(await this.fetchPage(url))}catch{failedPages++}}
- const observations=pages.flatMap(item=>new ObservationService().extract(item.html,item.url,criteria,sourceType)).map(o=>ObservationSchema.parse(o)).slice(0,40);const proposed=new EvidenceProposalService().propose(observations,criteria);const saved=await this.repo.saveObservations(prospectId,observations);this.log({provider:'http_html',duration_ms:Date.now()-start,pages:pages.length,failed_pages:failedPages,proposed_evidence:proposed.length,ai_tokens:0,ai_cost_estimate:0});return {observations:saved,pages_analyzed:pages.length,failed_pages:failedPages,proposals:proposed.length,ai_tokens:0,ai_cost_estimate:0};
+ const observations=prioritizeObservations(pages.flatMap(item=>new ObservationService().extract(item.html,item.url,criteria,sourceType)).map(o=>ObservationSchema.parse(o)));const proposed=new EvidenceProposalService().propose(observations,criteria);const saved=await this.repo.saveObservations(prospectId,observations);this.log({provider:'http_html',duration_ms:Date.now()-start,pages:pages.length,failed_pages:failedPages,proposed_evidence:proposed.length,ai_tokens:0,ai_cost_estimate:0});return {observations:saved,pages_analyzed:pages.length,failed_pages:failedPages,proposals:proposed.length,ai_tokens:0,ai_cost_estimate:0};
  // The original cause (never sent to the client — the route always returns the generic mapped
  // message) is logged here so a real failure stays diagnosable from server logs alone.
  // A robots.txt refusal of the site itself is reported as such; every other failure (network, SSRF policy,

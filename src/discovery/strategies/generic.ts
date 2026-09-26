@@ -5,6 +5,7 @@ import {findContactChannelCriterion} from './contact-channel.ts';
 import {findCommercialSignalCriterion,matchCommercialSignal} from './commercial-signal.ts';
 import {findTargetFitCriterion,evaluateTargetFit,TARGET_FIT_DIMENSION_LABELS} from './target-fit.ts';
 import {findNeedFitCriterion,matchNeedFitSignal} from './need-fit.ts';
+import {extractIcpConceptProposals} from './icp-concepts.ts';
 // Sector-agnostic extraction: works from the project's own ICP labels instead of any hardcoded vertical.
 // A criterion never seen at compile time can still receive a proposal as long as it exists in the ICP passed in.
 const STOPWORDS=new Set(['dans','pour','avec','sans','plus','votre','vos','vous','notre','nos','nous','cette','ces','sont','être','avoir','leur','leurs','qui','que','dont','tout','tous','toute','toutes','fait','faire','très','bien','aussi','donc','ainsi','comme','the','and','for','with','this','that','from','your','have']);
@@ -53,6 +54,11 @@ export function extractGenericObservations(ctx:ObservationContext,criteria:Crite
   if(attachSignalTo&&criterion.key===attachSignalTo.key)continue; // idem, for the explicit commercial-signal rule above
   if(attachTargetFitTo&&criterion.key===attachTargetFitTo.key)continue; // idem, for the explicit target_fit rule above
   if(attachNeedFitTo&&criterion.key===attachNeedFitTo.key)continue; // idem, for the explicit need_fit rule above
+  // ICP evidence mapping: an explicit sentence matching a concept the criterion's own label names
+  // becomes an INFERRED proposal (value true, evidence INFERRED_UNCONFIRMED: never scored until a human
+  // confirms it). It replaces the weaker keyword guess below for that criterion only.
+  const proposal=extractIcpConceptProposals(ctx,[criterion]);
+  if(proposal.length){out.push(...proposal);continue}
   const words=significantWords(criterion.label);if(!words.length)continue;
   const line=lines.find(l=>{const normalized=' '+l.normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase()+' ';return words.some(w=>normalized.includes(' '+w))});
   // A bare keyword overlap is a candidate excerpt, never a determination: no deterministic rule

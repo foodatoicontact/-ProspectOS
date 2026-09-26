@@ -39,3 +39,10 @@ export function observationMeta(locale:Locale,sourceType:string,dateStr:string,c
  if(locale==='fr')return `${sourceType} · ${date} · confiance ${confidencePct} % · expire le ${expiry}`;
  return `${sourceType} · ${date} · confidence ${confidencePct}% · expires on ${expiry}`;
 }
+// The score line of an ICP proposal card: what it is worth today (always 0 until a human confirms it)
+// and what confirming it would add under the ICP's own weight — never a new scoring rule.
+export function proposalScoreNote(locale:Locale,weight:number,reviewStatus:string):string{
+ if(reviewStatus==='VERIFIED')return locale==='fr'?`Compté dans le score : +${weight} points.`:`Counted in the score: +${weight} points.`;
+ if(reviewStatus==='CONTRADICTED')return locale==='fr'?'Contredit : aucun point.':'Contradicted: no points.';
+ return locale==='fr'?`0 point tant que vous ne l’avez pas confirmé. Après confirmation : +${weight} points.`:`0 points until you confirm it. Once confirmed: +${weight} points.`;
+}

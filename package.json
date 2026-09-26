@@ -21,8 +21,9 @@
     "test:beta-concurrency-realpg": "bash tests/beta-trial-concurrency-realpg.sh",
     "test:beta-analytics-db": "node tests/beta-analytics-admin-db.mjs",
     "test:dynamic-analysis-db": "node tests/dynamic-analysis-db.mjs",
+    "test:icp-evidence-db": "node tests/icp-evidence-mapping-db.mjs",
     "test:analysis-quota-concurrency-realpg": "bash tests/analysis-quota-concurrency-realpg.sh",
-    "test:all": "npm test && npm run test:db && npm run test:discovery-db && npm run test:discovery-trust-db && npm run test:ai-quota-db && npm run test:outreach-db && npm run test:account-db && npm run test:cost-byok-db && npm run test:trial-db && npm run test:beta-auto-db && npm run test:beta-analytics-db && npm run test:dynamic-analysis-db && npm run typecheck"
+    "test:all": "npm test && npm run test:db && npm run test:discovery-db && npm run test:discovery-trust-db && npm run test:ai-quota-db && npm run test:outreach-db && npm run test:account-db && npm run test:cost-byok-db && npm run test:trial-db && npm run test:beta-auto-db && npm run test:beta-analytics-db && npm run test:dynamic-analysis-db && npm run test:icp-evidence-db && npm run typecheck"
   },
   "dependencies": {
     "@supabase/supabase-js": "2.116.0",

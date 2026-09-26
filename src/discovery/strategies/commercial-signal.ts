@@ -9,9 +9,14 @@ import type {ObservationContext} from './restaurant.ts';
 // "any signal -> any criterion" shortcut this module must avoid). A single vague word ("entreprise",
 // "service", "croissance" alone) never matches; only a full phrase naming the event does.
 export const COMMERCIAL_SIGNAL_KEYS=['commercial_signal','business_signal','growth_signal'] as const;
+// Same rule as contact-channel.ts: the key must be backed by a label that still names a commercial/growth
+// signal — a default key whose label the user rewrote ("Capacité multi-terrains") never receives one.
+const COMMERCIAL_LABEL=/signal|commercia|recrut|croissance|ouverture|lancement|expansion|appel d.offres|developpement|business|growth|hiring/;
+const normalizeLabel=(label:string)=>label.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
+export const COMMERCIAL_SIGNAL_TYPES=['RECRUITING_SIGNAL','NEW_LOCATION_SIGNAL','LAUNCH_SIGNAL','PUBLIC_TENDER_SIGNAL','EXPANSION_SIGNAL'] as const;
+export function isCommercialSignalCriterion(c:Criterion):boolean{return (COMMERCIAL_SIGNAL_KEYS as readonly string[]).includes(c.key)&&COMMERCIAL_LABEL.test(normalizeLabel(c.label))}
 export function findCommercialSignalCriterion(criteria:Criterion[]):Criterion|null{
- const keys=new Set<string>(COMMERCIAL_SIGNAL_KEYS);
- return criteria.find(c=>keys.has(c.key))??null;
+ return criteria.find(isCommercialSignalCriterion)??null;
 }
 const PATTERNS:[string,RegExp,string][]=[
  ['RECRUITING_SIGNAL',/nous recrutons|recrute (?:actuellement|activement)|recrutement (?:en cours|actif)|rejoignez notre équipe|postes? à pourvoir/i,'Recrutement actif explicitement annoncé'],

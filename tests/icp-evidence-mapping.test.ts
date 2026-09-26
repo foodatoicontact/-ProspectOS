@@ -229,3 +229,77 @@ test('Padel Tolosa regression — initial score 0 (nothing verified), then +20 o
  assert.equal(phone.title,'Téléphone professionnel trouvé');assert.equal(phone.kind,'context');assert.equal(phone.anchorId,null);
 });
 test('Constant — the client-side ICP signal prefix equals the server one',()=>{assert.equal(ICP_SIGNAL_TYPE_PREFIX,ICP_SIGNAL_PREFIX)});
+
+// ---------------- Blocker regression: the REAL Padel Tolosa ICP keys ----------------
+// The production project was created from the default ICP: its keys stayed target_fit / need_fit /
+// commercial_signal / contactability while the user rewrote the labels. Nothing may be mapped by key alone.
+const PROD_ICP:Criterion[]=[
+ {key:'target_fit',label:'Infrastructure sportive physique réservable',weight:30},
+ {key:'need_fit',label:'Réservation par créneau / à l’heure',weight:25},
+ {key:'commercial_signal',label:'Capacité multi-terrains / multi-espaces',weight:20},
+ {key:'contactability',label:'Amplitude horaire étendue',weight:10},
+ {key:'criterion_27f71a18-bb19-41f8-a113-b80762f9d61e',label:'Offres groupes / entreprises / événements',weight:15},
+];
+const PHONE='06 73 61 05 45';
+const PROD_PAGE=html(`<p>${OBS_A}</p><p>${OBS_B}</p><p>Nous recrutons un coach !</p><p>Tél : ${PHONE}</p>`);
+test('BLOCKER — PHONE_RAW + five ICP criteria (real keys): no criterion mapping, never a proposal, never a +N point',()=>{
+ const obs=extract(PROD_PAGE,PROD_ICP);
+ const phone=obs.find(o=>o.observation_type==='PHONE_RAW')!;
+ assert.equal(phone.criterion,null);assert.equal(phone.value,null);
+ assert.ok(!new EvidenceProposalService().propose(obs,PROD_ICP).some(e=>e.excerpt===PHONE));
+ const view=presentObservations(prioritizeObservations(obs).map(o=>stored(o)),PROD_ICP,'fr');
+ assert.ok(!view.proposals.some(c=>c.row.source_excerpt===PHONE));
+ const card=view.others.find(c=>c.row.source_excerpt===PHONE)!;
+ assert.equal(card.title,'Téléphone professionnel trouvé');assert.equal(card.kind,'context');assert.equal(card.criterion,null);assert.equal(card.anchorId,null);
+});
+test('BLOCKER — a legacy stored PHONE_RAW attached to "contactability" (relabeled "Amplitude horaire étendue") is shown as context only',()=>{
+ const legacy:StoredObservation={criterion:'contactability',observation_type:'PHONE_RAW',claim:'Numéro de téléphone professionnel public documenté',value:true,status:'OBSERVED',
+  source_url:'https://www.padeltolosa.fr/',source_title:'Padel Tolosa',source_excerpt:PHONE,source_type:'official_website',confidence:.8,collected_at:'2026-09-26T12:26:55.008Z',expires_at:'2026-12-25T12:26:55.008Z',
+  content_hash:'legacy',id:'f8c62ab9',prospect_id:'p',organization_id:'o',evidence_id:'955d0641',review_status:'NOT_VERIFIED'};
+ for(const locale of ['fr','en'] as const){
+  const view=presentObservations([legacy],PROD_ICP,locale);
+  assert.equal(view.proposals.length,0,'no card under "Amplitude horaire étendue"');
+  assert.equal(view.others.length,1);assert.equal(view.others[0].kind,'context');assert.equal(view.others[0].criterion,null);assert.equal(view.others[0].anchorId,null);
+  assert.deepEqual(view.contextEvidenceIds,['955d0641'],'the ICP section hides its evidence under that criterion');
+  assert.ok(view.missing.includes('Amplitude horaire étendue'),'the criterion is still "not found"');
+ }
+});
+test('BLOCKER — buttons and the "+N points" line exist only on proposal cards (static wiring)',async()=>{
+ const src=await readFile(new URL('../src/components/ObservationsReview.tsx',import.meta.url),'utf8');
+ assert.match(src,/\{c\.kind==='proposal'&&<div className="actions evidence-actions">/);
+ assert.match(src,/\{c\.kind==='proposal'&&<><p className="evidence-label">\{tr\('evidence\.whyRelevant'\)\}<\/p><p>\{o\.claim\}<\/p>\{c\.criterion&&<p className="muted">\{proposalScoreNote\(/);
+ assert.equal((src.match(/proposalScoreNote\(/g)??[]).length,1);
+ assert.equal((src.match(/review\(o,'confirm'\)/g)??[]).length,1);
+});
+test('BLOCKER — multi-terrain sentence → only "Capacité multi-terrains / multi-espaces"; schedule → only "Amplitude" and "Réservation par créneau"',()=>{
+ const obs=extract(PROD_PAGE,PROD_ICP).filter(o=>o.status!=='UNKNOWN'&&o.criterion);
+ const forExcerpt=(x:string)=>obs.filter(o=>o.source_excerpt===x).map(o=>o.criterion).sort();
+ assert.deepEqual(forExcerpt(OBS_A),['commercial_signal']);
+ assert.deepEqual(forExcerpt(OBS_B),['contactability','need_fit']);
+ assert.equal(proposalFor(obs,'commercial_signal')!.observation_type,'ICP_SIGNAL:commercial_signal');
+ assert.equal(proposalFor(obs,'contactability')!.observation_type,'ICP_SIGNAL:contactability');
+ // No cross-association: every mapped row is an ICP proposal, the phone and the recruiting line map to nothing.
+ assert.ok(obs.every(o=>o.observation_type.startsWith(ICP_SIGNAL_PREFIX)),JSON.stringify(obs.map(o=>[o.criterion,o.observation_type])));
+ assert.ok(!obs.some(o=>/recrutons/.test(o.source_excerpt)));
+ const view=presentObservations(prioritizeObservations(extract(PROD_PAGE,PROD_ICP)).map(o=>stored(o)),PROD_ICP,'fr');
+ assert.deepEqual(view.proposals.map(c=>[c.title,c.row.source_excerpt]),[
+  ['Réservation par créneau / à l’heure',OBS_B],['Capacité multi-terrains / multi-espaces',OBS_A],['Amplitude horaire étendue',OBS_B]]);
+ const s0=scoreProspect(PROD_ICP,new EvidenceProposalService().propose(obs,PROD_ICP),NOW);assert.equal(s0.score,0);
+ const confirmed=new EvidenceProposalService().propose(obs,PROD_ICP).map(e=>e.criterion==='commercial_signal'?humanReview(e,'confirm'):e);
+ assert.equal(scoreProspect(PROD_ICP,confirmed,NOW).score,20);
+});
+test('BLOCKER — key-based rules still work when the label keeps their meaning (default ICP unchanged)',()=>{
+ const obs=extract(PROD_PAGE,[{key:'commercial_signal',label:'Signal commercial observable',weight:50},{key:'contactability',label:'Canal de contact professionnel documenté',weight:50}]);
+ assert.equal(obs.find(o=>o.observation_type==='PHONE_RAW')!.criterion,'contactability');
+ assert.equal(obs.find(o=>o.observation_type==='RECRUITING_SIGNAL')!.criterion,'commercial_signal');
+});
+test('BLOCKER — the UI trusts a stored criterion only through an explicit rule → criterion mapping (no fallback)',()=>{
+ const base=rowsForPadel().find(o=>o.criterion==='multi')!;
+ const as=(o:Partial<StoredObservation>)=>presentObservation({...base,...o},PROD_ICP,'fr').kind;
+ assert.equal(as({criterion:'commercial_signal',observation_type:'ICP_SIGNAL:commercial_signal'}),'proposal');
+ assert.equal(as({criterion:'contactability',observation_type:'ICP_SIGNAL:commercial_signal'}),'context','ICP_SIGNAL type and criterion disagree');
+ assert.equal(as({criterion:'commercial_signal',observation_type:'RECRUITING_SIGNAL'}),'context','commercial rule on a relabeled key');
+ assert.equal(as({criterion:'target_fit',observation_type:'GENERIC_KEYWORD_MATCH'}),'context');
+ assert.equal(as({criterion:'target_fit',observation_type:'SOMETHING_NEW'}),'context','unknown rule type');
+ assert.equal(as({criterion:'target_fit',observation_type:'TARGET_FIT_RULE_MATCH'}),'proposal','a user-authored target_fit rule');
+});

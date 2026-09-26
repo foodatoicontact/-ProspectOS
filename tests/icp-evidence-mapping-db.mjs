@@ -174,6 +174,43 @@ try {
     assert.equal(s.score, 20 + 25 + 10);
     assert.ok(s.score <= 100);
   });
+  // ---- Blocker regression: the real production keys (default keys, labels rewritten by the user) ----
+  const PROD_ICP = [
+    { key: 'target_fit', label: 'Infrastructure sportive physique réservable', weight: 30 },
+    { key: 'need_fit', label: 'Réservation par créneau / à l’heure', weight: 25 },
+    { key: 'commercial_signal', label: 'Capacité multi-terrains / multi-espaces', weight: 20 },
+    { key: 'contactability', label: 'Amplitude horaire étendue', weight: 10 },
+    { key: 'criterion_27f71a18-bb19-41f8-a113-b80762f9d61e', label: 'Offres groupes / entreprises / événements', weight: 15 },
+  ];
+  const pa2 = await project(A, oa);
+  await sql(`insert into public.icps(project_id,organization_id,criteria) values ($1,$2,$3::jsonb)`, [pa2, oa, JSON.stringify(PROD_ICP)]);
+  const prP = (await as(A, `insert into public.prospects(organization_id,project_id,name,website,status) values($1,$2,'Padel Tolosa',$3,'À analyser') returning id`, [oa, pa2, URL_A])).rows[0].id;
+  const prodPage = page('<p>Tél : 06 73 61 05 45</p>');
+  const prodExtract = () => prioritizeObservations(new ObservationService().extract(prodPage, URL_A, PROD_ICP, 'official_website')).map(toStorageSafeObservation);
+  const rowsP = async () => (await as(A, 'select o.*, e.status evidence_status from public.prospect_observations o left join public.evidence e on e.id=o.evidence_id where o.prospect_id=$1', [prP])).rows;
+
+  await check('BLOCKER_LEGACY_PHONE_CLEANED: a legacy PHONE_RAW attached to "contactability" is detached (evidence removed) by the next analysis', async () => {
+    const legacyPhone = prodExtract().find(o => o.observation_type === 'PHONE_RAW');
+    // Exactly what the previous engine stored in production: phone -> contactability, value true.
+    await save(A, prP, [{ ...legacyPhone, criterion: 'contactability', value: true, claim: 'Numéro de téléphone professionnel public documenté', confidence: 0.8 }]);
+    const before = (await rowsP()).find(o => o.observation_type === 'PHONE_RAW');
+    assert.equal(before.criterion, 'contactability'); assert.ok(before.evidence_id);
+    await save(A, prP, prodExtract());
+    const rows = await rowsP();
+    const phones = rows.filter(o => o.observation_type === 'PHONE_RAW');
+    assert.equal(phones.length, 1);
+    assert.equal(phones[0].criterion, null); assert.equal(phones[0].value, null); assert.equal(phones[0].evidence_id, null);
+    assert.equal((await as(A, 'select count(*)::int n from public.evidence where id=$1', [before.evidence_id])).rows[0].n, 0);
+  });
+  await check('BLOCKER_NO_CROSS_ASSOCIATION: multi-terrain -> commercial_signal only; schedule -> contactability (hours) + need_fit (slots) only', async () => {
+    const rows = (await rowsP()).filter(o => o.criterion);
+    const by = x => rows.filter(o => o.source_excerpt === x).map(o => o.criterion).sort();
+    assert.deepEqual(by('4 Terrains indoor + 1 terrain de badminton'), ['commercial_signal']);
+    assert.deepEqual(by('Créneaux de 1h30 disponibles tous les jours de 7h30 à 00h.'), ['contactability', 'need_fit']);
+    assert.ok(rows.filter(o => o.status !== 'UNKNOWN').every(o => o.observation_type.startsWith('ICP_SIGNAL:') && o.evidence_status === 'INFERRED_UNCONFIRMED'));
+    const ev = (await as(A, 'select * from public.evidence where prospect_id=$1', [prP])).rows.map(e => ({ ...e, observed_at: new Date(e.observed_at).toISOString() }));
+    assert.equal(scoreProspect(PROD_ICP, ev).score, 0);
+  });
 } finally {
   await db.close();
 }

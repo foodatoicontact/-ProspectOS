@@ -30,6 +30,21 @@ proposition n'est jamais une preuve : elle vaut 0 point tant qu'un humain ne l'a
 - Une analyse enregistre d'abord toutes les observations informatives de toutes les pages, puis une
   seule ligne « absent » par critère non informé (borne de 40 lignes).
 
+## Règles à clé (téléphone, signal commercial) : clé ET libellé
+
+Un projet créé depuis l'ICP par défaut garde ses clés (`contactability`, `commercial_signal`…) même quand
+l'utilisateur réécrit les libellés (cas réel : `contactability` = « Amplitude horaire étendue »). Un
+téléphone n'est rattaché à un critère que si sa clé est une clé de contact **et** que son libellé parle
+encore de contact (contact, téléphone, joignable, coordonnées, canal, e-mail) ; de même pour les signaux
+commerciaux. Sinon le téléphone reste une information de contexte, sans preuve ni point.
+
+L'affichage applique la même règle aux lignes déjà stockées : une ligne n'est une carte « à confirmer »
+que si la règle qui l'a produite correspond explicitement à ce critère (`ICP_SIGNAL:<clé>` = sa clé,
+règle téléphone → critère de contact, règles du preset ou des règles utilisateur → leurs clés). Jamais
+par position, ordre ou premier critère. Les preuves liées à une ligne de contexte (non vérifiées) ne
+sont plus listées sous un critère dans la section ICP. Une nouvelle analyse détache aussi l'ancienne
+ligne téléphone (même page) et supprime sa preuve non vérifiée (règle existante de la migration 004).
+
 ## Affichage (`src/components/evidence-presentation.ts`, `ObservationsReview.tsx`)
 
 - Carte : critère ICP (titre), « Signal trouvé » (extrait cité), « Pourquoi c'est pertinent », source

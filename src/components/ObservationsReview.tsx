@@ -6,7 +6,7 @@ import type {Criterion,Evidence,Prospect} from '../domain/core';
 import {translate,proposalScoreNote,type Locale,type TKey} from '../i18n';
 import {presentObservations,type EvidenceCard} from './evidence-presentation';
 type Api=(path:string,method?:string,body?:unknown)=>Promise<any>;
-export function ObservationsReview({prospect,criteria,mode,api,onChanged,onReviewTargets,disabled,onBusyChange,locale}:{prospect:Prospect;criteria:Criterion[];mode:'demo'|'live';api:Api;disabled:boolean;onBusyChange:(active:boolean)=>void;onChanged:(evidence?:Evidence[])=>Promise<void>;onReviewTargets?:(evidenceIds:string[])=>void;locale:Locale}){
+export function ObservationsReview({prospect,criteria,mode,api,onChanged,onReviewTargets,disabled,onBusyChange,locale}:{prospect:Prospect;criteria:Criterion[];mode:'demo'|'live';api:Api;disabled:boolean;onBusyChange:(active:boolean)=>void;onChanged:(evidence?:Evidence[])=>Promise<void>;onReviewTargets?:(targets:{proposals:string[];context:string[]})=>void;locale:Locale}){
  const tr=(key:TKey)=>translate(locale,key);
  const [rows,setRows]=useState<StoredObservation[]>([]),[busy,setBusy]=useState(false),[error,setError]=useState(''),[website,setWebsite]=useState(prospect.website??'');const generation=useRef(0);
  const key=`prospectos-observations:${prospect.id}`;
@@ -21,8 +21,8 @@ export function ObservationsReview({prospect,criteria,mode,api,onChanged,onRevie
  async function review(row:StoredObservation,decision:'confirm'|'contradict'|'unverify'){await execute(async()=>{const r=generation.current;const changed=mode==='demo'?{...row,review_status:decision==='confirm'?'VERIFIED':decision==='contradict'?'CONTRADICTED':'NOT_VERIFIED'}:await api(`prospects/${prospect.id}/observations/${row.id}/${decision}`,'POST',{});if(r!==generation.current)return;persist(rows.map(o=>o.id===row.id?changed:o));const evidence=evidenceFor(changed);await onChanged(mode==='demo'&&evidence?[evidence]:undefined)})}
  // Display only: the rows stay exactly what the server returned; only what a person reads is derived.
  const view=presentObservations(rows,criteria,locale);
- const targets=view.proposals.map(c=>c.row.evidence_id).filter((id):id is string=>!!id).join(',');
- useEffect(()=>{onReviewTargets?.(targets?targets.split(','):[])},[targets]);
+ const proposalIds=view.proposals.map(c=>c.row.evidence_id).filter((id):id is string=>!!id).join(','),contextIds=view.contextEvidenceIds.join(',');
+ useEffect(()=>{onReviewTargets?.({proposals:proposalIds?proposalIds.split(','):[],context:contextIds?contextIds.split(','):[]})},[proposalIds,contextIds]);
  const date=(value:string)=>new Date(value).toLocaleDateString(locale==='fr'?'fr-FR':'en-US');
  const card=(c:EvidenceCard)=>{const o=c.row;return <article key={o.id} id={c.anchorId??undefined} tabIndex={c.anchorId?-1:undefined} className={`evidence-card tone-${c.tone}`}>
   <header><div><h4>{c.title}</h4>{c.subtitle&&<small>{c.subtitle}</small>}</div><span className={`pill status-pill tone-${c.tone}`}>{c.statusLabel}</span></header>

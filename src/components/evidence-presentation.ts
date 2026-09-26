@@ -8,6 +8,10 @@ import type {StoredObservation} from '../discovery/types.ts';
 import type {Locale} from '../i18n/locale.ts';
 import {fr} from '../i18n/fr.ts';
 import {en} from '../i18n/en.ts';
+import {isContactChannelCriterion} from '../discovery/strategies/contact-channel.ts';
+import {isCommercialSignalCriterion,COMMERCIAL_SIGNAL_TYPES} from '../discovery/strategies/commercial-signal.ts';
+import {TARGET_FIT_KEYS} from '../discovery/strategies/target-fit.ts';
+import {NEED_FIT_KEYS} from '../discovery/strategies/need-fit.ts';
 
 type Key=keyof typeof fr;
 const t=(locale:Locale,key:Key)=>(locale==='fr'?fr:en)[key];
@@ -32,16 +36,38 @@ export type EvidenceCard={
  anchorId:string|null;
  technical:{type:string;confidencePct:number;sourceType:string;collectedAt:string;expiresAt:string};
 };
-export type EvidencePresentation={proposals:EvidenceCard[];others:EvidenceCard[];missing:string[]};
+// contextEvidenceIds: evidences linked to rows shown as context only — the ICP section must not list them
+// under a criterion either (unless a human already verified them).
+export type EvidencePresentation={proposals:EvidenceCard[];others:EvidenceCard[];missing:string[];contextEvidenceIds:string[]};
 
 const normalizeExcerpt=(s:string)=>s.normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase().replace(/\s+/g,' ').trim();
 const SOURCE_TYPE_KEYS:Record<string,Key>={official_website:'evidence.sourceOfficial',search_result:'evidence.sourceSearch',public_directory:'evidence.sourceDirectory',test_fixture:'evidence.sourceFixture'};
 
 export const evidenceAnchorId=(evidenceId:string)=>`evidence-review-${evidenceId}`;
+
+// Which criterion each extraction rule is allowed to speak for. A stored criterion is only trusted when the
+// rule that produced the row explicitly maps to it — never by position, order or "first criterion" — so a
+// row written by an older engine (e.g. a phone number attached to a default key the user relabeled
+// "Amplitude horaire étendue") is shown as context, never as a proof of that criterion.
+const RULE_KEYS:Record<string,readonly string[]>={
+ TARGET_FIT_RULE_MATCH:TARGET_FIT_KEYS,NEED_FIT_SIGNAL_MATCH:NEED_FIT_KEYS,
+ // Restaurant preset (strategies/restaurant.ts): one fixed criterion key per rule.
+ FOOD_ACTIVITY:['food'],GEOGRAPHY:['region'],PHONE_ORDERING:['phone_orders'],SOCIAL_ORDERING:['social_orders'],
+ DELIVERY_PLATFORM:['platforms'],CLICK_AND_COLLECT:['weak_collect'],INTERNAL_DELIVERY:['internal_delivery'],
+};
+export function isExplicitlyMapped(o:StoredObservation,criterion:Criterion|null):boolean{
+ if(!criterion||o.criterion!==criterion.key)return false;
+ const type=o.observation_type;
+ if(type.startsWith(ICP_SIGNAL_TYPE_PREFIX))return type===ICP_SIGNAL_TYPE_PREFIX+criterion.key||(ICP_SIGNAL_TYPE_PREFIX+criterion.key).length>60;
+ if(type==='PHONE_RAW')return isContactChannelCriterion(criterion);
+ if((COMMERCIAL_SIGNAL_TYPES as readonly string[]).includes(type))return isCommercialSignalCriterion(criterion);
+ return RULE_KEYS[type]?.includes(criterion.key)??false; // GENERIC_KEYWORD_MATCH, UNKNOWN, unknown types: never
+}
 // Mirrors the conditions review_discovery_observation requires to confirm (status, value, evidence,
-// excerpt) plus a criterion that is still part of the current ICP.
+// excerpt), a criterion still part of the current ICP, and an explicit rule -> criterion mapping.
 export function isReviewable(o:StoredObservation,criteria:Criterion[]):boolean{
- return !!o.evidence_id&&!!o.criterion&&o.value!==null&&o.status!=='UNKNOWN'&&!!o.source_excerpt.trim()&&criteria.some(c=>c.key===o.criterion);
+ const criterion=o.criterion?criteria.find(c=>c.key===o.criterion)??null:null;
+ return !!o.evidence_id&&o.value!==null&&o.status!=='UNKNOWN'&&!!o.source_excerpt.trim()&&isExplicitlyMapped(o,criterion);
 }
 
 export function humanStatus(o:StoredObservation,reviewable:boolean,locale:Locale):{label:string;tone:StatusTone}{
@@ -103,7 +129,9 @@ export function presentObservations(rows:StoredObservation[],criteria:Criterion[
  // Once something was analyzed, a criterion is listed as "not found" when no row informs it. Derived from
  // the ICP rather than from the UNKNOWN rows, which share one storage key per page (only the last one
  // of a page is kept) and so cannot list every missing criterion.
- const informed=new Set(informative.map(o=>o.criterion).filter(Boolean));
+ const informed=new Set(informative.filter(o=>isReviewable(o,criteria)).map(o=>o.criterion));
  const missing=rows.length?criteria.filter(c=>!informed.has(c.key)).map(c=>c.label):[];
- return {proposals,others,missing};
+ // Every row, not only the displayed one of a duplicate group: a hidden copy must not surface either.
+ const contextEvidenceIds=rows.filter(o=>o.evidence_id&&!isReviewable(o,criteria)).map(o=>o.evidence_id!);
+ return {proposals,others,missing,contextEvidenceIds};
 }

@@ -246,7 +246,8 @@ test('UI: DiscoveryPanel distinguishes Entreprise candidate / Source de signal /
 });
 test('UI: IRRELEVANT results are never rendered as candidate cards, only in the collapsed discarded list', async () => {
  const source = await readFile(new URL('../src/components/DiscoveryPanel.tsx', import.meta.url), 'utf8');
- assert.match(source, /results\.filter\(r=>classOf\(r\)!=='IRRELEVANT'\)\.map\(/);
+ assert.match(source, /const candidates=results\.filter\(r=>classOf\(r\)!=='IRRELEVANT'\);/);
+ assert.match(source, /\{candidates\.slice\(0,resultsShown\)\.map\(resultCard\)\}/);
  assert.match(source, /<details className="note discovery-discarded">/);
 });
 test('UI: only a COMPANY_CANDIDATE gets "Entreprise identifiée" and an add button; the DB column is the class source; legacy rows are flagged', async () => {
@@ -254,8 +255,12 @@ test('UI: only a COMPANY_CANDIDATE gets "Entreprise identifiée" and an add butt
  assert.match(source, /const classOf=\(r:DiscoveryResult\):SourceClass\|null=>r\.source_class!==undefined\?r\.source_class:metaOf\(r\)\.source_class\?\?null;/);
  assert.match(source, /const canAdd=cls==='COMPANY_CANDIDATE';const legacy=cls===null;const nameResolved=canAdd&&meta\.company_name_status==='RESOLVED'/);
  assert.match(source, /legacy\?tr\('discovery\.legacyUnclassified'\)/);
- assert.match(source, /\{nameResolved\?<><h3>\{r\.normalized_payload\.name\}<\/h3><p><b>\{tr\('discovery\.identifiedCompanyLabel'\)\}/);
- assert.match(source, /r\.status==='pending'&&!canAdd\?<><p className="muted">\{tr\('discovery\.notAddable'\)\}<\/p><button disabled=\{busy\} onClick=\{\(\)=>ignore\(r\)\}>/);
+ // Compact card: the company name only for a resolved COMPANY_CANDIDATE; "Entreprise identifiée" only in its detail.
+ assert.match(source, /\{nameResolved\?<h3>\{r\.normalized_payload\.name\}<\/h3>:<h3>\{legacy\?tr\('discovery\.legacyUnclassified'\):tr\('discovery\.unresolvedCompany'\)\}<\/h3>\}/);
+ assert.match(source, /\{nameResolved&&<p><b>\{tr\('discovery\.identifiedCompanyLabel'\)\}/);
+ // Not addable: only "Ignorer" is offered; the explanation stays in the detail.
+ assert.match(source, /r\.status==='pending'&&!canAdd\?<button disabled=\{busy\} onClick=\{\(\)=>ignore\(r\)\}>/);
+ assert.match(source, /\{r\.status==='pending'&&!canAdd&&<p className="muted">\{tr\('discovery\.notAddable'\)\}<\/p>\}/);
  assert.match(source, /\{tr\('discovery\.currentScore'\)\} <b>0\/100<\/b>/, 'the 0/100 score line is preserved');
 });
 test('i18n: every new key exists in FR and EN with genuinely distinct values; no key claims "verified"', async () => {

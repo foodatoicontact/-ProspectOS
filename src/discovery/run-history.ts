@@ -45,3 +45,8 @@ export function replayFields(run: RunSummary, braveAvailable: boolean): ReplayFi
   provider: run.provider === 'brave' && braveAvailable ? 'brave' : 'fixture',
  };
 }
+
+// Compact history: a few recent runs first, then more on demand — never 50 cards at once.
+export const HISTORY_FIRST_PAGE=5;
+export const HISTORY_MORE_PAGE=10;
+export const HISTORY_MAX=50;

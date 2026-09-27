@@ -277,7 +277,7 @@ test('BLOCKER — buttons and the "+N points" line exist only in ICP proposal bl
  assert.equal((proofs.match(/review\(o,'confirm'\)/g)??[]).length,1);
  assert.equal((src.match(/proposalScoreNote\(/g)??[]).length,1);
  assert.match(src,/\{view\.groups\.length\?view\.groups\.map\(group\)/);
- assert.match(src,/\{view\.others\.map\(card\)\}/);
+ assert.match(src,/\{view\.others\.slice\(0,othersShown\)\.map\(card\)\}/);
 });
 test('BLOCKER — multi-terrain sentence → only "Capacité multi-terrains / multi-espaces"; schedule → only "Amplitude" and "Réservation par créneau"',()=>{
  const obs=extract(PROD_PAGE,PROD_ICP).filter(o=>o.status!=='UNKNOWN'&&o.criterion);

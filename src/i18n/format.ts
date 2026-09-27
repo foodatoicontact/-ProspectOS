@@ -57,3 +57,8 @@ export function runCountsLabel(locale:Locale,results:number,accepted:number,igno
  if(locale==='fr')return [`${results} résultat${results>1?'s':''}`,accepted?`${accepted} ajouté${accepted>1?'s':''} au projet`:'',ignored?`${ignored} ignoré${ignored>1?'s':''}`:''].filter(Boolean).join(' · ');
  return [`${results} result${results===1?'':'s'}`,accepted?`${accepted} added to the project`:'',ignored?`${ignored} ignored`:''].filter(Boolean).join(' · ');
 }
+// "20 résultats · 1 ajouté · 1 ignoré · 5 non résolus ou écartés" — the one-line summary above the results.
+export function resultsSummaryLabel(locale:Locale,total:number,added:number,ignored:number,unresolved:number):string{
+ if(locale==='fr')return [`${total} résultat${total>1?'s':''}`,`${added} ajouté${added>1?'s':''}`,`${ignored} ignoré${ignored>1?'s':''}`,`${unresolved} non résolu${unresolved>1?'s':''} ou écarté${unresolved>1?'s':''}`].join(' · ');
+ return [`${total} result${total===1?'':'s'}`,`${added} added`,`${ignored} ignored`,`${unresolved} unresolved or set aside`].join(' · ');
+}

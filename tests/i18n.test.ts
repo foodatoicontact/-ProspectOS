@@ -128,7 +128,11 @@ test('8 — no evidence excerpt is ever passed through a translation helper — 
  assert.doesNotMatch(page,/tr\(e\.excerpt/);
  assert.doesNotMatch(page,/translate\([^,]*,e\.excerpt/);
  assert.match(obs,/<p>\{o\.claim\}<\/p>/);
- assert.match(obs,/<blockquote>\{o\.source_excerpt\}<\/blockquote>/);
+ // Displayed through a separator for glued contacts only (contact-format.ts has no translation import).
+ assert.match(obs,/<blockquote>\{separateGluedContacts\(o\.source_excerpt\)\}<\/blockquote>/);
+ assert.match(obs,/<dd>\{o\.source_excerpt\}<\/dd>/,'the exact excerpt stays available verbatim');
+ const fmt=await readFile(new URL('../src/components/contact-format.ts',import.meta.url),'utf8');
+ assert.doesNotMatch(fmt,/i18n|translate|tr\(/);
 });
 test('9 — no prospect or company name is ever passed through a translation helper — {current.name}/{p.name}/{r.normalized_payload.name} are always rendered raw',async()=>{
  const page=await readFile(new URL('../app/page.tsx',import.meta.url),'utf8');

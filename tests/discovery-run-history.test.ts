@@ -46,7 +46,7 @@ function fakeDb(tables: Record<string, unknown[]>) {
  const calls: Call[] = [];
  const builder = (table: string) => {
   const b: any = {};
-  for (const op of ['select', 'eq', 'in', 'order', 'limit', 'single']) b[op] = (...args: unknown[]) => { calls.push({table, op, args}); return b; };
+  for (const op of ['select', 'eq', 'in', 'order', 'limit', 'range', 'single']) b[op] = (...args: unknown[]) => { calls.push({table, op, args}); return b; };
   for (const op of ['insert', 'update', 'upsert', 'delete']) b[op] = (...args: unknown[]) => { calls.push({table, op, args}); return b; };
   b.then = (res: (v: unknown) => unknown) => {
    const single = calls.some(c => c.table === table && c.op === 'single');
@@ -108,7 +108,9 @@ test('3 + 6 — viewing a run and replaying a run never search: GET only for "Vo
  assert.doesNotMatch(effect, /search\(|'POST'/, 'opening the screen never runs a search');
 });
 test('7 + 8 — an accepted candidate shows "Ajouté au projet" and "Voir le prospect" instead of an add button', () => {
- assert.match(panel, /r\.status==='accepted'\?tr\('discovery\.addedToProject'\)/);
+ // The state is a compact pill ("AJOUTÉ AU PROJET"); the action is "Voir le prospect".
+ assert.match(panel, /added:'discovery\.addedToProject'/);
+ assert.match(panel, /const state=r\.status==='accepted'\?'added'/);
  assert.match(panel, /r\.status==='accepted'&&r\.prospect_id&&onOpenProspect&&<button className="text-button" onClick=\{\(\)=>openProspect\(r\.prospect_id!\)\}>\{tr\('discovery\.viewProspect'\)\}/);
  assert.match(panel, /r\.status==='pending'\?<><button disabled=\{busy\} className="primary" onClick=\{\(\)=>accept/, 'the add button exists only for pending results');
 });
@@ -119,7 +121,8 @@ test('9 — navigation: the open run is kept per project and restored; back retu
  assert.match(page, /function openFromDiscovery\(prospectId:string\)\{applyHistory\(planOpenProspect\(history\.state,projectId,discoveryRuns\[projectId\]\?\?null,prospectId\)\)/);
  assert.match(page, /const onPop=\(e:PopStateEvent\)=>restoreRef\.current\(e\.state\);window\.addEventListener\('popstate',onPop\)/);
  assert.match(page, /\{fromDiscovery&&<button className="text-button back-to-discovery" onClick=\{backToDiscovery\}>/);
- assert.match(panel, /if\(summary\)void viewRun\(summary,true\)/, 'the remembered run is reopened with its scroll position');
+ assert.match(panel, /if\(summary&&!cancelled\)void viewRun\(summary,true\)/, 'the remembered run is reopened with its scroll position');
+ assert.match(panel, /summary=summarizeRuns\(\[await api\(`discovery-runs\/\$\{activeRunId\}`\)\]\)\[0\]/, 'a remembered run older than the first history page is read on its own');
 });
 test('7 — an added candidate shows its prospect\'s current score from the existing engine; others keep 0/100', () => {
  assert.match(panel, /if\(r\.status!=='accepted'\|\|!r\.prospect_id\)return null;const p=existing\.find\(x=>x\.id===r\.prospect_id\);if\(!p\)return null;try\{return scoreProspect\(criteria,p\.evidence\)\.score\}/);

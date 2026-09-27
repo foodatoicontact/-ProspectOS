@@ -122,6 +122,21 @@ function preferred(a:StoredObservation,b:StoredObservation,criteria:Criterion[])
  return a.collected_at>=b.collected_at?a:b;
 }
 
+// Display order inside a block, never a filter: the proof still waiting for a human first, then the most
+// confident one; a near-duplicate ("675 chemin du Périgord" vs "675 chemin du Périgord 84130 Le Pontet")
+// yields to its more complete version, which is shown first — the shorter one stays one tap away, with its
+// own review buttons. Nothing is removed from the database or from the page.
+const TONE_ORDER:Record<StatusTone,number>={pending:0,verified:1,contradicted:2,neutral:3};
+const compact=(s:string)=>normalizeExcerpt(s).replace(/[^a-z0-9]+/g,' ').trim();
+export function bestFirst(cards:EvidenceCard[]):EvidenceCard[]{
+ const sorted=[...cards].sort((a,b)=>TONE_ORDER[a.tone]-TONE_ORDER[b.tone]||b.row.confidence-a.row.confidence);
+ const keys=sorted.map(c=>compact(c.row.source_excerpt));
+ const coveredBy=(i:number)=>keys.some((k,j)=>j!==i&&sorted[j].tone===sorted[i].tone&&k.length>keys[i].length&&keys[i].length>0&&k.includes(keys[i]));
+ return [...sorted.filter((_,i)=>!coveredBy(i)),...sorted.filter((_,i)=>coveredBy(i))];
+}
+// The human reason of a proposal, without the generic tail every proposal carries ("… : cela peut
+// correspondre au critère « … ». Proposition à confirmer par un humain."). The full text stays in the details.
+export function shortReason(claim:string):string{const i=claim.indexOf(' : cela peut correspondre');return (i>0?claim.slice(0,i):claim).trim()}
 export function presentObservations(rows:StoredObservation[],criteria:Criterion[],locale:Locale):EvidencePresentation{
  const informative=rows.filter(o=>o.status!=='UNKNOWN');
  const byKey=new Map<string,StoredObservation>();
@@ -133,7 +148,7 @@ export function presentObservations(rows:StoredObservation[],criteria:Criterion[
  const toneRank:Record<StatusTone,number>={pending:0,verified:1,contradicted:2,neutral:3};
  const cards=[...byKey.values()].map(o=>presentObservation(o,criteria,locale));
  const proposals=cards.filter(c=>c.kind==='proposal').sort((a,b)=>order(a.criterion)-order(b.criterion)||toneRank[a.tone]-toneRank[b.tone]);
- const others=cards.filter(c=>c.kind==='context');
+ const others=bestFirst(cards.filter(c=>c.kind==='context'));
  // Once something was analyzed, a criterion is listed as "not found" when no row informs it. Derived from
  // the ICP rather than from the UNKNOWN rows, which share one storage key per page (only the last one
  // of a page is kept) and so cannot list every missing criterion.
@@ -149,6 +164,7 @@ export function presentObservations(rows:StoredObservation[],criteria:Criterion[
   if(g)g.cards.push(c);else groups.push({criterion:c.criterion!,anchorId:criterionAnchorId(c.criterion!.key),cards:[c],tone:'pending',statusLabel:'',pending:0,verified:0});
  }
  for(const g of groups){
+  g.cards=bestFirst(g.cards);
   g.pending=g.cards.filter(c=>c.tone==='pending').length;g.verified=g.cards.filter(c=>c.tone==='verified').length;
   g.tone=g.pending?'pending':g.verified?'verified':'contradicted';
   g.statusLabel=t(locale,g.tone==='pending'?'evidence.statusToConfirm':g.tone==='verified'?'evidence.statusVerified':'evidence.statusContradicted');

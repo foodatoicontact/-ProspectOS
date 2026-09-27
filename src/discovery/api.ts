@@ -1,4 +1,4 @@
-import {summarizeRuns} from './run-history.ts';
+import {summarizeRuns,HISTORY_MAX} from './run-history.ts';
 import {z} from 'zod';
 import type {SupabaseClient} from '@supabase/supabase-js';
 import {DiscoveryService,CompanyAnalysisService} from './services.ts';
@@ -41,7 +41,12 @@ export async function handleDiscovery(request:Request,path:string[],body:unknown
  // of the member's own organization). Never a provider call, never a write: nothing is consumed.
  if(resource==='projects'&&action==='discovery'&&method==='GET'){
  uuid.parse(id);
- const runs=await checked(db.from('discovery_runs').select('id,query,location,categories,provider,filters_json,status,started_at,completed_at,result_count').eq('project_id',id).order('started_at',{ascending:false}).limit(50));
+ // Paged on demand (?limit=&offset=): the screen shows a few recent runs first. Without parameters the
+ // former answer is kept (the 50 most recent). Bounded either way.
+ const params=new URL(request.url).searchParams;
+ const intParam=(name:string,fallback:number,max:number)=>{const raw=params.get(name);return raw===null?fallback:z.number().int().min(name==='limit'?1:0).max(max).parse(Number(raw))};
+ const page={limit:intParam('limit',HISTORY_MAX,HISTORY_MAX),offset:intParam('offset',0,10000)};
+ const runs=await checked(db.from('discovery_runs').select('id,query,location,categories,provider,filters_json,status,started_at,completed_at,result_count').eq('project_id',id).order('started_at',{ascending:false}).range(page.offset,page.offset+page.limit-1));
  const ids=runs.map((r:{id:string})=>r.id);
  const decided=ids.length?await checked(db.from('discovery_results').select('discovery_run_id,status').in('discovery_run_id',ids).in('status',['accepted','ignored'])):[];
  return json(summarizeRuns(runs,decided));

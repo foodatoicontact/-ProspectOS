@@ -51,6 +51,63 @@ html{-webkit-text-size-adjust:100%;text-size-adjust:100%}
 .modal{max-height:90dvh}
 .icp-grid>section{container-type:inline-size}
 @container (max-width:400px){.weight-editor{flex-wrap:wrap;gap:10px 12px;padding:12px 0 8px}.weight-name{flex:1 1 100%}.weight-caption{display:inline;font-size:13px;font-weight:600}.weight-value input{width:76px}.weight-editor>.text-button{margin-left:auto;min-height:44px;padding:10px 2px;font-size:12px}.weight-row .rule-editor{margin:0 0 12px}.weight-row .rule-editor summary{font-size:13px;padding:10px 0}.rule-editor label,.rule-editor p{overflow-wrap:anywhere}}
+/* V2 P0-b — compact UX: summary first, details on demand. Nothing here hides information: every collapsed
+   element keeps its content one tap away. Touch targets stay ≥ 44 px; long text wraps or is clamped. */
+.clamp-1,.clamp-2{display:-webkit-box;-webkit-box-orient:vertical;overflow:hidden;overflow-wrap:anywhere}
+.clamp-1{-webkit-line-clamp:1;line-clamp:1}
+.clamp-2{-webkit-line-clamp:2;line-clamp:2}
+.more-button{width:100%;min-height:44px;margin:8px 0 0;justify-content:center;font-size:12px}
+.result-detail>summary,.evidence-more>summary,.evidence-others>summary,.discovery-context>summary,.discovery-discarded>summary{min-height:44px;display:flex;align-items:center;gap:6px;cursor:pointer;font-size:12px}
+.discovery-context{padding-top:4px;padding-bottom:4px}
+.discovery-context p{overflow-wrap:anywhere}
+.run-last p,.run-current p{margin:4px 0;overflow-wrap:anywhere}
+.run-card.compact{padding:10px 12px;margin-bottom:8px}
+.run-card.compact .run-meta{display:flex;justify-content:space-between;align-items:center;gap:8px;margin:0}
+.run-card.compact h4.run-query{margin:6px 0 2px;font-size:13px}
+.run-card.compact .run-sub{display:flex;gap:4px;flex-wrap:wrap}
+.run-card.compact .run-sub .clamp-1{max-width:100%}
+.results-summary{margin:12px 0 0;font-size:12px;overflow-wrap:anywhere}
+.discovery-results{gap:10px}
+.discovery-result.compact{padding:12px 14px;min-width:0}
+.discovery-result.compact>header{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
+.discovery-result.compact .result-title{min-width:0}
+.discovery-result.compact h3{margin:0;font-size:14px;overflow-wrap:anywhere}
+.discovery-result.compact .result-sub,.discovery-result.compact .result-source{margin:4px 0 0;font-size:12px;overflow-wrap:anywhere}
+.discovery-result.compact .result-dedupe{margin:8px 0 0}
+.discovery-result.compact .actions{margin-top:10px}
+.discovery-result.compact .actions:empty{display:none}
+.discovery-result.compact .actions button{min-height:44px}
+.discovery-result.compact .result-detail p{margin:6px 0;font-size:12px;overflow-wrap:anywhere}
+.prospect-synthesis{border:1px solid var(--line);border-radius:10px;padding:12px 14px;margin:14px 0 0;background:#fbfcf8;font-size:13px;min-width:0}
+.prospect-synthesis h3{margin:0 0 6px;font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.prospect-synthesis p{margin:4px 0;overflow-wrap:anywhere}
+.signals.compact .signal-row{display:flex;gap:10px;align-items:center;width:100%;min-height:44px;padding:8px 0;border:0;border-bottom:1px solid #eef0e9;border-radius:0;background:transparent;text-align:left;font-size:11px;color:inherit;cursor:pointer}
+.signals.compact div.signal-row{cursor:default}
+.signals.compact .signal-row>span:nth-child(2){flex:1;min-width:0;overflow-wrap:anywhere}
+.signals.compact .signal-row small{display:block;font-size:10px;margin-top:3px;color:#929b8b}
+.signals.compact .signal-row b{color:#70945e;font-size:11px;white-space:nowrap}
+.signals.compact details.signal-row{display:block;padding:0}
+.signals.compact details.signal-row>summary{min-height:44px}
+.observations .evidence-card.compact{padding:12px}
+.observations .evidence-card.compact>header,.evidence-card.compact>header{display:flex;flex-direction:row;justify-content:space-between;align-items:flex-start;gap:8px}
+.evidence-card.compact>header>div{min-width:0}
+.evidence-card.compact>header>.status-pill{flex:0 0 auto}
+.evidence-card.compact>header h4{margin:0;font-size:13px;overflow-wrap:anywhere}
+.evidence-card.compact>header small{display:block;margin-top:3px;font-size:11px;color:var(--muted)}
+.evidence-proof.compact{margin-top:8px;padding-top:8px}
+.evidence-proof.compact blockquote,.evidence-card.compact>blockquote{margin:6px 0;overflow-wrap:anywhere}
+.evidence-proof.compact .evidence-reason{margin:4px 0;font-size:12px}
+.evidence-proof.compact .evidence-source,.evidence-card.compact .evidence-source{margin:4px 0;font-size:11px;overflow-wrap:anywhere}
+.contact-values{display:flex;flex-wrap:wrap;gap:4px 14px;margin:4px 0;font-size:12px}
+.evidence-proof.compact .evidence-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px}
+.evidence-proof.compact .evidence-actions button{min-height:44px;width:100%;justify-content:center}
+.observations .evidence-proof.compact .evidence-actions button:last-child{grid-column:auto}
+.observations .evidence-proof.compact .evidence-actions .text-button,.observations .evidence-proof.compact .evidence-actions .text-button:last-child{grid-column:1/-1}
+.evidence-proof.compact>.technical{margin-top:2px}
+.analysis-failed{border:1px solid #efd9c6;background:#fff8f1;border-radius:10px;padding:12px 14px;margin:12px 0;font-size:13px;overflow-wrap:anywhere}
+.analysis-failed b{display:block;margin-bottom:4px}
+.analysis-failed p{margin:4px 0}
+.analysis-failed button{min-height:44px;margin-top:6px}
 @media(max-width:640px){
  /* iOS Safari zooms the page on focus of any field under 16px. */
  input,textarea,select{font-size:16px!important}
@@ -58,4 +115,6 @@ html{-webkit-text-size-adjust:100%;text-size-adjust:100%}
  .discovery-result{padding:16px}
  .discovery-result .actions{flex-direction:column;align-items:stretch}
  .discovery-result .actions button{width:100%;min-height:44px;font-size:13px;white-space:normal;text-align:center}
+ .detail .actions button,.decision button{min-height:44px}
+ .main{padding-bottom:env(safe-area-inset-bottom)}
 }

@@ -84,8 +84,17 @@ test('17 / 18 — score and human review unchanged: same engine, same review cal
 });
 test('11 / 12 — prospect page order: header, synthesis, score/coverage, contacts, compact ICP, proofs',()=>{
  const at=(needle:string)=>{const i=page.indexOf(needle);assert.ok(i>0,needle);return i};
- const order=[at('<h2>{current.name}</h2>'),at('className="prospect-synthesis"'),at('<div className="coverage">'),at("tr('detail.channelsTitle')"),at('<div className="signals compact">'),at('<ObservationsReview key=')];
- assert.deepEqual([...order].sort((a,b)=>a-b),order);
+ // One DOM, two layouts: the main column holds header, synthesis, ICP and proofs; the secondary column
+ // holds coverage, status and contacts. On phones the CSS order puts them back in the reading order.
+ const main=[at('<div className="detail-main">'),at('<h2>{current.name}</h2>'),at('className="prospect-synthesis"'),at('<div className="icp-block">'),at('<div className="signals compact">'),at('<ObservationsReview key=')];
+ assert.deepEqual([...main].sort((a,b)=>a-b),main);
+ const side=[at('className={`detail-side'),at('<div className="coverage">'),at('<div className="channels-block">'),at("tr('detail.channelsTitle')")];
+ assert.deepEqual([...side].sort((a,b)=>a-b),side);
+ assert.ok(main[main.length-1]<side[0],'the secondary column follows the main column in the DOM');
+ const order=(sel:string)=>Number(new RegExp(`\\.detail-layout ${sel.replace(/[.]/g,'\\.')}\\{order:(\\d+)\\}`).exec(css)?.[1]);
+ const phone=['.detail-head','.prospect-synthesis','.coverage','.channels-block','.icp-block','.observations-review'].map(order);
+ assert.ok(phone.every(Number.isFinite),'every block has a phone order');
+ assert.deepEqual([...phone].sort((a,b)=>a-b),phone,'phone order: header, synthesis, coverage, contacts, ICP, proofs');
  // One line per criterion; a tap opens its block of proofs.
  assert.match(page,/if\(g\)return <button key=\{b\.key\} className="signal-row"[^>]*onClick=\{\(\)=>reviewCriterion\(g\.anchorId\)\}>/);
  assert.doesNotMatch(page.slice(at('<div className="signals compact">'),at('<ObservationsReview key=')),/g\.excerpts\.map/,'no copy of every excerpt in the ICP summary');
@@ -116,7 +125,10 @@ test('5 — back from a prospect: the same number of results and the same scroll
 test('6 / 7 — results: 6 first, 6 more per tap, with a one-line summary; long content in "Voir le détail"',()=>{
  assert.match(panel,/const RESULTS_PAGE=6;/);
  assert.match(panel,/\{candidates\.slice\(0,resultsShown\)\.map\(resultCard\)\}/);
- assert.match(panel,/onClick=\{\(\)=>setResultsShown\(n=>n\+RESULTS_PAGE\)\}/);
+ assert.match(panel,/onClick=\{\(\)=>setResultsShown\(n=>n\+resultsPage\(\)\)\}/);
+ // Phones: 6 per page; desktop (≥1024 px) compares a whole run at once — display only.
+ assert.match(panel,/const RESULTS_PAGE_DESKTOP=20;/);
+ assert.match(panel,/window\.matchMedia\('\(min-width:1024px\)'\)\.matches\?RESULTS_PAGE_DESKTOP:RESULTS_PAGE/);
  assert.match(panel,/resultsSummaryLabel\(locale,results\.length,counts\.added,counts\.ignored,counts\.unresolved\)/);
  assert.match(panel,/<details className="result-detail"><summary>\{tr\('discovery\.viewDetail'\)\}<\/summary>/);
 });
@@ -139,4 +151,46 @@ test('Mobile — touch targets ≥ 44 px on the new controls; no new dependency'
  const before=JSON.parse(execSync('git show f1cc9da:package.json',{cwd:new URL('..',import.meta.url),encoding:'utf8'}));
  const pkg=JSON.parse(await readFile(new URL('../package.json',import.meta.url),'utf8'));
  assert.deepEqual(pkg.dependencies,before.dependencies);assert.deepEqual(pkg.devDependencies,before.devDependencies);
+});
+
+// ---------------------------------------------------------------- desktop (P0-b desktop hardening)
+test('D1 — desktop is not a stretched phone: dense tables from 1024 px, history beside them from 1600 px, two-column prospect from a 700 px detail',()=>{
+ assert.match(css,/@media\(min-width:1024px\)\{[\s\S]*?\.run-card\.compact\{grid-template-columns:var\(--run-cols\);grid-template-areas:"date query zone status counts actions"/);
+ assert.match(css,/@media\(min-width:1600px\)\{\s*\.discovery-layout\{display:grid;grid-template-columns:minmax\(0,1fr\) 320px/);
+ assert.match(panel,/<div className="history-head" aria-hidden="true">/);
+ assert.match(css,/@container detail \(min-width:700px\)\{\s*\.detail-layout\{display:grid;grid-template-columns:minmax\(0,1fr\) 250px/);
+ // Below those widths the wrappers vanish and the phone column keeps its order.
+ assert.match(css,/\.discovery-main,\.discovery-side\{display:contents\}/);
+ assert.match(css,/\.detail-main,\.detail-side\{display:contents\}/);
+ assert.match(panel,/<div className=\{`discovery-layout\$\{current\?' has-run':''\}`\}><div className="discovery-main">/);
+ // Without an open run the history comes first on desktop; the redundant "last search" reminder is dropped there.
+ assert.match(css,/\.discovery-layout:not\(\.has-run\) \.run-history\{order:-1/);
+ assert.match(panel,/<aside className="discovery-side" aria-label=\{tr\('discovery\.historyTitle'\)\}>/);
+});
+test('D2 — Discovery results are table rows on desktop, cards on phones; one markup, no duplicated logic',()=>{
+ assert.match(panel,/<div className="results-head" aria-hidden="true">/);
+ assert.match(css,/\.results-head,\.history-head\{display:none\}/);
+ assert.match(css,/grid-template-areas:"title zone state source actions"/);
+ assert.match(css,/grid-template-areas:"title state" "zone zone" "source source"/);
+ assert.equal((panel.match(/className=\{`discovery-result compact/g)||[]).length,1,'a single result renderer');
+});
+test('D3 — the secondary column is sticky only when it fits in the viewport',()=>{
+ assert.match(page,/window\.innerWidth>=1024&&[^;]*\.height\+32<window\.innerHeight/);
+ assert.match(css,/\.detail-side\.sticky\{position:sticky;top:12px\}/);
+ assert.doesNotMatch(css,/\.detail-side\{[^}]*position:sticky/,'never sticky by default');
+});
+test('D4 — keyboard: a visible focus ring on every interactive element; the search form stays a native <details>',()=>{
+ assert.match(css,/button:focus-visible,summary:focus-visible,a:focus-visible,select:focus-visible,input:focus-visible,textarea:focus-visible,\[tabindex\]:focus-visible\{outline:3px solid/);
+ assert.match(panel,/<details className=\{`search-form\$\{current\?' collapsible':''\}`\}/);
+ assert.doesNotMatch(css,/:hover\{[^}]*display:(block|flex|grid)/,'nothing essential appears on hover only');
+});
+test('D5 — evidence group: one header line (criterion, count, state), actions beside the proof on wide containers',()=>{
+ assert.match(review,/<header><h4>\{g\.criterion\.label\}<\/h4>\{g\.cards\.length>1&&<small className="group-count">/);
+ assert.match(review,/<div className="proof-body">/);
+ assert.match(css,/@container review \(min-width:460px\)\{\s*\.evidence-proof\.compact\{display:grid;grid-template-columns:minmax\(0,1fr\) 150px;grid-template-areas:"body actions" "tech tech"/);
+});
+test('D6 — desktop CSS stays before the last phone block (the phone guards read that block)',()=>{
+ const last=css.lastIndexOf('@media(max-width:640px){');
+ assert.ok(css.indexOf('.discovery-layout{display:flex')<last);
+ assert.ok(css.indexOf('@container detail')<last);
 });

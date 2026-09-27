@@ -42,20 +42,23 @@ export function ObservationsReview({prospect,criteria,mode,api,onChanged,onRevie
   {technical(c)}
  </article>};
  const proof=(c:EvidenceCard,g:CriterionGroup,index=0)=>{const o=c.row;return <div key={o.id} id={c.anchorId??undefined} className={`evidence-proof compact tone-${c.tone}`}>
-  {index>0&&<span className={`pill status-pill tone-${c.tone}`}>{c.statusLabel}</span>}
-  {c.subtitle&&<small>{c.subtitle}</small>}
-  <blockquote>{separateGluedContacts(o.source_excerpt)}</blockquote>
-  {contactLine(o.source_excerpt)}
-  <p className="evidence-reason">{shortReason(o.claim)}</p>
-  <p className="evidence-source">{tr('evidence.sourceLabel')} {c.sourceText}{c.sourceHref&&<> · <a href={c.sourceHref} target="_blank" rel="noopener noreferrer">{tr('evidence.openSource')} ↗</a></>}</p>
+  <div className="proof-body">
+   {index>0&&<span className={`pill status-pill tone-${c.tone}`}>{c.statusLabel}</span>}
+   {c.subtitle&&<small>{c.subtitle}</small>}
+   <blockquote>{separateGluedContacts(o.source_excerpt)}</blockquote>
+   {contactLine(o.source_excerpt)}
+   <p className="evidence-reason">{shortReason(o.claim)}</p>
+   <p className="evidence-source">{tr('evidence.sourceLabel')} {c.sourceText}{c.sourceHref&&<> · <a href={c.sourceHref} target="_blank" rel="noopener noreferrer">{tr('evidence.openSource')} ↗</a></>}</p>
+  </div>
   <div className="actions evidence-actions"><button className="primary" aria-label={tr('evidence.confirmAria')} disabled={busy||disabled||o.review_status==='VERIFIED'} onClick={()=>review(o,'confirm')}>{tr('evidence.confirm')}</button><button disabled={busy||disabled||o.review_status==='CONTRADICTED'} onClick={()=>review(o,'contradict')}>{tr('evidence.contradict')}</button>{o.review_status!=='NOT_VERIFIED'&&<button className="text-button" disabled={busy||disabled} onClick={()=>review(o,'unverify')}>{tr('evidence.leaveUnverified')}</button>}</div>
   {technical(c)}
  </div>};
  // One block per criterion: its best proof is shown (bestFirst), the others stay one tap away — each keeps
  // its own excerpt, source and review buttons (individually auditable), nothing is merged or dropped.
  const group=(g:CriterionGroup)=><article key={g.anchorId} id={g.anchorId} tabIndex={-1} className={`evidence-card evidence-group compact tone-${g.tone}`}>
-  <header><div><h4>{g.criterion.label}</h4><small>{g.cards.length>1?`${tr('evidence.proofsFound')} (${g.cards.length}) · `:''}{proposalScoreNote(locale,g.criterion.weight,g.tone==='verified'?'VERIFIED':g.tone==='contradicted'?'CONTRADICTED':'NOT_VERIFIED')}</small></div><span className={`pill status-pill tone-${g.tone}`}>{g.statusLabel}</span></header>
+  <header><h4>{g.criterion.label}</h4>{g.cards.length>1&&<small className="group-count">{tr('evidence.proofsFound')} ({g.cards.length})</small>}<span className={`pill status-pill tone-${g.tone}`}>{g.statusLabel}</span></header>
   {proof(g.cards[0],g)}
+  <p className="muted group-score">{proposalScoreNote(locale,g.criterion.weight,g.tone==='verified'?'VERIFIED':g.tone==='contradicted'?'CONTRADICTED':'NOT_VERIFIED')}</p>
   {g.cards.length>1&&<details className="evidence-more"><summary>{tr('evidence.moreProofs')} ({g.cards.length-1})</summary>{g.cards.slice(1).map((c,i)=>proof(c,g,i+1))}</details>}
  </article>;
  // A failed analysis is one compact card (what failed, retry) — never a page of empty criteria.

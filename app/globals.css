@@ -108,6 +108,140 @@ html{-webkit-text-size-adjust:100%;text-size-adjust:100%}
 .analysis-failed b{display:block;margin-bottom:4px}
 .analysis-failed p{margin:4px 0}
 .analysis-failed button{min-height:44px;margin-top:6px}
+/* V2 P0-b desktop — one markup, two layouts. Phones keep the compact column (DOM order preserved with
+   display:contents + order); from 1024 px the screens become dense: Discovery = search + results table |
+   last search + history; prospect = main column (synthesis, ICP, proofs) | secondary column (coverage,
+   status, contacts). */
+button:focus-visible,summary:focus-visible,a:focus-visible,select:focus-visible,input:focus-visible,textarea:focus-visible,[tabindex]:focus-visible{outline:3px solid #9bc987;outline-offset:2px}
+.search-form:not(.collapsible)>summary{display:none}
+.search-form>summary{min-height:44px;display:flex;align-items:center;cursor:pointer;font-size:12px;font-weight:600}
+.discovery-layout{display:flex;flex-direction:column}
+.discovery-main,.discovery-side{display:contents}
+.discovery-layout .run-last{order:-1}
+.discovery-layout .run-history{order:1}
+.results-head,.history-head{display:none}
+.discovery-results{--result-cols:minmax(0,2fr) 90px 104px minmax(0,1fr) 140px}
+.run-history{--run-cols:118px minmax(0,1fr) minmax(0,.5fr) 124px 104px 250px}
+.discovery-result.compact{display:grid;grid-template-columns:minmax(0,1fr) auto;grid-template-areas:"title state" "zone zone" "source source" "dedupe dedupe" "actions actions" "detail detail";column-gap:10px}
+.discovery-result.compact>.result-title{grid-area:title}
+.discovery-result.compact>.result-zone{grid-area:zone;margin:4px 0 0;font-size:12px;overflow-wrap:anywhere}
+.discovery-result.compact>.result-state{grid-area:state;align-self:start}
+.discovery-result.compact>.result-source{grid-area:source}
+.discovery-result.compact>.result-dedupe{grid-area:dedupe}
+.discovery-result.compact>.actions{grid-area:actions}
+.discovery-result.compact>.result-detail{grid-area:detail}
+.run-card.compact{display:grid;grid-template-columns:minmax(0,1fr) auto;grid-template-areas:"date status" "query query" "zone zone" "counts counts" "actions actions";column-gap:8px}
+.run-card.compact>.run-date{grid-area:date;margin:0}
+.run-card.compact>.run-status{grid-area:status;align-self:center}
+.run-card.compact>.run-query{grid-area:query}
+.run-card.compact>.run-zone{grid-area:zone;margin:2px 0 0}
+.run-card.compact>.run-counts{grid-area:counts;margin:2px 0 0}
+.run-card.compact>.actions{grid-area:actions}
+.detail{container-type:inline-size;container-name:detail}
+.detail-layout{display:flex;flex-direction:column;min-width:0}
+.detail-main,.detail-side{display:contents}
+.detail-layout .detail-head{order:1}
+.detail-layout .prospect-synthesis{order:2}
+.detail-layout .coverage{order:3}
+.detail-layout>.detail-main>.note{order:4}
+.detail-layout .channels-block{order:5}
+.detail-layout .icp-block{order:6}
+.detail-layout .observations-review{order:7}
+.detail-layout .message-box{order:8}
+.detail-layout .decision{order:9}
+.detail-layout .history{order:10}
+.evidence-group>header{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.evidence-group>header h4{margin:0;flex:1 1 auto;min-width:0;font-size:13px;overflow-wrap:anywhere}
+.evidence-group>header .group-count{font-size:11px;color:var(--muted)}
+.evidence-group .group-score{margin:6px 0 0;font-size:11px}
+.observations-review{container-type:inline-size;container-name:review}
+@container review (min-width:460px){
+ .evidence-proof.compact{display:grid;grid-template-columns:minmax(0,1fr) 150px;grid-template-areas:"body actions" "tech tech";column-gap:16px;align-items:start}
+ .evidence-proof.compact>.proof-body{grid-area:body;min-width:0}
+ .evidence-proof.compact>.evidence-actions{grid-area:actions;display:flex;flex-direction:column;gap:6px;margin-top:6px}
+ .observations .evidence-proof.compact .evidence-actions button{width:100%;min-height:40px}
+ .evidence-proof.compact>.technical{grid-area:tech}
+}
+@container detail (min-width:700px){
+ .detail-layout{display:grid;grid-template-columns:minmax(0,1fr) 250px;gap:24px;align-items:start}
+ .detail-main,.detail-side{display:block;min-width:0}
+ .detail-side{border-left:1px solid var(--line);padding-left:18px}
+ .detail-side.sticky{position:sticky;top:12px}
+ .detail-side .coverage{margin:0 0 14px}
+ .detail-side .decision{display:grid;gap:8px;margin:0 0 14px}
+ .detail-side .decision select,.detail-side .decision button{width:100%;min-height:40px}
+ .detail-side .channels-block .section-title{margin-top:0}
+ .detail-main .prospect-synthesis{margin-top:12px}
+}
+@media(min-width:1024px){
+ .content{padding:24px 32px}
+ .page-heading{margin-bottom:16px}
+ .page-heading h1{font-size:26px;margin:2px 0}
+ .page-heading p:not(.eyebrow){margin:4px 0 0}
+ .metrics{padding:12px 0;margin-bottom:16px}
+ .metrics b{font-size:24px}
+ .prospect-grid{grid-template-columns:minmax(260px,300px) minmax(0,1fr)}
+ .discovery-fields{grid-template-columns:repeat(3,minmax(0,1fr));gap:0 14px}
+ .results-head,.history-head{display:grid;gap:12px;padding:0 12px 6px;font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);border-bottom:1px solid var(--line)}
+ .results-head{grid-template-columns:var(--result-cols)}
+ .history-head{grid-template-columns:var(--run-cols);padding:0 10px 6px}
+ .discovery-results{gap:0}
+ .discovery-result.compact{grid-template-columns:var(--result-cols);grid-template-areas:"title zone state source actions" "detail zone state source actions" "dedupe dedupe dedupe dedupe dedupe";column-gap:12px;align-items:center;border:0;border-bottom:1px solid var(--line);border-radius:0;padding:8px 12px}
+ .discovery-result.compact>.result-zone,.discovery-result.compact>.result-source{margin:0}
+ .discovery-result.compact>.actions{margin:0;display:flex;flex-direction:column;align-items:stretch;gap:4px}
+ .discovery-result.compact>.actions button{min-height:32px;padding:5px 10px;white-space:normal;text-align:center;font-size:12px}
+ .discovery>h2{font-size:22px;margin:2px 0 10px}
+ .discovery>.discovery-context{margin:0 0 12px}
+ .discovery>.discovery-context>summary{min-height:32px}
+ .search-form.collapsible:not([open])>summary{min-height:32px}
+ .run-current{padding:8px 12px;margin:8px 0;display:flex;flex-wrap:wrap;column-gap:12px;align-items:baseline}
+ .run-current>p{margin:0}
+ .run-current .clamp-2{-webkit-line-clamp:1;line-clamp:1;flex:1 1 420px;min-width:0}
+ .results-summary{margin:8px 0 6px}
+ .discovery-result.compact h3{font-size:13px;line-height:1.3}
+ .discovery-result.compact .result-sub{margin:2px 0 0;font-size:11px}
+ .discovery-result.compact>.result-state{align-self:center;justify-self:start}
+ .discovery-result.compact>.result-source{font-size:11px;line-height:1.35}
+ .discovery-result.compact>.result-source a{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:12px}
+ .discovery-result.compact>.result-dedupe{margin:6px 0 0}
+ .discovery-result.compact>.result-detail>summary{min-height:22px;padding:0;margin-top:0;font-size:11px}
+ /* "Voir le détail" sits under the name; opened, the detail takes the full width below the row. */
+ .discovery-result.compact>.result-detail[open]{grid-area:auto;grid-column:1/-1;grid-row:4}
+ .more-button{min-height:36px}
+ .run-card.compact{grid-template-columns:var(--run-cols);grid-template-areas:"date query zone status counts actions";column-gap:12px;align-items:center;border:0;border-bottom:1px solid var(--line);border-radius:0;padding:6px 10px;margin:0}
+ .run-card.compact.selected{box-shadow:inset 3px 0 0 #9bc987}
+ .run-card.compact>.run-date{white-space:nowrap;font-size:11px}
+ .run-card.compact>.run-status{justify-self:start}
+ .run-card.compact>h4.run-query{margin:0;font-size:13px;-webkit-line-clamp:1;line-clamp:1}
+ .run-card.compact>.run-zone,.run-card.compact>.run-counts{font-size:11px;margin:0}
+ .run-card.compact>.actions{margin:0;display:flex;gap:6px;justify-content:flex-end;flex-wrap:nowrap}
+ .run-card.compact>.actions button{min-height:28px;padding:4px 10px;width:auto;font-size:11px}
+ /* Without an open run, the history is Discovery's home: it comes before the form, and the "last search"
+    reminder (the same run as the first history row) is dropped. */
+ .discovery-layout .run-last{display:none}
+ .discovery-layout:not(.has-run) .run-history{order:-1;margin-top:0;border-top:0;padding-top:0}
+ .results-head .col-resolution{display:none}
+}
+@media(min-width:1280px){
+ .discovery-results{--result-cols:minmax(0,2fr) 96px 110px minmax(0,1fr) minmax(0,1fr) 250px}
+ .results-head .col-resolution{display:block}
+ .discovery-result.compact{grid-template-areas:"title zone state sub source actions" "detail zone state sub source actions" "dedupe dedupe dedupe dedupe dedupe dedupe"}
+ .discovery-result.compact>.result-title{display:contents}
+ .discovery-result.compact>.result-title>h3{grid-area:title}
+ .discovery-result.compact>.result-title>.result-sub{grid-area:sub;margin:0}
+ .discovery-result.compact>.actions{flex-direction:row;justify-content:flex-end;flex-wrap:nowrap}
+}
+/* Wide screens: history becomes a side column of compact rows next to the results table. */
+@media(min-width:1600px){
+ .discovery-layout{display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:24px;align-items:start}
+ .discovery-main,.discovery-side{display:block;min-width:0}
+ .discovery-side .run-history{margin-top:0;border-top:0;padding-top:0}
+ .history-head{display:none}
+ .run-card.compact{grid-template-columns:minmax(0,1fr) auto;grid-template-areas:"date status" "query query" "zone actions" "counts actions";border:1px solid var(--line);border-radius:10px;padding:8px 10px;margin-bottom:6px;column-gap:8px}
+ .run-card.compact>.run-status{justify-self:end}
+ .run-card.compact>h4.run-query{margin:4px 0 2px}
+ .run-card.compact>.actions{flex-direction:column;gap:4px;align-items:stretch}
+}
 @media(max-width:640px){
  /* iOS Safari zooms the page on focus of any field under 16px. */
  input,textarea,select{font-size:16px!important}

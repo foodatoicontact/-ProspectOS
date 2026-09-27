@@ -10,7 +10,7 @@ export const BETA_OFFER={
 } as const;
 
 export type CommercialUsage={
- plan:'BETA'|'PAID'|'INTERNAL'|null;status?:string;period_start?:string;period_end?:string;active?:boolean;
+ plan:'BETA'|'PAID'|'PRO'|'ENTERPRISE'|'INTERNAL'|null;status?:string;period_start?:string;period_end?:string;active?:boolean;
  discovery_used?:number;discovery_limit?:number;analysis_used?:number;analysis_limit?:number;ai_offer_used?:number;ai_offer_limit?:number;
 };
 export type Counter={used:number;limit:number;reached:boolean};
@@ -27,12 +27,12 @@ export function daysLeft(end:string,now=Date.now()):number{
 export function usageView(raw:unknown,now=Date.now()):UsageView|null{
  if(!raw||typeof raw!=='object')return null;
  const u=raw as CommercialUsage;
- if(u.plan!=='BETA'&&u.plan!=='PAID')return null;
+ if(u.plan!=='BETA'&&u.plan!=='PAID'&&u.plan!=='PRO'&&u.plan!=='ENTERPRISE')return null;
  const du=count(u.discovery_used),dl=count(u.discovery_limit),au=count(u.analysis_used),al=count(u.analysis_limit),ou=count(u.ai_offer_used),ol=count(u.ai_offer_limit);
  if(du===null||dl===null||au===null||al===null||ou===null||ol===null||typeof u.period_end!=='string'||!Number.isFinite(new Date(u.period_end).getTime()))return null;
  const active=u.active===true&&new Date(u.period_end).getTime()>now;
  return {
-  kind:u.plan==='PAID'?'paid':'trial',active,periodEnd:u.period_end,daysLeft:daysLeft(u.period_end,now),
+  kind:u.plan==='BETA'?'trial':'paid',active,periodEnd:u.period_end,daysLeft:daysLeft(u.period_end,now),
   discovery:{used:du,limit:dl,reached:du>=dl},analysis:{used:au,limit:al,reached:au>=al},aiOffer:{used:ou,limit:ol,reached:ou>=ol},
  };
 }

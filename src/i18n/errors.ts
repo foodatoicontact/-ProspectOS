@@ -15,6 +15,7 @@ const CODE_KEYS={
  ADMIN_ACCESS_REQUIRED:'error.adminAccessRequired',
  LAST_OWNER_BLOCKED:'error.lastOwnerBlocked',
  BETA_CAPACITY_REACHED:'error.betaCapacityReached',
+ PLAN_LIMIT_REACHED:'error.planLimitReached',
  CANDIDATE_NOT_ACCEPTABLE:'error.candidateNotAcceptable',
 } as const;
 export function localizeApiErrorMessage(message:string,code:string|undefined,locale:Locale):string{

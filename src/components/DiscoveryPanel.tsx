@@ -7,6 +7,7 @@ import {scoreProspect,type Criterion,type Prospect} from '../domain/core';
 import {translate,searchDoneNote,discoveryFoundNote,runDateLabel,runCountsLabel,resultsSummaryLabel,noveltySummaryLabel,runNoveltyLabel,deepStopLabel,passesLabel,deepPassLine,newActorsFoundLabel,type Locale,type TKey} from '../i18n';
 import {noveltyOf,displayNovelty,decidedNovelty,noveltyCounts,newFirst,isEligibleCandidate,NOVELTY_STATUSES,type NoveltyStatus} from '../discovery/novelty';
 import {MAX_PROVIDER_CALLS,type SearchMode} from '../discovery/search-until-new';
+import {createInFlight} from './evidence-verification';
 import {summarizeRuns,runState,replayFields,HISTORY_FIRST_PAGE,HISTORY_MORE_PAGE,HISTORY_MAX,type RunSummary,type ReplayFields} from '../discovery/run-history';
 type CompanyNameStatus='RESOLVED'|'UNRESOLVED';
 type CompanyDomainStatus='RESOLVED'|'UNRESOLVED';
@@ -34,6 +35,7 @@ const STATE_LABEL:Record<'candidate'|'added'|'ignored'|'unresolved',TKey>={candi
 const EMPTY_FIELDS:ReplayFields={query:'',location:'',categories:'',max:20,provider:'fixture',searchMode:'all',desiredNew:null};
 export function DiscoveryPanel({projectId,projectName,offer,criteria,mode,api,onAdded,existing,locale,activeRunId=null,onActiveRunChange,onOpenProspect,onProjectChanged}:{projectId:string;projectName:string;offer:string;criteria:Criterion[];mode:'demo'|'live';api:Api;onAdded:(p:Prospect)=>void;existing:Prospect[];locale:Locale;activeRunId?:string|null;onActiveRunChange?:(runId:string|null)=>void;onOpenProspect?:(prospectId:string)=>void;onProjectChanged?:()=>void}){
  const tr=(key:TKey)=>translate(locale,key);
+ const launching=useRef(createInFlight());
  const [provider,setProvider]=useState('fixture');const [available,setAvailable]=useState(false);const [results,setResults]=useState<DiscoveryResult[]>([]);const [run,setRun]=useState('');const [runs,setRuns]=useState<RunSummary[]|null>(null);const [current,setCurrent]=useState<RunSummary|null>(null);const [fields,setFields]=useState<ReplayFields>(EMPTY_FIELDS);const [replayed,setReplayed]=useState(false);const [historyError,setHistoryError]=useState(false);const [hasMoreRuns,setHasMoreRuns]=useState(false);const [resultsShown,setResultsShown]=useState(RESULTS_PAGE);const [formOpen,setFormOpen]=useState(true);const [noveltyTab,setNoveltyTab]=useState<'ALL'|NoveltyStatus>('ALL');const formRef=useRef<HTMLFormElement>(null);const [cost,setCost]=useState<any>(null);const [busy,setBusy]=useState(false);const [error,setError]=useState('');const [info,setInfo]=useState('');const [deepPending,setDeepPending]=useState(false);const version=useRef(0);
  useEffect(()=>{version.current++;setResults([]);setRun('');setCost(null);setCurrent(null);setRuns(null);setHistoryError(false);let cancelled=false;if(mode==='live')api('discovery-config').then(c=>{if(!cancelled)setAvailable(c.providers.some((p:any)=>p.id==='brave'&&p.available))}).catch(()=>{if(!cancelled)setError(tr('discovery.configUnavailable'))});
  // History and the run that was open before leaving this screen: reads only, never a search.
@@ -84,7 +86,8 @@ export function DiscoveryPanel({projectId,projectName,offer,criteria,mode,api,on
  function rememberView(){try{sessionStorage.setItem(scrollKey(projectId),JSON.stringify({y:window.scrollY,shown:resultsShown,tab:noveltyTab,run}))}catch{}}
  function openProspect(prospectId:string){rememberView();onOpenProspect?.(prospectId)}
  async function execute(fn:()=>Promise<void>){setBusy(true);setError('');setInfo('');try{await fn()}catch(e){setError(e instanceof Error?e.message:tr('error.generic'))}finally{setBusy(false);setDeepPending(false)}}
- async function search(form:FormData){await execute(async()=>{const revision=version.current;setCost(null);const input=DiscoveryInputSchema.parse({project_id:projectId,query:String(form.get('query')),location:String(form.get('location')),categories:String(form.get('categories')||'').split(',').map(s=>s.trim()).filter(Boolean),max_results:Number(form.get('max')),optional_filters:{provider,offer,criteria,
+ // One launch at a time: a double click or a double submit never starts (nor bills) a second run.
+ async function search(form:FormData){await launching.current.run('search',async()=>{await execute(async()=>{const revision=version.current;setCost(null);const input=DiscoveryInputSchema.parse({project_id:projectId,query:String(form.get('query')),location:String(form.get('location')),categories:String(form.get('categories')||'').split(',').map(s=>s.trim()).filter(Boolean),max_results:Number(form.get('max')),optional_filters:{provider,offer,criteria,
   // The search mode is the user's explicit choice; a deep search carries its new-actors target and the hard cap.
   ...(fields.searchMode!=='all'?{search_mode:fields.searchMode}:{}),...(fields.searchMode==='search_new'?{desired_new_results:Math.min(Number(form.get('max')),Math.max(1,fields.desiredNew??Number(form.get('max')))),max_provider_calls:MAX_PROVIDER_CALLS}:{})}});
   setDeepPending(input.optional_filters.search_mode==='search_new');const startedAt=new Date().toISOString();let rows:DiscoveryResult[];let id:string;
@@ -103,7 +106,7 @@ export function DiscoveryPanel({projectId,projectName,offer,criteria,mode,api,on
  if(mode==='live'){try{const c=await api(`discovery-runs/${id}/cost`);if(revision===version.current)setCost(c)}catch{/* Cost visibility is best-effort. */}}
  });
  // A search that failed server-side still left its run: the history shows it with its status.
- if(mode==='live')void loadHistory()}
+ if(mode==='live')void loadHistory()})}
  async function accept(row:DiscoveryResult,force=false){await execute(async()=>{const revision=version.current;let p:Prospect;if(mode==='demo'){if(row.dedupe_status==='merge_review_required'&&!force)throw Error(tr('discovery.mergeReviewRequired'));const duplicate=row.duplicate_of&&existing.find(p=>p.id===row.duplicate_of);p=duplicate||{id:crypto.randomUUID(),project_id:projectId,organization_id:'demo-organization',name:row.normalized_payload.name,website:row.normalized_payload.website??'',city:row.normalized_payload.city??'',status:'À analyser',evidence:[],channels:[]};localStorage.setItem(`prospectos-discovery-origin:${p.id}`,'fixture')}else{try{p={...await api(`discovery-results/${row.id}/accept`,'POST',{force_separate:force}),evidence:[],channels:[]}}catch(e){
    // Stale screen (the actor was added meanwhile, from another run, tab or user): the server refused a second
    // prospect. Not an error for the user — the row is reconciled to "Déjà ajouté" with its prospect.

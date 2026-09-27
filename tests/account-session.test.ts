@@ -104,15 +104,15 @@ test('setup sanity: the delete-account modal block was found in the source',()=>
 // added a FR/EN switcher (src/i18n/) that replaced every inline string in these blocks with tr('key')
 // calls and a couple of small formatting helpers; the underlying behavioral guarantees are unchanged.
 test('access status: Interne/Essai gratuit non activé/Essai gratuit · N jours restants/terminé is shown, and the expiry date only when actually on an active, non-INTERNAL trial',()=>{
- assert.match(accountModal,/entitlementPlan==='INTERNAL'\?tr\('account\.internal'\):betaActive===null\?tr\('account\.trialNotActivated'\):betaActive\?trialRemainingLabel\(locale,trialDaysRemaining\):tr\('account\.trialEnded'\)/);
- assert.match(accountModal,/entitlementPlan!=='INTERNAL'&&betaActive&&betaExpiresAt&&<p className="muted">\{expiresOnLabel\(locale,betaExpiresAt\)\}/);
+ assert.match(accountModal,/entitlementPlan==='INTERNAL'\?tr\('account\.internal'\):entitlementPlan==='PAID'\?tr\(betaActive\?'account\.usagePaid':'account\.paidEnded'\):betaActive===null\?tr\('account\.trialNotActivated'\):betaActive\?trialRemainingLabel\(locale,trialDaysRemaining\):tr\('account\.trialEnded'\)/);
+ assert.match(accountModal,/entitlementPlan==='BETA'&&betaActive&&betaExpiresAt&&<p className="muted">\{expiresOnLabel\(locale,betaExpiresAt\)\}/);
  assert.equal(fr['account.internal'],'Interne');
  assert.equal(fr['account.trialNotActivated'],'Essai gratuit non activé');
- assert.equal(fr['account.trialEnded'],'Votre essai gratuit est terminé.');
+ assert.equal(fr['account.trialEnded'],'Votre essai est terminé.');
 });
 test('an expired trial still sees a clear "trial ended" message, never a silent data loss',()=>{
  assert.match(accountModal,/betaActive===false&&<p className="muted">\{tr\('account\.trialEndedNote'\)\}/);
- assert.match(fr['account.trialEndedNote'],/Votre essai gratuit est terminé\./);
+ assert.match(fr['account.trialEndedNote'],/Vos données restent disponibles/);
 });
 test('a user with no entitlement at all sees a clear, non-alarming explanation — never the old "Actif" legacy label',()=>{
  assert.match(accountModal,/entitlementPlan!=='INTERNAL'&&betaActive===null&&<p className="muted">\{tr\('account\.trialUnavailableNote'\)\}/);

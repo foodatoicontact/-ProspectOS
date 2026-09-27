@@ -191,12 +191,16 @@ async function handler(request:Request,context:{params:Promise<{path:string[]}>}
  const membership=memberships[0]??null;
  const organization=membership?await checked(db.from('organizations').select('name').eq('id',membership.organization_id).single()):null;
  const entitlement=await checked(db.from('account_entitlements').select('plan,status,expires_at').eq('user_id',user.id).maybeSingle());
+ // Commercial counters (migration 016). Best-effort and read-only: until that migration is applied the
+ // function does not exist and the account answer simply carries usage:null, exactly as before.
+ const usageAnswer=await db.rpc('get_commercial_usage');
  return json({
   email:user.email??null,
   organization:organization?{name:organization.name}:null,
   organization_id:membership?.organization_id??null,
   role:membership?.role??null,
   entitlement:entitlement?{plan:entitlement.plan,status:entitlement.status,expires_at:entitlement.expires_at,active:entitlement.status==='ACTIVE'&&new Date(entitlement.expires_at).getTime()>Date.now()}:null,
+  usage:usageAnswer.error?null:usageAnswer.data??null,
  });
  }
  if(id==='export'&&request.method==='POST'){

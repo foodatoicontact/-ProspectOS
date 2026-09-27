@@ -59,47 +59,54 @@ Projet : **Kevin — Blind Test Avignon** (`9903f499…`).
 Les 7 runs Padel sont **antérieurs** au moteur Novelty (0e06620) et à Search-Until-New (e32cf4f) :
 aucun instantané de nouveauté, aucune métrique de passes.
 
-**Rejeu V2 (A. Tous, B. Rechercher de nouveaux acteurs) : NON EXÉCUTÉ dans ce bloc.** Cet
-environnement n'a ni accès à l'application de production (`*.vercel.app` bloqué par le proxy sortant) ni
-identifiants de compte ; lancer un run exige une session utilisateur. Aucun chiffre n'est inventé pour
-A et B. Protocole exact à exécuter depuis le compte du projet, puis mesure en lecture seule :
+**Rejeu V2 du 27/09/2026** (exécuté depuis le compte du projet, mêmes paramètres que ci-dessus, rien
+ajouté ni ignoré entre A et B ; chiffres relevés dans l'application et transmis pour ce rapport) :
 
-1. Projet « Kevin — Blind Test Avignon » → Trouver des prospects.
-2. Coller la requête du benchmark (le champ en garde les 250 premiers caractères : « …plusieurs terrains
-   ou activité »), zone, catégories et max 20 ci-dessus, source Brave.
-3. Run A : mode « Tous les résultats ». Run B : mode « Rechercher de nouveaux acteurs », objectif 20.
-4. Ne rien ajouter ni ignorer entre A et B.
+| Run | Date | Mode | Résultats | Exploitables | Écartés | Requêtes fournisseur | Coût |
+|---|---|---|---|---|---|---|---|
+| **A** | 27/09/2026 | Tous les résultats | 19 | 7 | 12 | 3 | 0,0150 $ |
+| **B** | 27/09/2026 | Rechercher de nouveaux acteurs | 20 | 7 | 13 | 2 (2 passes) | 0,0100 $ |
 
-### Discovery (dernier run comparable : 8c4f58d8)
+### Discovery
 
-| Métrique | Valeur |
-|---|---|
-| provider_results_total | n/d (métrique introduite avec Search-Until-New) |
-| unique_candidates_total | n/d |
-| results gardés | 19 |
-| eligible_candidates_total (recalcul lecture seule) | 6 |
-| rejected_results (recalcul lecture seule) | 13 (`IRRELEVANT`) |
-| requêtes fournisseur | 3 (plan de requêtes) |
-| coût | 0,0150 $ |
-
-Exploitables de 8c4f58d8 : Chez PaPé Padel, Le Hangar Sport & Co, Paul & Louis Sport (ajouté),
-« Club de padel à Avignon » (titre « Padel Zone Avignon – … », domaine non résolu), « Club de Padel
-Avignon » (titre « Urban Padel – … », domaine non résolu), Padel Magazine.
-
-### Novelty
-
-| new | seen | added | ignored |
+| Métrique | Référence 26/09 (8c4f58d8) | Run A — Tous | Run B — Rechercher de nouveaux acteurs |
 |---|---|---|---|
-| n/d | n/d | n/d | n/d |
+| results_total | 19 | 19 | 20 |
+| eligible_candidates_total | 6 (recalcul lecture seule) | 7 | 7 |
+| rejected_results | 13 (recalcul lecture seule) | 12 | 13 |
+| provider_results_total / unique_candidates_total | n/d | non relevé | non relevé |
+| requêtes fournisseur | 3 | 3 | 2 |
+| coût | 0,0150 $ | 0,0150 $ | 0,0100 $ |
 
-Aucun run Padel ne porte d'instantané Novelty (tous antérieurs au moteur). État actuel du projet :
-3 prospects (les 3 acteurs de référence).
+Exploitables de 8c4f58d8 (référence) : Chez PaPé Padel, Le Hangar Sport & Co, Paul & Louis Sport (ajouté),
+« Club de padel à Avignon » (titre « Padel Zone Avignon – … », domaine non résolu), « Club de Padel
+Avignon » (titre « Urban Padel – … », domaine non résolu), Padel Magazine. La liste nominative des 7
+exploitables de A et de B n'est pas reprise ici (non relevée).
+
+### Novelty (exploitables uniquement)
+
+| Run | new | seen | added | ignored |
+|---|---|---|---|---|
+| Runs du 26/09 | n/d (antérieurs au moteur) | n/d | n/d | n/d |
+| **A — Tous** | 1 | 3 | 3 | 0 |
+| **B — Rechercher de nouveaux acteurs** | 0 | 4 | 3 | 0 |
+
+- A : 1 + 3 + 3 + 0 = 7 exploitables ; B : 0 + 4 + 3 + 0 = 7 exploitables.
+- `added` = 3 dans A et dans B : les 3 prospects du projet (acteurs de référence) sont reconnus comme déjà
+  ajoutés dans les deux runs.
+- Le « 1 nouveau » de A signifie **nouveau pour ce projet** (jamais vu dans ses runs antérieurs). Ce n'est
+  **pas** « nouveau pour Kevin » : statut `UNKNOWN_UNTIL_KEVIN_REVIEW` tant que Kevin ne l'a pas confirmé.
+  Son nom n'est pas repris ici (non relevé).
 
 ### Search-Until-New
 
-| passes | provider calls | stop reason | cost |
-|---|---|---|---|
-| non exécuté | — | — | — |
+| Run | passes | provider calls | new trouvés | stop reason | libellé affiché | cost |
+|---|---|---|---|---|---|---|
+| **B** | 2 | 2 | 0 | `NO_NEW_RESULTS` | « aucun nouveau résultat supplémentaire » | 0,0100 $ |
+
+La 2ᵉ passe n'a apporté aucun nouvel exploitable : la 3ᵉ requête autorisée n'a pas été envoyée
+(0,0050 $ non dépensé par rapport au plafond de 3 requêtes). Run A (mode Tous) : recherche normale en
+3 requêtes, sans passes.
 
 ### Qualification (3 prospects, analyses du 26/09)
 
@@ -147,6 +154,8 @@ Aucun run Padel ne porte d'instantané Novelty (tous antérieurs au moteur). Ét
 - 3/3 analyses abouties ; 5 signaux proposés, chacun avec l'extrait exact et l'URL source.
 - Capacité (nombre de terrains) extraite chez les 3 avec le chiffre lu (3, 8, 4).
 - Aucun score attribué sans confirmation humaine (0/100 partout).
+- Rejeu du 27/09 : 3/3 prospects du projet reconnus `ADDED` dans A et dans B ; aucun prospect recréé.
+- Run B : arrêt `NO_NEW_RESULTS` après 2 requêtes, coût 0,0100 $ contre 0,0150 $ pour A.
 
 ### Observed failures
 
@@ -160,6 +169,21 @@ Aucun run Padel ne porte d'instantané Novelty (tous antérieurs au moteur). Ét
   (Urban Padel), domaine non résolu.
 - Le téléphone observé n'alimente pas le critère « Canal de contact ».
 - Requête du benchmark tronquée à 250 caractères par le formulaire.
+- Rejeu du 27/09 : 12 écartés sur 19 (A) et 13 sur 20 (B), soit 63 % et 65 % des résultats.
+
+### Limites et interprétation factuelle (rejeu du 27/09)
+
+- Chiffres relevés dans l'application puis transmis pour ce rapport ; `provider_results_total`,
+  `unique_candidates_total` et la liste nominative des exploitables de A et B ne sont pas relevés ici.
+- A précède B dans le même projet : la mémoire de B contient A. `seen` passe de 3 (A) à 4 (B) et `new` de
+  1 à 0, ce qui est cohérent avec l'acteur `NEW` de A revu dans B ; non vérifié nominativement.
+- Avec ces paramètres et à cette date, le marché Padel du projet donne 1 acteur jamais vu (A) et aucun
+  acteur supplémentaire en 2 passes approfondies (B). Cela décrit la mémoire du projet, pas la
+  connaissance de Kevin.
+- Exploitables : 6 (référence 26/09) → 7 (A et B) ; le nombre et la composition de la page ne sont pas
+  comparés nom par nom.
+- Qualification et actionability ci-dessus : inchangées (aucun nouvel acteur ajouté ni analysé lors du
+  rejeu).
 
 ### Open questions for Kevin
 
@@ -169,6 +193,7 @@ Aucun run Padel ne porte d'instantané Novelty (tous antérieurs au moteur). Ét
 3. EFive (futsal, complexe sportif, Vaucluse) est-il dans votre cible ?
 4. Quel signal public vaut pour « Matchs / parties / réservations actives » (lien de réservation,
    application tierce, planning) ?
+5. L'acteur classé « nouveau pour le projet » dans le run A du 27/09 vous était-il déjà connu ?
 
 ---
 

@@ -158,7 +158,7 @@ test('B18-7 / 8 — project and tenant isolation: seen in project A (org A) → 
 
 test('B18-9 — replaying a search only prefills the form: no run, no provider call', async () => {
  const summary = summarizeRuns([{id: 'r', query: 'studios', location: 'Ville-Test', categories: [], provider: 'brave', status: 'completed', started_at: '2026-09-26T08:00:00Z', completed_at: null, result_count: 20}])[0]!;
- assert.deepEqual(replayFields(summary, true), {query: 'studios', location: 'Ville-Test', categories: '', max: 20, provider: 'brave'});
+ assert.deepEqual(replayFields(summary, true), {query: 'studios', location: 'Ville-Test', categories: '', max: 20, provider: 'brave', searchMode: 'all', desiredNew: null});
  const panel = await readFile(new URL('../src/components/DiscoveryPanel.tsx', import.meta.url), 'utf8');
  const replay = panel.slice(panel.indexOf(' function replay('), panel.indexOf('\n', panel.indexOf(' function replay(')));
  assert.doesNotMatch(replay, /api\(|search\(|find_prospects/);
@@ -202,7 +202,9 @@ test('B18-12 / B5 / B19 — filters Nouveaux / Déjà vus / Ajoutés / Ignorés;
  assert.match(panel, /\(\['ALL','NEW','SEEN','ADDED','IGNORED','CURRENT_RUN_DUPLICATE'\] as const\)/);
  assert.match(panel, /aria-pressed=\{noveltyTab===k\}/);
  assert.match(panel, /const shown=\(hasNovelty\?newFirst\(candidates,histOf\):candidates\)\.filter\(r=>noveltyTab==='ALL'\|\|novOf\(r\)\?\.status===noveltyTab\);/);
- assert.match(panel, /setResults\(rows\);setNoveltyTab\('ALL'\);/, 'a new or reopened run starts on "all"');
+ // A run starts on "all", unless the user explicitly chose "Nouveaux en priorité" for it (its own search mode).
+ assert.match(panel, /setResults\(rows\);setNoveltyTab\(summary\.search_mode==='new_first'\?'NEW':'ALL'\);/);
+ assert.match(panel, /setResults\(rows\);setNoveltyTab\(input\.optional_filters\.search_mode==='new_first'\?'NEW':'ALL'\);/);
  const css = await readFile(new URL('../app/globals.css', import.meta.url), 'utf8');
  assert.match(css, /\.novelty-tab\{flex:0 0 auto;min-height:44px/, 'phone: compact chips, 44 px targets');
  for (const k of ['NEW', 'SEEN', 'ADDED', 'IGNORED', 'CURRENT_RUN_DUPLICATE']) for (const lang of ['fr', 'en']) {

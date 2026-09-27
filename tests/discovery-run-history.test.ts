@@ -34,7 +34,7 @@ test('14 + 15 — failed runs keep their status; a run still "running" is in pro
 });
 test('5 — "Rejouer" prefills query, zone, categories, max results and the provider when still available', () => {
  const [r] = summarizeRuns([row('r', '2026-09-26T17:00:00Z', {categories: ['padel', 'sport'], filters_json: {max_results: 12}})]);
- assert.deepEqual(replayFields(r, true), {query: 'Padel', location: 'Avignon', categories: 'padel, sport', max: 12, provider: 'brave'});
+ assert.deepEqual(replayFields(r, true), {query: 'Padel', location: 'Avignon', categories: 'padel, sport', max: 12, provider: 'brave', searchMode: 'all', desiredNew: null});
  assert.equal(replayFields(r, false).provider, 'fixture', 'Brave no longer configured → back to the TEST source');
  assert.equal(replayFields({...r, max_results: null}, true).max, 20);
  assert.equal(replayFields({...r, max_results: 100}, true).max, 20, 'bounded to the form limit');

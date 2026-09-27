@@ -77,3 +77,15 @@ export function runNoveltyLabel(locale:Locale,c:NoveltyTotals):string{
  if(locale==='fr')return `${c.new_results} nouveau${c.new_results>1?'x':''} · ${seen} déjà vu${seen>1?'s':''}`;
  return `${c.new_results} new · ${seen} seen before`;
 }
+
+// Search-Until-New (search-until-new.ts): why a deep search stopped, in plain words — never hidden.
+export function deepStopLabel(locale:Locale,stop:string,found:number):string{
+ const fr:Record<string,string>={TARGET_REACHED:`Objectif atteint : ${found} nouveau${found>1?'x':''} acteur${found>1?'s':''} trouvé${found>1?'s':''}`,NO_NEW_RESULTS:'Arrêt : aucun nouveau résultat supplémentaire',MAX_PROVIDER_CALLS:'Arrêt : limite de recherche atteinte',NO_MORE_VARIANTS:'Arrêt : plus de variante de recherche disponible',TIME_BUDGET:'Arrêt : budget temps atteint',PROVIDER_ERROR:'Arrêt : erreur fournisseur après résultats partiels'};
+ const en:Record<string,string>={TARGET_REACHED:`Target reached: ${found} new actor${found===1?'':'s'} found`,NO_NEW_RESULTS:'Stopped: no further new result',MAX_PROVIDER_CALLS:'Stopped: search limit reached',NO_MORE_VARIANTS:'Stopped: no other search variant available',TIME_BUDGET:'Stopped: time budget reached',PROVIDER_ERROR:'Stopped: provider error after partial results'};
+ return (locale==='fr'?fr:en)[stop]??stop;
+}
+export function passesLabel(locale:Locale,n:number):string{return locale==='fr'?`${n} passe${n>1?'s':''} de recherche`:`${n} search pass${n===1?'':'es'}`}
+export function deepPassLine(locale:Locale,index:number,results:number,newTotal:number,ms:number):string{
+ const s=(ms/1000).toLocaleString(locale==='fr'?'fr-FR':'en-GB',{maximumFractionDigits:1});
+ return locale==='fr'?`Passe ${index} : ${results} résultat${results>1?'s':''} · ${newTotal} nouveau${newTotal>1?'x':''} au total · ${s} s`:`Pass ${index}: ${results} result${results===1?'':'s'} · ${newTotal} new in total · ${s} s`;
+}

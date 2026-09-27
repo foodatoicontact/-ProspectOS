@@ -267,6 +267,15 @@ button:focus-visible,summary:focus-visible,a:focus-visible,select:focus-visible,
  .run-card.compact>h4.run-query{margin:4px 0 2px}
  .run-card.compact>.actions{flex-direction:column;gap:4px;align-items:stretch}
 }
+/* Search-Until-New (V1): one compact line (passes · why it stopped); pass details one tap away. */
+.deep-summary{margin:8px 0 4px;font-size:12px;min-width:0}
+.deep-summary>p{margin:0;overflow-wrap:anywhere}
+.deep-detail>summary{min-height:44px;display:flex;align-items:center;cursor:pointer;font-size:12px}
+.deep-detail ul{margin:4px 0;padding-left:18px;font-size:12px}
+.deep-detail p{margin:4px 0;font-size:11px}
+.deep-status{font-size:12px}
+.deep-hint{display:block;margin-top:4px;font-size:11px;font-weight:400}
+@media(min-width:1024px){.deep-detail>summary{min-height:28px}}
 @media(max-width:640px){
  /* iOS Safari zooms the page on focus of any field under 16px. */
  input,textarea,select{font-size:16px!important}

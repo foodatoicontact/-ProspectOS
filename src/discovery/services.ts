@@ -8,6 +8,7 @@ import {mergeSameEntityCandidates,sameCanonicalOrganization} from './admissibili
 import {pageIntentsFor,internalLinkScore} from './strategies/icp-intents.ts';
 import {noveltyCounts,noveltyRates,type ProjectMemory,type Novelty} from './novelty.ts';
 import {ProjectNovelty} from './novelty-engine.ts';
+import {buildSearchVariants,desiredNewResults,searchUntilNewTarget,type SearchUntilNewResult} from './search-until-new.ts';
 export interface DiscoveryRepository {
  start(input:DiscoveryInput,provider:string):Promise<DiscoveryRun>;
  existing(projectId:string):Promise<Identity[]>;
@@ -32,6 +33,11 @@ export type SearchMeter=(run:DiscoveryRun,requestCount:number)=>Promise<void>;
 function searchMetrics(report:ProviderSearchReport|undefined):Record<string,string|number|null>{
  return report?{search_queries_planned:report.queries_planned,search_requests:report.requests_sent,search_requests_failed:report.requests_failed,search_failure_codes:report.failure_codes.join(',')||null,search_country:report.country,search_country_reason:report.country_reason}:{};
 }
+// Search-Until-New run metrics: counts, durations and the stop reason only — never a query (like searchMetrics).
+function deepSearchMetrics(deep:SearchUntilNewResult<Candidate>,desired:number,unique:number){
+ return {provider_calls:deep.providerCalls,search_passes:deep.passes.length,provider_results_total:deep.passes.reduce((n,p)=>n+p.results,0),unique_candidates_total:unique,desired_new_results:desired,new_results_found:deep.newFound,stop_reason:deep.stopReason,
+  pass_durations_ms:deep.passes.map(p=>p.duration_ms),pass_results:deep.passes.map(p=>p.results),pass_new_results:deep.passes.map(p=>p.new_after),pass_kinds:deep.passes.map(p=>p.query_kind)};
+}
 export class DiscoveryService {
  repo:DiscoveryRepository;provider:DiscoveryProvider;dedupe:DeduplicationService;log:SafeLogger;meter?:SearchMeter;
  constructor(repo:DiscoveryRepository,provider:DiscoveryProvider,log:SafeLogger=noop,meter?:SearchMeter){this.repo=repo;this.provider=provider;this.dedupe=new DeduplicationService();this.log=log;this.meter=meter}
@@ -45,18 +51,32 @@ export class DiscoveryService {
  try{const known=await this.repo.existing(input.project_id);
  // What this project already saw (its prospects, its earlier runs): read once, matched in memory. A memory
  // read failure never fails the search — the results are simply not labelled.
- let novelty:ProjectNovelty|null=null,memoryTruncated=false;
- if(this.repo.memory){try{const m=await this.repo.memory(input.project_id,run.id);memoryTruncated=!!m.truncated;novelty=new ProjectNovelty({...m,prospects:known.filter((k):k is typeof k&{id:string}=>!!k.id).map(k=>({id:k.id,name:k.name,website:k.website,phone:k.phone,city:k.city}))},input.location)}catch{novelty=null}}
- stage='provider_search';const rawResults=await this.provider.searchCompanies(input);await meterSearch();
+ let novelty:ProjectNovelty|null=null,memoryTruncated=false,memory:ProjectMemory|null=null;
+ if(this.repo.memory){try{const m=await this.repo.memory(input.project_id,run.id);memoryTruncated=!!m.truncated;memory={...m,prospects:known.filter((k):k is typeof k&{id:string}=>!!k.id).map(k=>({id:k.id,name:k.name,website:k.website,phone:k.phone,city:k.city}))};novelty=new ProjectNovelty(memory,input.location)}catch{novelty=null;memory=null}}
+ const mode=input.optional_filters.search_mode??'all';
+ stage='provider_search';let normalizationRejected=0;
+ const normalizeAll=(raws:unknown[])=>{const out:Candidate[]=[];for(const raw of raws.slice(0,input.max_results)){stage='normalize';
+ // A result that cannot be normalized is dropped on its own — never repaired, never guessed — and
+ // counted; the other results of the same single search are kept. The log carries codes only.
+ try{out.push(this.provider.normalizeResult(raw))}catch(error){normalizationRejected++;this.log({provider:this.provider.id,event:'normalization_rejected',...diagnoseDiscoveryFailure('normalize',error)})}}return out};
+ // Search-Until-New (search-until-new.ts): only on the user's explicit choice, only with the project memory
+ // (it cannot tell a new actor otherwise) and a provider able to send one request per variant. Same
+ // budget as a normal run: at most 3 provider requests. Otherwise the normal search runs unchanged.
+ let deep:SearchUntilNewResult<Candidate>|null=null,desired=0,uniqueTotal=0,deepMerged=0,fallback:string|null=null;const normalized:Candidate[]=[];
+ if(mode==='search_new'&&this.provider.searchVariant&&memory){const mem=memory;desired=desiredNewResults(input.optional_filters.desired_new_results,input.max_results);
+  const newCount=(all:Candidate[])=>{const engine=new ProjectNovelty(mem,input.location);return mergeSameEntityCandidates(all).kept.filter(c=>engine.classify(c).status==='NEW').length};
+  deep=await searchUntilNewTarget<Candidate>({variants:buildSearchVariants(input),desiredNewResults:desired,maxProviderCalls:input.optional_filters.max_provider_calls,startedAt:start,
+   runPass:async variant=>{stage='provider_search';return normalizeAll(await this.provider.searchVariant!(input,variant.query))},countNew:newCount});
+  // Every pass merged (the same actor met twice is one candidate), new actors first, capped at max_results.
+  const merged=mergeSameEntityCandidates(deep.candidates);deepMerged=merged.merged;uniqueTotal=merged.kept.length;
+  const engine=new ProjectNovelty(mem,input.location);const isNew=merged.kept.map(c=>engine.classify(c).status==='NEW');
+  normalized.push(...[...merged.kept.filter((_,i)=>isNew[i]),...merged.kept.filter((_,i)=>!isNew[i])].slice(0,input.max_results));
+ }else{if(mode==='search_new')fallback=memory?'provider_unsupported':'novelty_unavailable';normalized.push(...normalizeAll(await this.provider.searchCompanies(input)))}
+ await meterSearch();
  const search=this.lastSearch();
  // Partial search failure: some queries failed, at least one succeeded — the run continues on the results
  // actually received (nothing is retried or invented) and the failure stays observable (log + run metrics).
- if(search&&search.requests_failed>0)this.log({provider:this.provider.id,event:'search_partial_failure',search_requests:search.requests_sent,search_requests_failed:search.requests_failed,search_failure_codes:search.failure_codes.join(',')});const candidates:Array<{candidate:Candidate;dedupe:ReturnType<DeduplicationService['match']>}>=[];const seen:Identity[]=[];let normalizationRejected=0;
- const normalized:Candidate[]=[];
- for(const raw of rawResults.slice(0,input.max_results)){stage='normalize';
- // A result that cannot be normalized is dropped on its own — never repaired, never guessed — and
- // counted; the other results of the same single search are kept. The log carries codes only.
- try{normalized.push(this.provider.normalizeResult(raw))}catch(error){normalizationRejected++;this.log({provider:this.provider.id,event:'normalization_rejected',...diagnoseDiscoveryFailure('normalize',error)})}}
+ if(search&&search.requests_failed>0)this.log({provider:this.provider.id,event:'search_partial_failure',search_requests:search.requests_sent,search_requests_failed:search.requests_failed,search_failure_codes:search.failure_codes.join(',')});const candidates:Array<{candidate:Candidate;dedupe:ReturnType<DeduplicationService['match']>}>=[];const seen:Identity[]=[];
  // The same organization reached through several pages of this search becomes one candidate with
  // several sources (admissibility.ts) — never one prospect per page.
  const {kept,merged:entitiesMerged}=mergeSameEntityCandidates(normalized);
@@ -65,7 +85,7 @@ export class DiscoveryService {
  // Resolution first, project dedup second: a resolved organization already in the project by name is
  // flagged for review (never silently merged, never dropped) even without a shared website/phone.
  if(dedupe.status==='unique'&&candidate.raw_metadata.source_class==='COMPANY_CANDIDATE'){const same=known.find(k=>sameCanonicalOrganization(k.name,candidate.name));if(same){dedupe.status='merge_review_required';dedupe.duplicate_of=same.id??null;dedupe.reason='Organisation déjà présente dans ce projet (même nom canonique) : revue nécessaire'}}const within=this.dedupe.match(candidate,seen);if(dedupe.status==='unique'&&within.status!=='unique'){dedupe.status='merge_review_required';dedupe.reason='Résultat similaire dans cette recherche : revue nécessaire'}const labelled=novelty?{...candidate,raw_metadata:{...candidate.raw_metadata,novelty:novelty.classify(candidate,{duplicateOf:dedupe.status==='duplicate_candidate'?dedupe.duplicate_of:null})}}:candidate;candidates.push({candidate:labelled,dedupe});seen.push(candidate)}
- stage='save';const results=await this.repo.saveResults(run,candidates);const counts=novelty?noveltyCounts(candidates.map(c=>c.candidate.raw_metadata.novelty as Novelty),entitiesMerged):null;const metrics={provider:this.provider.id,duration_ms:Date.now()-start,...searchMetrics(search),results:results.length,normalization_rejected:normalizationRejected,entities_merged:entitiesMerged,ai_tokens:0,ai_cost_estimate:0,...(counts?{...counts,...noveltyRates(counts)}:{novelty_unavailable:1}),...(memoryTruncated?{novelty_memory_truncated:1}:{})};stage='finish';await this.repo.finish(run.id,results.length,metrics);this.log(metrics);return {...run,status:'completed',provider_mode:this.provider.mode,results,result_count:results.length};
+ stage='save';const results=await this.repo.saveResults(run,candidates);const counts=novelty?noveltyCounts(candidates.map(c=>c.candidate.raw_metadata.novelty as Novelty),entitiesMerged+deepMerged):null;const metrics={provider:this.provider.id,duration_ms:Date.now()-start,...searchMetrics(search),results:results.length,normalization_rejected:normalizationRejected,entities_merged:entitiesMerged+deepMerged,ai_tokens:0,ai_cost_estimate:0,search_mode:mode,...(fallback?{search_mode_fallback:fallback}:{}),...(deep?deepSearchMetrics(deep,desired,uniqueTotal):{}),...(counts?{...counts,...noveltyRates(counts)}:{novelty_unavailable:1}),...(memoryTruncated?{novelty_memory_truncated:1}:{})};stage='finish';await this.repo.finish(run.id,results.length,metrics);this.log(Object.fromEntries(Object.entries(metrics).map(([k,v])=>[k,Array.isArray(v)?v.join(','):v])) as Record<string,string|number|null>);return {...run,status:'completed',provider_mode:this.provider.mode,results,result_count:results.length};
  }catch(error){await meterSearch();await this.repo.finish(run.id,0,{duration_ms:Date.now()-start,...searchMetrics(this.lastSearch())},'DISCOVERY_FAILED');this.log({provider:this.provider.id,duration_ms:Date.now()-start,error:'DISCOVERY_FAILED',...searchMetrics(this.lastSearch()),...diagnoseDiscoveryFailure(stage,error)});throw Error('DISCOVERY_FAILED')}
  }
 }

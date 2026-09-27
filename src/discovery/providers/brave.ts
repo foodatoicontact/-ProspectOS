@@ -49,6 +49,19 @@ export class BraveProvider implements DiscoveryProvider {
   catch(error){report.requests_failed++;report.failure_codes.push(diagnoseDiscoveryFailure('provider_search',error).cause);firstError??=error;if(error instanceof Error&&error.message==='BRAVE_HTTP_429')break}
  }
  if(!pools.length)throw firstError instanceof Error?firstError:Error('BRAVE_SEARCH_FAILED');
+ return this.rank(pools,input);
+ }
+ // Search-Until-New (search-until-new.ts): ONE billed request for one variant, added to the run's search
+ // report (the cost ledger records the exact number of requests sent). Ranked exactly like a normal search.
+ async searchVariant(input:DiscoveryInput,query:string){
+ const market=resolveMarket(input.location,input.optional_filters.country);
+ const report=this.lastSearch??={queries_planned:0,requests_sent:0,requests_failed:0,failure_codes:[],country:market.country,country_reason:market.reason};
+ report.queries_planned++;report.requests_sent++;
+ let results:Raw[];
+ try{results=await this.search(query,market.country)}catch(error){report.requests_failed++;report.failure_codes.push(diagnoseDiscoveryFailure('provider_search',error).cause);throw error}
+ return this.rank([{query,results}],input);
+ }
+ private rank(pools:Array<{query:string;results:Raw[]}>,input:DiscoveryInput){
  // Merge BEFORE any ranking or selection: round-robin across queries (no single query owns the ties), one
  // entry per canonical URL, remembering every query that found it (provenance, raw_metadata.search_queries).
  const merged=new Map<string,Raw&{__found_by:string[]}>();

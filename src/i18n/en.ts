@@ -174,6 +174,10 @@ export const en={
  'prospects.emptyTitle':'Your next opportunity starts here.',
  'prospects.emptyBody':'Add a business and its first source.',
  'prospects.emptyCta':'＋ Get started',
+ 'prospects.emptyStepsTitle':'To get started',
+ 'prospects.emptyStep1':'Describe your offer and your criteria in “Offer & ICP”.',
+ 'prospects.emptyStep2':'Click “Find prospects” and run a search.',
+ 'prospects.emptyStep3':'Open a prospect, check its evidence at the source, then decide.',
  'prospects.listFooter':'◉ No prospect invented by AI',
 
  'detail.eyebrow':'PROSPECT SHEET',

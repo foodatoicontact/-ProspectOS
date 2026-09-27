@@ -286,3 +286,8 @@ button:focus-visible,summary:focus-visible,a:focus-visible,select:focus-visible,
  .detail .actions button,.decision button{min-height:44px}
  .main{padding-bottom:env(safe-area-inset-bottom)}
 }
+
+/* First-use help in the empty prospect list (disappears with the first prospect). */
+.empty-steps{text-align:left;font-size:12px;margin:14px auto 16px;max-width:260px}
+.empty-steps ol{margin:6px 0 0;padding-left:18px}
+.empty-steps li{margin:3px 0}

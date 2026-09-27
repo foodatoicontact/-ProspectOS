@@ -174,6 +174,10 @@ export const fr={
  'prospects.emptyTitle':'Votre prochaine opportunité commence ici.',
  'prospects.emptyBody':'Ajoutez un établissement et sa première source.',
  'prospects.emptyCta':'＋ Commencer',
+ 'prospects.emptyStepsTitle':'Pour démarrer',
+ 'prospects.emptyStep1':'Décrivez votre offre et vos critères dans « Offre & ICP ».',
+ 'prospects.emptyStep2':'Cliquez sur « Trouver des prospects » et lancez une recherche.',
+ 'prospects.emptyStep3':'Ouvrez un prospect, vérifiez ses preuves à la source, puis décidez.',
  'prospects.listFooter':'◉ Aucun prospect inventé par l’IA',
 
  'detail.eyebrow':'FICHE PROSPECT',

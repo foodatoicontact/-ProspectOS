@@ -51,12 +51,34 @@ recherche » les préremplit et ne lance rien.
 Sans mémoire projet (lecture impossible) ou avec un fournisseur qui ne sait pas faire une passe, le mode
 retombe sur la recherche normale (`search_mode_fallback` dans les métriques) — jamais un faux « nouveau ».
 
+## Ce qui compte comme « nouveau prospect »
+
+Uniquement un **COMPANY_CANDIDATE** (classe de la porte d'admissibilité, inchangée), unique après
+fusion des passes, conservé dans les résultats et classé **NEW** par Novelty. Les pages écartées
+(IRRELEVANT) et les sources non résolues (UNCERTAIN, SIGNAL_SOURCE) ne comptent **jamais** : leur
+identité se réduit à leur URL, donc elles seraient « jamais vues » par construction. `TARGET_REACHED`
+seulement si ce nombre ≥ `desired_new_results`.
+
+Sélection finale : 1) exploitables NEW, 2) autres exploitables (déjà vus, ajoutés, ignorés), 3) résultats
+écartés, puis limite `max_results` — une page écartée n'évince jamais une entreprise connue.
+
+Correctif du test réel sur la Preview (run 1e0462dc) : 22 « nouveaux » affichés alors qu'un seul
+candidat exploitable l'était ; les pages écartées gonflaient le compteur et avaient remplacé les
+entreprises connues dans la sélection. Ce run garde ses métriques d'origine (pas de réécriture).
+
 ## Métriques (`discovery_runs.metrics`, métriques existantes conservées)
 
-`search_mode`, `provider_calls`, `search_passes`, `provider_results_total`, `unique_candidates_total`,
-`desired_new_results`, `new_results_found`, `stop_reason`, `pass_durations_ms`, `pass_results`,
-`pass_new_results`, `pass_kinds`, plus les compteurs Novelty (`new_results`, `seen_results`,
-`already_added`, `ignored_results`, `duplicate_results`, `new_discovery_rate`). Jamais une requête ni une URL.
+- `provider_results_total` : résultats bruts du fournisseur (toutes passes) ;
+- `unique_candidates_total` : résultats uniques après fusion des passes ;
+- `eligible_candidates_total` / `rejected_results` : exploitables / écartés ou non résolus, parmi les résultats gardés ;
+- `new_results_found` : exploitables gardés classés NEW (= `new_results`) ;
+- `pass_new_results` : nouveaux exploitables apportés par **chaque** passe (non cumulé) ;
+- `search_mode`, `provider_calls`, `search_passes`, `desired_new_results`, `stop_reason`,
+  `pass_durations_ms`, `pass_results`, `pass_kinds` ;
+- compteurs Novelty (`new_results`, `seen_results`, `already_added`, `ignored_results`,
+  `duplicate_results`, `new_discovery_rate`) calculés sur les **seuls exploitables**.
+
+Jamais une requête ni une URL.
 
 ## Interface
 

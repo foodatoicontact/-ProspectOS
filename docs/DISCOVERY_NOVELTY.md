@@ -54,6 +54,18 @@ sans étiquette (`novelty_unavailable: 1`) — jamais un faux « nouveau ».
 Ce ne sont pas des scores : ils décrivent la saturation d’un marché dans le temps. Les métriques
 existantes sont conservées.
 
+### Univers des compteurs (correctif)
+
+Les compteurs `new_results`, `seen_results`, `already_added`, `ignored_results`, `duplicate_results` et
+`new_discovery_rate` portent **uniquement sur les candidats exploitables** (COMPANY_CANDIDATE). Les pages
+écartées et sources non résolues sont comptées à part (`rejected_results`) ; `results_total` reste le
+nombre total de résultats du run et `eligible_candidates_total` le nombre d'exploitables. À l'écran, seuls
+les exploitables portent une pastille de nouveauté et entrent dans les filtres ; les autres restent visibles
+dans « Tous », après les exploitables. L'identité Novelty et l'admissibilité sont inchangées.
+
+**Runs antérieurs au correctif** : leurs métriques (et leur ligne d'historique « X nouveaux ») ne sont pas
+recalculées et peuvent être gonflées par des pages écartées comptées comme nouvelles. Aucun backfill.
+
 ## Interface
 
 - Résumé du run : « 7 nouveaux · 6 déjà vus · 4 déjà ajoutés · 3 ignorés » (mobile).

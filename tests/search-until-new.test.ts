@@ -22,17 +22,19 @@ const actor = (word: string): Candidate => {
   deduplication_key: `domain:${slug}.example|`};
 };
 // A provider whose variants return scripted actor sets, counting requests like Brave's search report.
+type Item = string | Candidate;
+const toCandidate = (x: Item): Candidate => typeof x === 'string' ? actor(x) : x;
 class FakeProvider implements DiscoveryProvider {
  id = 'fake'; mode = 'test' as const; lastSearch?: ProviderSearchReport;
- classic = 0; passes: string[] = []; script: Array<string[] | Error>; classicSet: string[];
- constructor(script: Array<string[] | Error>, classicSet: string[] = []) { this.script = script; this.classicSet = classicSet; }
+ classic = 0; passes: string[] = []; script: Array<Item[] | Error>; classicSet: Item[];
+ constructor(script: Array<Item[] | Error>, classicSet: Item[] = []) { this.script = script; this.classicSet = classicSet; }
  private report() { return this.lastSearch ??= {queries_planned: 0, requests_sent: 0, requests_failed: 0, failure_codes: [], country: 'FR', country_reason: 'default'}; }
- async searchCompanies() { this.classic++; const r = this.report(); r.queries_planned++; r.requests_sent++; return this.classicSet.map(actor); }
+ async searchCompanies() { this.classic++; const r = this.report(); r.queries_planned++; r.requests_sent++; return this.classicSet.map(toCandidate); }
  async searchVariant(_input: DiscoveryInput, query: string) {
   const r = this.report(); r.queries_planned++; r.requests_sent++;
   const next = this.script[this.passes.length]; this.passes.push(query);
   if (next instanceof Error || next === undefined) { r.requests_failed++; throw next ?? Error('BRAVE_HTTP_500'); }
-  return next.map(actor);
+  return next.map(toCandidate);
  }
  async fetchCompanyDetails(c: Candidate) { return c; }
  normalizeResult(raw: unknown) { return raw as Candidate; }
@@ -52,8 +54,9 @@ class Repo implements DiscoveryRepository {
  async saveResults(run: DiscoveryRun, rows: Array<{candidate: Candidate; dedupe: {status: DiscoveryResult['dedupe_status']; duplicate_of: string | null}}>): Promise<DiscoveryResult[]> {
   this.saved += rows.length;
   return rows.map(({candidate: c, dedupe: d}, i) => {
-   this.store.rows.push({id: `${run.id}-${i}`, discovery_run_id: run.id, status: 'pending', prospect_id: null, company_name: c.name, website: c.website, city: null, source_url: c.source_url, source_class: 'COMPANY_CANDIDATE', name_status: 'RESOLVED', domain_status: 'RESOLVED', project_id: this.project});
-   return {id: `${run.id}-${i}`, normalized_payload: c, dedupe_status: d.status, duplicate_of: d.duplicate_of, status: 'pending', prospect_id: null, source_class: 'COMPANY_CANDIDATE'};
+   const cls = c.raw_metadata.source_class as DiscoveryResult['source_class'];
+   this.store.rows.push({id: `${run.id}-${i}`, discovery_run_id: run.id, status: 'pending', prospect_id: null, company_name: c.name, website: c.website, city: null, source_url: c.source_url, source_class: cls, name_status: c.raw_metadata.company_name_status as string, domain_status: c.raw_metadata.company_domain_status as string, project_id: this.project});
+   return {id: `${run.id}-${i}`, normalized_payload: c, dedupe_status: d.status, duplicate_of: d.duplicate_of, status: 'pending', prospect_id: null, source_class: cls};
   });
  }
  async finish(_id: string, _n: number, metrics: Record<string, unknown>, error?: string) { this.metrics = metrics; this.failed = !!error; }
@@ -97,7 +100,7 @@ test('SUN-4 / 5 — pass 1 short → pass 2 → TARGET_REACHED', async () => {
  await run(repo, p);
  assert.equal(p.passes.length, 2); assert.equal(repo.metrics.stop_reason, 'TARGET_REACHED');
  assert.notEqual(p.passes[0], p.passes[1], 'the second pass is a different query');
- assert.deepEqual(repo.metrics.pass_new_results, [2, 6]);
+ assert.deepEqual(repo.metrics.pass_new_results, [2, 4], 'new exploitable actors brought by each pass');
 });
 test('SUN-6 — a complementary pass with 0 new (after dedup + memory) → NO_NEW_RESULTS, the third call is not spent', async () => {
  const store = new Store();
@@ -148,7 +151,7 @@ test('SUN-10 — the same actor on 3 passes → one final line, counted once as 
  const repo = new Repo(new Store()), p = new FakeProvider([['Alpha'], ['Alpha', 'Bravo'], ['Alpha', 'Bravo', 'Charlie']]);
  const {found} = await run(repo, p, {search_mode: 'search_new', desired_new_results: 10});
  assert.equal(found.results.filter(r => r.normalized_payload.name === 'Studio Alpha').length, 1);
- assert.deepEqual(repo.metrics.pass_new_results, [1, 2, 3]);
+ assert.deepEqual(repo.metrics.pass_new_results, [1, 1, 1], 'each pass brings one new actor, Alpha is never counted twice');
  assert.equal(repo.metrics.provider_results_total, 6); assert.equal(repo.metrics.unique_candidates_total, 3);
 });
 test('SUN-11..14 — historical SEEN, ADDED, IGNORED and a truly NEW actor, across passes', async () => {
@@ -266,6 +269,95 @@ test('SUN-REF — saturated market (0 new · 10 seen · 3 added): real extra var
  const b = new Repo(store), pb = new FakeProvider([known, [...known.slice(0, 5), 'Xray', 'Yankee'], ['Xray', 'Zulu']]);
  await run(b, pb, {search_mode: 'search_new', desired_new_results: 20});
  assert.equal(pb.passes.length, 3); assert.equal(b.metrics.stop_reason, 'MAX_PROVIDER_CALLS');
- assert.deepEqual(b.metrics.pass_new_results, [0, 2, 3]);
+ assert.deepEqual(b.metrics.pass_new_results, [0, 2, 1]);
  assert.equal(b.metrics.new_results, 3);
+});
+
+// ---------------------------------------------------------------- real count: exploitable NEW only (fix of the Preview bug)
+// A page set aside (IRRELEVANT) or an unresolved source (UNCERTAIN) has a URL-only identity: it is "never seen"
+// by construction — it must never count as a new prospect, nor push out a known exploitable organization.
+const page = (n: number, cls: 'IRRELEVANT' | 'UNCERTAIN' = 'IRRELEVANT'): Candidate => ({...actor(`Page${n}`), name: `Annuaire page ${n}`, website: null, canonical_url: null,
+ source_url: `https://annuaire.example/liste-${n}`, deduplication_key: `url:annuaire-${n}`, raw_metadata: {source_class: cls, company_name_status: 'UNRESOLVED', company_domain_status: 'UNRESOLVED', admissibility: {admissible: false}}});
+const pages = (from: number, count: number, cls?: 'IRRELEVANT' | 'UNCERTAIN') => Array.from({length: count}, (_, i) => page(from + i, cls));
+const eligibleIn = (results: DiscoveryResult[]) => results.filter(r => r.source_class === 'COMPANY_CANDIDATE');
+
+test('FIX-A — 22 raw results new by URL, only 1 exploitable NEW: new_results = 1, never TARGET_REACHED', async () => {
+ const repo = new Repo(new Store()), p = new FakeProvider([['Alpha', ...pages(1, 11)], pages(12, 10)]);
+ await run(repo, p, {search_mode: 'search_new', desired_new_results: 20});
+ assert.equal(repo.metrics.provider_results_total, 22);
+ assert.equal(repo.metrics.new_results_found, 1); assert.equal(repo.metrics.new_results, 1);
+ assert.notEqual(repo.metrics.stop_reason, 'TARGET_REACHED');
+ assert.equal(repo.metrics.stop_reason, 'NO_NEW_RESULTS', 'pass 2 brought no exploitable new actor');
+ assert.deepEqual(repo.metrics.pass_new_results, [1, 0]);
+ assert.equal(repo.metrics.rejected_results, 19); assert.equal(repo.metrics.eligible_candidates_total, 1);
+});
+test('FIX-B — 25 raw, 20 exploitable NEW: new_results = 20, TARGET_REACHED', async () => {
+ const repo = new Repo(new Store()), p = new FakeProvider([[...W.slice(0, 15), ...pages(1, 5)], W.slice(15, 20)]);
+ await run(repo, p, {search_mode: 'search_new', desired_new_results: 20});
+ assert.equal(repo.metrics.provider_results_total, 25);
+ assert.deepEqual([repo.metrics.new_results_found, repo.metrics.stop_reason], [20, 'TARGET_REACHED']);
+});
+test('FIX-C — 20 exploitable candidates, 10 NEW + 10 SEEN: new_results = 10, not TARGET_REACHED', async () => {
+ const store = new Store();
+ await run(new Repo(store), new FakeProvider([], W.slice(0, 10)), {});
+ const repo = new Repo(store), p = new FakeProvider([W.slice(0, 20), W.slice(0, 10)]);
+ await run(repo, p, {search_mode: 'search_new', desired_new_results: 20});
+ assert.deepEqual([repo.metrics.new_results_found, repo.metrics.seen_results], [10, 10]);
+ assert.equal(repo.metrics.stop_reason, 'NO_NEW_RESULTS');
+});
+test('FIX-D — the same new company on two passes counts once', async () => {
+ const repo = new Repo(new Store()), p = new FakeProvider([['Alpha'], ['Alpha']]);
+ const {found} = await run(repo, p, {search_mode: 'search_new', desired_new_results: 5});
+ assert.equal(repo.metrics.new_results_found, 1); assert.deepEqual(repo.metrics.pass_new_results, [1, 0]);
+ assert.equal(found.results.filter(r => r.normalized_payload.name === 'Studio Alpha').length, 1);
+});
+test('FIX-E — 10 known companies + 20 pages new by URL, max 20: the 10 known companies stay, pages only fill the rest', async () => {
+ const store = new Store();
+ await run(new Repo(store), new FakeProvider([], W.slice(0, 10)), {});
+ const repo = new Repo(store), p = new FakeProvider([[...W.slice(0, 10), ...pages(1, 10)], pages(11, 10)]);
+ const {found} = await run(repo, p, {search_mode: 'search_new', desired_new_results: 20});
+ assert.equal(found.results.length, 20);
+ assert.deepEqual(eligibleIn(found.results).map(r => r.normalized_payload.name).sort(), W.slice(0, 10).map(w => `Studio ${w}`).sort(), 'no known company pushed out');
+ assert.equal(repo.metrics.seen_results, 10); assert.equal(repo.metrics.new_results, 0); assert.equal(repo.metrics.rejected_results, 10);
+});
+test('FIX-F — Novelty normal run: 1 company NEW + 19 pages new by URL → history counts 1 new, not 20', async () => {
+ const repo = new Repo(new Store()), p = new FakeProvider([], ['Alpha', ...pages(1, 12), ...pages(13, 7, 'UNCERTAIN')]);
+ await run(repo, p, {});
+ assert.deepEqual([repo.metrics.results_total, repo.metrics.new_results, repo.metrics.rejected_results, repo.metrics.eligible_candidates_total], [20, 1, 19, 1]);
+ assert.equal(repo.metrics.new_discovery_rate, 1, 'rate over exploitable candidates only');
+ const [s] = summarizeRuns([{id: 'r', query: 'q', location: 'x', categories: [], provider: 'brave', status: 'completed', started_at: '2026-09-27T08:00:00Z', completed_at: null, result_count: 20, metrics: repo.metrics}], []);
+ assert.equal(s!.novelty!.new_results, 1);
+});
+test('FIX-G — ADDED / SEEN / IGNORED still counted, on exploitable candidates only', async () => {
+ const store = new Store();
+ await run(new Repo(store), new FakeProvider([], ['Kilo', 'Lima', 'Mike', ...pages(1, 3)]), {});
+ store.rows.find(r => r.company_name === 'Studio Lima')!.status = 'ignored';
+ store.prospects.push({id: 'p-mike', project_id: 'project-A', name: 'Studio Mike', website: 'https://mike.example/'});
+ const repo = new Repo(store), p = new FakeProvider([], ['Kilo', 'Lima', 'Mike', 'Alpha', ...pages(1, 3), ...pages(9, 2)]);
+ await run(repo, p, {});
+ const m = repo.metrics;
+ assert.deepEqual([m.new_results, m.seen_results, m.ignored_results, m.already_added, m.rejected_results, m.results_total], [1, 1, 1, 1, 5, 9]);
+});
+test('FIX-REF — the real Preview run: 38 provider results, 37 unique, 1 exploitable NEW → new_results_found 1, no TARGET_REACHED', async () => {
+ // Project memory like the reference project: 10 companies seen, 3 added.
+ const store = new Store();
+ const known = W.slice(0, 13);
+ await run(new Repo(store), new FakeProvider([], known), {});
+ for (const w of known.slice(10)) store.prospects.push({id: `p-${w}`, project_id: 'project-A', name: `Studio ${w}`, website: `https://${w.toLowerCase()}.example/`});
+ // Pass 1: 20 results (6 known companies, 1 new company, 13 pages); pass 2: 18 results (7 other known companies,
+ // one company already met in pass 1 — merged, hence 37 unique — and 10 new pages). Pages are never merged
+ // (only admissible organizations are, admissibility.ts).
+ const pass1: Item[] = [...known.slice(0, 6), 'Xray', ...pages(1, 13)];
+ const pass2: Item[] = [...known.slice(6, 13), known[5]!, ...pages(20, 10)];
+ const repo = new Repo(store), p = new FakeProvider([pass1, pass2]);
+ const {found} = await run(repo, p, {search_mode: 'search_new', desired_new_results: 20});
+ const m = repo.metrics;
+ assert.deepEqual([m.provider_results_total, m.unique_candidates_total], [38, 37]);
+ assert.equal(m.new_results_found, 1);
+ assert.equal(m.stop_reason, 'NO_NEW_RESULTS', 'pass 2 brought no exploitable new actor');
+ assert.deepEqual(m.pass_new_results, [1, 0]);
+ assert.deepEqual([m.seen_results, m.already_added, m.eligible_candidates_total], [10, 3, 14]);
+ assert.equal(eligibleIn(found.results).length, 14, 'the 13 known companies and the new one are all kept');
+ assert.equal(found.results.length, 20);
+ assert.equal(m.rejected_results, 6, 'pages only fill what is left');
 });

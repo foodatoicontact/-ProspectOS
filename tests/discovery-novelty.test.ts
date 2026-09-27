@@ -201,7 +201,9 @@ test('B18-12 / B5 / B19 — filters Nouveaux / Déjà vus / Ajoutés / Ignorés;
  assert.match(panel, /useState<'ALL'\|NoveltyStatus>\('ALL'\)/, 'the default view is every result (new first), never "new only"');
  assert.match(panel, /\(\['ALL','NEW','SEEN','ADDED','IGNORED','CURRENT_RUN_DUPLICATE'\] as const\)/);
  assert.match(panel, /aria-pressed=\{noveltyTab===k\}/);
- assert.match(panel, /const shown=\(hasNovelty\?newFirst\(candidates,histOf\):candidates\)\.filter\(r=>noveltyTab==='ALL'\|\|novOf\(r\)\?\.status===noveltyTab\);/);
+ // Exploitable candidates in novelty order, then the unresolved ones (no novelty label, never in a novelty tab).
+ assert.match(panel, /const shown=\(hasNovelty\?\[\.\.\.newFirst\(candidates\.filter\(eligible\),histOf\),\.\.\.candidates\.filter\(r=>!eligible\(r\)\)\]:candidates\)\.filter\(r=>noveltyTab==='ALL'\|\|novOf\(r\)\?\.status===noveltyTab\);/);
+ assert.match(panel, /const histOf=\(r:DiscoveryResult\)=>eligible\(r\)\?noveltyOf\(r\.normalized_payload\.raw_metadata\):null;/);
  // A run starts on "all", unless the user explicitly chose "Nouveaux en priorité" for it (its own search mode).
  assert.match(panel, /setResults\(rows\);setNoveltyTab\(summary\.search_mode==='new_first'\?'NEW':'ALL'\);/);
  assert.match(panel, /setResults\(rows\);setNoveltyTab\(input\.optional_filters\.search_mode==='new_first'\?'NEW':'ALL'\);/);
@@ -314,7 +316,7 @@ test('HARD-1 — the run read enriches display only: no write, snapshot and metr
  assert.doesNotMatch(read, /\.update\(|\.insert\(|\.upsert\(|rpc\(/, 'reading a run never writes');
  assert.match(read, /current_project_status:current\.get\(r\.id\)\?\?null/);
  const panel = await readFile(new URL('../src/components/DiscoveryPanel.tsx', import.meta.url), 'utf8');
- assert.match(panel, /const novOf=\(r:DiscoveryResult\)=>displayNovelty\(histOf\(r\),r\.current_project_status\);/);
+ assert.match(panel, /const novOf=\(r:DiscoveryResult\)=>eligible\(r\)\?displayNovelty\(histOf\(r\),r\.current_project_status\):null;/);
  assert.match(panel, /const nov=novOf\(r\);const hist=histOf\(r\);const alreadyProspect=r\.status==='pending'&&nov\?\.status==='ADDED'&&!!nov\.prospect_id;/, '"Ajouter" is hidden on the CURRENT status');
 });
 

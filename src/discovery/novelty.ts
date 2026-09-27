@@ -35,6 +35,17 @@ export function noveltyCounts(list:Array<Pick<Novelty,'status'>|null|undefined>,
  const n=(s:NoveltyStatus)=>list.filter(x=>x?.status===s).length;
  return {results_total:list.length,new_results:n('NEW'),seen_results:n('SEEN'),already_added:n('ADDED'),ignored_results:n('IGNORED'),duplicate_results:n('CURRENT_RUN_DUPLICATE')+mergedInRun};
 }
+// A "new prospect" is only ever an exploitable organization: a COMPANY_CANDIDATE (the admissibility gate's own
+// class). Pages set aside (IRRELEVANT) and unresolved sources (UNCERTAIN, SIGNAL_SOURCE) are counted apart, as
+// rejected — never as new, seen, added, ignored or duplicate. Identity and admissibility are not changed here.
+export const isEligibleCandidate=(sourceClass:unknown):boolean=>sourceClass==='COMPANY_CANDIDATE';
+export type EligibleNoveltyCounts=NoveltyCounts&{eligible_candidates_total:number;rejected_results:number};
+// Run counters on one coherent universe: novelty counters over the exploitable candidates only;
+// results_total stays every result of the run, rejected_results the rest.
+export function eligibleNoveltyCounts<T>(rows:T[],sourceClass:(row:T)=>unknown,novelty:(row:T)=>Pick<Novelty,'status'>|null|undefined,mergedInRun=0):EligibleNoveltyCounts{
+ const eligible=rows.filter(r=>isEligibleCandidate(sourceClass(r)));
+ return {...noveltyCounts(eligible.map(novelty),mergedInRun),results_total:rows.length,eligible_candidates_total:eligible.length,rejected_results:rows.length-eligible.length};
+}
 export function noveltyRates(c:NoveltyCounts):{new_discovery_rate:number|null;repeat_rate:number|null}{
  // Relevant results: the distinct actors of the run (a duplicate within the run is not a second actor).
  const base=c.new_results+c.seen_results+c.already_added+c.ignored_results;

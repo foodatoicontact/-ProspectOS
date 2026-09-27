@@ -6,7 +6,7 @@ import {ObservationService,EvidenceProposalService} from './observations.ts';
 import {diagnoseDiscoveryFailure,type DiscoveryStage} from './failure-diagnostics.ts';
 import {mergeSameEntityCandidates,sameCanonicalOrganization} from './admissibility.ts';
 import {pageIntentsFor,internalLinkScore} from './strategies/icp-intents.ts';
-import {noveltyCounts,noveltyRates,type ProjectMemory,type Novelty} from './novelty.ts';
+import {eligibleNoveltyCounts,isEligibleCandidate,noveltyRates,type ProjectMemory,type Novelty} from './novelty.ts';
 import {ProjectNovelty} from './novelty-engine.ts';
 import {buildSearchVariants,desiredNewResults,searchUntilNewTarget,type SearchUntilNewResult} from './search-until-new.ts';
 export interface DiscoveryRepository {
@@ -34,9 +34,11 @@ function searchMetrics(report:ProviderSearchReport|undefined):Record<string,stri
  return report?{search_queries_planned:report.queries_planned,search_requests:report.requests_sent,search_requests_failed:report.requests_failed,search_failure_codes:report.failure_codes.join(',')||null,search_country:report.country,search_country_reason:report.country_reason}:{};
 }
 // Search-Until-New run metrics: counts, durations and the stop reason only — never a query (like searchMetrics).
-function deepSearchMetrics(deep:SearchUntilNewResult<Candidate>,desired:number,unique:number){
- return {provider_calls:deep.providerCalls,search_passes:deep.passes.length,provider_results_total:deep.passes.reduce((n,p)=>n+p.results,0),unique_candidates_total:unique,desired_new_results:desired,new_results_found:deep.newFound,stop_reason:deep.stopReason,
-  pass_durations_ms:deep.passes.map(p=>p.duration_ms),pass_results:deep.passes.map(p=>p.results),pass_new_results:deep.passes.map(p=>p.new_after),pass_kinds:deep.passes.map(p=>p.query_kind)};
+// new_results_found: exploitable candidates finally kept and classified NEW (the run's own new_results);
+// pass_new_results: exploitable new actors each pass brought (not cumulative).
+function deepSearchMetrics(deep:SearchUntilNewResult<Candidate>,desired:number,unique:number,finalNew:number){
+ return {provider_calls:deep.providerCalls,search_passes:deep.passes.length,provider_results_total:deep.passes.reduce((n,p)=>n+p.results,0),unique_candidates_total:unique,desired_new_results:desired,new_results_found:finalNew,stop_reason:deep.stopReason,
+  pass_durations_ms:deep.passes.map(p=>p.duration_ms),pass_results:deep.passes.map(p=>p.results),pass_new_results:deep.passes.map((p,i)=>p.new_after-(i?deep.passes[i-1]!.new_after:0)),pass_kinds:deep.passes.map(p=>p.query_kind)};
 }
 export class DiscoveryService {
  repo:DiscoveryRepository;provider:DiscoveryProvider;dedupe:DeduplicationService;log:SafeLogger;meter?:SearchMeter;
@@ -64,13 +66,17 @@ export class DiscoveryService {
  // budget as a normal run: at most 3 provider requests. Otherwise the normal search runs unchanged.
  let deep:SearchUntilNewResult<Candidate>|null=null,desired=0,uniqueTotal=0,deepMerged=0,fallback:string|null=null;const normalized:Candidate[]=[];
  if(mode==='search_new'&&this.provider.searchVariant&&memory){const mem=memory;desired=desiredNewResults(input.optional_filters.desired_new_results,input.max_results);
-  const newCount=(all:Candidate[])=>{const engine=new ProjectNovelty(mem,input.location);return mergeSameEntityCandidates(all).kept.filter(c=>engine.classify(c).status==='NEW').length};
+  // Exploitable new actors only: every merged candidate is classified in order (so a second occurrence is a
+  // CURRENT_RUN_DUPLICATE), then only COMPANY_CANDIDATEs classified NEW count — never a page set aside.
+  const newCount=(all:Candidate[])=>{const engine=new ProjectNovelty(mem,input.location);return mergeSameEntityCandidates(all).kept.map(c=>({c,status:engine.classify(c).status})).filter(x=>isEligibleCandidate(x.c.raw_metadata.source_class)&&x.status==='NEW').length};
   deep=await searchUntilNewTarget<Candidate>({variants:buildSearchVariants(input),desiredNewResults:desired,maxProviderCalls:input.optional_filters.max_provider_calls,startedAt:start,
    runPass:async variant=>{stage='provider_search';return normalizeAll(await this.provider.searchVariant!(input,variant.query))},countNew:newCount});
-  // Every pass merged (the same actor met twice is one candidate), new actors first, capped at max_results.
+  // Every pass merged (the same actor met twice is one candidate), then: exploitable NEW actors, the other
+  // exploitable candidates (seen, added, ignored), and only then the results set aside — capped at max_results.
+  // A page set aside never pushes out a known exploitable organization.
   const merged=mergeSameEntityCandidates(deep.candidates);deepMerged=merged.merged;uniqueTotal=merged.kept.length;
-  const engine=new ProjectNovelty(mem,input.location);const isNew=merged.kept.map(c=>engine.classify(c).status==='NEW');
-  normalized.push(...[...merged.kept.filter((_,i)=>isNew[i]),...merged.kept.filter((_,i)=>!isNew[i])].slice(0,input.max_results));
+  const engine=new ProjectNovelty(mem,input.location);const rank=merged.kept.map(c=>!isEligibleCandidate(c.raw_metadata.source_class)?2:engine.classify(c).status==='NEW'?0:1);
+  normalized.push(...[0,1,2].flatMap(g=>merged.kept.filter((_,i)=>rank[i]===g)).slice(0,input.max_results));
  }else{if(mode==='search_new')fallback=memory?'provider_unsupported':'novelty_unavailable';normalized.push(...normalizeAll(await this.provider.searchCompanies(input)))}
  await meterSearch();
  const search=this.lastSearch();
@@ -85,7 +91,7 @@ export class DiscoveryService {
  // Resolution first, project dedup second: a resolved organization already in the project by name is
  // flagged for review (never silently merged, never dropped) even without a shared website/phone.
  if(dedupe.status==='unique'&&candidate.raw_metadata.source_class==='COMPANY_CANDIDATE'){const same=known.find(k=>sameCanonicalOrganization(k.name,candidate.name));if(same){dedupe.status='merge_review_required';dedupe.duplicate_of=same.id??null;dedupe.reason='Organisation déjà présente dans ce projet (même nom canonique) : revue nécessaire'}}const within=this.dedupe.match(candidate,seen);if(dedupe.status==='unique'&&within.status!=='unique'){dedupe.status='merge_review_required';dedupe.reason='Résultat similaire dans cette recherche : revue nécessaire'}const labelled=novelty?{...candidate,raw_metadata:{...candidate.raw_metadata,novelty:novelty.classify(candidate,{duplicateOf:dedupe.status==='duplicate_candidate'?dedupe.duplicate_of:null})}}:candidate;candidates.push({candidate:labelled,dedupe});seen.push(candidate)}
- stage='save';const results=await this.repo.saveResults(run,candidates);const counts=novelty?noveltyCounts(candidates.map(c=>c.candidate.raw_metadata.novelty as Novelty),entitiesMerged+deepMerged):null;const metrics={provider:this.provider.id,duration_ms:Date.now()-start,...searchMetrics(search),results:results.length,normalization_rejected:normalizationRejected,entities_merged:entitiesMerged+deepMerged,ai_tokens:0,ai_cost_estimate:0,search_mode:mode,...(fallback?{search_mode_fallback:fallback}:{}),...(deep?deepSearchMetrics(deep,desired,uniqueTotal):{}),...(counts?{...counts,...noveltyRates(counts)}:{novelty_unavailable:1}),...(memoryTruncated?{novelty_memory_truncated:1}:{})};stage='finish';await this.repo.finish(run.id,results.length,metrics);this.log(Object.fromEntries(Object.entries(metrics).map(([k,v])=>[k,Array.isArray(v)?v.join(','):v])) as Record<string,string|number|null>);return {...run,status:'completed',provider_mode:this.provider.mode,results,result_count:results.length};
+ stage='save';const results=await this.repo.saveResults(run,candidates);const counts=novelty?eligibleNoveltyCounts(candidates,c=>c.candidate.raw_metadata.source_class,c=>c.candidate.raw_metadata.novelty as Novelty,entitiesMerged+deepMerged):null;const metrics={provider:this.provider.id,duration_ms:Date.now()-start,...searchMetrics(search),results:results.length,normalization_rejected:normalizationRejected,entities_merged:entitiesMerged+deepMerged,ai_tokens:0,ai_cost_estimate:0,search_mode:mode,...(fallback?{search_mode_fallback:fallback}:{}),...(deep?deepSearchMetrics(deep,desired,uniqueTotal,counts?.new_results??0):{}),...(counts?{...counts,...noveltyRates(counts)}:{novelty_unavailable:1}),...(memoryTruncated?{novelty_memory_truncated:1}:{})};stage='finish';await this.repo.finish(run.id,results.length,metrics);this.log(Object.fromEntries(Object.entries(metrics).map(([k,v])=>[k,Array.isArray(v)?v.join(','):v])) as Record<string,string|number|null>);return {...run,status:'completed',provider_mode:this.provider.mode,results,result_count:results.length};
  }catch(error){await meterSearch();await this.repo.finish(run.id,0,{duration_ms:Date.now()-start,...searchMetrics(this.lastSearch())},'DISCOVERY_FAILED');this.log({provider:this.provider.id,duration_ms:Date.now()-start,error:'DISCOVERY_FAILED',...searchMetrics(this.lastSearch()),...diagnoseDiscoveryFailure(stage,error)});throw Error('DISCOVERY_FAILED')}
  }
 }

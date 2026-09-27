@@ -248,7 +248,7 @@ test('UI: IRRELEVANT results are never rendered as candidate cards, only in the 
  const source = await readFile(new URL('../src/components/DiscoveryPanel.tsx', import.meta.url), 'utf8');
  assert.match(source, /const candidates=results\.filter\(r=>classOf\(r\)!=='IRRELEVANT'\);/);
  // The displayed list is the candidates only, in novelty order (novelty.ts) — never a discarded result.
- assert.match(source, /const shown=\(hasNovelty\?newFirst\(candidates,histOf\):candidates\)\.filter\(/);
+ assert.match(source, /const shown=\(hasNovelty\?\[\.\.\.newFirst\(candidates\.filter\(eligible\),histOf\),\.\.\.candidates\.filter\(r=>!eligible\(r\)\)\]:candidates\)\.filter\(/);
  assert.match(source, /\{shown\.slice\(0,resultsShown\)\.map\(resultCard\)\}/);
  assert.match(source, /<details className="note discovery-discarded">/);
 });

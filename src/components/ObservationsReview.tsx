@@ -6,14 +6,18 @@ import type {Criterion,Evidence,Prospect} from '../domain/core';
 import {translate,proposalScoreNote,type Locale,type TKey} from '../i18n';
 import {presentObservations,shortReason,type EvidenceCard,type CriterionGroup,type ReviewSummary} from './evidence-presentation';
 import {contactsIn,separateGluedContacts} from './contact-format';
+import {createInFlight,reviewChangesState} from './evidence-verification';
 // "Autres informations trouvées": collapsed, then a few at a time.
 const OTHERS_PAGE=3;
 type Api=(path:string,method?:string,body?:unknown)=>Promise<any>;
 export function ObservationsReview({prospect,criteria,mode,api,onChanged,onReviewSummary,disabled,onBusyChange,locale}:{prospect:Prospect;criteria:Criterion[];mode:'demo'|'live';api:Api;disabled:boolean;onBusyChange:(active:boolean)=>void;onChanged:(evidence?:Evidence[])=>Promise<void>;onReviewSummary?:(summary:ReviewSummary)=>void;locale:Locale}){
  const tr=(key:TKey)=>translate(locale,key);
  const [rows,setRows]=useState<StoredObservation[]>([]),[busy,setBusy]=useState(false),[error,setError]=useState(''),[website,setWebsite]=useState(prospect.website??'');const generation=useRef(0);const [othersShown,setOthersShown]=useState(OTHERS_PAGE);
+ // loaded: the observations of THIS prospect were read (or their read failed). Until then the review summary
+ // sent to the page is not ready, so the ICP section does not mistake analysis evidence for manual evidence.
+ const [loaded,setLoaded]=useState(false);const reviewing=useRef(createInFlight());
  const key=`prospectos-observations:${prospect.id}`;
- useEffect(()=>{const r=++generation.current;setRows([]);setWebsite(prospect.website??'');setError('');if(mode==='demo'){try{setRows(JSON.parse(localStorage.getItem(key)??'[]'))}catch{}}else api(`prospects/${prospect.id}/observations`).then(data=>{if(r===generation.current)setRows(data)}).catch(()=>{if(r===generation.current)setError(tr('evidence.unavailable'))});return()=>{generation.current++}},[prospect.id,mode]);
+ useEffect(()=>{const r=++generation.current;setRows([]);setLoaded(false);setWebsite(prospect.website??'');setError('');if(mode==='demo'){try{setRows(JSON.parse(localStorage.getItem(key)??'[]'))}catch{}setLoaded(true)}else api(`prospects/${prospect.id}/observations`).then(data=>{if(r===generation.current){setRows(data);setLoaded(true)}}).catch(()=>{if(r===generation.current){setError(tr('evidence.unavailable'));setLoaded(true)}});return()=>{generation.current++}},[prospect.id,mode]);
  const persist=(next:StoredObservation[])=>{setRows(next);if(mode==='demo')localStorage.setItem(key,JSON.stringify(next))};
  async function execute(fn:()=>Promise<void>){if(disabled||busy)return;onBusyChange(true);setBusy(true);setError('');try{await fn()}catch(e){setError(e instanceof Error?e.message:tr('error.generic'))}finally{setBusy(false);onBusyChange(false)}}
  function evidenceFor(o:StoredObservation):Evidence|null{if(!o.evidence_id||!o.criterion||o.value===null)return null;return {id:o.evidence_id,criterion:o.criterion,value:o.value,status:o.review_status,source_url:o.source_url,excerpt:o.source_excerpt,observed_at:o.collected_at,verified_by:o.review_status==='NOT_VERIFIED'?null:'demo-human'}}
@@ -21,11 +25,12 @@ export function ObservationsReview({prospect,criteria,mode,api,onChanged,onRevie
  if(localStorage.getItem(`prospectos-discovery-origin:${prospect.id}`)!=='fixture')throw Error(tr('evidence.demoAnalyzeRestriction'));
  const collected=new Date(),expires=new Date(+collected+90*86400000);const next=snapshots.map(raw=>{const old=rows.find(o=>o.observation_type===raw.observation_type);return old??{...raw,id:crypto.randomUUID(),prospect_id:prospect.id,organization_id:prospect.organization_id,source_url:prospect.website,collected_at:collected.toISOString(),expires_at:expires.toISOString(),evidence_id:raw.criterion&&raw.status!=='UNKNOWN'?crypto.randomUUID():null,review_status:'NOT_VERIFIED'}}) as StoredObservation[];if(r!==generation.current)return;persist(next);await onChanged(next.map(evidenceFor).filter((e):e is Evidence=>!!e));
  }else {const result=await api(`prospects/${prospect.id}/analyze`,'POST',{});if(r!==generation.current)return;setRows(result.observations);await onChanged()}})}
- async function review(row:StoredObservation,decision:'confirm'|'contradict'|'unverify'){await execute(async()=>{const r=generation.current;const changed=mode==='demo'?{...row,review_status:decision==='confirm'?'VERIFIED':decision==='contradict'?'CONTRADICTED':'NOT_VERIFIED'}:await api(`prospects/${prospect.id}/observations/${row.id}/${decision}`,'POST',{});if(r!==generation.current)return;persist(rows.map(o=>o.id===row.id?changed:o));const evidence=evidenceFor(changed);await onChanged(mode==='demo'&&evidence?[evidence]:undefined)})}
+ // One request per proof at a time, and never a decision that would not change its state (idempotent UI).
+ async function review(row:StoredObservation,decision:'confirm'|'contradict'|'unverify'){if(!reviewChangesState(row,decision))return;await reviewing.current.run(row.id,()=>execute(async()=>{const r=generation.current;const changed=mode==='demo'?{...row,review_status:decision==='confirm'?'VERIFIED':decision==='contradict'?'CONTRADICTED':'NOT_VERIFIED'}:await api(`prospects/${prospect.id}/observations/${row.id}/${decision}`,'POST',{});if(r!==generation.current)return;persist(rows.map(o=>o.id===row.id?changed:o));const evidence=evidenceFor(changed);await onChanged(mode==='demo'&&evidence?[evidence]:undefined)}))}
  // Display only: the rows stay exactly what the server returned; only what a person reads is derived.
  const view=presentObservations(rows,criteria,locale);
  // The ICP section above reads exactly this summary (same groups as the blocks below): one source of truth.
- const summaryKey=JSON.stringify(view.summary);
+ const summaryKey=JSON.stringify({...view.summary,ready:loaded,prospectId:prospect.id});
  useEffect(()=>{onReviewSummary?.(JSON.parse(summaryKey))},[summaryKey]);
  const date=(value:string)=>new Date(value).toLocaleDateString(locale==='fr'?'fr-FR':'en-US');
  // A phone number or an e-mail glued to the next words is shown separated and in a readable form; the

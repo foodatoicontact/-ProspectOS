@@ -42,7 +42,9 @@ export type CriterionGroup={criterion:Criterion;anchorId:string;cards:EvidenceCa
 // never from a second, separately loaded list. linkedEvidenceIds covers every row of a group (duplicate
 // copies included) so the section never re-lists them as manual evidence.
 export type CriterionReviewSummary={anchorId:string;pending:number;total:number;tone:StatusTone;statusLabel:string;excerpts:{text:string;statusLabel:string}[]};
-export type ReviewSummary={criteria:Record<string,CriterionReviewSummary>;linkedEvidenceIds:string[];contextEvidenceIds:string[]};
+export type ReviewSummary={criteria:Record<string,CriterionReviewSummary>;linkedEvidenceIds:string[];contextEvidenceIds:string[];ready?:boolean;prospectId?:string};
+// ready/prospectId: set by ObservationsReview once the observations of THAT prospect are loaded (see
+// reviewSummaryReady in evidence-verification.ts). presentObservations itself never sets them.
 // contextEvidenceIds: evidences linked to rows shown as context only — the ICP section must not list them
 // under a criterion either (unless a human already verified them).
 export type EvidencePresentation={proposals:EvidenceCard[];groups:CriterionGroup[];others:EvidenceCard[];missing:string[];contextEvidenceIds:string[];summary:ReviewSummary};

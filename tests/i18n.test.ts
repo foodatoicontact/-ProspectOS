@@ -16,7 +16,7 @@ import {STATUSES,DEFAULT_CRITERIA,scoreProspect,generateOutreach,type Evidence} 
 // across every zone of the brief).
 // ------------------------------------------------------------
 test('1 — FR dictionary renders French labels across every required zone (landing/nav/dashboard/icp/prospects/evidence/discovery/outreach/account)',()=>{
- assert.equal(translate('fr','landing.trialCta'),'Démarrer mon essai gratuit');
+ assert.equal(translate('fr','landing.trialCta'),'Démarrer mon essai gratuit — 7 jours');
  assert.equal(translate('fr','nav.dashboard'),'Vue d’ensemble');
  assert.equal(translate('fr','icp.saveIcp'),'Enregistrer l’offre et l’ICP');
  assert.equal(translate('fr','evidence.reviewTitle'),'Analyse des sources publiques');
@@ -26,7 +26,7 @@ test('1 — FR dictionary renders French labels across every required zone (land
  assert.equal(translate('fr','footer.tagline'),'Sources d’abord. Action humaine toujours.');
 });
 test('2 — EN dictionary renders English labels for the exact same keys, in the recommended terminology',()=>{
- assert.equal(translate('en','landing.trialCta'),'Start my free trial');
+ assert.equal(translate('en','landing.trialCta'),'Start my free trial — 7 days');
  assert.equal(translate('en','nav.dashboard'),'Overview');
  assert.equal(translate('en','icp.saveIcp'),'Save offer and ICP');
  assert.equal(translate('en','evidence.reviewTitle'),'Public source analysis');

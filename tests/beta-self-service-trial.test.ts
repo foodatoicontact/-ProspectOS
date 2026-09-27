@@ -62,7 +62,7 @@ test('route.ts: account/activate-trial calls db.rpc(\'activate_trial\') through 
  assert.match(source,/id==='activate-trial'&&request\.method==='POST'/);
  assert.match(source,/db\.rpc\('activate_trial'\)/);
  assert.match(source,/BETA_CAPACITY_REACHED/);
- assert.match(source,/Les accès à la bêta sont momentanément complets\. Votre compte a bien été créé\./);
+ assert.match(source,/La bêta est actuellement complète\. Contactez-nous pour être informé de la prochaine ouverture\./);
 });
 test('route.ts: grant_beta_access / grant_internal_access (admin-only) are never referenced by the new route — self-service is a genuinely separate, narrower path',async()=>{
  const source=await readFile(new URL('../app/api/v1/[...path]/route.ts',import.meta.url),'utf8');
@@ -80,8 +80,8 @@ test('UI: signup CTA is framed as a free trial with the required subtext',async(
  const source=await readFile(new URL('../app/page.tsx',import.meta.url),'utf8');
  assert.match(source,/tr\('landing\.trialCta'\)/);
  assert.match(source,/tr\('landing\.trialSub'\)/);
- assert.equal(fr['landing.trialCta'],'Démarrer mon essai gratuit');
- assert.equal(fr['landing.trialSub'],'7 jours gratuits · Aucune carte bancaire requise');
+ assert.equal(fr['landing.trialCta'],'Démarrer mon essai gratuit — 7 jours');
+ assert.equal(fr['landing.trialSub'],'Aucune carte bancaire requise pour commencer.');
 });
 test('UI: trial countdown is computed from the real expires_at, not a hardcoded number',async()=>{
  const source=await readFile(new URL('../app/page.tsx',import.meta.url),'utf8');
@@ -93,7 +93,7 @@ test('UI: trial countdown is computed from the real expires_at, not a hardcoded 
 test('UI: expiry message matches the brief exactly',async()=>{
  const source=await readFile(new URL('../app/page.tsx',import.meta.url),'utf8');
  assert.match(source,/tr\('account\.trialEnded'\)/);
- assert.equal(fr['account.trialEnded'],'Votre essai gratuit est terminé.');
+ assert.equal(fr['account.trialEnded'],'Votre essai est terminé.');
 });
 test('UI: account deletion stays behind its own explicit typed confirmation — expiry has no path to it',async()=>{
  const source=await readFile(new URL('../app/page.tsx',import.meta.url),'utf8');

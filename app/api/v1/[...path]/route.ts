@@ -9,12 +9,21 @@ import {CriterionContextSchema} from '../../../../src/discovery/types';
 import {requireActiveEntitlement} from '../../../../src/server/entitlement';
 import {buildAccountExportZip,anonymizeAuthUser} from '../../../../src/server/account';
 import {recordApiUsage} from '../../../../src/server/usage';
+import {releaseCommercialUse} from '../../../../src/server/commercial-usage';
+import {createAdminClient} from '../../../../src/server/admin-client';
+import {createHash} from 'node:crypto';
 import {saveProviderCredential,listProviderCredentials,deleteProviderCredential,resolveProviderCredential} from '../../../../src/server/byok';
 import {DEFAULT_CRITERIA,STATUSES,OUTREACH_STATUSES,validateCriteria,generateOutreach,scoreProspect,csv,safeLink} from '../../../../src/domain/core';
 export const runtime='nodejs';
 export const maxDuration=60;
 export const dynamic='force-dynamic';
 const json=(value:unknown,status=200)=>Response.json(value,{status,headers:{'Cache-Control':'no-store'}});
+// Commercial plan refusals (migration 016): their own code, status and sentence (localized by the client).
+const COMMERCIAL_REFUSALS:Record<string,[string,number]>={
+ PLAN_LIMIT_REACHED:['Limite de votre offre atteinte pour la période en cours. Consultez votre utilisation dans Compte.',429],
+ OFFER_LIMIT_REACHED:['Quota d’analyses d’offre atteint pour cette période.',429],
+ OFFER_ANALYSIS_IN_PROGRESS:['Cette analyse d’offre est déjà en cours. Patientez quelques secondes.',409],
+};
 // 4A.5: runs the real provider call and, if it fails with a business-logic error that still carries real
 // usage (AnalyzeOfferError — see src/server/ai.ts), meters that usage BEFORE propagating the exact same
 // public error code the client has always received. A plain Error (network failure, non-2xx, a
@@ -135,10 +144,18 @@ async function handler(request:Request,context:{params:Promise<{path:string[]}>}
  // callProvider closure (so it only ever runs after the id is validated and the quota consumed) and
  // captured here only to address the cost-ledger write below — never used to decide access.
  let organizationId:string|undefined;
+ // Commercial plan (migration 016): the reservation also counts one AI offer analysis against the plan,
+ // still BEFORE the provider. The same text for the same project, already analysed by this user in the last
+ // 24 hours, comes back from the stored result — no unit, no AI call; a duplicate still running (double
+ // click, retry) is refused instead of paying twice. A unit is given back only when the AI was never called.
+ const textHash=createHash('sha256').update(body.text).digest('hex');
+ let cached:Record<string,unknown>|null=null;let providerCalled=false;
  const {usage,credential_source,...analysis}=await analyzeCompanyGuarded(
   body.project_id,
-  (projectId)=>checkedRpc(db.rpc('consume_ai_offer_quota',{p_project_id:projectId})),
+  async(projectId)=>{const reservation=await checkedRpc(db.rpc('reserve_offer_analysis',{p_project_id:projectId,p_text_hash:textHash}));cached=reservation?.cached??null},
   async()=>{
+   if(cached)return {...cached,usage:{provider:'',model:'',input_tokens:0,output_tokens:0},credential_source:null} as unknown as Awaited<ReturnType<typeof analyzeOffer>>;
+   try{
    const project=await checked(db.from('projects').select('organization_id').eq('id',body.project_id).single());
    organizationId=project.organization_id;
    // BYOK never changes which provider/model is called — only which key pays — and only ever
@@ -152,9 +169,18 @@ async function handler(request:Request,context:{params:Promise<{path:string[]}>}
    if(process.env.AI_PROVIDER==='anthropic'){
     const credential=await resolveProviderCredential(project.organization_id,'anthropic');
     if(credential.status==='INVALID')throw Error('BYOK_CREDENTIAL_INVALID');
-    return callProviderMeteringFailure(()=>analyzeOffer(body.text,{apiKeyOverride:credential.status==='VALID'?credential.apiKey:null}),meter);
+    providerCalled=true;
+    return await callProviderMeteringFailure(()=>analyzeOffer(body.text,{apiKeyOverride:credential.status==='VALID'?credential.apiKey:null}),meter);
    }
-   return callProviderMeteringFailure(()=>analyzeOffer(body.text),meter);
+   providerCalled=true;
+   return await callProviderMeteringFailure(()=>analyzeOffer(body.text),meter);
+   }catch(error){
+    // The reservation is closed so an identical retry can run. Its plan unit goes back only when no AI call
+    // happened (project read, invalid BYOK key, provider not configured); a provider call keeps it spent.
+    await Promise.resolve(db.rpc('abandon_offer_analysis',{p_project_id:body.project_id,p_text_hash:textHash})).catch(()=>{});
+    if(!providerCalled||(error instanceof Error&&error.message==='AI_NOT_CONFIGURED')){try{await releaseCommercialUse(createAdminClient(),user.id,'ai_offer')}catch{/* best-effort */}}
+    throw error;
+   }
   },
  );
  // Best-effort cost-ledger write for the real LLM call that just happened — never allowed to turn an
@@ -162,6 +188,8 @@ async function handler(request:Request,context:{params:Promise<{path:string[]}>}
  if(usage.input_tokens||usage.output_tokens){try{
  await recordApiUsage({organizationId:organizationId!,projectId:body.project_id,userId:user.id,provider:usage.provider as 'anthropic'|'openai',operation:'offer_analysis',model:usage.model,inputTokens:usage.input_tokens,outputTokens:usage.output_tokens,billingSource:credential_source});
  }catch{/* Cost-ledger visibility is best-effort; the analysis itself already succeeded. */}}
+ // Kept so an identical request (double click, retry, reload) reads it back instead of paying again.
+ if(!cached)await Promise.resolve(db.rpc('complete_offer_analysis',{p_project_id:body.project_id,p_text_hash:textHash,p_result:analysis})).catch(()=>{});
  return json(analysis);
  }
  if(resource==='provider-credentials'){
@@ -191,12 +219,16 @@ async function handler(request:Request,context:{params:Promise<{path:string[]}>}
  const membership=memberships[0]??null;
  const organization=membership?await checked(db.from('organizations').select('name').eq('id',membership.organization_id).single()):null;
  const entitlement=await checked(db.from('account_entitlements').select('plan,status,expires_at').eq('user_id',user.id).maybeSingle());
+ // Commercial counters (migration 016). Best-effort and read-only: until that migration is applied the
+ // function does not exist and the account answer simply carries usage:null, exactly as before.
+ const usageAnswer=await db.rpc('get_commercial_usage');
  return json({
   email:user.email??null,
   organization:organization?{name:organization.name}:null,
   organization_id:membership?.organization_id??null,
   role:membership?.role??null,
   entitlement:entitlement?{plan:entitlement.plan,status:entitlement.status,expires_at:entitlement.expires_at,active:entitlement.status==='ACTIVE'&&new Date(entitlement.expires_at).getTime()>Date.now()}:null,
+  usage:usageAnswer.error?null:usageAnswer.data??null,
  });
  }
  if(id==='export'&&request.method==='POST'){
@@ -209,7 +241,7 @@ async function handler(request:Request,context:{params:Promise<{path:string[]}>}
  // construction (see migration 012) — safe to call on every login, never re-extends an existing row.
  const {data,error:rpcError}=await db.rpc('activate_trial');
  if(rpcError){
-  if(rpcError.message?.includes('BETA_CAPACITY_REACHED'))return json({error:'Les accès à la bêta sont momentanément complets. Votre compte a bien été créé.',code:'BETA_CAPACITY_REACHED'},409);
+  if(rpcError.message?.includes('BETA_CAPACITY_REACHED'))return json({error:'La bêta est actuellement complète. Contactez-nous pour être informé de la prochaine ouverture.',code:'BETA_CAPACITY_REACHED'},409);
   throw Error('DATABASE_REQUEST_FAILED');
  }
  return json(data,201);
@@ -244,6 +276,6 @@ async function handler(request:Request,context:{params:Promise<{path:string[]}>}
  return new Response(csv([['Nom','Ville','Statut','Score','Couverture','URL'],...rows.map((p:any)=>{const s=scoreProspect(projectCriteria(project.icps),p.evidence);return [p.name,p.city,p.status,s.score,s.coverage,p.website]})]),{headers:{'content-type':'text/csv; charset=utf-8','content-disposition':'attachment; filename="prospectos.csv"','Cache-Control':'no-store'}});
  }
  return json({error:'Route ou action non disponible'},404);
- }catch(error){const code=error instanceof Error?error.message:'';const status=code==='UNAUTHORIZED'?401:code==='CONFIGURATION_REQUIRED'||code==='AI_NOT_CONFIGURED'||code==='BYOK_CREDENTIAL_INVALID'?503:code==='QUOTA_EXCEEDED'?429:code==='BETA_ACCESS_EXPIRED'?402:code==='ENTITLEMENT_REQUIRED'?403:400;return json({error:code==='UNAUTHORIZED'?'Connexion requise':code==='CONFIGURATION_REQUIRED'?'Supabase reste à connecter':code==='AI_NOT_CONFIGURED'?'Fournisseur IA et modèle non configurés':code==='BYOK_CREDENTIAL_INVALID'?'Clé Anthropic personnalisée invalide ou illisible. Remplacez-la dans Compte.':code==='AI_UNAVAILABLE'?"Le fournisseur IA n'a pas pu traiter la demande.":code==='AI_TRUNCATED_RESULT'?"La réponse IA a été interrompue avant d'être complète.":code==='AI_INVALID_RESULT'?"La réponse du fournisseur IA n'a pas pu être exploitée.":code==='QUOTA_EXCEEDED'?'Quota horaire de votre organisation atteint.':code==='BETA_ACCESS_EXPIRED'?'Votre accès bêta est terminé.':code==='ENTITLEMENT_REQUIRED'?'Cette fonctionnalité nécessite une activation bêta. Contactez-nous pour y accéder.':code==='INVALID_PROJECT_ID'?'Identifiant de projet invalide':'Opération impossible. Vérifiez les données et vos droits.',code:code==='BETA_ACCESS_EXPIRED'?'BETA_ACCESS_EXPIRED':code==='BYOK_CREDENTIAL_INVALID'?'BYOK_CREDENTIAL_INVALID':code==='ENTITLEMENT_REQUIRED'?'ENTITLEMENT_REQUIRED':undefined},status)}
+ }catch(error){const refusal=error instanceof Error?COMMERCIAL_REFUSALS[error.message]:undefined;if(refusal)return json({error:refusal[0],code:(error as Error).message},refusal[1]);const code=error instanceof Error?error.message:'';const status=code==='UNAUTHORIZED'?401:code==='CONFIGURATION_REQUIRED'||code==='AI_NOT_CONFIGURED'||code==='BYOK_CREDENTIAL_INVALID'?503:code==='QUOTA_EXCEEDED'?429:code==='BETA_ACCESS_EXPIRED'?402:code==='ENTITLEMENT_REQUIRED'?403:400;return json({error:code==='UNAUTHORIZED'?'Connexion requise':code==='CONFIGURATION_REQUIRED'?'Supabase reste à connecter':code==='AI_NOT_CONFIGURED'?'Fournisseur IA et modèle non configurés':code==='BYOK_CREDENTIAL_INVALID'?'Clé Anthropic personnalisée invalide ou illisible. Remplacez-la dans Compte.':code==='AI_UNAVAILABLE'?"Le fournisseur IA n'a pas pu traiter la demande.":code==='AI_TRUNCATED_RESULT'?"La réponse IA a été interrompue avant d'être complète.":code==='AI_INVALID_RESULT'?"La réponse du fournisseur IA n'a pas pu être exploitée.":code==='QUOTA_EXCEEDED'?'Quota horaire de votre organisation atteint.':code==='BETA_ACCESS_EXPIRED'?'Votre accès bêta est terminé.':code==='ENTITLEMENT_REQUIRED'?'Cette fonctionnalité nécessite une activation bêta. Contactez-nous pour y accéder.':code==='INVALID_PROJECT_ID'?'Identifiant de projet invalide':'Opération impossible. Vérifiez les données et vos droits.',code:code==='BETA_ACCESS_EXPIRED'?'BETA_ACCESS_EXPIRED':code==='BYOK_CREDENTIAL_INVALID'?'BYOK_CREDENTIAL_INVALID':code==='ENTITLEMENT_REQUIRED'?'ENTITLEMENT_REQUIRED':undefined},status)}
 }
 export {handler as GET,handler as POST,handler as PATCH};

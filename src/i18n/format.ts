@@ -95,3 +95,16 @@ export function deepPassLine(locale:Locale,index:number,results:number,newTotal:
  const s=(ms/1000).toLocaleString(locale==='fr'?'fr-FR':'en-GB',{maximumFractionDigits:1});
  return locale==='fr'?`Passe ${index} : ${results} résultat${results>1?'s':''} · ${newTotal} nouvel${newTotal>1?'s':''} acteur${newTotal>1?'s':''} exploitable${newTotal>1?'s':''} · ${s} s`:`Pass ${index}: ${results} result${results===1?'':'s'} · ${newTotal} new exploitable actor${newTotal===1?'':'s'} · ${s} s`;
 }
+// Commercial counters (ProspectOS Bêta). Numbers come from the server; nothing here computes a quota.
+export function usageCounterLabel(locale:Locale,kind:'discovery'|'analysis'|'ai_offer',used:number,limit:number):string{
+ const label=locale==='fr'?{discovery:'Discovery',analysis:'Analyses prospects',ai_offer:'Analyses d’offre IA'}[kind]:{discovery:'Discovery',analysis:'Prospect analyses',ai_offer:'AI offer analyses'}[kind];
+ return locale==='fr'?`${label} : ${used} / ${limit}`:`${label}: ${used} / ${limit}`;
+}
+export function usageResetLabel(locale:Locale,dateStr:string):string{
+ const date=new Date(dateStr).toLocaleDateString(locale==='fr'?'fr-FR':'en-US');
+ return locale==='fr'?`Réinitialisation le ${date}`:`Resets on ${date}`;
+}
+export function trialEndsInLabel(locale:Locale,days:number):string{
+ if(days<=0)return locale==='fr'?'Essai se termine aujourd’hui':'Trial ends today';
+ return locale==='fr'?`Essai se termine dans ${days} jour${days>1?'s':''}`:`Trial ends in ${days} day${days===1?'':'s'}`;
+}

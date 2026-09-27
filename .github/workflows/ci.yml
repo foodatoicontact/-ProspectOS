@@ -36,3 +36,4 @@ jobs:
       - run: npm run test:beta-auto-db
       - run: node tests/discovery-db-upsert-fix.mjs
       - run: node tests/ai-quota-db.mjs
+      - run: npm run test:commercial-quotas-db

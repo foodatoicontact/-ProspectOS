@@ -211,7 +211,11 @@ test('13 — an analysis saves every proposal before the "absent" rows and lists
 });
 test('14 — no migration was added by this bloc: the RPCs, RLS and evidence_guard are the existing ones',async()=>{
  const files=(await readdir(new URL('../db/migrations/',import.meta.url))).filter(f=>f.endsWith('.sql')).sort();
- assert.equal(files.at(-1),'015_dynamic_safe_analysis.sql');
+ // This bloc stopped at 015. The only later migration is the commercial quotas one (016), which touches
+ // neither evidence, observations nor RLS policies.
+ assert.deepEqual(files.slice(files.indexOf('015_dynamic_safe_analysis.sql')),['015_dynamic_safe_analysis.sql','016_beta_commercial_quotas.sql']);
+ const later=(await readFile(new URL('../db/migrations/016_beta_commercial_quotas.sql',import.meta.url),'utf8')).split('\n').filter(l=>!l.startsWith('--')).join('\n');
+ assert.doesNotMatch(later,/evidence|observation|create policy|alter policy|drop policy|row level security/i);
  const client=await readFile(new URL('../src/components/evidence-presentation.ts',import.meta.url),'utf8');
  assert.doesNotMatch(client,/service_role|SUPABASE_SERVICE|process\.env/);
 });

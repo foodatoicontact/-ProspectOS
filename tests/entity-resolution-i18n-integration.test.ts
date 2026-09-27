@@ -163,7 +163,14 @@ test('15 — discovery/api.ts quota and entitlement enforcement is untouched', a
  // (1 to 3) is recorded instead of a constant 1. Quota and entitlement lines stay untouched.
  assert.match(source, /provider:'brave',operation:'search',requestCount\}/);
  const changed = execSync('git diff -U0 9206f670944008b980505b735759aaf4c68b789a -- src/discovery/api.ts', {cwd, encoding: 'utf8'}).split('\n').filter(l => /^[+-][^+-]/.test(l) && !/recordApiUsage|requests that were actually sent|their exact count once the search step|for the fixture\/TEST provider/.test(l));
- for (const line of changed) assert.doesNotMatch(line, /quota|requireActiveEntitlement|consume_analysis|max_results/i, `quota/entitlement line changed: ${line}`);
+ // ProspectOS Bêta commercial quotas (migration 016) add exactly two things to the error mapping line: the
+ // PLAN_LIMIT_REACHED message and its 429 status. Such a line is accepted only if, without those two additions,
+ // it is byte-for-byte a line it replaced — every other quota/entitlement change is still refused.
+ const PLAN_MESSAGE = /,PLAN_LIMIT_REACHED:'[^']*'/, PLAN_STATUS = "||code==='PLAN_LIMIT_REACHED'";
+ const removed = new Set(changed.filter(l => l.startsWith('-')).map(l => l.slice(1)));
+ const planOnly = changed.filter(l => l.startsWith('+') && l.includes('PLAN_LIMIT_REACHED') && removed.has(l.slice(1).replace(PLAN_MESSAGE, '').replace(PLAN_STATUS, '')));
+ const planOriginals = new Set(planOnly.map(l => '-' + l.slice(1).replace(PLAN_MESSAGE, '').replace(PLAN_STATUS, '')));
+ for (const line of changed.filter(l => !planOnly.includes(l) && !planOriginals.has(l))) assert.doesNotMatch(line, /quota|requireActiveEntitlement|consume_analysis|max_results/i, `quota/entitlement line changed: ${line}`);
 });
 test('15 — BraveProvider.searchCompanies still makes exactly one HTTP call after integration', async () => {
  const {BraveProvider} = await import('../src/discovery/providers/brave.ts');

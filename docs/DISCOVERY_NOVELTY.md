@@ -118,7 +118,7 @@ fournisseur ou à l’épuisement de l’espace de recherche. La version 1 n’a
 
 ## Tests
 
-- `tests/discovery-novelty.test.ts` : B18 1–15, exemple Kevin (B13), identité (B2), échec de mémoire,
+- `tests/discovery-novelty.test.ts` : B18 1–15, exemple de référence (B13), identité (B2), échec de mémoire,
   B8, B21.
 - `tests/discovery-novelty-db.mjs` (PGlite, chaîne complète, RLS) : instantané en jsonb, ADDED/IGNORED
   via les vraies RPC, compteurs dans `metrics`, isolation projet et tenant, lecture croisée refusée.

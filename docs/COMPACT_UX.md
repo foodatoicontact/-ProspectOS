@@ -25,8 +25,8 @@ un tap ouvre ses preuves) → preuves à confirmer → autres informations → d
   la version la plus complète), puis « Voir les autres preuves (N) » replié.
 - « Autres informations trouvées (N) » repliée, puis 3 à la fois.
 - Détails techniques toujours repliés ; l'extrait exact lu y reste disponible mot pour mot.
-- **Contacts** : un téléphone ou un e-mail collé au texte voisin (« 06.26.16.24.94Du Lundi au Samedi »)
-  est affiché séparé et lisible (« Téléphone : 06 26 16 24 94 ») ; le stockage n'est pas modifié.
+- **Contacts** : un téléphone ou un e-mail collé au texte voisin (« 06.39.98.00.00Du Lundi au Samedi », numéro fictif)
+  est affiché séparé et lisible (« Téléphone : 06 39 98 00 00 ») ; le stockage n'est pas modifié.
 - **Analyse impossible** : une carte compacte (échec, raison générique, « Réessayer »), sans bloc de critères
   vide et sans signal inventé.
 

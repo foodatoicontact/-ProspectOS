@@ -62,7 +62,7 @@ seulement si ce nombre ≥ `desired_new_results`.
 Sélection finale : 1) exploitables NEW, 2) autres exploitables (déjà vus, ajoutés, ignorés), 3) résultats
 écartés, puis limite `max_results` — une page écartée n'évince jamais une entreprise connue.
 
-Correctif du test réel sur la Preview (run 1e0462dc) : 22 « nouveaux » affichés alors qu'un seul
+Correctif du test réel sur la Preview : 22 « nouveaux » affichés alors qu'un seul
 candidat exploitable l'était ; les pages écartées gonflaient le compteur et avaient remplacé les
 entreprises connues dans la sélection. Ce run garde ses métriques d'origine (pas de réécriture).
 

@@ -11,4 +11,4 @@ Sources consultées le 16 septembre 2026. Ces établissements ne sont pas prése
 ## Lecture des résultats
 Le score ne mesure pas une probabilité de conversion. Les inconnues n’ajoutent aucun point et restent « À confirmer ». Les sources peuvent contenir des éléments non repris dans le score : leurs limites sont rendues visibles dans la fiche. L’absence de preuve n’établit jamais l’absence d’un service.
 
-Les messages font référence au téléphone ou aux plateformes lorsque vérifiés, présentent l’offre fournie par Kevin, puis posent une question sur l’organisation du retrait. Aucun volume de ventes, nombre d’abonnés, coût de commission, prénom de gérant ou ROI inventé.
+Les messages font référence au téléphone ou aux plateformes lorsque vérifiés, présentent l’offre fournie par le porteur du projet, puis posent une question sur l’organisation du retrait. Aucun volume de ventes, nombre d’abonnés, coût de commission, prénom de gérant ou ROI inventé.

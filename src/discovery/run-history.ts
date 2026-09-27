@@ -7,8 +7,20 @@ export type RunSummary = {
  id: string; query: string; location: string; categories: string[]; provider: 'fixture' | 'brave';
  status: RunStatus; started_at: string; completed_at: string | null; result_count: number; max_results: number | null;
  accepted_count: number; ignored_count: number;
+ // Novelty counters of the run (metrics jsonb, novelty.ts) — null for runs made before the novelty engine.
+ novelty: RunNovelty | null;
 };
-type RunRow = {id: string; query: string; location: string; categories: unknown; provider: string; filters_json?: unknown; status: string; started_at: string; completed_at: string | null; result_count: number};
+export type RunNovelty = {results_total: number; new_results: number; seen_results: number; already_added: number; ignored_results: number; duplicate_results: number};
+type RunRow = {id: string; query: string; location: string; categories: unknown; provider: string; filters_json?: unknown; status: string; started_at: string; completed_at: string | null; result_count: number;
+ // Present when the row is already a summary (the panel re-reads the API's answer) or a raw run row.
+ max_results?: number | null; accepted_count?: number; ignored_count?: number; novelty?: RunNovelty | null; metrics?: unknown};
+const NOVELTY_KEYS = ['results_total', 'new_results', 'seen_results', 'already_added', 'ignored_results', 'duplicate_results'] as const;
+function runNovelty(r: RunRow): RunNovelty | null {
+ if (r.novelty !== undefined) return r.novelty;
+ const m = r.metrics as Record<string, unknown> | null | undefined;
+ if (!m || !NOVELTY_KEYS.every(k => typeof m[k] === 'number')) return null;
+ return Object.fromEntries(NOVELTY_KEYS.map(k => [k, m[k] as number])) as RunNovelty;
+}
 type DecidedRow = {discovery_run_id: string; status: string};
 
 // A run still "running" long after it started never finished (the request died): shown as interrupted,
@@ -20,9 +32,10 @@ export function runState(run: Pick<RunSummary, 'status' | 'started_at'>, now = n
 }
 
 // Newest first; a new run never replaces an older one (each search is its own row).
-export function summarizeRuns(runs: RunRow[], decided: DecidedRow[] = []): RunSummary[] {
+// Without `decided` (the panel re-reading the API's answer), the counts already in the row are kept.
+export function summarizeRuns(runs: RunRow[], decided?: DecidedRow[]): RunSummary[] {
  return runs.map((r): RunSummary => {
-  const max = (r.filters_json as {max_results?: unknown} | null)?.max_results;
+  const max = (r.filters_json as {max_results?: unknown} | null | undefined)?.max_results ?? r.max_results;
   return {
    id: r.id, query: r.query, location: r.location,
    categories: Array.isArray(r.categories) ? r.categories.filter((c): c is string => typeof c === 'string') : [],
@@ -30,8 +43,9 @@ export function summarizeRuns(runs: RunRow[], decided: DecidedRow[] = []): RunSu
    status: r.status === 'completed' ? 'completed' : r.status === 'failed' ? 'failed' : 'running',
    started_at: r.started_at, completed_at: r.completed_at, result_count: r.result_count,
    max_results: typeof max === 'number' ? max : null,
-   accepted_count: decided.filter(d => d.discovery_run_id === r.id && d.status === 'accepted').length,
-   ignored_count: decided.filter(d => d.discovery_run_id === r.id && d.status === 'ignored').length,
+   accepted_count: decided ? decided.filter(d => d.discovery_run_id === r.id && d.status === 'accepted').length : r.accepted_count ?? 0,
+   ignored_count: decided ? decided.filter(d => d.discovery_run_id === r.id && d.status === 'ignored').length : r.ignored_count ?? 0,
+   novelty: runNovelty(r),
   };
  }).sort((a, b) => Date.parse(b.started_at) - Date.parse(a.started_at));
 }

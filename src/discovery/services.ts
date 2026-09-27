@@ -6,9 +6,14 @@ import {ObservationService,EvidenceProposalService} from './observations.ts';
 import {diagnoseDiscoveryFailure,type DiscoveryStage} from './failure-diagnostics.ts';
 import {mergeSameEntityCandidates,sameCanonicalOrganization} from './admissibility.ts';
 import {pageIntentsFor,internalLinkScore} from './strategies/icp-intents.ts';
+import {noveltyCounts,noveltyRates,type ProjectMemory,type Novelty} from './novelty.ts';
+import {ProjectNovelty} from './novelty-engine.ts';
 export interface DiscoveryRepository {
  start(input:DiscoveryInput,provider:string):Promise<DiscoveryRun>;
  existing(projectId:string):Promise<Identity[]>;
+ // Project Discovery memory (novelty.ts): the project's earlier results and runs, one batch read under RLS.
+ // Optional — without it (or if it fails) results carry no novelty label rather than a wrong "new".
+ memory?(projectId:string,excludeRunId:string):Promise<Omit<ProjectMemory,'prospects'>>;
  saveResults(run:DiscoveryRun,candidates:Array<{candidate:Candidate;dedupe:ReturnType<DeduplicationService['match']>}>):Promise<DiscoveryResult[]>;
  finish(runId:string,resultCount:number,metrics:Record<string,unknown>,error?:string):Promise<void>;
  prospect(id:string):Promise<{id:string;website:string|null;organization_id:string;project_id:string}>;
@@ -37,7 +42,12 @@ export class DiscoveryService {
  let metered=false;const meterSearch=async()=>{const sent=this.lastSearch()?.requests_sent??0;if(metered||!this.meter||sent<1)return;metered=true;try{await this.meter(run,sent)}catch{/* Cost-ledger visibility is best-effort (see usage.ts). */}};
  // Tracks which step was running, for the server-side failure diagnosis only (see failure-diagnostics.ts).
  let stage:DiscoveryStage='existing';
- try{const known=await this.repo.existing(input.project_id);stage='provider_search';const rawResults=await this.provider.searchCompanies(input);await meterSearch();
+ try{const known=await this.repo.existing(input.project_id);
+ // What this project already saw (its prospects, its earlier runs): read once, matched in memory. A memory
+ // read failure never fails the search — the results are simply not labelled.
+ let novelty:ProjectNovelty|null=null,memoryTruncated=false;
+ if(this.repo.memory){try{const m=await this.repo.memory(input.project_id,run.id);memoryTruncated=!!m.truncated;novelty=new ProjectNovelty({...m,prospects:known.filter((k):k is typeof k&{id:string}=>!!k.id).map(k=>({id:k.id,name:k.name,website:k.website,phone:k.phone,city:k.city}))},input.location)}catch{novelty=null}}
+ stage='provider_search';const rawResults=await this.provider.searchCompanies(input);await meterSearch();
  const search=this.lastSearch();
  // Partial search failure: some queries failed, at least one succeeded — the run continues on the results
  // actually received (nothing is retried or invented) and the failure stays observable (log + run metrics).
@@ -54,8 +64,8 @@ export class DiscoveryService {
  stage='dedupe';const dedupe=this.dedupe.match(candidate,known);
  // Resolution first, project dedup second: a resolved organization already in the project by name is
  // flagged for review (never silently merged, never dropped) even without a shared website/phone.
- if(dedupe.status==='unique'&&candidate.raw_metadata.source_class==='COMPANY_CANDIDATE'){const same=known.find(k=>sameCanonicalOrganization(k.name,candidate.name));if(same){dedupe.status='merge_review_required';dedupe.duplicate_of=same.id??null;dedupe.reason='Organisation déjà présente dans ce projet (même nom canonique) : revue nécessaire'}}const within=this.dedupe.match(candidate,seen);if(dedupe.status==='unique'&&within.status!=='unique'){dedupe.status='merge_review_required';dedupe.reason='Résultat similaire dans cette recherche : revue nécessaire'}candidates.push({candidate,dedupe});seen.push(candidate)}
- stage='save';const results=await this.repo.saveResults(run,candidates);const metrics={provider:this.provider.id,duration_ms:Date.now()-start,...searchMetrics(search),results:results.length,normalization_rejected:normalizationRejected,entities_merged:entitiesMerged,ai_tokens:0,ai_cost_estimate:0};stage='finish';await this.repo.finish(run.id,results.length,metrics);this.log(metrics);return {...run,status:'completed',provider_mode:this.provider.mode,results,result_count:results.length};
+ if(dedupe.status==='unique'&&candidate.raw_metadata.source_class==='COMPANY_CANDIDATE'){const same=known.find(k=>sameCanonicalOrganization(k.name,candidate.name));if(same){dedupe.status='merge_review_required';dedupe.duplicate_of=same.id??null;dedupe.reason='Organisation déjà présente dans ce projet (même nom canonique) : revue nécessaire'}}const within=this.dedupe.match(candidate,seen);if(dedupe.status==='unique'&&within.status!=='unique'){dedupe.status='merge_review_required';dedupe.reason='Résultat similaire dans cette recherche : revue nécessaire'}const labelled=novelty?{...candidate,raw_metadata:{...candidate.raw_metadata,novelty:novelty.classify(candidate,{duplicateOf:dedupe.status==='duplicate_candidate'?dedupe.duplicate_of:null})}}:candidate;candidates.push({candidate:labelled,dedupe});seen.push(candidate)}
+ stage='save';const results=await this.repo.saveResults(run,candidates);const counts=novelty?noveltyCounts(candidates.map(c=>c.candidate.raw_metadata.novelty as Novelty),entitiesMerged):null;const metrics={provider:this.provider.id,duration_ms:Date.now()-start,...searchMetrics(search),results:results.length,normalization_rejected:normalizationRejected,entities_merged:entitiesMerged,ai_tokens:0,ai_cost_estimate:0,...(counts?{...counts,...noveltyRates(counts)}:{novelty_unavailable:1}),...(memoryTruncated?{novelty_memory_truncated:1}:{})};stage='finish';await this.repo.finish(run.id,results.length,metrics);this.log(metrics);return {...run,status:'completed',provider_mode:this.provider.mode,results,result_count:results.length};
  }catch(error){await meterSearch();await this.repo.finish(run.id,0,{duration_ms:Date.now()-start,...searchMetrics(this.lastSearch())},'DISCOVERY_FAILED');this.log({provider:this.provider.id,duration_ms:Date.now()-start,error:'DISCOVERY_FAILED',...searchMetrics(this.lastSearch()),...diagnoseDiscoveryFailure(stage,error)});throw Error('DISCOVERY_FAILED')}
  }
 }

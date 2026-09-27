@@ -8,6 +8,8 @@ import {trustedSourceClass} from './source-classification.ts';
 // thrown message itself is unchanged, so existing error-code routing and the user-facing text stay
 // exactly as before. Never exposed to the client: routes only ever return the generic mapped message.
 export async function checked(query:PromiseLike<any>){const {data,error}=await query;if(error){if(error.message?.includes('quota_exceeded'))throw Error('QUOTA_EXCEEDED');if(error.message?.includes('max_results'))throw Error('MAX_RESULTS_EXCEEDED');throw Error('DATABASE_REQUEST_FAILED',{cause:error})}return data}
+// Project Discovery memory bound (novelty.ts): 10 pages of 1000 earlier results, newest first.
+export const MEMORY_MAX_ROWS=10000;
 // save_discovery_observations requires: UNKNOWN => value null; any other status with a non-null
 // criterion => a concrete boolean value (it creates/updates an Evidence row from it). A generic,
 // non-conclusive lexical candidate (status INFERRED, value null — see strategies/generic.ts) has no
@@ -26,6 +28,16 @@ export class SupabaseDiscoveryRepository implements DiscoveryRepository {
  constructor(db:SupabaseClient,writer?:PrivilegedWriter){this.db=db;this.writer=writer}
  async start(input:DiscoveryInput,provider:string){return checked(this.db.rpc('start_discovery',{p_project_id:input.project_id,p_query:input.query,p_location:input.location,p_categories:input.categories,p_provider:provider,p_max_results:input.max_results,p_filters:input.optional_filters}))}
  async existing(projectId:string){const rows=await checked(this.db.from('prospects').select('id,name,website,city,channels(kind,value)').eq('project_id',projectId));return rows.map((p:any)=>({...p,phone:p.channels?.find((c:any)=>c.kind==='phone')?.value??null,address:null}))}
+ // Project Discovery memory for novelty.ts: this project's earlier results (identity columns and decision
+ // only) and its runs' locations. The USER's client, so RLS keeps it to the member's organization; filtered
+ // to this project — another project or organization never influences NEW/SEEN. Read in pages of 1000
+ // (PostgREST's row cap) up to MEMORY_MAX_ROWS, newest first; beyond that the memory is flagged truncated.
+ async memory(projectId:string,excludeRunId:string){
+  const PAGE=1000;const pages=async(query:(from:number,to:number)=>PromiseLike<{data:any;error:any}>)=>{const rows:any[]=[];for(let from=0;from<MEMORY_MAX_ROWS;from+=PAGE){const page=await checked(query(from,from+PAGE-1));rows.push(...page);if(page.length<PAGE)return {rows,truncated:false}}return {rows,truncated:true}};
+  const results=await pages((from,to)=>this.db.from('discovery_results').select('id,discovery_run_id,status,prospect_id,company_name,website,phone,city,source_url,source_class,name_status:normalized_payload->raw_metadata->>company_name_status,domain_status:normalized_payload->raw_metadata->>company_domain_status').eq('project_id',projectId).neq('discovery_run_id',excludeRunId).order('created_at',{ascending:false}).order('id').range(from,to));
+  const runs=await pages((from,to)=>this.db.from('discovery_runs').select('id,location').eq('project_id',projectId).order('started_at',{ascending:false}).order('id').range(from,to));
+  return {results:results.rows,runs:runs.rows,truncated:results.truncated};
+ }
  async saveResults(run:DiscoveryRun,rows:Array<{candidate:Candidate;dedupe:ReturnType<DeduplicationService['match']>}>):Promise<DiscoveryResult[]>{
  // 1. Read the run with the USER's client: RLS returns it only to a member of its organization, so the
  //    privileged write below can never be reached for a run the authenticated user does not belong to.

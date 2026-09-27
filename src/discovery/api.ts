@@ -10,6 +10,7 @@ import {DiscoveryInputSchema} from './types.ts';
 import {requireActiveEntitlement} from '../server/entitlement.ts';
 import {recordApiUsage} from '../server/usage.ts';
 import {computeRunCostMetrics} from './cost-metrics.ts';
+import {strongProspectMatch} from './novelty-engine.ts';
 import {isAcceptableSourceClass} from './source-classification.ts';
 import {createAdminClient} from '../server/admin-client.ts';
 import {analyzeProspectWebsite,createPolicyFetcher} from './website-analysis.ts';
@@ -46,7 +47,7 @@ export async function handleDiscovery(request:Request,path:string[],body:unknown
  const params=new URL(request.url).searchParams;
  const intParam=(name:string,fallback:number,max:number)=>{const raw=params.get(name);return raw===null?fallback:z.number().int().min(name==='limit'?1:0).max(max).parse(Number(raw))};
  const page={limit:intParam('limit',HISTORY_MAX,HISTORY_MAX),offset:intParam('offset',0,10000)};
- const runs=await checked(db.from('discovery_runs').select('id,query,location,categories,provider,filters_json,status,started_at,completed_at,result_count').eq('project_id',id).order('started_at',{ascending:false}).range(page.offset,page.offset+page.limit-1));
+ const runs=await checked(db.from('discovery_runs').select('id,query,location,categories,provider,filters_json,status,started_at,completed_at,result_count,metrics').eq('project_id',id).order('started_at',{ascending:false}).range(page.offset,page.offset+page.limit-1));
  const ids=runs.map((r:{id:string})=>r.id);
  const decided=ids.length?await checked(db.from('discovery_results').select('discovery_run_id,status').in('discovery_run_id',ids).in('status',['accepted','ignored'])):[];
  return json(summarizeRuns(runs,decided));
@@ -73,6 +74,15 @@ export async function handleDiscovery(request:Request,path:string[],body:unknown
  // the final authority. An already-accepted result is left to the RPC's idempotent return.
  const notAcceptable=()=>json({error:'Ce résultat n’est pas une entreprise résolue (job board, marketplace, article, profil individuel ou page ambiguë) : il ne peut pas être ajouté comme prospect.',code:'CANDIDATE_NOT_ACCEPTABLE'},400);
  const row=await checked(db.from('discovery_results').select('status,source_class').eq('id',id).single());if(row?.status==='pending'&&!isAcceptableSourceClass(row?.source_class))return notAcceptable();
+ // Never a second prospect for an actor already in the project (novelty B14): same own domain or same
+ // phone as an existing prospect, and the RPC would create a new one (not the dedup link to that prospect,
+ // not the same dedupe key it would reuse) → refused, with the prospect to open instead. One read, RLS-scoped.
+ const identity=row?.status==='pending'?await checked(db.from('discovery_results').select('project_id,dedupe_status,dedupe_key,company_name,website,phone,city,source_url').eq('id',id).single()):null;
+ if(identity&&identity.dedupe_status!=='duplicate_candidate'){const prospects=await checked(db.from('prospects').select('id,name,website,city,discovery_dedupe_key,channels(kind,value)').eq('project_id',identity.project_id));
+  // The stored website is the organization's own (null unless resolution admitted it) — no jsonb read.
+  const same=strongProspectMatch({name:identity.company_name,website:identity.website,phone:identity.phone,city:identity.city,source_url:identity.source_url,raw_metadata:{source_class:row.source_class}},prospects.map((p:{id:string;name:string;website:string|null;city:string|null;channels?:Array<{kind:string;value:string}>})=>({id:p.id,name:p.name,website:p.website,city:p.city,phone:p.channels?.find(c=>c.kind==='phone')?.value??null})));
+  const reused=same&&!b.force_separate&&prospects.find((p:{id:string;discovery_dedupe_key:string|null})=>p.id===same)?.discovery_dedupe_key===identity.dedupe_key;
+  if(same&&!reused)return json({error:'Cet acteur est déjà un prospect de ce projet : ouvrez sa fiche plutôt que d’en créer un second.',code:'ALREADY_ADDED',prospect_id:same},409)}
  const accepted=await db.rpc('accept_discovery_result',{p_result_id:id,p_force_separate:b.force_separate});if(accepted.error?.message?.includes('CANDIDATE_NOT_ACCEPTABLE'))return notAcceptable();
  return json(await checked(Promise.resolve(accepted)));}
  if(action==='ignore'){return json(await checked(db.rpc('ignore_discovery_result',{p_result_id:id})))}

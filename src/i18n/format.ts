@@ -62,3 +62,18 @@ export function resultsSummaryLabel(locale:Locale,total:number,added:number,igno
  if(locale==='fr')return [`${total} résultat${total>1?'s':''}`,`${added} ajouté${added>1?'s':''}`,`${ignored} ignoré${ignored>1?'s':''}`,`${unresolved} non résolu${unresolved>1?'s':''} ou écarté${unresolved>1?'s':''}`].join(' · ');
  return [`${total} result${total===1?'':'s'}`,`${added} added`,`${ignored} ignored`,`${unresolved} unresolved or set aside`].join(' · ');
 }
+
+// Novelty (V2 P0-C): "7 nouveaux · 6 déjà vus · 4 déjà ajoutés · 3 ignorés" — zero parts are left out,
+// except the new ones (0 nouveau is the information of a saturated market).
+type NoveltyTotals={new_results:number;seen_results:number;already_added:number;ignored_results:number};
+export function noveltySummaryLabel(locale:Locale,c:NoveltyTotals):string{
+ const pl=(n:number,one:string,many:string)=>`${n} ${n>1?many:one}`;
+ if(locale==='fr')return [pl(c.new_results,'nouveau','nouveaux'),c.seen_results?pl(c.seen_results,'déjà vu','déjà vus'):'',c.already_added?pl(c.already_added,'déjà ajouté','déjà ajoutés'):'',c.ignored_results?pl(c.ignored_results,'ignoré','ignorés'):''].filter(Boolean).join(' · ');
+ return [`${c.new_results} new`,c.seen_results?`${c.seen_results} seen before`:'',c.already_added?`${c.already_added} already added`:'',c.ignored_results?`${c.ignored_results} ignored`:''].filter(Boolean).join(' · ');
+}
+// History row: "7 nouveaux · 6 déjà vus" — the two numbers that tell whether a market still yields new actors.
+export function runNoveltyLabel(locale:Locale,c:NoveltyTotals):string{
+ const seen=c.seen_results+c.already_added+c.ignored_results;
+ if(locale==='fr')return `${c.new_results} nouveau${c.new_results>1?'x':''} · ${seen} déjà vu${seen>1?'s':''}`;
+ return `${c.new_results} new · ${seen} seen before`;
+}

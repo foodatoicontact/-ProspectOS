@@ -124,7 +124,7 @@ test('5 — back from a prospect: the same number of results and the same scroll
 });
 test('6 / 7 — results: 6 first, 6 more per tap, with a one-line summary; long content in "Voir le détail"',()=>{
  assert.match(panel,/const RESULTS_PAGE=6;/);
- assert.match(panel,/\{candidates\.slice\(0,resultsShown\)\.map\(resultCard\)\}/);
+ assert.match(panel,/\{shown\.slice\(0,resultsShown\)\.map\(resultCard\)\}/);
  assert.match(panel,/onClick=\{\(\)=>setResultsShown\(n=>n\+resultsPage\(\)\)\}/);
  // Phones: 6 per page; desktop (≥1024 px) compares a whole run at once — display only.
  assert.match(panel,/const RESULTS_PAGE_DESKTOP=20;/);

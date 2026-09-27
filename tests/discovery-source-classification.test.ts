@@ -247,7 +247,9 @@ test('UI: DiscoveryPanel distinguishes Entreprise candidate / Source de signal /
 test('UI: IRRELEVANT results are never rendered as candidate cards, only in the collapsed discarded list', async () => {
  const source = await readFile(new URL('../src/components/DiscoveryPanel.tsx', import.meta.url), 'utf8');
  assert.match(source, /const candidates=results\.filter\(r=>classOf\(r\)!=='IRRELEVANT'\);/);
- assert.match(source, /\{candidates\.slice\(0,resultsShown\)\.map\(resultCard\)\}/);
+ // The displayed list is the candidates only, in novelty order (novelty.ts) — never a discarded result.
+ assert.match(source, /const shown=\(hasNovelty\?newFirst\(candidates,novOf\):candidates\)\.filter\(/);
+ assert.match(source, /\{shown\.slice\(0,resultsShown\)\.map\(resultCard\)\}/);
  assert.match(source, /<details className="note discovery-discarded">/);
 });
 test('UI: only a COMPANY_CANDIDATE gets "Entreprise identifiée" and an add button; the DB column is the class source; legacy rows are flagged', async () => {

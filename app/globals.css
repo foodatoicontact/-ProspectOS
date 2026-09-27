@@ -120,12 +120,29 @@ button:focus-visible,summary:focus-visible,a:focus-visible,select:focus-visible,
 .discovery-layout .run-last{order:-1}
 .discovery-layout .run-history{order:1}
 .results-head,.history-head{display:none}
-.discovery-results{--result-cols:minmax(0,2fr) 90px 104px minmax(0,1fr) 140px}
-.run-history{--run-cols:118px minmax(0,1fr) minmax(0,.5fr) 124px 104px 250px}
+.discovery-results{--result-cols:minmax(0,2fr) 90px 150px minmax(0,1fr) 140px}
+.run-history{--run-cols:118px minmax(0,1fr) minmax(0,.5fr) 124px 180px 250px}
 .discovery-result.compact{display:grid;grid-template-columns:minmax(0,1fr) auto;grid-template-areas:"title state" "zone zone" "source source" "dedupe dedupe" "actions actions" "detail detail";column-gap:10px}
 .discovery-result.compact>.result-title{grid-area:title}
 .discovery-result.compact>.result-zone{grid-area:zone;margin:4px 0 0;font-size:12px;overflow-wrap:anywhere}
-.discovery-result.compact>.result-state{grid-area:state;align-self:start}
+.discovery-result.compact>.result-state-cell{grid-area:state;align-self:start;display:flex;flex-direction:column;align-items:flex-end;gap:4px;min-width:0}
+.result-state-cell .novelty-link{min-height:32px;padding:0;font-size:11px;text-align:right}
+/* Novelty (V2 P0-C): what the project already knew. New actors stand out; the rest stays quiet. */
+.pill.novelty{white-space:normal;text-align:center}
+.pill.novelty-new{background:#2f6b4f;color:#fff}
+.pill.novelty-seen{background:#eef0f3;color:#4b5563}
+.pill.novelty-added{background:#e7f0fb;color:#1f4f8a}
+.pill.novelty-ignored{background:#f6ecea;color:#8a3b2e}
+.pill.novelty-current_run_duplicate{background:#f3f0e6;color:#6b5b2e}
+.novelty-bar{margin:10px 0 6px;min-width:0}
+.novelty-summary{margin:0 0 6px;font-size:12px}
+.novelty-note{margin:4px 0 0;font-size:11px}
+.novelty-tabs{display:flex;gap:6px;overflow-x:auto;padding-bottom:2px;-webkit-overflow-scrolling:touch}
+.novelty-tab{flex:0 0 auto;min-height:44px;padding:6px 12px;border-radius:999px;font-size:12px;white-space:nowrap}
+.novelty-tab.active{background:#1f5f46;color:#fff;border-color:#1f5f46}
+.novelty-empty{margin:12px 0;font-size:12px}
+/* History (B10): phones show the novelty counters as their own short line; desktop appends them. */
+.run-novelty{display:block;white-space:nowrap;color:var(--ink)}
 .discovery-result.compact>.result-source{grid-area:source}
 .discovery-result.compact>.result-dedupe{grid-area:dedupe}
 .discovery-result.compact>.actions{grid-area:actions}
@@ -200,7 +217,15 @@ button:focus-visible,summary:focus-visible,a:focus-visible,select:focus-visible,
  .results-summary{margin:8px 0 6px}
  .discovery-result.compact h3{font-size:13px;line-height:1.3}
  .discovery-result.compact .result-sub{margin:2px 0 0;font-size:11px}
- .discovery-result.compact>.result-state{align-self:center;justify-self:start}
+ .discovery-result.compact>.result-state-cell{align-self:center;flex-direction:row;flex-wrap:wrap;align-items:center;justify-content:flex-start}
+ .result-state-cell .novelty-link{flex-basis:100%;text-align:left;min-height:22px}
+ .novelty-summary{display:none}
+ .run-novelty{display:inline}
+ .run-novelty::before{content:" · ";color:var(--muted)}
+ .novelty-bar{display:flex;align-items:center;flex-wrap:wrap;gap:6px 14px;margin:8px 0 4px}
+ .novelty-note{margin:0}
+ .novelty-tabs{flex-wrap:wrap;overflow:visible}
+ .novelty-tab{min-height:34px;border-radius:6px}
  .discovery-result.compact>.result-source{font-size:11px;line-height:1.35}
  .discovery-result.compact>.result-source a{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:12px}
  .discovery-result.compact>.result-dedupe{margin:6px 0 0}
@@ -223,7 +248,7 @@ button:focus-visible,summary:focus-visible,a:focus-visible,select:focus-visible,
  .results-head .col-resolution{display:none}
 }
 @media(min-width:1280px){
- .discovery-results{--result-cols:minmax(0,2fr) 96px 110px minmax(0,1fr) minmax(0,1fr) 250px}
+ .discovery-results{--result-cols:minmax(0,2fr) 96px 180px minmax(0,1fr) minmax(0,1fr) 250px}
  .results-head .col-resolution{display:block}
  .discovery-result.compact{grid-template-areas:"title zone state sub source actions" "detail zone state sub source actions" "dedupe dedupe dedupe dedupe dedupe dedupe"}
  .discovery-result.compact>.result-title{display:contents}

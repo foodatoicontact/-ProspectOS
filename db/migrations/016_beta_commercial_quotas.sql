@@ -30,11 +30,14 @@
 -- 7. AI offer analysis idempotence: reserve_offer_analysis() reuses a finished identical analysis (same
 --    user, project and text hash) without consuming or calling the AI, refuses a duplicate while the first
 --    is still running, and otherwise reserves one unit. complete/abandon close the reservation.
+--    Temporary technical data, not part of the visible product (not exported): kept at most 7 days after
+--    its last write (every reservation, by anyone, purges older rows), removed with its project (cascade)
+--    and removed for the user by the existing account deletion (delete_own_account, one added line).
 --
 -- Rollback: re-create start_discovery (002), consume_discovery_quota (005) and consume_analysis_quota (015)
 -- from their previous definitions; drop consume_discovery_quota(uuid,text,boolean), get_commercial_usage(),
 -- release_commercial_use(), reserve/complete/abandon_offer_analysis(), enforce_plan_limit() and
--- prospectos_private.offer_analyses; restore the plan check to ('BETA','INTERNAL') once no PAID row exists.
+-- prospectos_private.offer_analyses; re-create delete_own_account (008); restore the plan check to ('BETA','INTERNAL') once no PAID row exists.
 -- The added columns are harmless.
 begin;
 
@@ -189,9 +192,11 @@ create table if not exists prospectos_private.offer_analyses (
  text_hash text not null check(text_hash ~ '^[0-9a-f]{64}$'),
  status text not null check(status in ('PENDING','DONE')),
  result jsonb check(result is null or pg_column_size(result)<65536),
+ created_at timestamptz not null default now(),
  updated_at timestamptz not null default now(),
  primary key(user_id,project_id,text_hash)
 );
+create index if not exists offer_analyses_updated_idx on prospectos_private.offer_analyses(updated_at);
 revoke all on prospectos_private.offer_analyses from public,anon,authenticated;
 
 -- {cached: result} for a finished identical analysis of the last 24 hours (no unit, no AI call);
@@ -212,8 +217,9 @@ begin
  if found and r.status='PENDING' and r.updated_at>now()-interval '2 minutes' then raise exception 'offer_analysis_in_progress' using errcode='P0001'; end if;
  perform public.consume_ai_offer_quota(p_project_id);
  insert into prospectos_private.offer_analyses(user_id,project_id,text_hash,status,result,updated_at) values(actor,p_project_id,p_text_hash,'PENDING',null,now())
- on conflict (user_id,project_id,text_hash) do update set status='PENDING',result=null,updated_at=now();
- delete from prospectos_private.offer_analyses where user_id=actor and updated_at<now()-interval '7 days';
+ on conflict (user_id,project_id,text_hash) do update set status='PENDING',result=null,created_at=now(),updated_at=now();
+ -- Retention: nothing older than 7 days survives the next reservation made by anyone.
+ delete from prospectos_private.offer_analyses where updated_at<now()-interval '7 days';
  return jsonb_build_object('reserved',true);
 end $$;
 create or replace function public.complete_offer_analysis(p_project_id uuid, p_text_hash text, p_result jsonb) returns void
@@ -229,5 +235,32 @@ language sql security definer set search_path='' as $$
 $$;
 revoke all on function public.reserve_offer_analysis(uuid,text),public.complete_offer_analysis(uuid,text,jsonb),public.abandon_offer_analysis(uuid,text) from public,anon;
 grant execute on function public.reserve_offer_analysis(uuid,text),public.complete_offer_analysis(uuid,text,jsonb),public.abandon_offer_analysis(uuid,text) to authenticated;
+
+-- Account deletion (the existing path: delete_own_account, then the server anonymizes the auth user).
+-- Body identical to the CURRENT production definition (008, read-only check on 2026-09-27); the only added
+-- line removes the user's temporary offer analyses once deletion is allowed. Nothing else changes: same
+-- last-owner rule, same error, same return value. CREATE OR REPLACE keeps the existing grants.
+create or replace function public.delete_own_account() returns jsonb
+language plpgsql security definer set search_path='' as $$
+declare actor uuid := auth.uid(); blocked jsonb := '[]'::jsonb; m record; other_owners int; other_members int; biz_count int;
+begin
+ if actor is null then raise exception 'Authentication required' using errcode='42501'; end if;
+ for m in select organization_id, role from public.memberships where user_id=actor loop
+  if m.role='owner' then
+   select count(*) into other_owners from public.memberships where organization_id=m.organization_id and role='owner' and user_id<>actor;
+   if other_owners=0 then
+    select count(*) into other_members from public.memberships where organization_id=m.organization_id and user_id<>actor;
+    select count(*) into biz_count from public.projects where organization_id=m.organization_id;
+    if other_members>0 or biz_count>0 then blocked := blocked || jsonb_build_array(m.organization_id); end if;
+   end if;
+  end if;
+ end loop;
+ if jsonb_array_length(blocked)>0 then
+  raise exception 'last_owner_blocked' using errcode='P0001', detail=blocked::text;
+ end if;
+ delete from prospectos_private.offer_analyses where user_id=actor;
+ delete from public.memberships where user_id=actor;
+ return jsonb_build_object('memberships_removed', true);
+end $$;
 
 commit;

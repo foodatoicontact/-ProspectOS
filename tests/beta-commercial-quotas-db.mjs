@@ -341,6 +341,36 @@ try {
     await refused(() => discoverFixture(ctx.X), /quota_exceeded/, 'a 2nd fixture run in an hour limited to 1');
     await hourly(1000, 1000, 1000);
   });
+  // ---------------- temporary offer analyses: retention and account deletion ----------------
+  await check('OFFER_RETENTION: rows are dated, and nothing older than 7 days survives the next reservation (anyone\'s)', async () => {
+    await clear(X); await clear(T);
+    await reserveOffer(ctx.X, 600); await completeOffer(ctx.X, 600, { summary: 'old', target: 't', questions: [] });
+    const row = (await sql(`select created_at, updated_at from prospectos_private.offer_analyses where user_id=$1 and text_hash=$2`, [X, HASH(600)])).rows[0];
+    assert.ok(row.created_at && row.updated_at);
+    await sql(`update prospectos_private.offer_analyses set updated_at=now()-interval '8 days' where user_id=$1`, [X]);
+    await reserveOffer(ctx.T, 601); // another user's reservation purges it
+    assert.equal(Number((await sql(`select count(*) n from prospectos_private.offer_analyses where user_id=$1`, [X])).rows[0].n), 0);
+  });
+  await check('ACCOUNT_DELETION: the existing delete_own_account removes the user\'s temporary offer analyses, and nothing else changes', async () => {
+    // D owns an empty organization (deletion allowed) and is a member of X's organization (its project survives).
+    const D = '00000000-0000-4000-8000-0000000000f1';
+    await sql(`insert into auth.users(id,email) values ($1,'d@test')`, [D]);
+    await entitle(D, 'BETA');
+    await org(D);
+    await sql(`insert into public.memberships(organization_id,user_id,role) values ($1,$2,'member')`, [ctx.X.org, D]);
+    await as(D, 'select public.reserve_offer_analysis($1,$2)', [ctx.X.project, HASH(700)]);
+    await as(D, 'select public.complete_offer_analysis($1,$2,$3::jsonb)', [ctx.X.project, HASH(700), '{"summary":"d"}']);
+    await reserveOffer(ctx.X, 701);
+    const r = (await as(D, 'select public.delete_own_account() r')).rows[0].r;
+    assert.deepEqual(r, { memberships_removed: true }, 'same return value as before');
+    assert.equal(Number((await sql(`select count(*) n from prospectos_private.offer_analyses where user_id=$1`, [D])).rows[0].n), 0);
+    assert.equal(Number((await sql(`select count(*) n from prospectos_private.offer_analyses where user_id=$1`, [X])).rows[0].n), 1, 'other users untouched');
+    assert.equal(Number((await sql(`select count(*) n from public.projects where id=$1`, [ctx.X.project])).rows[0].n), 1, 'the shared project survives');
+    // The last-owner rule is unchanged, and a refused deletion removes nothing.
+    await reserveOffer(ctx.X, 702);
+    await refused(() => as(X, 'select public.delete_own_account()'), /last_owner_blocked/, 'deleting the last owner of a non-empty organization');
+    assert.equal(Number((await sql(`select count(*) n from prospectos_private.offer_analyses where user_id=$1`, [X])).rows[0].n), 2);
+  });
   await check('MIGRATION_IDEMPOTENT: re-applying 016 changes nothing', async () => {
     await db.exec(await readFile(new URL('../db/migrations/016_beta_commercial_quotas.sql', import.meta.url), 'utf8'));
     const before = await usage(ctx.T);

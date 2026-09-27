@@ -506,6 +506,7 @@ export const fr={
 
  'error.sessionExpired':'Session expirée. Reconnectez-vous.',
  'error.generic':'Opération impossible',
+ 'error.serviceUnavailable':'Service momentanément indisponible. Réessayez dans quelques instants.',
  'error.historyUnavailable':'Historique momentanément indisponible',
  'error.entitlementRequired':'Accès requis',
  'error.betaAccessExpired':'Votre accès bêta est terminé.',

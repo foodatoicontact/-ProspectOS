@@ -7,6 +7,7 @@ import {summarizeProspect} from '../src/components/prospect-summary';
 import {ObservationsReview} from '../src/components/ObservationsReview';
 import type {ReviewSummary} from '../src/components/evidence-presentation';
 import {hasVerifiedCopy,reviewSummaryReady,createInFlight} from '../src/components/evidence-verification';
+import {fetchApiJson} from '../src/components/api-response';
 import {projectCriteria} from '../src/domain/relations';
 import {proposeEvidence} from '../src/domain/analysis';
 import {DEMO_PROJECT,DEMO_PROSPECTS,DEMO_NOTES,DEMO_NOTES_EN,DEMO_ONBOARDING_STEPS,DEMO_ONBOARDING_STEPS_EN,DEMO_REAL_LABEL,DEMO_REAL_LABEL_EN,DEMO_LIVE_LIMITATIONS,DEMO_LIVE_LIMITATIONS_EN} from '../src/domain/demo';
@@ -50,7 +51,9 @@ export default function Home(){
  // A session the backend itself rejects (expired/revoked JWT) must never leave the UI showing
  // "ESPACE CONNECTÉ" while every call silently fails — force a real, full logout instead of piling
  // up error notices.
- async function api(path:string,method='GET',body?:unknown,t=token){const res=await fetch(`/api/v1/${path}`,{method,headers:{Authorization:`Bearer ${t}`,'Content-Type':'application/json'},...(body?{body:JSON.stringify(body)}:{})});const data=await res.json();if(res.status===401&&mode==='live'){await logout();throw Error(tr('error.sessionExpired'))}if(!res.ok){
+ // A non-JSON answer (proxy/HTML error page, cut body) or no answer at all never reaches res.json(): it becomes
+ // one clear "service unavailable" message (see src/components/api-response.ts). JSON answers are unchanged.
+ async function api(path:string,method='GET',body?:unknown,t=token){const {res,data}=await fetchApiJson(()=>fetch(`/api/v1/${path}`,{method,headers:{Authorization:`Bearer ${t}`,'Content-Type':'application/json'},...(body?{body:JSON.stringify(body)}:{})}),tr('error.serviceUnavailable'));if(res.status===401&&mode==='live'){await logout();throw Error(tr('error.sessionExpired'))}if(!res.ok){
  // The server always answers in French — only the small, stable set of known `code`s is re-localized
  // client-side (see src/i18n/errors.ts). Any other server message is shown exactly as sent.
  const err=Error(localizeApiErrorMessage(data.error??'Erreur',data.code,locale));(err as Error&{code?:string}).code=data.code;

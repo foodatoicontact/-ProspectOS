@@ -500,6 +500,7 @@ export const en={
 
  'error.sessionExpired':'Session expired. Please sign in again.',
  'error.generic':'Operation failed',
+ 'error.serviceUnavailable':'Service temporarily unavailable. Please try again in a moment.',
  'error.historyUnavailable':'History temporarily unavailable',
  'error.entitlementRequired':'Access required',
  'error.betaAccessExpired':'Your beta access has ended.',

@@ -30,8 +30,14 @@ enregistrés avec le run.
 ## Navigation
 
 Le run ouvert est mémorisé par projet (état de la page) : ouvrir un prospect depuis Discovery puis revenir
-(bouton « ← Retour à la recherche », geste retour iOS / bouton retour du navigateur grâce à une entrée
-d'historique, ou menu) réaffiche le même run, avec la position de défilement. Mode démo : historique conservé
+(bouton « ← Retour à Discovery », geste retour iOS / bouton retour du navigateur grâce à une entrée
+d'historique, ou menu) réaffiche le même run, avec le même filtre Novelty, le même nombre de résultats affichés
+et la position de défilement (mémorisés à l'ouverture du prospect, pour ce run seulement).
+
+Retour explicite depuis une fiche, selon sa provenance (`prospectOrigin`) : Discovery → « ← Retour à Discovery » ;
+liste des prospects (ligne, ajout manuel) → « ← Retour aux prospects » (liste ramenée à l'écran, ligne
+focalisée, aucune entrée d'historique) ; provenance inconnue (arrivée, menu, vue d'ensemble) → « ← Retour à la
+vue d’ensemble ». Le bouton retour du navigateur reste pris en charge. Mode démo : historique conservé
 dans ce navigateur (`localStorage`), jamais sur un serveur.
 
 ### Retour navigateur / geste iOS (`src/discovery/back-navigation.ts`)
@@ -49,7 +55,7 @@ l'entrée d'arrivée et quitter l'application vers le site précédent.
   n'est pas dessus — puis l'entrée **prospect** est poussée au-dessus, dans le même clic.
 - `popstate` : l'écran est restauré depuis l'état de l'entrée (projet, run, prospect) ; états inconnus,
   projet absent ou session fermée → ignorés. Aucune recherche, aucun run, aucune écriture.
-- « ← Retour à la recherche » n'appelle `history.back()` que si l'entrée courante est ce prospect poussé
+- « ← Retour à Discovery » n'appelle `history.back()` que si l'entrée courante est ce prospect poussé
   au-dessus d'une entrée Discovery ; sinon l'écran est changé directement.
 
 Le premier retour depuis le prospect atterrit donc toujours sur l'entrée Discovery, au-dessus de l'entrée

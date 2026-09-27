@@ -1,4 +1,4 @@
-// Discovery → prospect → back (browser button, iOS swipe, "← Retour à la recherche").
+// Discovery → prospect → back (browser button, iOS swipe, "← Retour à Discovery").
 //
 // Browsers do not honour every history entry a page creates by script. Chrome and Safari skip, on "back",
 // entries created by script without a user interaction (history manipulation intervention), and the entry the
@@ -65,10 +65,20 @@ export function planRunChange(current: unknown, projectId: string, runId: string
  return isDiscoveryEntryFor(s, projectId) && s.runId !== runId ? [{op: 'replace', state: discoveryEntry(projectId, runId)}] : [];
 }
 
-// "← Retour à la recherche" may call history.back() only when the current entry is the prospect entry pushed
+// "← Retour à Discovery" may call history.back() only when the current entry is the prospect entry pushed
 // above a Discovery entry. Otherwise there is no reliable internal entry below and the screen is switched
 // directly — never a history.back() that could leave the app.
 export function canStepBackToDiscovery(current: unknown): boolean {
  const s = readAppHistoryState(current);
  return !!s && s.prospectosView === 'prospects' && s.fromDiscovery;
+}
+
+// Where "←" on a prospect leads, by where the prospect was opened from: Discovery (a result or a just-added
+// candidate), the prospects list (a row, a prospect just added by hand) or, unknown (opened on arrival, via the
+// menu or the overview), the overview. No prospect on screen and not from Discovery: no button.
+export type ProspectOrigin = 'discovery' | 'prospects' | 'dashboard' | null;
+export function prospectOrigin(s: {fromDiscovery: boolean; fromList: boolean; hasProspect: boolean}): ProspectOrigin {
+ if (s.fromDiscovery) return 'discovery';
+ if (!s.hasProspect) return null;
+ return s.fromList ? 'prospects' : 'dashboard';
 }

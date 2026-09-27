@@ -11,7 +11,7 @@ workflow de revue, de schéma ou de migration.
   compteurs, « Voir les résultats » / « Rejouer ». Les catégories restent visibles dans le run ouvert.
 - **Dernière recherche** : requête et zone limitées à 2 lignes, date, compteurs, « Reprendre les résultats ».
 - **Résultats** : ligne de synthèse (résultats · ajoutés · ignorés · non résolus ou écartés), 6 cartes
-  compactes puis « Afficher 6 de plus ». Carte : nom (ou « entité non résolue »), résolution, ville, source,
+  compactes puis « Afficher plus de résultats (N) ». Carte : nom (ou « entité non résolue »), résolution, ville, source,
   score du prospect s'il existe, état (candidat / ajouté / ignoré / non résolu), actions pertinentes
   seulement ; le reste dans « Voir le détail ».
 - **Retour depuis un prospect** : même run, même nombre de résultats affichés, même position.

@@ -120,7 +120,7 @@ test('9 — navigation: the open run is kept per project and restored; back retu
  // History entries come from the pure planner (tests/discovery-back-navigation.test.ts); popstate restores from the entry's state.
  assert.match(page, /function openFromDiscovery\(prospectId:string\)\{applyHistory\(planOpenProspect\(history\.state,projectId,discoveryRuns\[projectId\]\?\?null,prospectId\)\)/);
  assert.match(page, /const onPop=\(e:PopStateEvent\)=>restoreRef\.current\(e\.state\);window\.addEventListener\('popstate',onPop\)/);
- assert.match(page, /\{fromDiscovery&&<button className="text-button back-to-discovery" onClick=\{backToDiscovery\}>/);
+ assert.match(page, /origin==='discovery'\?<button className="text-button back-to-discovery" onClick=\{backToDiscovery\}>/);
  assert.match(panel, /if\(summary&&!cancelled\)void viewRun\(summary,true\)/, 'the remembered run is reopened with its scroll position');
  assert.match(panel, /summary=summarizeRuns\(\[await api\(`discovery-runs\/\$\{activeRunId\}`\)\]\)\[0\]/, 'a remembered run older than the first history page is read on its own');
 });

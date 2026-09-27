@@ -5,7 +5,7 @@ import {DiscoveryInputSchema,type DiscoveryResult} from '../discovery/types';
 import {DeduplicationService} from '../discovery/deduplication';
 import {scoreProspect,type Criterion,type Prospect} from '../domain/core';
 import {translate,searchDoneNote,discoveryFoundNote,runDateLabel,runCountsLabel,resultsSummaryLabel,noveltySummaryLabel,runNoveltyLabel,deepStopLabel,passesLabel,deepPassLine,newActorsFoundLabel,type Locale,type TKey} from '../i18n';
-import {noveltyOf,displayNovelty,noveltyCounts,newFirst,isEligibleCandidate,type NoveltyStatus} from '../discovery/novelty';
+import {noveltyOf,displayNovelty,decidedNovelty,noveltyCounts,newFirst,isEligibleCandidate,NOVELTY_STATUSES,type NoveltyStatus} from '../discovery/novelty';
 import {MAX_PROVIDER_CALLS,type SearchMode} from '../discovery/search-until-new';
 import {summarizeRuns,runState,replayFields,HISTORY_FIRST_PAGE,HISTORY_MORE_PAGE,HISTORY_MAX,type RunSummary,type ReplayFields} from '../discovery/run-history';
 type CompanyNameStatus='RESOLVED'|'UNRESOLVED';
@@ -65,8 +65,9 @@ export function DiscoveryPanel({projectId,projectName,offer,criteria,mode,api,on
   if(mode==='demo')rows=await withCurrentStatus(readDemoRuns(projectId).find(r=>r.summary.id===summary.id)?.results??[]);
   else rows=await api(`discovery-runs/${summary.id}/results`);
   if(revision!==version.current)return;setResults(rows);setNoveltyTab(summary.search_mode==='new_first'?'NEW':'ALL');setRun(summary.id);setFormOpen(false);setCurrent({...summary,accepted_count:rows.filter(r=>r.status==='accepted').length,ignored_count:rows.filter(r=>r.status==='ignored').length});setCost(null);setReplayed(false);onActiveRunChange?.(summary.id);
-  // Back from a prospect: the same number of results is shown again, then the same scroll position.
-  let y=0,shown=resultsPage();if(restoreScroll){try{const saved=JSON.parse(sessionStorage.getItem(scrollKey(projectId))??'null');if(typeof saved==='number')y=saved;else if(saved){y=Number(saved.y)||0;shown=Math.max(RESULTS_PAGE,Number(saved.shown)||RESULTS_PAGE)}}catch{}}
+  // Back from a prospect: the same Novelty filter and number of results are shown again, then the same scroll
+  // position — only for the run the prospect was opened from.
+  let y=0,shown=resultsPage();if(restoreScroll){try{const saved=JSON.parse(sessionStorage.getItem(scrollKey(projectId))??'null');if(typeof saved==='number')y=saved;else if(saved&&(!saved.run||saved.run===summary.id)){y=Number(saved.y)||0;shown=Math.max(RESULTS_PAGE,Number(saved.shown)||RESULTS_PAGE);if(saved.tab==='ALL'||NOVELTY_STATUSES.includes(saved.tab))setNoveltyTab(saved.tab)}}catch{}}
   setResultsShown(shown);if(y>0)requestAnimationFrame(()=>requestAnimationFrame(()=>window.scrollTo(0,y)))
  })}
  // "Rejouer la recherche": fills the form only. Nothing is sent until the user clicks "Lancer la recherche".
@@ -79,7 +80,9 @@ export function DiscoveryPanel({projectId,projectName,offer,criteria,mode,api,on
  // An added candidate shows its prospect's current score — the existing engine, on human-verified
  // evidence only (never a discovery signal).
  function addedScore(r:DiscoveryResult):number|null{if(r.status!=='accepted'||!r.prospect_id)return null;const p=existing.find(x=>x.id===r.prospect_id);if(!p)return null;try{return scoreProspect(criteria,p.evidence).score}catch{return null}}
- function openProspect(prospectId:string){try{sessionStorage.setItem(scrollKey(projectId),JSON.stringify({y:window.scrollY,shown:resultsShown}))}catch{}onOpenProspect?.(prospectId)}
+ // Leaving for a prospect ("Voir le prospect", or a candidate just added): what is on screen is remembered.
+ function rememberView(){try{sessionStorage.setItem(scrollKey(projectId),JSON.stringify({y:window.scrollY,shown:resultsShown,tab:noveltyTab,run}))}catch{}}
+ function openProspect(prospectId:string){rememberView();onOpenProspect?.(prospectId)}
  async function execute(fn:()=>Promise<void>){setBusy(true);setError('');setInfo('');try{await fn()}catch(e){setError(e instanceof Error?e.message:tr('error.generic'))}finally{setBusy(false);setDeepPending(false)}}
  async function search(form:FormData){await execute(async()=>{const revision=version.current;setCost(null);const input=DiscoveryInputSchema.parse({project_id:projectId,query:String(form.get('query')),location:String(form.get('location')),categories:String(form.get('categories')||'').split(',').map(s=>s.trim()).filter(Boolean),max_results:Number(form.get('max')),optional_filters:{provider,offer,criteria,
   // The search mode is the user's explicit choice; a deep search carries its new-actors target and the hard cap.
@@ -104,7 +107,7 @@ export function DiscoveryPanel({projectId,projectName,offer,criteria,mode,api,on
  async function accept(row:DiscoveryResult,force=false){await execute(async()=>{const revision=version.current;let p:Prospect;if(mode==='demo'){if(row.dedupe_status==='merge_review_required'&&!force)throw Error(tr('discovery.mergeReviewRequired'));const duplicate=row.duplicate_of&&existing.find(p=>p.id===row.duplicate_of);p=duplicate||{id:crypto.randomUUID(),project_id:projectId,organization_id:'demo-organization',name:row.normalized_payload.name,website:row.normalized_payload.website??'',city:row.normalized_payload.city??'',status:'À analyser',evidence:[],channels:[]};localStorage.setItem(`prospectos-discovery-origin:${p.id}`,'fixture')}else{try{p={...await api(`discovery-results/${row.id}/accept`,'POST',{force_separate:force}),evidence:[],channels:[]}}catch(e){
    // Stale screen (the actor was added meanwhile, from another run, tab or user): the server refused a second
    // prospect. Not an error for the user — the row is reconciled to "Déjà ajouté" with its prospect.
-   if((e as {code?:string}).code==='ALREADY_ADDED'){await reconcileAlreadyAdded(row,(e as {prospect_id?:string}).prospect_id??null,revision);return}throw e}}if(revision!==version.current)return;setResults(rs=>rs.map(r=>r.id===row.id?{...r,status:'accepted',prospect_id:p.id}:r));recordDecision(row.id,{status:'accepted',prospect_id:p.id});onAdded(p)})}
+   if((e as {code?:string}).code==='ALREADY_ADDED'){await reconcileAlreadyAdded(row,(e as {prospect_id?:string}).prospect_id??null,revision);return}throw e}}if(revision!==version.current)return;setResults(rs=>rs.map(r=>r.id===row.id?{...r,status:'accepted',prospect_id:p.id}:r));recordDecision(row.id,{status:'accepted',prospect_id:p.id});rememberView();onAdded(p)})}
  async function ignore(r:DiscoveryResult){await execute(async()=>{if(mode==='live')await api(`discovery-results/${r.id}/ignore`,'POST',{});setResults(rs=>rs.map(x=>x.id===r.id?{...x,status:'ignored'}:x));recordDecision(r.id,{status:'ignored'})})}
  // The run's stored results reflect the decision (demo: this browser; live: the server already has it).
  async function reconcileAlreadyAdded(row:DiscoveryResult,prospectId:string|null,revision:number){
@@ -130,7 +133,9 @@ export function DiscoveryPanel({projectId,projectName,offer,criteria,mode,api,on
  const eligible=(r:DiscoveryResult)=>isEligibleCandidate(classOf(r));
  const histOf=(r:DiscoveryResult)=>eligible(r)?noveltyOf(r.normalized_payload.raw_metadata):null;
  // Shown: the run's snapshot enriched with the actor's CURRENT project status (added since?) — display only.
- const novOf=(r:DiscoveryResult)=>eligible(r)?displayNovelty(histOf(r),r.current_project_status):null;
+ // Tabs and counters: a result decided in this very run follows that decision — added → "Ajoutés", ignored →
+ // "Ignorés" (its card keeps the run's label next to its decision). The snapshot and the run's metrics are untouched.
+ const novOf=(r:DiscoveryResult)=>eligible(r)?decidedNovelty(histOf(r),r,r.current_project_status):null;
  const hasNovelty=candidates.some(r=>novOf(r)!==null);
  const noveltyTotals=noveltyCounts(candidates.map(novOf));
  const tabCount=(k:'ALL'|NoveltyStatus)=>k==='ALL'?candidates.length:candidates.filter(r=>novOf(r)?.status===k).length;
@@ -143,7 +148,7 @@ export function DiscoveryPanel({projectId,projectName,offer,criteria,mode,api,on
  const resultCard=(r:DiscoveryResult)=>{const meta=metaOf(r);const cls=classOf(r);const canAdd=cls==='COMPANY_CANDIDATE';const legacy=cls===null;const nameResolved=canAdd&&meta.company_name_status==='RESOLVED';const viaThirdParty=cls==='SIGNAL_SOURCE'||(canAdd&&!!meta.source_type&&meta.source_type!=='official_site');const domainResolved=meta.company_domain_status==='RESOLVED';const typeKey=meta.source_type?SOURCE_TYPE_KEYS[meta.source_type]:undefined;let sourceHost='';try{sourceHost=new URL(r.normalized_payload.source_url).hostname.replace(/^www\./,'')}catch{}
   const state=r.status==='accepted'?'added':r.status==='ignored'?'ignored':canAdd?'candidate':'unresolved';
   // Already a prospect of this project (novelty.ts): never offered as a second prospect — "Voir le prospect".
-  const nov=novOf(r);const hist=histOf(r);const alreadyProspect=r.status==='pending'&&nov?.status==='ADDED'&&!!nov.prospect_id;const score=addedScore(r);
+  const hist=histOf(r);const nov=r.status==='pending'?novOf(r):eligible(r)?displayNovelty(hist,r.current_project_status):null;const alreadyProspect=r.status==='pending'&&nov?.status==='ADDED'&&!!nov.prospect_id;const score=addedScore(r);
   return <article className={`discovery-result compact state-${state}`} key={r.id}>
    <div className="result-title">{nameResolved?<h3>{r.normalized_payload.name}</h3>:<h3>{legacy?tr('discovery.legacyUnclassified'):tr('discovery.unresolvedCompany')}</h3>}<p className="muted result-sub">{nameResolved?(domainResolved?tr('discovery.resolutionBothLabel'):tr('discovery.resolutionNameOnlyLabel')):typeKey?tr(typeKey):tr('discovery.class.uncertain')}</p></div>
    <p className="result-zone">{r.normalized_payload.city??tr('discovery.cityToConfirm')}</p>

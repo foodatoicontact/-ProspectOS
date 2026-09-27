@@ -92,6 +92,9 @@ recalculées et peuvent être gonflées par des pages écartées comptées comme
   résultats visibles).
 - **Filtres, compteurs de l'écran et actions** suivent l'état actuel : un acteur `ADDED` aujourd'hui n'a
   jamais de bouton « Ajouter ».
+- Un résultat décidé **dans ce run** compte selon cette décision dans les onglets et compteurs de l'écran
+  (ajouté → « Ajoutés », ignoré → « Ignorés ») ; sa carte garde l'étiquette du run à côté de « Ajouté au
+  projet » / « Ignoré ». Instantané et métriques du run inchangés (`decidedNovelty`).
 - **Aucune réécriture des métriques historiques** : la lecture d'un run n'écrit rien ; l'historique des runs
   garde les compteurs d'origine (`X nouveaux · Y déjà vus` au moment du run).
 

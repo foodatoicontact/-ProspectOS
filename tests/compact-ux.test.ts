@@ -119,7 +119,8 @@ test('4 — long queries and zones are clamped to 2 lines (1 line for a zone in 
  assert.match(css,/\.clamp-2\{-webkit-line-clamp:2;line-clamp:2\}/);
 });
 test('5 — back from a prospect: the same number of results and the same scroll are restored',()=>{
- assert.match(panel,/sessionStorage\.setItem\(scrollKey\(projectId\),JSON\.stringify\(\{y:window\.scrollY,shown:resultsShown\}\)\)/);
+ // Also the Novelty filter and the run (tests/prospect-back-navigation.test.ts NAV-5).
+ assert.match(panel,/sessionStorage\.setItem\(scrollKey\(projectId\),JSON\.stringify\(\{y:window\.scrollY,shown:resultsShown,tab:noveltyTab,run\}\)\)/);
  assert.match(panel,/setResultsShown\(shown\);if\(y>0\)/);
 });
 test('6 / 7 — results: 6 first, 6 more per tap, with a one-line summary; long content in "Voir le détail"',()=>{

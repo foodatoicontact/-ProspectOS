@@ -316,8 +316,8 @@ test('HARD-1 — the run read enriches display only: no write, snapshot and metr
  assert.doesNotMatch(read, /\.update\(|\.insert\(|\.upsert\(|rpc\(/, 'reading a run never writes');
  assert.match(read, /current_project_status:current\.get\(r\.id\)\?\?null/);
  const panel = await readFile(new URL('../src/components/DiscoveryPanel.tsx', import.meta.url), 'utf8');
- assert.match(panel, /const novOf=\(r:DiscoveryResult\)=>eligible\(r\)\?displayNovelty\(histOf\(r\),r\.current_project_status\):null;/);
- assert.match(panel, /const nov=novOf\(r\);const hist=histOf\(r\);const alreadyProspect=r\.status==='pending'&&nov\?\.status==='ADDED'&&!!nov\.prospect_id;/, '"Ajouter" is hidden on the CURRENT status');
+ assert.match(panel, /const novOf=\(r:DiscoveryResult\)=>eligible\(r\)\?decidedNovelty\(histOf\(r\),r,r\.current_project_status\):null;/);
+ assert.match(panel, /const hist=histOf\(r\);const nov=r\.status==='pending'\?novOf\(r\):eligible\(r\)\?displayNovelty\(hist,r\.current_project_status\):null;const alreadyProspect=r\.status==='pending'&&nov\?\.status==='ADDED'&&!!nov\.prospect_id;/, '"Ajouter" is hidden on the CURRENT status');
 });
 
 test('HARD-2 — ALREADY_ADDED is a decision, not an error: the stale "Ajouter" is refused with the existing prospect', async () => {

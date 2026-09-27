@@ -62,6 +62,15 @@ export function displayNovelty(historical:Novelty|null,current:{status:'ADDED';p
  if(current===null&&historical?.status==='ADDED')return {...historical,status:'SEEN',prospect_id:null};
  return historical;
 }
+// What the run's tabs and counters count: a result already decided in this very run follows that decision (added →
+// ADDED with its prospect, ignored → IGNORED); an undecided one follows displayNovelty. Display only: the snapshot
+// and the run's metrics are never rewritten. No snapshot (older runs, unresolved sources): nothing to count.
+export function decidedNovelty(historical:Novelty|null,row:{status:string;prospect_id:string|null},current:{status:'ADDED';prospect_id:string}|null|undefined):Novelty|null{
+ if(!historical)return current?displayNovelty(null,current):null;
+ if(row.status==='accepted'&&row.prospect_id)return displayNovelty(historical,{status:'ADDED',prospect_id:row.prospect_id});
+ if(row.status==='ignored')return {...historical,status:'IGNORED',prospect_id:null};
+ return displayNovelty(historical,current);
+}
 export function noveltyOf(raw:unknown):Novelty|null{
  const n=(raw as {novelty?:unknown}|null|undefined)?.novelty as Novelty|undefined;
  return n&&NOVELTY_STATUSES.includes(n.status)?n:null;

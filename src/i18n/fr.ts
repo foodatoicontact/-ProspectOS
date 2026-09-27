@@ -379,6 +379,8 @@ export const fr={
  'novelty.filterAria':'Filtrer les résultats selon ce que le projet a déjà vu',
  'novelty.viewOldRun':'Voir l’ancien run',
  'novelty.emptyTab':'Aucun résultat dans ce filtre.',
+ 'novelty.atRunTime':'Au moment de cette recherche :',
+ 'novelty.alreadyAddedNotice':'Déjà ajouté au projet',
  'novelty.newFirstNote':'Nouveaux acteurs en premier. Comparaison avec tout l’historique de ce projet.',
  'discovery.viewDetail':'Voir le détail',
  'discovery.showMoreResults':'Afficher 6 de plus',

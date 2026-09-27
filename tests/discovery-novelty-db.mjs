@@ -7,8 +7,8 @@
 import { strict as assert } from 'node:assert';
 import { readFile, readdir } from 'node:fs/promises';
 import { PGlite } from '@electric-sql/pglite';
-import { ProjectNovelty } from '../src/discovery/novelty-engine.ts';
-import { noveltyCounts, noveltyRates } from '../src/discovery/novelty.ts';
+import { ProjectNovelty, currentProjectStatuses, alreadyAddedProspect } from '../src/discovery/novelty-engine.ts';
+import { noveltyCounts, noveltyRates, noveltyOf, displayNovelty } from '../src/discovery/novelty.ts';
 import { summarizeRuns } from '../src/discovery/run-history.ts';
 
 const db = new PGlite();
@@ -127,6 +127,50 @@ try {
     const files = (await readdir(new URL('../db/migrations/', import.meta.url))).filter(f => f.endsWith('.sql')).sort();
     for (const f of files) assert.doesNotMatch(await readFile(new URL(`../db/migrations/${f}`, import.meta.url), 'utf8'), /novelty/i, `no migration for novelty (${f})`);
     assert.ok(cols.length === 2);
+  });
+
+  // ---- Final hardening 1: an old run shows where its actors stand NOW; its snapshot and metrics never change.
+  const runRow = async id => (await as(A, `select * from public.discovery_results where discovery_run_id=$1 order by created_at`, [id])).rows;
+  const prospectsNow = async project => (await as(A, `select id,name,website,city,discovery_dedupe_key from public.prospects where project_id=$1`, [project])).rows;
+  const metricsBefore = (await as(A, `select metrics from public.discovery_runs where id=$1`, [second.runId])).rows[0].metrics;
+  // Charlie is SEEN in run 2; it is then added to the project from ANOTHER run (run 3).
+  const third = await discover(A, PA1, ['Charlie']);
+  await as(A, `select public.accept_discovery_result($1,false)`, [third.saved[0].id]);
+  await check('HARD-1 old run reopened: snapshot still SEEN, current status ADDED with the prospect, metrics untouched', async () => {
+    const rows = await runRow(second.runId);
+    const charlie = rows.find(r => r.company_name === 'Studio Charlie');
+    assert.equal(noveltyOf(charlie.normalized_payload.raw_metadata).status, 'SEEN', 'historical snapshot kept');
+    const now = currentProjectStatuses(rows, await prospectsNow(PA1));
+    const prospect = (await prospectsNow(PA1)).find(p => p.website === 'https://charlie.example/');
+    assert.deepEqual(now.get(charlie.id), {status: 'ADDED', prospect_id: prospect.id});
+    const shown = displayNovelty(noveltyOf(charlie.normalized_payload.raw_metadata), now.get(charlie.id));
+    assert.deepEqual([shown.status, shown.prospect_id], ['ADDED', prospect.id], 'UI: "Déjà ajouté" + "Voir le prospect", no "Ajouter"');
+    assert.deepEqual((await as(A, `select metrics from public.discovery_runs where id=$1`, [second.runId])).rows[0].metrics, metricsBefore, 'run metrics never rewritten');
+    assert.equal(now.get(rows.find(r => r.company_name === 'Studio Foxtrot').id), null, 'an actor still not in the project keeps its snapshot');
+  });
+
+  // ---- Final hardening 2: two tabs, one actor. Tab 1 adds it; tab 2 (stale screen) tries again.
+  const tab1 = await discover(A, PA1, ['Kilo']);
+  const tab2 = await discover(A, PA1, ['Kilo']);
+  // Same organization reached with another zone part in its dedupe key: the RPC alone would create a second prospect.
+  await sql(`update public.discovery_results set dedupe_key='domain:kilo.example|autre-zone' where id=$1`, [tab2.saved[0].id]);
+  await as(A, `select public.accept_discovery_result($1,false)`, [tab1.saved[0].id]);
+  await check('HARD-2 race: the stale second "Ajouter" is refused with the existing prospect — one prospect, never two', async () => {
+    const identity = (await as(A, `select dedupe_status,dedupe_key,company_name,website,phone,city,source_url,source_class from public.discovery_results where id=$1`, [tab2.saved[0].id])).rows[0];
+    const prospects = await prospectsNow(PA1);
+    const existing = prospects.find(p => p.website === 'https://kilo.example/');
+    assert.equal(alreadyAddedProspect(identity, identity.source_class, prospects, false), existing.id, 'server answers 409 ALREADY_ADDED with this prospect');
+    assert.equal(alreadyAddedProspect(identity, identity.source_class, prospects, true), existing.id, '"Ajouter séparément" is refused too');
+    // Without the guard, the database RPC would indeed have created a duplicate (rolled back).
+    await sql('begin');
+    try {
+      await as(A, `select public.accept_discovery_result($1,false)`, [tab2.saved[0].id]);
+      assert.equal((await prospectsNow(PA1)).filter(p => p.website === 'https://kilo.example/').length, 2, 'the guard is what prevents the duplicate');
+    } finally { await sql('rollback'); }
+    assert.equal((await prospectsNow(PA1)).filter(p => p.website === 'https://kilo.example/').length, 1);
+    // Once reconciled, the stale row reads as ADDED with that prospect.
+    const now = currentProjectStatuses(await runRow(tab2.runId), prospects);
+    assert.deepEqual(now.get(tab2.saved[0].id), {status: 'ADDED', prospect_id: existing.id});
   });
 } catch (error) {
   results.push(['setup', 'FAIL', String(error?.message ?? error).split('\n')[0]]);

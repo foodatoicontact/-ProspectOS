@@ -102,3 +102,31 @@ export function strongProspectMatch(subject:NoveltySubject,prospects:ProspectMem
  for(const p of prospects){const basis=sameActor(id,prospectIdentity(p));if(basis==='domain'||basis==='phone')return p.id}
  return null;
 }
+
+// Current project status of a run's results, when the run is read (display only). One pass over the
+// project's prospects, already read once: an actor that IS a prospect of the project now (same own domain or
+// phone — the strong bases of strongProspectMatch — or the snapshot's own prospect, still there) is ADDED.
+// Rows already accepted from this run carry their own state and are left alone.
+export type ResultIdentityRow={id:string;status:string;company_name:string;website:string|null;phone?:string|null;city:string|null;source_url:string;source_class?:string|null;normalized_payload?:{raw_metadata?:Record<string,unknown>}|null};
+export function currentProjectStatuses(rows:ResultIdentityRow[],prospects:ProspectMemory[]):Map<string,{status:'ADDED';prospect_id:string}|null>{
+ const ids=new Set(prospects.map(p=>p.id));const out=new Map<string,{status:'ADDED';prospect_id:string}|null>();
+ for(const r of rows){
+  if(r.status==='accepted')continue;
+  const snapshot=r.normalized_payload?.raw_metadata?.novelty as {status?:string;prospect_id?:string|null}|undefined;
+  const now=strongProspectMatch({name:r.company_name,website:r.website,phone:r.phone??null,city:r.city,source_url:r.source_url,raw_metadata:{source_class:r.source_class??null}},prospects)
+   ??(snapshot?.status==='ADDED'&&snapshot.prospect_id&&ids.has(snapshot.prospect_id)?snapshot.prospect_id:null);
+  out.set(r.id,now?{status:'ADDED',prospect_id:now}:null);
+ }
+ return out;
+}
+// "Ajouter" duplicate protection (B14), as a decision: the prospect this result already is, when the accept
+// RPC would otherwise CREATE a second one — not when it links to the dedup match (duplicate_candidate), not
+// when it would reuse that prospect's own dedupe key.
+export type AcceptIdentity={dedupe_status:string;dedupe_key:string;company_name:string;website:string|null;phone:string|null;city:string|null;source_url:string};
+export function alreadyAddedProspect(row:AcceptIdentity,sourceClass:string|null,prospects:Array<ProspectMemory&{discovery_dedupe_key?:string|null}>,forceSeparate:boolean):string|null{
+ if(row.dedupe_status==='duplicate_candidate')return null;
+ const same=strongProspectMatch({name:row.company_name,website:row.website,phone:row.phone,city:row.city,source_url:row.source_url,raw_metadata:{source_class:sourceClass}},prospects);
+ if(!same)return null;
+ const reused=!forceSeparate&&prospects.find(p=>p.id===same)?.discovery_dedupe_key===row.dedupe_key;
+ return reused?null:same;
+}

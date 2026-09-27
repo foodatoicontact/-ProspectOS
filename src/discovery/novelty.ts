@@ -42,6 +42,15 @@ export function noveltyRates(c:NoveltyCounts):{new_discovery_rate:number|null;re
  const r=(x:number)=>Math.round(x/base*1000)/1000;
  return {new_discovery_rate:r(c.new_results),repeat_rate:r(c.seen_results+c.already_added+c.ignored_results)};
 }
+// What the screen shows for a result: its historical novelty (the snapshot of the run, never rewritten)
+// enriched with its CURRENT project status. An actor added since the run is shown as ADDED ("Voir le
+// prospect", no "Ajouter"); an actor the snapshot says ADDED whose prospect no longer exists is shown as
+// seen before (never a dead "Voir le prospect"). `current` undefined = not enriched: the snapshot as is.
+export function displayNovelty(historical:Novelty|null,current:{status:'ADDED';prospect_id:string}|null|undefined):Novelty|null{
+ if(current)return {status:'ADDED',basis:historical?.basis??'prospect_id',prospect_id:current.prospect_id,run_id:historical?.run_id??null,result_id:historical?.result_id??null};
+ if(current===null&&historical?.status==='ADDED')return {...historical,status:'SEEN',prospect_id:null};
+ return historical;
+}
 export function noveltyOf(raw:unknown):Novelty|null{
  const n=(raw as {novelty?:unknown}|null|undefined)?.novelty as Novelty|undefined;
  return n&&NOVELTY_STATUSES.includes(n.status)?n:null;

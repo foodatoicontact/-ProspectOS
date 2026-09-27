@@ -379,6 +379,8 @@ export const en={
  'novelty.filterAria':'Filter results by what this project has already seen',
  'novelty.viewOldRun':'View earlier run',
  'novelty.emptyTab':'No result in this filter.',
+ 'novelty.atRunTime':'When this search ran:',
+ 'novelty.alreadyAddedNotice':'Already added to the project',
  'novelty.newFirstNote':'New actors first. Compared with this project’s whole history.',
  'discovery.viewDetail':'View details',
  'discovery.showMoreResults':'Show 6 more',

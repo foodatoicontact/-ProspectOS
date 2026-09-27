@@ -42,5 +42,10 @@ export type Observation=z.infer<typeof ObservationSchema>;
 export type StoredObservation=Observation&{id:string;prospect_id:string;organization_id:string;evidence_id:string|null;review_status:'NOT_VERIFIED'|'VERIFIED'|'CONTRADICTED'};
 // source_class is the database column (migration 014) — present on persisted rows, NULL for rows written
 // before classification existed; absent on demo rows built in the browser, which are never persisted.
-export type DiscoveryResult={id:string;normalized_payload:Candidate;dedupe_status:'unique'|'duplicate_candidate'|'merge_review_required';duplicate_of:string|null;status:'pending'|'accepted'|'ignored';prospect_id:string|null;reason?:string;source_class?:'COMPANY_CANDIDATE'|'SIGNAL_SOURCE'|'IRRELEVANT'|'UNCERTAIN'|null};
+export type DiscoveryResult={id:string;normalized_payload:Candidate;dedupe_status:'unique'|'duplicate_candidate'|'merge_review_required';duplicate_of:string|null;status:'pending'|'accepted'|'ignored';prospect_id:string|null;reason?:string;source_class?:'COMPANY_CANDIDATE'|'SIGNAL_SOURCE'|'IRRELEVANT'|'UNCERTAIN'|null;
+ // Where the actor stands in the project NOW (added to the project since this run?), computed when a run is
+ // read — display only; the run's historical novelty snapshot and metrics are never rewritten. Absent on rows
+ // that were not enriched (then the snapshot is shown as it is).
+ current_project_status?:CurrentProjectStatus|null};
+export type CurrentProjectStatus={status:'ADDED';prospect_id:string};
 export type DiscoveryRun={id:string;status:string;provider:string;result_count:number;error_message:string|null;results?:DiscoveryResult[]};

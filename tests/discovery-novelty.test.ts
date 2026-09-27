@@ -8,8 +8,8 @@ import {readFile} from 'node:fs/promises';
 import {DiscoveryService,type DiscoveryRepository} from '../src/discovery/services.ts';
 import type {Candidate,DiscoveryProvider,DiscoveryResult,DiscoveryRun} from '../src/discovery/types.ts';
 import type {Identity} from '../src/discovery/deduplication.ts';
-import {noveltyCounts,noveltyRates,noveltyOf,newFirst,type Novelty,type ResultMemory} from '../src/discovery/novelty.ts';
-import {ProjectNovelty,strongProspectMatch,entityKey,compatibleLocation} from '../src/discovery/novelty-engine.ts';
+import {noveltyCounts,noveltyRates,noveltyOf,newFirst,displayNovelty,type Novelty,type ResultMemory} from '../src/discovery/novelty.ts';
+import {ProjectNovelty,strongProspectMatch,entityKey,compatibleLocation,currentProjectStatuses,alreadyAddedProspect} from '../src/discovery/novelty-engine.ts';
 import {summarizeRuns,replayFields} from '../src/discovery/run-history.ts';
 import {runNoveltyLabel,noveltySummaryLabel} from '../src/i18n/format.ts';
 
@@ -201,7 +201,7 @@ test('B18-12 / B5 / B19 — filters Nouveaux / Déjà vus / Ajoutés / Ignorés;
  assert.match(panel, /useState<'ALL'\|NoveltyStatus>\('ALL'\)/, 'the default view is every result (new first), never "new only"');
  assert.match(panel, /\(\['ALL','NEW','SEEN','ADDED','IGNORED','CURRENT_RUN_DUPLICATE'\] as const\)/);
  assert.match(panel, /aria-pressed=\{noveltyTab===k\}/);
- assert.match(panel, /const shown=\(hasNovelty\?newFirst\(candidates,novOf\):candidates\)\.filter\(r=>noveltyTab==='ALL'\|\|novOf\(r\)\?\.status===noveltyTab\);/);
+ assert.match(panel, /const shown=\(hasNovelty\?newFirst\(candidates,histOf\):candidates\)\.filter\(r=>noveltyTab==='ALL'\|\|novOf\(r\)\?\.status===noveltyTab\);/);
  assert.match(panel, /setResults\(rows\);setNoveltyTab\('ALL'\);/, 'a new or reopened run starts on "all"');
  const css = await readFile(new URL('../app/globals.css', import.meta.url), 'utf8');
  assert.match(css, /\.novelty-tab\{flex:0 0 auto;min-height:44px/, 'phone: compact chips, 44 px targets');
@@ -282,4 +282,63 @@ test('B21 — scoring, ICP mapping, evidence statuses and analysis are untouched
   const src = await readFile(new URL(f, import.meta.url), 'utf8');
   assert.doesNotMatch(src, /scoreProspect|VERIFIED|INFERRED|safe-fetch|robots|quota/i, f);
  }
+});
+
+// ---------------------------------------------------------------- final hardening
+const seen = (over: Partial<Novelty> = {}): Novelty => ({status: 'SEEN', basis: 'domain', prospect_id: null, run_id: 'run-0', result_id: 'x', ...over});
+test('HARD-1 — an old run shows the CURRENT project status; the historical snapshot is never rewritten', () => {
+ const historical = seen();
+ const frozen = JSON.stringify(historical);
+ const shown = displayNovelty(historical, {status: 'ADDED', prospect_id: 'p-x'})!;
+ assert.deepEqual([shown.status, shown.prospect_id, shown.run_id], ['ADDED', 'p-x', 'run-0']);
+ assert.equal(JSON.stringify(historical), frozen, 'the snapshot object is not mutated');
+ assert.equal(displayNovelty(historical, undefined), historical, 'not enriched: the snapshot as is');
+ assert.equal(displayNovelty(historical, null), historical, 'not a prospect now: the snapshot as is');
+ // The snapshot says ADDED but that prospect no longer exists: never a dead "Voir le prospect".
+ assert.deepEqual(displayNovelty(seen({status: 'ADDED', prospect_id: 'gone'}), null)!.status, 'SEEN');
+ // Run 1: X was SEEN; X is then added from another run → reopening run 1 shows ADDED with that prospect.
+ const row = (id: string, word: string, status = 'pending', snapshot: Novelty = seen()) => ({id, status, company_name: `Studio ${word}`, website: `https://${word.toLowerCase()}.example/`, phone: null, city: null, source_url: `https://${word.toLowerCase()}.example/`, source_class: 'COMPANY_CANDIDATE', normalized_payload: {raw_metadata: {novelty: snapshot}}});
+ const now = currentProjectStatuses([row('r1', 'Xray'), row('r2', 'Yankee'), row('r3', 'Zulu', 'accepted'), row('r4', 'Kilo', 'pending', seen({status: 'ADDED', prospect_id: 'p-deleted'}))], [{id: 'p-x', name: 'Studio Xray (fiche)', website: 'https://www.xray.example/'}]);
+ assert.deepEqual(now.get('r1'), {status: 'ADDED', prospect_id: 'p-x'});
+ assert.equal(now.get('r2'), null);
+ assert.ok(!now.has('r3'), 'a row accepted from this run keeps its own state');
+ assert.equal(now.get('r4'), null, 'a deleted prospect is not "already added"');
+});
+
+test('HARD-1 — the run read enriches display only: no write, snapshot and metrics untouched; the UI acts on the shown status', async () => {
+ const api = await readFile(new URL('../src/discovery/api.ts', import.meta.url), 'utf8');
+ const read = api.slice(api.indexOf("if(action==='results'){"), api.indexOf("if(action==='cost')"));
+ assert.match(read, /currentProjectStatuses\(rows,await projectProspects\(db,run\.project_id\)\)/);
+ assert.doesNotMatch(read, /\.update\(|\.insert\(|\.upsert\(|rpc\(/, 'reading a run never writes');
+ assert.match(read, /current_project_status:current\.get\(r\.id\)\?\?null/);
+ const panel = await readFile(new URL('../src/components/DiscoveryPanel.tsx', import.meta.url), 'utf8');
+ assert.match(panel, /const novOf=\(r:DiscoveryResult\)=>displayNovelty\(histOf\(r\),r\.current_project_status\);/);
+ assert.match(panel, /const nov=novOf\(r\);const hist=histOf\(r\);const alreadyProspect=r\.status==='pending'&&nov\?\.status==='ADDED'&&!!nov\.prospect_id;/, '"Ajouter" is hidden on the CURRENT status');
+});
+
+test('HARD-2 — ALREADY_ADDED is a decision, not an error: the stale "Ajouter" is refused with the existing prospect', async () => {
+ const prospects = [{id: 'p1', name: 'Studio Kilo', website: 'https://kilo.example/', discovery_dedupe_key: 'domain:kilo.example|'}];
+ const row = (over: Record<string, unknown> = {}) => ({dedupe_status: 'unique', dedupe_key: 'domain:kilo.example|autre-zone', company_name: 'Studio Kilo', website: 'https://kilo.example/', phone: null, city: null, source_url: 'https://kilo.example/', ...over});
+ assert.equal(alreadyAddedProspect(row(), 'COMPANY_CANDIDATE', prospects, false), 'p1', 'the RPC would create a second prospect → refused');
+ assert.equal(alreadyAddedProspect(row(), 'COMPANY_CANDIDATE', prospects, true), 'p1', '"Ajouter séparément" too');
+ assert.equal(alreadyAddedProspect(row({dedupe_key: 'domain:kilo.example|'}), 'COMPANY_CANDIDATE', prospects, false), null, 'same key: the RPC links to it, nothing to refuse');
+ assert.equal(alreadyAddedProspect(row({dedupe_status: 'duplicate_candidate'}), 'COMPANY_CANDIDATE', prospects, false), null, 'the dedup link stays with the RPC');
+ assert.equal(alreadyAddedProspect(row({website: 'https://autre.example/', source_url: 'https://autre.example/'}), 'COMPANY_CANDIDATE', prospects, false), null);
+ const api = await readFile(new URL('../src/discovery/api.ts', import.meta.url), 'utf8');
+ assert.match(api, /const same=alreadyAddedProspect\(identity,row\.source_class,prospects,b\.force_separate\);\n  if\(same\)return json\(\{error:[^}]*code:'ALREADY_ADDED',prospect_id:same\},409\)/);
+});
+
+test('HARD-2 — the UI reconciles an ALREADY_ADDED instead of showing a raw 409', async () => {
+ const panel = await readFile(new URL('../src/components/DiscoveryPanel.tsx', import.meta.url), 'utf8');
+ assert.match(panel, /if\(\(e as \{code\?:string\}\)\.code==='ALREADY_ADDED'\)\{await reconcileAlreadyAdded\(row,\(e as \{prospect_id\?:string\}\)\.prospect_id\?\?null,revision\);return\}throw e/);
+ const reconcile = panel.slice(panel.indexOf('async function reconcileAlreadyAdded('), panel.indexOf(' function recordDecision('));
+ assert.match(reconcile, /current_project_status:\{status:'ADDED',prospect_id:prospectId\}/);
+ assert.match(reconcile, /setInfo\(tr\('novelty\.alreadyAddedNotice'\)\);onProjectChanged\?\.\(\);/);
+ assert.match(reconcile, /api\(`discovery-runs\/\$\{run\}\/results`\)/, 'then the run as the server sees it now');
+ assert.doesNotMatch(reconcile, /setError|'POST'/, 'no error, no second add');
+ assert.match(panel, /\{info&&<p role="status" className="note novelty-info">\{info\}<\/p>\}/);
+ const page = await readFile(new URL('../app/page.tsx', import.meta.url), 'utf8');
+ assert.match(page, /if\(typeof data\.prospect_id==='string'\)\(err as Error&\{prospect_id\?:string\}\)\.prospect_id=data\.prospect_id;throw err;/);
+ assert.match(page, /onProjectChanged=\{\(\)=>\{if\(mode==='live'\)void syncDiscoveryEvidence\(\)\}\}/, 'the prospect list is refreshed so "Voir le prospect" opens it');
+ for (const lang of ['fr', 'en']) assert.match(await readFile(new URL(`../src/i18n/${lang}.ts`, import.meta.url), 'utf8'), /'novelty\.alreadyAddedNotice':'/);
 });

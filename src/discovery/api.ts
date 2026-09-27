@@ -10,12 +10,15 @@ import {DiscoveryInputSchema} from './types.ts';
 import {requireActiveEntitlement} from '../server/entitlement.ts';
 import {recordApiUsage} from '../server/usage.ts';
 import {computeRunCostMetrics} from './cost-metrics.ts';
-import {strongProspectMatch} from './novelty-engine.ts';
+import {alreadyAddedProspect,currentProjectStatuses} from './novelty-engine.ts';
 import {isAcceptableSourceClass} from './source-classification.ts';
 import {createAdminClient} from '../server/admin-client.ts';
 import {analyzeProspectWebsite,createPolicyFetcher} from './website-analysis.ts';
 import {createSupabaseAnalysisAudit} from './analysis-audit.ts';
 import {dynamicAnalysisEnabled} from './analysis-authorization.ts';
+// The project's prospects with the identity the novelty engine compares (own website, phone, dedupe key).
+async function projectProspects(db:SupabaseClient,projectId:string){const rows=await checked(db.from('prospects').select('id,name,website,city,discovery_dedupe_key,channels(kind,value)').eq('project_id',projectId));
+ return rows.map((p:{id:string;name:string;website:string|null;city:string|null;discovery_dedupe_key:string|null;channels?:Array<{kind:string;value:string}>})=>({id:p.id,name:p.name,website:p.website,city:p.city,discovery_dedupe_key:p.discovery_dedupe_key,phone:p.channels?.find(c=>c.kind==='phone')?.value??null}))}
 const uuid=z.string().uuid();
 // Refusals of "Analyser le site" decided by the server-side authorization or by robots.txt.
 const ANALYSIS_REFUSALS:Record<string,[string,number]>={
@@ -65,7 +68,11 @@ export async function handleDiscovery(request:Request,path:string[],body:unknown
  return json(result,201);
  }
  if(resource==='discovery-runs'&&method==='GET'){
- uuid.parse(id);const run=await checked(db.from('discovery_runs').select('*').eq('id',id).single());if(action==='results')return json(await checked(db.from('discovery_results').select('*').eq('discovery_run_id',run.id).order('created_at')));if(action==='cost')return json(await computeRunCostMetrics(db,run.id));if(!action)return json(run);
+ uuid.parse(id);const run=await checked(db.from('discovery_runs').select('*').eq('id',id).single());if(action==='results'){const rows=await checked(db.from('discovery_results').select('*').eq('discovery_run_id',run.id).order('created_at'));
+ // Enriched with where each actor stands in the project NOW (display only — the run's snapshot and metrics
+ // stay as they were): one read of the project's prospects, matched in memory, RLS-scoped.
+ const current=rows.length?currentProjectStatuses(rows,await projectProspects(db,run.project_id)):new Map();
+ return json(rows.map((r:{id:string;status:string})=>r.status==='accepted'?r:{...r,current_project_status:current.get(r.id)??null}))}if(action==='cost')return json(await computeRunCostMetrics(db,run.id));if(!action)return json(run);
  }
  if(resource==='discovery-results'&&method==='POST'){
  uuid.parse(id);if(action==='accept'){const b=z.object({force_separate:z.boolean().default(false)}).strict().parse(body);
@@ -78,11 +85,10 @@ export async function handleDiscovery(request:Request,path:string[],body:unknown
  // phone as an existing prospect, and the RPC would create a new one (not the dedup link to that prospect,
  // not the same dedupe key it would reuse) → refused, with the prospect to open instead. One read, RLS-scoped.
  const identity=row?.status==='pending'?await checked(db.from('discovery_results').select('project_id,dedupe_status,dedupe_key,company_name,website,phone,city,source_url').eq('id',id).single()):null;
- if(identity&&identity.dedupe_status!=='duplicate_candidate'){const prospects=await checked(db.from('prospects').select('id,name,website,city,discovery_dedupe_key,channels(kind,value)').eq('project_id',identity.project_id));
+ if(identity&&identity.dedupe_status!=='duplicate_candidate'){const prospects=await projectProspects(db,identity.project_id);
   // The stored website is the organization's own (null unless resolution admitted it) — no jsonb read.
-  const same=strongProspectMatch({name:identity.company_name,website:identity.website,phone:identity.phone,city:identity.city,source_url:identity.source_url,raw_metadata:{source_class:row.source_class}},prospects.map((p:{id:string;name:string;website:string|null;city:string|null;channels?:Array<{kind:string;value:string}>})=>({id:p.id,name:p.name,website:p.website,city:p.city,phone:p.channels?.find(c=>c.kind==='phone')?.value??null})));
-  const reused=same&&!b.force_separate&&prospects.find((p:{id:string;discovery_dedupe_key:string|null})=>p.id===same)?.discovery_dedupe_key===identity.dedupe_key;
-  if(same&&!reused)return json({error:'Cet acteur est déjà un prospect de ce projet : ouvrez sa fiche plutôt que d’en créer un second.',code:'ALREADY_ADDED',prospect_id:same},409)}
+  const same=alreadyAddedProspect(identity,row.source_class,prospects,b.force_separate);
+  if(same)return json({error:'Cet acteur est déjà un prospect de ce projet : ouvrez sa fiche plutôt que d’en créer un second.',code:'ALREADY_ADDED',prospect_id:same},409)}
  const accepted=await db.rpc('accept_discovery_result',{p_result_id:id,p_force_separate:b.force_separate});if(accepted.error?.message?.includes('CANDIDATE_NOT_ACCEPTABLE'))return notAcceptable();
  return json(await checked(Promise.resolve(accepted)));}
  if(action==='ignore'){return json(await checked(db.rpc('ignore_discovery_result',{p_result_id:id})))}

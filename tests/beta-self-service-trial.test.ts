@@ -62,7 +62,7 @@ test('route.ts: account/activate-trial calls db.rpc(\'activate_trial\') through 
  assert.match(source,/id==='activate-trial'&&request\.method==='POST'/);
  assert.match(source,/db\.rpc\('activate_trial'\)/);
  assert.match(source,/BETA_CAPACITY_REACHED/);
- assert.match(source,/Les accès à la bêta sont momentanément complets\. Votre compte a bien été créé\./);
+ assert.match(source,/La bêta est actuellement complète\. Contactez-nous pour être informé de la prochaine ouverture\./);
 });
 test('route.ts: grant_beta_access / grant_internal_access (admin-only) are never referenced by the new route — self-service is a genuinely separate, narrower path',async()=>{
  const source=await readFile(new URL('../app/api/v1/[...path]/route.ts',import.meta.url),'utf8');

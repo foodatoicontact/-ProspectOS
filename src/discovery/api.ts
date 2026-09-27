@@ -16,6 +16,7 @@ import {createAdminClient} from '../server/admin-client.ts';
 import {analyzeProspectWebsite,createPolicyFetcher} from './website-analysis.ts';
 import {createSupabaseAnalysisAudit} from './analysis-audit.ts';
 import {dynamicAnalysisEnabled} from './analysis-authorization.ts';
+import {trackAnalysisReservation,releaseOnFailure,releaseCommercialUse} from '../server/commercial-usage.ts';
 // The project's prospects with the identity the novelty engine compares (own website, phone, dedupe key).
 async function projectProspects(db:SupabaseClient,projectId:string){const rows=await checked(db.from('prospects').select('id,name,website,city,discovery_dedupe_key,channels(kind,value)').eq('project_id',projectId));
  return rows.map((p:{id:string;name:string;website:string|null;city:string|null;discovery_dedupe_key:string|null;channels?:Array<{kind:string;value:string}>})=>({id:p.id,name:p.name,website:p.website,city:p.city,discovery_dedupe_key:p.discovery_dedupe_key,phone:p.channels?.find(c=>c.kind==='phone')?.value??null}))}
@@ -102,13 +103,17 @@ export async function handleDiscovery(request:Request,path:string[],body:unknown
  if(action==='analyze'&&method==='POST'){
  // The request body is never read here: the destination is decided from server data only.
  const p=await repo.prospect(id);
+ // Commercial plan: an analysis that produced no result (fetch failed, site unreachable, refused, timeout)
+ // gives its plan unit back through the privileged client. The hourly anti-abuse log is left untouched.
+ const tracked=trackAnalysisReservation(repo);
+ const refund=async()=>releaseCommercialUse(createAdminClient(),user.id,'analysis');
  // Accepted discovery results of this prospect, read under RLS (same organization only). Members can no
  // longer write discovery_results (migration 014), so these rows are server-written facts.
  const accepted=await checked(db.from('discovery_results').select('status,provider,source_class,website,source_url,raw_payload').eq('prospect_id',id).eq('status','accepted'));
  // A fixture-accepted prospect never touches the network: its known .fixture.example pages resolve
  // deterministically (unchanged path, no audit — nothing real is fetched).
  const fixture=accepted.length>0&&accepted.every((r:{provider:string})=>r.provider==='fixture');
- if(fixture){if(!p.website||!isFixtureUrl(p.website))throw Error('FIXTURE_WEBSITE_MISMATCH');return json(await new CompanyAnalysisService(repo,createCompositePageFetcher(()=>Promise.reject(Error('FIXTURE_ONLY'))),log).analyze_company(id,'test_fixture'))}
+ if(fixture){if(!p.website||!isFixtureUrl(p.website))throw Error('FIXTURE_WEBSITE_MISMATCH');return json(await releaseOnFailure(()=>new CompanyAnalysisService(tracked.repo,createCompositePageFetcher(()=>Promise.reject(Error('FIXTURE_ONLY'))),log).analyze_company(id,'test_fixture'),tracked.reserved,refund))}
  // Real website: server-derived authorization (dynamic Discovery capability behind its kill switch, or the
  // operator allowlist), audited through the privileged client — obtained first, so a server that cannot
  // audit never fetches.
@@ -116,7 +121,7 @@ export async function handleDiscovery(request:Request,path:string[],body:unknown
  const audit=createSupabaseAnalysisAudit(auditWriter,user.id);
  const staticAllowlist=(process.env.DISCOVERY_ALLOWED_HOSTS??'').split(',').map(s=>s.trim().toLowerCase()).filter(Boolean);
  const fetchPage=createPolicyFetcher(safeFetch);
- try{return json(await analyzeProspectWebsite({repo,prospectId:id,userId:user.id,acceptedResults:accepted,staticAllowlist,dynamicEnabled:dynamicAnalysisEnabled(process.env.DISCOVERY_DYNAMIC_ANALYSIS_ENABLED),audit,fetchPage,log}))}
+ try{return json(await releaseOnFailure(()=>analyzeProspectWebsite({repo:tracked.repo,prospectId:id,userId:user.id,acceptedResults:accepted,staticAllowlist,dynamicEnabled:dynamicAnalysisEnabled(process.env.DISCOVERY_DYNAMIC_ANALYSIS_ENABLED),audit,fetchPage,log}),tracked.reserved,refund))}
  // Authorization and robots refusals: their own codes, a generic sentence, no address or host detail.
  // Every other error goes to the shared handler below, unchanged.
  catch(e){const code=e instanceof Error?e.message:'';const refusal=ANALYSIS_REFUSALS[code];if(refusal)return json({error:refusal[0],code},refusal[1]);throw e}

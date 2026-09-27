@@ -7,7 +7,7 @@ import {trustedSourceClass} from './source-classification.ts';
 // The original Postgres error (message/code) is kept as .cause for server-side logging only — the
 // thrown message itself is unchanged, so existing error-code routing and the user-facing text stay
 // exactly as before. Never exposed to the client: routes only ever return the generic mapped message.
-export async function checked(query:PromiseLike<any>){const {data,error}=await query;if(error){if(error.message?.includes('plan_limit_reached'))throw Error('PLAN_LIMIT_REACHED');if(error.message?.includes('quota_exceeded'))throw Error('QUOTA_EXCEEDED');if(error.message?.includes('max_results'))throw Error('MAX_RESULTS_EXCEEDED');throw Error('DATABASE_REQUEST_FAILED',{cause:error})}return data}
+export async function checked(query:PromiseLike<any>){const {data,error}=await query;if(error){if(error.message?.includes('plan_limit_reached'))throw Error('PLAN_LIMIT_REACHED');if(error.message?.includes('offer_limit_reached'))throw Error('OFFER_LIMIT_REACHED');if(error.message?.includes('offer_analysis_in_progress'))throw Error('OFFER_ANALYSIS_IN_PROGRESS');if(error.message?.includes('quota_exceeded'))throw Error('QUOTA_EXCEEDED');if(error.message?.includes('max_results'))throw Error('MAX_RESULTS_EXCEEDED');throw Error('DATABASE_REQUEST_FAILED',{cause:error})}return data}
 // Project Discovery memory bound (novelty.ts): 10 pages of 1000 earlier results, newest first.
 export const MEMORY_MAX_ROWS=10000;
 // save_discovery_observations requires: UNKNOWN => value null; any other status with a non-null

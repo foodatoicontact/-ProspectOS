@@ -96,9 +96,9 @@ export function deepPassLine(locale:Locale,index:number,results:number,newTotal:
  return locale==='fr'?`Passe ${index} : ${results} résultat${results>1?'s':''} · ${newTotal} nouvel${newTotal>1?'s':''} acteur${newTotal>1?'s':''} exploitable${newTotal>1?'s':''} · ${s} s`:`Pass ${index}: ${results} result${results===1?'':'s'} · ${newTotal} new exploitable actor${newTotal===1?'':'s'} · ${s} s`;
 }
 // Commercial counters (ProspectOS Bêta). Numbers come from the server; nothing here computes a quota.
-export function usageCounterLabel(locale:Locale,kind:'discovery'|'analysis',used:number,limit:number):string{
- if(kind==='discovery')return locale==='fr'?`Discovery : ${used} / ${limit} utilisées`:`Discovery: ${used} / ${limit} used`;
- return locale==='fr'?`Analyses : ${used} / ${limit}`:`Analyses: ${used} / ${limit}`;
+export function usageCounterLabel(locale:Locale,kind:'discovery'|'analysis'|'ai_offer',used:number,limit:number):string{
+ const label=locale==='fr'?{discovery:'Discovery',analysis:'Analyses prospects',ai_offer:'Analyses d’offre IA'}[kind]:{discovery:'Discovery',analysis:'Prospect analyses',ai_offer:'AI offer analyses'}[kind];
+ return locale==='fr'?`${label} : ${used} / ${limit}`:`${label}: ${used} / ${limit}`;
 }
 export function usageResetLabel(locale:Locale,dateStr:string):string{
  const date=new Date(dateStr).toLocaleDateString(locale==='fr'?'fr-FR':'en-US');

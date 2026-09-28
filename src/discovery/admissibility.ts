@@ -19,7 +19,7 @@ import {compareLocation,isPlaceName,locationTarget,placesIn,type LocationState} 
 export type PageType = 'OFFICIAL_ORGANIZATION_SITE' | 'OFFICIAL_JOB_PAGE' | 'THIRD_PARTY_JOB_BOARD' | 'DIRECTORY' | 'TRAINING_PROVIDER' | 'TRAINING_COURSE_PAGE'
  | 'NEWS_ARTICLE' | 'BLOG_OR_CONTENT' | 'SOCIAL_PROFILE' | 'GOVERNMENT_OR_PUBLIC_DIRECTORY' | 'UNKNOWN';
 export type AdmissibilityReason = 'ADMISSIBLE' | 'TRAINING_COURSE_PAGE' | 'DIRECTORY_PAGE' | 'PUBLIC_DIRECTORY_PAGE' | 'SOCIAL_PROFILE_PAGE'
- | 'EXCLUDED_BY_QUERY' | 'ENTITY_UNRESOLVED' | 'NO_OBSERVABLE_RELEVANCE' | 'LOCATION_MISMATCH';
+ | 'EXCLUDED_BY_QUERY' | 'ENTITY_UNRESOLVED' | 'NO_OBSERVABLE_RELEVANCE' | 'LOCATION_MISMATCH' | 'SECTOR_BODY_PAGE';
 export type EntityMethod = 'own_site' | 'own_job_page' | 'job_title_employer' | 'labeled_field' | 'title_organization' | 'explicit_title_pattern' | 'cited_domain';
 // RESOLVED_HIGH: the organization's own site/job page identifies it (name + website). RESOLVED_MEDIUM: an
 // organization explicitly named by a secondary source, identity/website not confirmed. UNRESOLVED: no
@@ -327,6 +327,41 @@ export function resolveCandidateEntity(pageType: PageType, input: {title: string
 }
 
 // ------------------------------------------------------------
+// Sector bodies and page words.
+// ------------------------------------------------------------
+// A professional body of the sector — federation, trade union, chamber, professional order, cluster — speaks
+// FOR the companies the user is looking for; it is not one of them. Its page stays visible as a source (with
+// its reason), but it is not proposed as a prospect unless the brief itself targets such bodies or looks for
+// employers/structures in general (a job seeker's "structures employeuses" does include a federation). Public
+// bodies that buy works (syndicat intercommunal, syndicat des eaux, syndicat mixte) are NOT sector bodies.
+const SECTOR_BODY = /^(la |le |les |l['’])?(f[ée]d[ée]rations?|conf[ée]d[ée]ration|syndicats? (?!(intercommunal|mixte|des eaux|d['’]eau|d['’]assainissement|d['’][ée]nergie|de communes|d['’][ée]lectricit[ée]|de bassin|des ordures))|syndicat$|union (professionnelle|patronale|r[ée]gionale des|nationale des|des entreprises)|chambres? (de commerce|des m[ée]tiers|r[ée]gionale|syndicale|d['’]agriculture|professionnelle)|ordre (des|national)|clusters?\b|p[ôo]le de comp[ée]titivit[ée]|interprofession|organisation professionnelle|groupement professionnel|observatoire (des|r[ée]gional))/i;
+// Reinforcing only: well-known national professional bodies written as acronyms.
+const SECTOR_BODY_ACRONYM = /^(FNTP|FRTP|FFB|CAPEB|UNICEM|SYNTEC|CINOV|MEDEF|CPME|U2P|UMIH|CCI|CMA)\b/;
+const SECTOR_INTENT = /\b(f[ée]d[ée]rations?|syndicats?|chambres?|unions?|organisations? professionnelles?|associations?|clusters?|r[ée]seaux?|interprofessions?|ordres? professionnels?|structures?|employeu\w*|recrut\w*|alternan\w*|stages?)\b/i;
+export function isSectorBody(name: string, title: string): boolean {
+ return [name, ...titleSegments(title)].some(s => SECTOR_BODY.test(s.trim()) || SECTOR_BODY_ACRONYM.test(s.trim()));
+}
+export const briefTargetsSectorBodies = (context: QueryContext | undefined): boolean =>
+ !!context && SECTOR_INTENT.test(`${parseQueryExclusions(context.query).cleanedQuery} ${context.categories.join(' ')}`);
+
+// Words of the PAGE, not of the organization ("Accueil - Ribière", "Ribière | Recrutement", "Bienvenue chez
+// X"): removed at either end of a name, only when a distinctive name remains. Never anything in the middle.
+const PAGE_WORDS = "accueil|home|homepage|page d['’]accueil|site officiel|recrutement|nos offres(?: d['’]emploi)?|offres d['’]emploi|contact(?:ez-nous)?|qui sommes[- ]nous|nos r[ée]alisations|nos services|mentions l[ée]gales";
+// A page word is only removed when a separator cuts it from the name ("Accueil - X", "X | Recrutement"), so a
+// company named "Home Services" keeps its name; the two greeting forms are removed before the name itself.
+const LEADING_PAGE_WORDS = new RegExp(`^(?:(?:${PAGE_WORDS})\\s*[-–—|:,]\\s*|(?:bienvenue (?:chez|sur|dans)|site officiel de)\\s+)`, 'i');
+const TRAILING_PAGE_WORDS = new RegExp(`\\s*[-–—|:,]\\s*(?:${PAGE_WORDS})\\s*$`, 'i');
+export function stripPageWords(name: string): string {
+ let n = name.replace(/\s+/g, ' ').trim();
+ for (let i = 0; i < 3; i++) {
+  const next = n.replace(LEADING_PAGE_WORDS, '').replace(TRAILING_PAGE_WORDS, '').trim();
+  if (next === n || next.length < 2 || !hasDistinctiveName(next)) break;
+  n = next;
+ }
+ return n;
+}
+
+// ------------------------------------------------------------
 // The gate.
 // ------------------------------------------------------------
 // Never a prospect, and never used to name one.
@@ -356,7 +391,7 @@ export function evaluateCandidateAdmissibility(input: {title: string; descriptio
  // Entity resolution is attempted before any project-level dedup/exclusion (services.ts): an
  // organization later found to be already known is still correctly RESOLVED.
  const found = resolveCandidateEntity(pageType, input);
- const entity = found ? {...found, name: canonicalOrganizationName(found.name)} : null;
+ const entity = found ? {...found, name: canonicalOrganizationName(stripPageWords(found.name))} : null;
  const placeNames = tgt ? tgt.cityTokens : [];
  const sourceDomain = urlParts(input.url).domain;
  if (!entity || entity.name.trim().length < 2 || isPlaceName(entity.name, placeNames) || isQueryEchoOrGeneric(entity.name, input.context)
@@ -365,6 +400,9 @@ export function evaluateCandidateAdmissibility(input: {title: string; descriptio
  // "Exclure organismes de formation": an organization whose own name says it is a training institution
  // is excluded whatever page named it.
  if (exclusions.pageTypes.has('TRAINING_PROVIDER') && TRAINING_ORG_NAME.test(entity.name)) return verdict('EXCLUDED_BY_QUERY', entity);
+ // A federation, trade union or chamber of the sector: kept as a visible source, never proposed as a prospect
+ // unless the brief targets such bodies (see isSectorBody).
+ if (!briefTargetsSectorBodies(input.context) && isSectorBody(entity.name, input.title)) return verdict('SECTOR_BODY_PAGE', entity);
  if (input.resolution.classificationReasons.includes('no_observable_relevance')) return verdict('NO_OBSERVABLE_RELEVANCE', entity);
  if (loc.state === 'MISMATCH') return verdict('LOCATION_MISMATCH', entity);
  return verdict('ADMISSIBLE', entity);

@@ -35,6 +35,13 @@ const JOB_VOCABULARY = /\b(H\/F|F\/H|CDI|CDD|alternance|offres? d['’]emploi|em
 const JOB_LISTING_COUNT = /\b\d[\d\s.,]*\+?\s*(offres?|emplois?|jobs?|missions?|annonces?|postes?)\b/i;
 const PROFILE_LISTING_COUNT = /\b\d[\d\s.,]*\+?\s*(freelances?|profils?|prestataires?|consultants?|experts?)\b/i;
 const RESULTS_COUNT = /\b\d[\d\s.,]*\+?\s*r[ée]sultats?\b/i;
+// "245 entreprises de travaux publics", "Plus de 80 sociétés VRD en Occitanie": a count of organizations is a
+// listing, never one organization's own page.
+const COMPANY_LISTING_COUNT = /\b\d[\d\s.,]*\+?\s*(entreprises?|soci[ée]t[ée]s?|artisans?|professionnels?|fournisseurs?|fabricants?|constructeurs?)\b/i;
+// A category page of a listing site: a plural group of organizations searched in a place ("Entreprises de
+// travaux publics à Toulouse", "Artisans VRD en Haute-Garonne"), or a category/listing path segment.
+const CATEGORY_TITLE = /^\s*(les |des |liste des |toutes les )?(entreprises|soci[ée]t[ée]s|artisans|professionnels|fournisseurs|prestataires|fabricants|constructeurs)\b[^|–—-]{0,60}\b(à|a|en|dans|sur|pr[èe]s de|autour de)\s+[A-ZÀ-Ý]/;
+const CATEGORY_PATH_SEGMENT = /^(categories?|categorie|category|secteurs?|activites?|liste|listes|listing|tags?|rubriques?|metiers?-du-btp)$/i;
 const MARKETPLACE_VOCABULARY = /\b(marketplace|plateforme|trouvez (les |des |un |une )?(meilleurs? )?(freelances?|prestataires?|consultants?|experts?|profils?))\b/i;
 const DIRECTORY_VOCABULARY = /\b(annuaire|comparateur)\b/i;
 const EDITORIAL_PATH_SEGMENT = /^(actualites?|actus?|news|article|articles|blog|magazine|presse|dossiers?|\d{4})$/i;
@@ -83,7 +90,7 @@ export function classifySourceType(input: {title: string; description: string; u
   return {type: 'job_board', reasons: [knownJobBoard ? 'known_job_board' : 'job_structure']};
  if (knownMarketplace || PROFILE_LISTING_COUNT.test(title) || MARKETPLACE_VOCABULARY.test(titleAndDescription))
   return {type: 'marketplace', reasons: [knownMarketplace ? 'known_marketplace' : 'marketplace_structure']};
- if (isKnownAggregatorHost(hostname) || DIRECTORY_VOCABULARY.test(title) || DIRECTORY_PHRASES.test(titleAndDescription))
+ if (isKnownAggregatorHost(hostname) || DIRECTORY_VOCABULARY.test(title) || DIRECTORY_PHRASES.test(titleAndDescription) || COMPANY_LISTING_COUNT.test(title) || CATEGORY_TITLE.test(title) || segments.some(s => CATEGORY_PATH_SEGMENT.test(s)))
   return {type: 'directory', reasons: ['directory_structure']};
  if (paramKeys.some(k => SEARCH_PARAM_KEYS.has(k)) || segments.some(s => SEARCH_PATH_SEGMENT.test(s)) || RESULTS_COUNT.test(title))
   return {type: 'search_page', reasons: ['search_page_structure']};
@@ -98,7 +105,7 @@ export function classifySourceType(input: {title: string; description: string; u
 
 // A listing page's title describes the listing ("Freelance Media : plus de 100 emplois"), never an
 // entity — no company name may ever be extracted from it.
-export const isListingTitle = (title: string): boolean => JOB_LISTING_COUNT.test(title) || PROFILE_LISTING_COUNT.test(title) || RESULTS_COUNT.test(title);
+export const isListingTitle = (title: string): boolean => JOB_LISTING_COUNT.test(title) || PROFILE_LISTING_COUNT.test(title) || RESULTS_COUNT.test(title) || COMPANY_LISTING_COUNT.test(title);
 
 const STOPWORDS = new Set(['les', 'des', 'une', 'pour', 'avec', 'dans', 'sur', 'par', 'aux', 'est', 'son', 'ses', 'leur', 'leurs', 'qui', 'que', 'site', 'officiel', 'france', 'the', 'and', 'for',
  // Instruction words of a natural-language brief ("Trouver… Prioriser… Chercher des signaux…"): never evidence of relevance.

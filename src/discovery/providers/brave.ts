@@ -7,6 +7,7 @@ import {resolveCanonicalCompany} from '../entity-resolution.ts';
 import {sourceDomainOf,type QueryContext} from '../source-classification.ts';
 import {evaluateCandidateAdmissibility,pageLabel} from '../admissibility.ts';
 import {getDomain} from 'tldts';
+import {locationTarget,mentionedPlace} from '../geo-fr.ts';
 import {planSearchQueries} from '../query-plan.ts';
 import {resolveMarket,type MarketReason} from '../market.ts';
 import {diagnoseDiscoveryFailure} from '../failure-diagnostics.ts';
@@ -145,6 +146,9 @@ export class BraveProvider implements DiscoveryProvider {
  location_target:gate.location.target,
  location_regions:gate.location.regions,
  location_departments:gate.location.departments,
+ // A place the source text explicitly names (display only, never an identity field: city stays null so
+ // deduplication and novelty keys are unchanged). null = unknown.
+ observed_location:mentionedPlace(gate.location.target?locationTarget(gate.location.target):null,`${title} ${description}`),
  source_domain:resolution.sourceDomain,
  company_name:entity?.name??null,
  company_domain:entity?.website?sourceDomainOf(entity.website):null,

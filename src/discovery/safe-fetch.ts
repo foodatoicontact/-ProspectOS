@@ -210,7 +210,8 @@ export function createSafeFetch(dependencies: SafeFetchDependencies) {
           current = enforcePolicy(validateUrl(new URL(location, current).toString(), options.allowedHosts), current);
           continue;
         }
-        if (expected === 'robots' && response.statusCode === 404) {
+        // RFC 9309 §2.3.1.3: a robots.txt that does not exist (404) or no longer exists (410) means no rules.
+        if (expected === 'robots' && (response.statusCode === 404 || response.statusCode === 410)) {
           destroyBody(response);
           return {url: current, response, body: ''};
         }
@@ -244,7 +245,7 @@ export function createSafeFetch(dependencies: SafeFetchDependencies) {
         // authority (bebureau.com/robots.txt -> www.bebureau.com/robots.txt still governs bebureau.com).
         // Parsed against the final URL instead, every such site was refused. Still fail-closed: any
         // answer other than an explicit "allowed" blocks.
-        if (robots.response.statusCode !== 404 && robotsParser(robotsUrl.toString(), robots.body).isAllowed(target.toString(), ROBOTS_TOKEN) !== true) throw new Error('Blocked by robots.txt');
+        if (robots.response.statusCode !== 404 && robots.response.statusCode !== 410 && robotsParser(robotsUrl.toString(), robots.body).isAllowed(target.toString(), ROBOTS_TOKEN) !== true) throw new Error('Blocked by robots.txt');
       } catch (error) {
         if (error instanceof Error && /robots\.txt$|Blocked by robots/.test(error.message)) throw error;
         throw new Error(`Robots check failed: ${error instanceof Error ? error.message : String(error)}`);

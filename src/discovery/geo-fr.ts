@@ -130,3 +130,23 @@ export function compareLocation(target: LocationTarget, candidateText: string): 
  if ([...candidate.regions].some(r => target.places.regions.has(r))) return {state: 'COMPATIBLE', candidate};
  return {state: 'MISMATCH', candidate};
 }
+
+// The most precise place the candidate's own text EXPLICITLY names, for display only ("where does the source
+// say this organization is?"): a city of the requested zone written in the text, else the departments, else
+// the regions it names. null when the text names no place — shown as unknown, never guessed, never the
+// requested zone by default. A place named in a snippet is a mention, not a verified head-office address.
+export function mentionedPlace(target: LocationTarget | null, candidateText: string): string | null {
+ const folded = ` ${foldPlace(candidateText)} `;
+ if (target) {
+  const part = target.text.split(/,|\bet\b|\bou\b|\(|\)|\//i).map(p => p.trim()).find(p => {
+   const token = foldPlace(p).split(' ').filter(w => w.length >= 3 && !/^\d+$/.test(w))[0];
+   return !!token && target.cityTokens.includes(token) && folded.includes(` ${token} `);
+  });
+  if (part) return part.replace(/\s+/g, ' ').slice(0, 60);
+ }
+ const found = placesIn(candidateText);
+ const departments = DEPARTMENTS.filter(d => found.departments.has(d.code)).slice(0, 2).map(d => `${d.name} (${d.code})`);
+ if (departments.length) return departments.join(', ');
+ const regions = [...found.regions].slice(0, 2);
+ return regions.length ? regions.join(', ') : null;
+}

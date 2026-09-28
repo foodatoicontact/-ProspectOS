@@ -6,6 +6,7 @@ import {DeduplicationService} from '../discovery/deduplication';
 import {scoreProspect,type Criterion,type Prospect} from '../domain/core';
 import {translate,searchDoneNote,discoveryFoundNote,runDateLabel,runCountsLabel,resultsSummaryLabel,noveltySummaryLabel,runNoveltyLabel,deepStopLabel,passesLabel,deepPassLine,newActorsFoundLabel,type Locale,type TKey} from '../i18n';
 import {noveltyOf,displayNovelty,decidedNovelty,noveltyCounts,newFirst,isEligibleCandidate,NOVELTY_STATUSES,type NoveltyStatus} from '../discovery/novelty';
+import {reviewPriority,byReviewPriority,type ReviewPriority} from '../discovery/review-priority';
 import {MAX_PROVIDER_CALLS,type SearchMode} from '../discovery/search-until-new';
 import {createInFlight} from './evidence-verification';
 import {summarizeRuns,runState,replayFields,HISTORY_FIRST_PAGE,HISTORY_MORE_PAGE,HISTORY_MAX,type RunSummary,type ReplayFields} from '../discovery/run-history';
@@ -13,7 +14,7 @@ type CompanyNameStatus='RESOLVED'|'UNRESOLVED';
 type CompanyDomainStatus='RESOLVED'|'UNRESOLVED';
 type SourceClass='COMPANY_CANDIDATE'|'SIGNAL_SOURCE'|'IRRELEVANT'|'UNCERTAIN';
 type ResolutionMeta={company_name_status?:CompanyNameStatus;company_domain_status?:CompanyDomainStatus;source_class?:SourceClass;source_type?:string;admissibility?:{reason_code?:string};additional_sources?:Array<{source_url:string;source_title:string}>};
-const REASON_KEYS:Record<string,TKey>={TRAINING_COURSE_PAGE:'discovery.reason.TRAINING_COURSE_PAGE',DIRECTORY_PAGE:'discovery.reason.DIRECTORY_PAGE',PUBLIC_DIRECTORY_PAGE:'discovery.reason.PUBLIC_DIRECTORY_PAGE',SOCIAL_PROFILE_PAGE:'discovery.reason.SOCIAL_PROFILE_PAGE',EXCLUDED_BY_QUERY:'discovery.reason.EXCLUDED_BY_QUERY',ENTITY_UNRESOLVED:'discovery.reason.ENTITY_UNRESOLVED',NO_OBSERVABLE_RELEVANCE:'discovery.reason.NO_OBSERVABLE_RELEVANCE',LOCATION_MISMATCH:'discovery.reason.LOCATION_MISMATCH'};
+const REASON_KEYS:Record<string,TKey>={TRAINING_COURSE_PAGE:'discovery.reason.TRAINING_COURSE_PAGE',DIRECTORY_PAGE:'discovery.reason.DIRECTORY_PAGE',PUBLIC_DIRECTORY_PAGE:'discovery.reason.PUBLIC_DIRECTORY_PAGE',SOCIAL_PROFILE_PAGE:'discovery.reason.SOCIAL_PROFILE_PAGE',EXCLUDED_BY_QUERY:'discovery.reason.EXCLUDED_BY_QUERY',ENTITY_UNRESOLVED:'discovery.reason.ENTITY_UNRESOLVED',NO_OBSERVABLE_RELEVANCE:'discovery.reason.NO_OBSERVABLE_RELEVANCE',LOCATION_MISMATCH:'discovery.reason.LOCATION_MISMATCH',SECTOR_BODY_PAGE:'discovery.reason.SECTOR_BODY_PAGE'};
 const SOURCE_TYPE_KEYS:Record<string,TKey>={official_site:'discovery.sourceType.official_site',job_board:'discovery.sourceType.job_board',marketplace:'discovery.sourceType.marketplace',directory:'discovery.sourceType.directory',search_page:'discovery.sourceType.search_page',editorial:'discovery.sourceType.editorial',individual_profile:'discovery.sourceType.individual_profile',unknown:'discovery.sourceType.unknown'};
 const metaOf=(r:DiscoveryResult)=>r.normalized_payload.raw_metadata as ResolutionMeta;
 // Persisted rows carry the database's source_class column (the authority, NULL for rows written before
@@ -144,7 +145,11 @@ export function DiscoveryPanel({projectId,projectName,offer,criteria,mode,api,on
  const tabCount=(k:'ALL'|NoveltyStatus)=>k==='ALL'?candidates.length:candidates.filter(r=>novOf(r)?.status===k).length;
  // Order from the run's snapshot (stable: a row reconciled to "Déjà ajouté" stays where the user tapped it);
  // tabs and counters from what is shown now.
- const shown=(hasNovelty?[...newFirst(candidates.filter(eligible),histOf),...candidates.filter(r=>!eligible(r))]:candidates).filter(r=>noveltyTab==='ALL'||novOf(r)?.status===noveltyTab);
+ // Review priority (review-priority.ts): within each novelty level, the candidates most worth a look come first.
+ // The stored value is used when present; older rows get it computed from the same observations.
+ const priorityOf=(r:DiscoveryResult):ReviewPriority=>{const stored=(r.normalized_payload.raw_metadata as {review_priority?:ReviewPriority}|undefined)?.review_priority;return stored&&['HIGH','MEDIUM','LOW'].includes(stored.level)?stored:reviewPriority(r.normalized_payload.raw_metadata,r.normalized_payload.website)};
+ const prioritized=byReviewPriority(candidates.filter(eligible),r=>priorityOf(r));
+ const shown=(hasNovelty?[...newFirst(prioritized,histOf),...candidates.filter(r=>!eligible(r))]:[...prioritized,...candidates.filter(r=>!eligible(r))]).filter(r=>noveltyTab==='ALL'||novOf(r)?.status===noveltyTab);
  const counts={added:results.filter(r=>r.status==='accepted').length,ignored:results.filter(r=>r.status==='ignored').length,unresolved:results.filter(r=>classOf(r)!=='COMPANY_CANDIDATE').length};
  // One compact line per result: who, how well it is resolved, where, from which source, its state and the
  // actions that make sense for it. Everything else stays one tap away in "Voir le détail".
@@ -153,8 +158,8 @@ export function DiscoveryPanel({projectId,projectName,offer,criteria,mode,api,on
   // Already a prospect of this project (novelty.ts): never offered as a second prospect — "Voir le prospect".
   const hist=histOf(r);const nov=r.status==='pending'?novOf(r):eligible(r)?displayNovelty(hist,r.current_project_status):null;const alreadyProspect=r.status==='pending'&&nov?.status==='ADDED'&&!!nov.prospect_id;const score=addedScore(r);
   return <article className={`discovery-result compact state-${state}`} key={r.id}>
-   <div className="result-title">{nameResolved?<h3>{r.normalized_payload.name}</h3>:<h3>{legacy?tr('discovery.legacyUnclassified'):tr('discovery.unresolvedCompany')}</h3>}<p className="muted result-sub">{nameResolved?(domainResolved?tr('discovery.resolutionBothLabel'):tr('discovery.resolutionNameOnlyLabel')):typeKey?tr(typeKey):tr('discovery.class.uncertain')}</p></div>
-   <p className="result-zone">{r.normalized_payload.city??tr('discovery.cityToConfirm')}</p>
+   <div className="result-title">{nameResolved?<h3>{r.normalized_payload.name}</h3>:<h3>{legacy?tr('discovery.legacyUnclassified'):tr('discovery.unresolvedCompany')}</h3>}<p className="muted result-sub">{nameResolved?(domainResolved?tr('discovery.resolutionBothLabel'):tr('discovery.resolutionNameOnlyLabel')):typeKey?tr(typeKey):tr('discovery.class.uncertain')}</p>{canAdd&&(()=>{const pr=priorityOf(r);return <p className={`review-priority priority-${pr.level.toLowerCase()}`}><span className="pill">{tr('discovery.reviewPriority')} : {tr(`discovery.priority.${pr.level}` as TKey)}</span> <span className="muted">{pr.reasons.slice(0,4).map(x=>tr(`discovery.priorityReason.${x}` as TKey)).join(' · ')}</span></p>})()}</div>
+   <p className="result-zone">{r.normalized_payload.city??(typeof (meta as {observed_location?:unknown}).observed_location==='string'?`${(meta as {observed_location:string}).observed_location} · ${tr('discovery.locationMentioned')}`:tr('discovery.cityToConfirm'))}</p>
    <div className="result-state-cell"><span className={`pill result-state state-${state}`}>{tr(STATE_LABEL[state])}</span>{nov&&<span className={`pill novelty novelty-${nov.status.toLowerCase()}`} title={hist&&hist.status!==nov.status?`${tr('novelty.atRunTime')} ${tr(`novelty.${hist.status}` as TKey)}`:undefined}>{tr(`novelty.${nov.status}` as TKey)}</span>}{(nov?.status==='SEEN'||nov?.status==='IGNORED')&&nov.run_id&&nov.run_id!==run&&<button type="button" className="text-button novelty-link" disabled={busy} onClick={()=>openRun(nov.run_id!)}>{tr('novelty.viewOldRun')}</button>}</div>
    <p className="muted result-source"><a href={r.normalized_payload.source_url} title={r.normalized_payload.source_url} rel="noreferrer" target="_blank">{tr('discovery.source')} {sourceHost||r.normalized_payload.source_title} ↗</a>{score!==null&&<> · {tr('discovery.prospectScore')} <b>{score}/100</b></>}</p>
    {r.status==='pending'&&r.dedupe_status!=='unique'&&<p className="note result-dedupe">{r.reason??tr('discovery.possibleDuplicate')} · {r.dedupe_status==='duplicate_candidate'?tr('discovery.existingProspect'):tr('discovery.noAutoMerge')}</p>}
@@ -167,6 +172,7 @@ export function DiscoveryPanel({projectId,projectName,offer,criteria,mode,api,on
     <p><a href={r.normalized_payload.source_url} rel="noreferrer" target="_blank">{r.normalized_payload.source_title} ↗</a></p>
     <p className="muted">{discoveryFoundNote(locale,Math.round(r.normalized_payload.confidence*100),r.normalized_payload.discovered_source)}</p>
     {score===null&&<p>{tr('discovery.currentScore')} <b>0/100</b> — {tr('discovery.noEvidenceAtDiscovery')}</p>}
+    {canAdd&&<p className="muted">{tr('discovery.priorityExplain')}</p>}
     {r.status==='pending'&&!canAdd&&<p className="muted">{tr('discovery.notAddable')}</p>}
    </details>
   </article>};

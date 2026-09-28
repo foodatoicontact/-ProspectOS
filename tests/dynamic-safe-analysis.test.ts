@@ -159,7 +159,8 @@ test('U — failures are closed in the audit with codes only; quota refusal and 
  assert.equal(q.fetched.length, 0);
  assert.equal(q.audit.rows[1]!.outcome, 'QUOTA_EXCEEDED');
  const failed = await analyze({pages: {}});
- await assert.rejects(failed.run, /ANALYSIS_FAILED/);
+ // The user gets the precise reason (the site answered an HTTP error); the audit keeps the closed outcome set.
+ await assert.rejects(failed.run, /SITE_HTTP_ERROR/);
  assert.deepEqual(failed.audit.rows[1], {id: 'audit-1', userId: 'user-a', outcome: 'ANALYSIS_FAILED', pages: null, failed: null});
  for (const row of [...q.audit.rows, ...failed.audit.rows]) assert.doesNotMatch(JSON.stringify(row), /<html|https?:|\d+\.\d+\.\d+\.\d+/);
 });

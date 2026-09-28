@@ -19,6 +19,13 @@ const CODE_KEYS={
  OFFER_LIMIT_REACHED:'error.offerLimitReached',
  OFFER_ANALYSIS_IN_PROGRESS:'error.offerAnalysisInProgress',
  CANDIDATE_NOT_ACCEPTABLE:'error.candidateNotAcceptable',
+ ACTIVE_SUBSCRIPTION_BLOCKED:'error.activeSubscriptionBlocked',
+ SUBSCRIPTION_EXISTS:'error.subscriptionExists',
+ BILLING_UNAVAILABLE:'error.billingUnavailable',
+ BETA_OFFER_CLOSED:'error.betaOfferClosed',
+ BILLING_PROVIDER_ERROR:'error.billingProviderError',
+ NO_BILLING_ACCOUNT:'error.noBillingAccount',
+ ENTERPRISE_QUOTE_ONLY:'error.enterpriseQuoteOnly',
 } as const;
 export function localizeApiErrorMessage(message:string,code:string|undefined,locale:Locale):string{
  const key=code?CODE_KEYS[code as keyof typeof CODE_KEYS]:undefined;

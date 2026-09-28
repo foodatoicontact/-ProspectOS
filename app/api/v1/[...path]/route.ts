@@ -12,6 +12,9 @@ import {recordApiUsage} from '../../../../src/server/usage';
 import {releaseCommercialUse} from '../../../../src/server/commercial-usage';
 import {createAdminClient} from '../../../../src/server/admin-client';
 import {createHash} from 'node:crypto';
+import {startCheckout,openPortal} from '../../../../src/server/billing/checkout';
+import {billingDeps,appOrigin} from '../../../../src/server/billing';
+import {billingConfig,checkoutAvailability} from '../../../../src/server/billing/config';
 import {saveProviderCredential,listProviderCredentials,deleteProviderCredential,resolveProviderCredential} from '../../../../src/server/byok';
 import {DEFAULT_CRITERIA,STATUSES,OUTREACH_STATUSES,validateCriteria,generateOutreach,scoreProspect,csv,safeLink} from '../../../../src/domain/core';
 export const runtime='nodejs';
@@ -211,6 +214,15 @@ async function handler(request:Request,context:{params:Promise<{path:string[]}>}
  await deleteProviderCredential(db,organizationId,b.provider);return json({deleted:true});
  }
  }
+ if(resource==='billing'&&request.method==='POST'&&(id==='checkout'||id==='portal')){
+ // Stripe Checkout / Customer Portal (src/server/billing/checkout.ts). The user is the authenticated session
+ // user; the browser only names an offer (BETA or PRO) — price, amount, currency and customer are server-side.
+ const deps=billingDeps();
+ const result=id==='checkout'
+  ?await startCheckout({userId:user.id,email:user.email??null,body,origin:appOrigin(request)},deps)
+  :await openPortal({userId:user.id,body,origin:appOrigin(request)},deps);
+ return json(result.body,result.status);
+ }
  if(resource==='account'){
  if(request.method==='GET'&&!id){
  // V0's own single-org-per-user assumption (same one createProject already makes): role/organization
@@ -222,6 +234,9 @@ async function handler(request:Request,context:{params:Promise<{path:string[]}>}
  // Commercial counters (migration 016). Best-effort and read-only: until that migration is applied the
  // function does not exist and the account answer simply carries usage:null, exactly as before.
  const usageAnswer=await db.rpc('get_commercial_usage');
+ // Subscription summary (migration 017, own row only, no Stripe identifier) and which offers can be bought
+ // on this deployment (booleans: no configuration value ever reaches the browser). Best-effort like usage.
+ const billingAnswer=await db.rpc('get_billing_status');
  return json({
   email:user.email??null,
   organization:organization?{name:organization.name}:null,
@@ -229,6 +244,8 @@ async function handler(request:Request,context:{params:Promise<{path:string[]}>}
   role:membership?.role??null,
   entitlement:entitlement?{plan:entitlement.plan,status:entitlement.status,expires_at:entitlement.expires_at,active:entitlement.status==='ACTIVE'&&new Date(entitlement.expires_at).getTime()>Date.now()}:null,
   usage:usageAnswer.error?null:usageAnswer.data??null,
+  billing:billingAnswer.error?null:billingAnswer.data??null,
+  billing_offers:checkoutAvailability(billingConfig()),
  });
  }
  if(id==='export'&&request.method==='POST'){
@@ -251,6 +268,7 @@ async function handler(request:Request,context:{params:Promise<{path:string[]}>}
  if(body.confirm!=='SUPPRIMER')return json({error:'Confirmation requise'},400);
  const {error:rpcError}=await db.rpc('delete_own_account');
  if(rpcError){
+  if(rpcError.message?.includes('active_subscription_blocked'))return json({error:'Votre abonnement est toujours actif. Résiliez-le depuis « Gérer mon abonnement » avant de supprimer votre compte.',code:'ACTIVE_SUBSCRIPTION_BLOCKED'},409);
   if(rpcError.message?.includes('last_owner_blocked'))return json({error:'Vous êtes le dernier propriétaire d’une organisation encore active (membres ou données). Transférez la propriété ou supprimez l’organisation avant de supprimer votre compte.',code:'LAST_OWNER_BLOCKED'},409);
   throw Error('DATABASE_REQUEST_FAILED');
  }
@@ -276,6 +294,6 @@ async function handler(request:Request,context:{params:Promise<{path:string[]}>}
  return new Response(csv([['Nom','Ville','Statut','Score','Couverture','URL'],...rows.map((p:any)=>{const s=scoreProspect(projectCriteria(project.icps),p.evidence);return [p.name,p.city,p.status,s.score,s.coverage,p.website]})]),{headers:{'content-type':'text/csv; charset=utf-8','content-disposition':'attachment; filename="prospectos.csv"','Cache-Control':'no-store'}});
  }
  return json({error:'Route ou action non disponible'},404);
- }catch(error){const refusal=error instanceof Error?COMMERCIAL_REFUSALS[error.message]:undefined;if(refusal)return json({error:refusal[0],code:(error as Error).message},refusal[1]);const code=error instanceof Error?error.message:'';const status=code==='UNAUTHORIZED'?401:code==='CONFIGURATION_REQUIRED'||code==='AI_NOT_CONFIGURED'||code==='BYOK_CREDENTIAL_INVALID'?503:code==='QUOTA_EXCEEDED'?429:code==='BETA_ACCESS_EXPIRED'?402:code==='ENTITLEMENT_REQUIRED'?403:400;return json({error:code==='UNAUTHORIZED'?'Connexion requise':code==='CONFIGURATION_REQUIRED'?'Supabase reste à connecter':code==='AI_NOT_CONFIGURED'?'Fournisseur IA et modèle non configurés':code==='BYOK_CREDENTIAL_INVALID'?'Clé Anthropic personnalisée invalide ou illisible. Remplacez-la dans Compte.':code==='AI_UNAVAILABLE'?"Le fournisseur IA n'a pas pu traiter la demande.":code==='AI_TRUNCATED_RESULT'?"La réponse IA a été interrompue avant d'être complète.":code==='AI_INVALID_RESULT'?"La réponse du fournisseur IA n'a pas pu être exploitée.":code==='QUOTA_EXCEEDED'?'Quota horaire de votre organisation atteint.':code==='BETA_ACCESS_EXPIRED'?'Votre accès bêta est terminé.':code==='ENTITLEMENT_REQUIRED'?'Cette fonctionnalité nécessite une activation bêta. Contactez-nous pour y accéder.':code==='INVALID_PROJECT_ID'?'Identifiant de projet invalide':'Opération impossible. Vérifiez les données et vos droits.',code:code==='BETA_ACCESS_EXPIRED'?'BETA_ACCESS_EXPIRED':code==='BYOK_CREDENTIAL_INVALID'?'BYOK_CREDENTIAL_INVALID':code==='ENTITLEMENT_REQUIRED'?'ENTITLEMENT_REQUIRED':undefined},status)}
+ }catch(error){const refusal=error instanceof Error?COMMERCIAL_REFUSALS[error.message]:undefined;if(refusal)return json({error:refusal[0],code:(error as Error).message},refusal[1]);if(error instanceof Error&&(error.message==='STRIPE_REQUEST_FAILED'||error.message==='INVALID_STRIPE_ID'))return json({error:'Le service de paiement est momentanément indisponible. Réessayez.',code:'BILLING_PROVIDER_ERROR'},502);const code=error instanceof Error?error.message:'';const status=code==='UNAUTHORIZED'?401:code==='CONFIGURATION_REQUIRED'||code==='AI_NOT_CONFIGURED'||code==='BYOK_CREDENTIAL_INVALID'?503:code==='QUOTA_EXCEEDED'?429:code==='BETA_ACCESS_EXPIRED'?402:code==='ENTITLEMENT_REQUIRED'?403:400;return json({error:code==='UNAUTHORIZED'?'Connexion requise':code==='CONFIGURATION_REQUIRED'?'Supabase reste à connecter':code==='AI_NOT_CONFIGURED'?'Fournisseur IA et modèle non configurés':code==='BYOK_CREDENTIAL_INVALID'?'Clé Anthropic personnalisée invalide ou illisible. Remplacez-la dans Compte.':code==='AI_UNAVAILABLE'?"Le fournisseur IA n'a pas pu traiter la demande.":code==='AI_TRUNCATED_RESULT'?"La réponse IA a été interrompue avant d'être complète.":code==='AI_INVALID_RESULT'?"La réponse du fournisseur IA n'a pas pu être exploitée.":code==='QUOTA_EXCEEDED'?'Quota horaire de votre organisation atteint.':code==='BETA_ACCESS_EXPIRED'?'Votre accès bêta est terminé.':code==='ENTITLEMENT_REQUIRED'?'Cette fonctionnalité nécessite une activation bêta. Contactez-nous pour y accéder.':code==='INVALID_PROJECT_ID'?'Identifiant de projet invalide':'Opération impossible. Vérifiez les données et vos droits.',code:code==='BETA_ACCESS_EXPIRED'?'BETA_ACCESS_EXPIRED':code==='BYOK_CREDENTIAL_INVALID'?'BYOK_CREDENTIAL_INVALID':code==='ENTITLEMENT_REQUIRED'?'ENTITLEMENT_REQUIRED':undefined},status)}
 }
 export {handler as GET,handler as POST,handler as PATCH};

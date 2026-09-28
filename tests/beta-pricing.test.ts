@@ -92,7 +92,8 @@ test('Counters — nothing is shown for INTERNAL, no entitlement, a missing migr
  for(const raw of [null,undefined,{plan:null},{plan:'INTERNAL',status:'ACTIVE'},{...trial,discovery_used:'3'},{...trial,period_end:'nope'},{...trial,analysis_limit:-1},{...trial,ai_offer_limit:undefined},'x'])assert.equal(usageView(raw,NOW),null);
 });
 test('Counters — the page reads them from GET account only, and shows the reset date or the trial end',()=>{
- assert.match(page,/async function refreshUsage\(t=token\)\{try\{const acc=await api\('account','GET',undefined,t\);setUsage\(usageView\(acc\.usage\)\)\}catch\{\}\}/);
+ // The same GET account read also refreshes the subscription summary and offers (migration 017): still one read.
+ assert.match(page,/async function refreshUsage\(t=token\)\{try\{const acc=await api\('account','GET',undefined,t\);setUsage\(usageView\(acc\.usage\)\);setBillingOffers\(acc\.billing_offers\?\?null\);setBillingStatus\(acc\.billing\?\?null\);/);
  assert.match(page,/setUsage\(usageView\(acc\.usage\)\)/);
  assert.match(page,/usage\.kind==='paid'\?usageResetLabel\(locale,usage\.periodEnd\):trialEndsInLabel\(locale,usage\.daysLeft\)/);
  assert.match(route,/const usageAnswer=await db\.rpc\('get_commercial_usage'\);/);
@@ -123,14 +124,20 @@ test('M — trial ended: data kept, clear message, upgrade offer, no deletion pa
  assert.equal(fr['account.trialEnded'],'Votre essai est terminé.');
  assert.equal(fr['account.upgrade'],'ProspectOS Bêta — 49 € HT/mois');
  assert.match(fr['account.trialEndedNote'],/Vos données restent disponibles/);
- assert.match(page,/\{entitlementPlan==='BETA'&&betaActive===false&&<div className="account-field upgrade"><p><b>\{tr\('account\.upgrade'\)\}<\/b><\/p><p className="muted">\{tr\('account\.upgradeNote'\)\}<\/p><\/div>\}/);
+ // The manual-activation message stays wherever self-service checkout is not available (Production today).
+ assert.match(page,/\{entitlementPlan==='BETA'&&betaActive===false&&!\(billingOffers\?\.BETA\|\|billingOffers\?\.PRO\)&&<div className="account-field upgrade"><p><b>\{tr\('account\.upgrade'\)\}<\/b><\/p><p className="muted">\{tr\('account\.upgradeNote'\)\}<\/p><\/div>\}/);
  assert.equal(fr['account.upgradeNote'],'Pendant la bêta, l’activation de l’abonnement se fait manuellement. Contactez-nous pour continuer.');
  assert.equal(en['account.upgradeNote'],'During the beta, subscriptions are activated manually. Contact us to continue.');
  assert.equal(fr['pricing.manualActivation'],'Pendant la bêta, l’activation de l’abonnement se fait manuellement.');
  assert.match(page,/<li>\{tr\('pricing\.paidLimits'\)\}<\/li><\/ul><p className="muted">\{tr\('pricing\.manualActivation'\)\}<\/p>/,'the public pricing says it too');
  for(const v of Object.values(fr))assert.doesNotMatch(v,/payer maintenant|acheter|s’abonner en ligne|checkout|paiement sécurisé/i);
  for(const v of Object.values(en))assert.doesNotMatch(v,/pay now|buy now|subscribe online|checkout|secure payment/i);
- assert.doesNotMatch(page,/checkout|stripe|paiement-en-ligne|href="\/pay/i,'no fake payment button');
+ // Self-service payment exists since 017, but never as a button of its own: the page only calls the server
+ // with the offer name, and the offers block renders only what GET account says is buyable on this deployment.
+ assert.doesNotMatch(page,/stripe|paiement-en-ligne|href="\/pay/i,'no fake payment button');
+ assert.deepEqual(page.match(/checkout/gi)?.length,4,'startCheckout (declared + passed as onCheckout) and the server route, nothing else');
+ assert.match(page,/async function startCheckout\(plan:'BETA'\|'PRO'\)\{const \{url\}=await api\('billing\/checkout','POST',\{plan\}\);/);
+ assert.match(page,/<BillingSection locale=\{locale\} offers=\{billingOffers\}/);
 });
 test('Plan limit — the refusal is its own code (429), localized, distinct from the hourly quota',async()=>{
  const api=await read('../src/discovery/api.ts');const repo=await read('../src/discovery/repository.ts');

@@ -164,3 +164,99 @@ test('KPI — commercial exploitability: the top of the review list is only real
  assert.equal(setAside.length, 9);
  assert.equal(kept.length, 13, '14 pages, the job ad merged into its company');
 });
+
+// ================================================================ PR #5 corrections — measured on the REAL run
+// tests/fixtures/thomas-real-run-2026-09-27.json: the 20 public results the beta tester actually received, with his
+// query, zone and categories. No company name appears in the algorithm; these are inputs only.
+import {ownNameInTitle,strongOwnName} from '../src/discovery/admissibility.ts';
+import {isEligibleDiscoveryResult} from '../src/discovery/analysis-authorization.ts';
+const real = JSON.parse(await readFile(new URL('./fixtures/thomas-real-run-2026-09-27.json', import.meta.url), 'utf8')) as {query: string; location: string; categories: string[]; rows: Array<{title: string; url: string; description: string; orig_class: string}>};
+function replayReal() {
+ const ctx = {query: real.query, categories: real.categories, location: real.location};
+ const {kept} = mergeSameEntityCandidates(real.rows.map(r => provider.normalizeResult({title: r.title, url: r.url, description: r.description, __quality: assessCandidateQuality(r, real.location), __context: ctx})));
+ const main = byReviewPriority(kept.filter(eligible), c => reviewPriority(c.raw_metadata, c.website));
+ return {kept, main, setAside: kept.filter(c => !eligible(c))};
+}
+const hostOf = (url: string) => new URL(url).hostname.replace(/^www\./, '');
+const generic = (title: string, url: string, description = 'Travaux publics, VRD et assainissement pour les collectivités en Auvergne-Rhône-Alpes.') => normalize({title, url, description}, real.query, real.location);
+
+test('1 — long SEO title + short brand at the end: the brand is the name when the domain spells it', () => {
+ assert.equal(ownNameInTitle('Entreprise de travaux VRD et assainissement à Lyon, Rhône-Alpes - KTRX', 'ktrx.fr'), 'KTRX');
+ assert.equal(strongOwnName('KTRX', 'ktrx'), true);
+ assert.equal(strongOwnName('Sky', 'skygroupe'), false, 'a short prefix is only a resemblance');
+});
+test('2 — mdtp-like fixture: brand segment on its own domain → official site, own domain, RESOLVED_HIGH', () => {
+ const c = generic('Entreprise de travaux VRD et assainissement à Lyon, Rhône-Alpes - KTRX', 'https://www.ktrx.fr/ktrx/');
+ assert.equal(meta(c).source_class, 'COMPANY_CANDIDATE');
+ assert.equal(c.name, 'KTRX');
+ assert.equal(c.website, 'https://www.ktrx.fr');
+ assert.equal(meta(c).company_domain_method, 'own_site');
+ assert.equal(meta(c).entity_confidence, 'RESOLVED_HIGH');
+});
+test('3 — ambtp-like fixture: initials brand covering most of a longer domain label → official site', () => {
+ const c = generic('Entreprise de terrassement, VRD & Enrobés en Rhône-Alpes - RX BTP', 'https://www.rxbtpvrd.fr/');
+ assert.equal(c.name, 'RX BTP');
+ assert.equal(c.website, 'https://www.rxbtpvrd.fr');
+ assert.equal(meta(c).page_type, 'OFFICIAL_ORGANIZATION_SITE');
+});
+test('4 — "Accueil - VRD - Services" on a vrd-services-like domain → an exploitable name from the segments spelling the domain', () => {
+ const c = generic('Accueil - Pose - Reseaux', 'https://pose-reseaux.com/');
+ assert.equal(meta(c).source_class, 'COMPANY_CANDIDATE');
+ assert.equal(c.name, 'Pose Reseaux');
+ assert.equal(c.website, 'https://pose-reseaux.com');
+ // Never a domain turned into a company name on its own: without title segments spelling it, nothing is named.
+ assert.equal(ownNameInTitle('Accueil', 'pose-reseaux.com'), undefined);
+});
+test('5, 6 — "Entreprises de tous secteurs en…" is a listing, whatever the case of its first letter', () => {
+ for (const title of ['Entreprises de tous secteurs en Auvergne-Rhône-Alpes', 'entreprises de tous secteurs en Auvergne-Rhône-Alpes']) {
+  const c = generic(title, 'https://www.entreprises-de-la-region.fr/');
+  assert.equal(meta(c).source_class, 'IRRELEVANT', title);
+  assert.equal(meta(c).admissibility.reason_code, 'DIRECTORY_PAGE', title);
+  assert.equal(reviewPriority(c.raw_metadata, c.website).level, 'LOW');
+ }
+});
+test('7, 8 — business-for-sale listings are set aside as listings', () => {
+ for (const [title, url] of [['Entreprise de BTP à vendre – Offres d’entreprises de BTP à vendre', 'https://reprise.example-banque.fr/btp-a-vendre'], ['Entreprise tous corps d’état à vendre en Auvergne-Rhône-Alpes', 'https://www.cessions-pme.fr/beton.aspx'], ['Société de maçonnerie à céder - Rhône', 'https://www.annonces-cession.fr/x'], ['Opportunités de reprise dans le BTP', 'https://www.bourse-reprise.fr/btp']]) {
+  const c = generic(title, url);
+  assert.equal(meta(c).source_class, 'IRRELEVANT', title);
+  assert.equal(meta(c).admissibility.reason_code, 'DIRECTORY_PAGE', title);
+ }
+});
+test('9 — a real company whose own site talks about an acquisition is NOT rejected', () => {
+ const c = generic('Durand TP - Travaux publics et VRD | Acquisition de la société Martin Réseaux', 'https://www.durand-tp.fr/', 'Durand TP réalise des travaux publics et VRD pour les collectivités ; le groupe annonce la cession de sa filiale et l’acquisition d’une entreprise locale.');
+ assert.equal(meta(c).source_class, 'COMPANY_CANDIDATE');
+ assert.equal(c.name, 'Durand TP');
+});
+test('10 — review priority: a directory can never be HIGH', () => {
+ const {setAside} = replayReal();
+ for (const c of setAside) assert.equal(reviewPriority(c.raw_metadata, c.website).level, 'LOW', c.source_url);
+ assert.equal(reviewPriority({source_class: 'IRRELEVANT', entity_confidence: 'RESOLVED_HIGH', relevance_terms: ['btp', 'vrd', 'travaux']}, 'https://x.fr').level, 'LOW');
+});
+test('11, 12 — real replay: the verified score stays 0 without validated proof, and nothing is auto-VERIFIED', () => {
+ const {main} = replayReal();
+ const criteria: Criterion[] = [{key: 'need_fit', label: 'Marchés publics', weight: 100}];
+ for (const c of main) {
+  assert.equal(scoreProspect(criteria, []).score, 0);
+  assert.doesNotMatch(JSON.stringify(c.raw_metadata), /"status":"VERIFIED"|"verified_by"/, 'Discovery never writes an evidence status');
+ }
+});
+test('REAL REPLAY — the 20 pages of the beta tester: 4 identifiable companies, 0 noise, all analyzable, all HIGH', () => {
+ const {kept, main, setAside} = replayReal();
+ assert.equal(kept.length, 20);
+ assert.deepEqual(main.map(c => hostOf(c.website!)).sort(), ['ambtpvrd.fr', 'mdtp.fr', 'ribiere.eu', 'vrd-services.com']);
+ assert.deepEqual(main.map(c => c.name).sort(), ['AM BTP', 'MDTP', 'Ribiere', 'VRD Services']);
+ for (const c of main) {
+  assert.equal(reviewPriority(c.raw_metadata, c.website).level, 'HIGH', c.name);
+  // Dynamic Safe Analysis eligibility, under the existing, unchanged rules (own-site Brave result, same domain).
+  assert.equal(isEligibleDiscoveryResult({status: 'accepted', provider: 'brave', source_class: 'COMPANY_CANDIDATE', website: c.website, source_url: c.source_url, raw_payload: c.raw_metadata}), true, c.name);
+ }
+ const reasons = setAside.map(c => meta(c).admissibility.reason_code).sort();
+ assert.equal(setAside.length, 16);
+ assert.equal(reasons.filter(r => r === 'DIRECTORY_PAGE').length, 9);
+ assert.equal(reasons.filter(r => r === 'SECTOR_BODY_PAGE').length, 2);
+});
+test('Unicode boundaries — "à" and a final "é" are matched: category in a place, "N sociétés", "Société … à céder"', () => {
+ for (const title of ['Entreprises de BTP à Lyon', 'Sociétés de VRD à Grenoble', '80 société de terrassement référencées']) {
+  assert.equal(meta(generic(title, 'https://www.liste-btp.fr/')).source_class, 'IRRELEVANT', title);
+ }
+});

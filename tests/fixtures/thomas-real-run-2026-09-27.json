@@ -1,0 +1,144 @@
+{
+ "description": "Exact inputs of a real beta-tester Discovery run (public-works brief, run 79ced64b, 2026-09-27): the 20 public search results (title, url, snippet) as received from Brave, with the run's own query, location and categories. Public web data only; no account or personal data. Used to replay the pipeline on identical inputs.",
+ "run_id": "79ced64b-b990-4ad4-8c0d-bef8944e96cb",
+ "query": "entreprises BTP travaux publics VRD gros œuvre rénovation réhabilitation second œuvre lots techniques répondant aux marchés publics appels d’offres DCE collectivités bailleurs sociaux",
+ "location": "Auvergne-Rhône-Alpes, France",
+ "categories": [
+  "BTP",
+  "travaux publics",
+  "VRD",
+  "gros œuvre",
+  "rénovation",
+  "réhabilitation",
+  "second œuvre",
+  "lots techniques",
+  "marchés publics"
+ ],
+ "human_feedback": {
+  "ribiere.eu": "very relevant",
+  "mdtp.fr": "very relevant",
+  "ambtpvrd.fr": "interesting, to qualify"
+ },
+ "rows": [
+  {
+   "title": "Accueil - VRD - Services",
+   "url": "https://vrd-services.com/",
+   "description": "Depuis 1983, VRD Services met son expertise au service des collectivités territoriales, des municipalités, des entreprises de BTP et des particuliers. Nous intervenons dans les domaines des aménagements urbains et routiers, de la pose de ...",
+   "orig_class": "IRRELEVANT"
+  },
+  {
+   "title": "Entreprises de tous secteurs en Auvergne-Rhône-Alpes",
+   "url": "https://www.entreprises-auvergne-rhone-alpes.fr/",
+   "description": "Bâtiment et travaux publics (BTP) Commerce et distribution · Communication et marketing · Culture et patrimoine · Édition · Énergie · Enseignement et formation · Environnement · Finance, banque et assurance · Gestion administrative et ressources humaines ·",
+   "orig_class": "COMPANY_CANDIDATE"
+  },
+  {
+   "title": "Un Auvergnat prend la tête de la nouvelle Fédération régionale des Travaux Publics Auvergne-Rhône-Alpes - Lyon Entreprises [LE]",
+   "url": "https://www.lyon-entreprises.com/dirigeant/carnet/un-auvergnat-prend-la-tete-de-la-nouvelle-federation-regionale-des-travaux-publics-auvergne-rhone-alpes",
+   "description": "Les travaux publics en Auvergne-Rhône-Alpes pèsent 5 milliards d’euros de chiffre d’affaires, 6 250 entreprises, 40 000 salariés.",
+   "orig_class": "IRRELEVANT"
+  },
+  {
+   "title": "Entreprise de travaux VRD et assainissement à Lyon, Rhône-Alpes - MDTP",
+   "url": "https://www.mdtp.fr/mdtp/",
+   "description": "Nous travaillons principalement sur Lyon et son agglomération mais nous intervenons sur l’ensemble de la région Rhône Alpes Auvergne et pouvons être amenés à suivre nos clients privés sur toute la France.",
+   "orig_class": "COMPANY_CANDIDATE"
+  },
+  {
+   "title": "Association BTP CFA AURA BTP CFA AUVERGNE RHONE ALPES : Chiffre d'affaires, statuts, extrait d'immatriculation",
+   "url": "https://www.pappers.fr/entreprise/btp-cfa-aura-btp-cfa-auvergne-rhone-alpes-418846762",
+   "description": "Dénomination : BTP CFA RHONE-ALPES. Adresse : CFA BTP Nord Isère, 21, boulevard Pré Pommier, 38300 Bourgoin-Jallieu · Activité : dans le cadre des dispositions légales et conventionnelles suivantes : convention passée avec la Région ...",
+   "orig_class": "IRRELEVANT"
+  },
+  {
+   "title": "FRTP Auvergne-Rhône-Alpes - FRTP Auvergne-Rhône-Alpes",
+   "url": "https://frtpaura.fntp.fr/",
+   "description": "Découvrir close · La DREETS conduit, en Auvergne-Rhône-Alpes, les missions de politiques publiques liées à l’emploi, à l’économie, au travail et à la solidarité. Elle déploie également des actions de contrôle dans les domaines de la concurrence, de la consommation et de la ...",
+   "orig_class": "IRRELEVANT"
+  },
+  {
+   "title": "Entreprises du Bâtiment en Rhône-Alpes - Kompass",
+   "url": "https://fr.kompass.com/a/batiment/71/r/rhone-alpes/fr_82/",
+   "description": "GFE (Goncalves Frères Étanchéité) est une entreprise spécialisée dans l&#x27;étanchéité intervenant principalement en zones de montagne et haute altitude. Basée à Chambéry (Savoie), nous intervenons dans toute la région Auvergne-Rhône-Alpes : Savoie (73), Haute-Savoie (74), Isère ...",
+   "orig_class": "IRRELEVANT"
+  },
+  {
+   "title": "Conducteur De Travaux Gros Œuvre, Auvergne-Rhône-Alpes : plus de 100 emplois (27 septembre 2026) | Indeed",
+   "url": "https://fr.indeed.com/q-conducteur-de-travaux-gros-%C5%92uvre-l-auvergne-rh%C3%B4ne-alpes-emplois.html",
+   "description": "Eiffage Construction intègre les métiers complémentaires de l’aménagement urbain, la promotion immobilière, la construction, la maintenance et les travaux services. L’entreprise est fortement implantée en France à travers ses 9 directions régionales, ainsi qu’en Belgique, au ...",
+   "orig_class": "IRRELEVANT"
+  },
+  {
+   "title": "Sites industriels du secteur Eléments de construction dans la region Auvergne-Rhône-Alpes - Industrie Explorer",
+   "url": "https://industrie.usinenouvelle.com/liste/etablissement/region-11/secteur-5",
+   "description": "Auvergne-Rhône-Alpes &gt; 42000 SAINT-ETIENNE · Eléments de construction &gt; Eléments de construction · Travaux de maçonnerie générale et gros œuvre de bâtiment(4399C) EFFECTIF CA M€ · Nombre maximum d’alertes atteint · ENTREPRISE 26 · Auvergne-Rhône-Alpes &gt; 26800 PORTES-LES-VALENCE ·",
+   "orig_class": "IRRELEVANT"
+  },
+  {
+   "title": "Le secteur du bâtiment et travaux publics en Auvergne-Rhône-Alpes | actualité, chiffres et tendances | Plateforme IET",
+   "url": "https://plateforme-iet.auvergnerhonealpes-entreprises.fr/secteurs/btp",
+   "description": "Découvrez le secteur du bâtiment et travaux publics en Auvergne-Rhône-Alpes : les industriels du BTP au service des objectifs stratégiques, tels que la transition énergétique. Actualités, études, chiffres clés, tendances.",
+   "orig_class": "IRRELEVANT"
+  },
+  {
+   "title": "Annuaire entreprise de BTP en Auvergne-Rhône-Alpes - EPRO Bâtiment",
+   "url": "https://batiment.e-pro.fr/entreprise-de-btp/region-auvergne-rhone-alpes.html",
+   "description": "995 entreprises de BTP sont référencées en Auvergne-Rhône-Alpes dans l&#x27;annuaire professionnel EPRO Bâtiment",
+   "orig_class": "IRRELEVANT"
+  },
+  {
+   "title": "Top 20 des gros œuvres en Auvergne-Rhône-Alpes - Obat",
+   "url": "https://travaux.obat.fr/gros-oeuvre/auvergne-rhone-alpes",
+   "description": "N’hésitez plus et passez une demande de devis en quelques clics ! ... LES TROIS BECS B.T.P. 5/5 (14 avis) Puy-Saint-Martin (26450) La SAS LES TROIS BECS BTP est une entreprise familiale de Maçonnerie - BTP qui a déjà 30 ans d&#x27;existence...",
+   "orig_class": "IRRELEVANT"
+  },
+  {
+   "title": "Entreprise de btp à vendre – Offres d'entreprises de btp à vendre avec Bpifrance",
+   "url": "https://reprise-entreprise.bpifrance.fr/entreprise-btp-a-vendre/auvergne-rhone-alpes",
+   "description": "Retrouvez toutes les entreprises de btp à vendre avec Bpifrance. Sélectionnez une annonce et accèdez au site de nos partenaires pour une reprise d&#x27;un entreprise de btp.",
+   "orig_class": "COMPANY_CANDIDATE"
+  },
+  {
+   "title": "Les spécialistes Gros œuvre - Maçonnerie en Auvergne-Rhône-Alpes en 2026 - Petit Futé",
+   "url": "https://www.petitfute.com/r24-auvergne-rhone-alpes/c1085-maison-deco-jardin/c1094-travaux-gros-oeuvre/c587-gros-oeuvre-maconnerie/",
+   "description": "Cette sympatique entreprise familiale, située en centre ville d&#x27;Annecy, a été crée par le ...",
+   "orig_class": "IRRELEVANT"
+  },
+  {
+   "title": "Entrepreneur btp en région auvergne-rhône-alpes : annuaire et devis - Quali-artisans.fr",
+   "url": "https://www.installateur-climatisation.quali-artisans.fr/entreprise-btp/region/auvergne-rhone-alpes",
+   "description": "Entrepreneur btp auvergne-rhône-alpes | vos devis travaux gratuits en ligne ou au 01 87 66 64 37. rapide et sans engagement.",
+   "orig_class": "IRRELEVANT"
+  },
+  {
+   "title": "Entreprise de terrassement, VRD & Enrobés en Rhône-Alpes - AM BTP",
+   "url": "https://www.ambtpvrd.fr/",
+   "description": "Depuis plus de 20 ans, AM BTP accompagne les particuliers et professionnels de Lyon, du Rhône et de Bourg-en-Bresse (Ain) dans leurs projets de terrassement, de viabilisation de terrain, de reprise d’enrobés et de démolition.",
+   "orig_class": "COMPANY_CANDIDATE"
+  },
+  {
+   "title": "Fédération Française du Bâtiment Région Auvergne-Rhône-Alpes",
+   "url": "https://www.ffbatiment.fr/organisation-ffb/federations-regionales/auvergne-rhone-alpes",
+   "description": "En soutien des 11 Fédérations Départementales du BTP, la FFB AURA apporte aussi son expertise et développe des actions sur les champs de l&#x27;emploi, formation, métiers et environnement, ou encore la transition numérique des entreprises du BTP.",
+   "orig_class": "COMPANY_CANDIDATE"
+  },
+  {
+   "title": "Entreprise générale de bâtiment - RIBIERE",
+   "url": "https://www.ribiere.eu/",
+   "description": "Travaux de Gros œuvre : Démolition, Réhabilitation et Construction neuve Maitre d’ouvrage REGION AUVERGNE RHONE ALPES Architecte CHABAL Architectes Montant du projet : 3 M€",
+   "orig_class": "COMPANY_CANDIDATE"
+  },
+  {
+   "title": "Entreprise tous corps d’état à vendre en Auvergne-Rhône-Alpes",
+   "url": "https://www.reprisetransmission.fr/beton.aspx",
+   "description": "Société spécialisée dans le béton à vendre : production ou application sur chantiers, clientèle professionnelle établie et perspectives de croissance dans le BTP.",
+   "orig_class": "COMPANY_CANDIDATE"
+  },
+  {
+   "title": "Bâtiment et Travaux Publics |France Travail",
+   "url": "https://www.francetravail.fr/region/auvergne-rhone-alpes/marche-du-travail/metiers-et-secteurs-qui-recruten/batiment-et-travaux-publics.html",
+   "description": "Dynamique, riche de multiples métiers, le secteur du Bâtiment et des Travaux publics est ouvert à tous profils de candidats. Après un ralentissement, le marché a repris des couleurs, et mobilise aujourd’hui de nombreux emplois. Quelles pistes pour décrocher un contrat dans le BTP ?",
+   "orig_class": "IRRELEVANT"
+  }
+ ]
+}

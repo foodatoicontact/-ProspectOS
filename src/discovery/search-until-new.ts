@@ -43,7 +43,7 @@ export function desiredNewResults(requested: number | undefined, maxResults: num
 }
 
 export type PassReport = {query_kind: SearchVariant['kind']; duration_ms: number; results: number; new_after: number; failed: boolean};
-export type SearchUntilNewResult<C> = {candidates: C[]; passes: PassReport[]; providerCalls: number; stopReason: StopReason; newFound: number};
+export type SearchUntilNewResult<C> = {candidates: C[]; passes: PassReport[]; providerCalls: number; stopReason: StopReason; newFound: number; lastCallReserved?: boolean};
 
 // The loop. `runPass` performs ONE provider request and returns its normalized candidates; `countNew` gives
 // the number of NEW actors among everything gathered so far (after inter-pass dedup and the project memory),
@@ -53,6 +53,9 @@ export async function searchUntilNewTarget<C>(opts: {
  variants: SearchVariant[]; desiredNewResults: number; maxProviderCalls?: number;
  runPass: (variant: SearchVariant) => Promise<C[]>; countNew: (all: C[]) => number;
  now?: () => number; startedAt?: number; timeBudgetMs?: number; passTimeoutMs?: number;
+ // After two primary passes, when the run's LAST request is better spent resolving the companies the set-aside
+ // sources cite (secondary-sources.ts), the loop stops there and leaves that request unspent (same cap, same cost).
+ reserveLastCall?: (all: C[]) => boolean;
 }): Promise<SearchUntilNewResult<C>> {
  const now = opts.now ?? Date.now;
  const start = opts.startedAt ?? now();
@@ -60,10 +63,11 @@ export async function searchUntilNewTarget<C>(opts: {
  const budget = opts.timeBudgetMs ?? TIME_BUDGET_MS, passTimeout = opts.passTimeoutMs ?? PASS_TIMEOUT_MS;
  const all: C[] = [];
  const passes: PassReport[] = [];
- let calls = 0, newFound = 0, stop: StopReason | null = null;
+ let calls = 0, newFound = 0, stop: StopReason | null = null, reserved = false;
  for (const variant of opts.variants) {
   if (calls >= cap) { stop = 'MAX_PROVIDER_CALLS'; break; }
   if (calls > 0 && now() - start + passTimeout > budget) { stop = 'TIME_BUDGET'; break; }
+  if (calls >= 2 && calls === cap - 1 && opts.reserveLastCall?.(all)) { stop = 'MAX_PROVIDER_CALLS'; reserved = true; break; }
   calls++;
   const t0 = now();
   let found: C[];
@@ -83,5 +87,5 @@ export async function searchUntilNewTarget<C>(opts: {
   if (calls > 1 && newFound <= before) { stop = 'NO_NEW_RESULTS'; break; }
  }
  if (!stop) stop = calls >= cap ? 'MAX_PROVIDER_CALLS' : 'NO_MORE_VARIANTS';
- return {candidates: all, passes, providerCalls: calls, stopReason: stop, newFound};
+ return {candidates: all, passes, providerCalls: calls, stopReason: stop, newFound, lastCallReserved: reserved};
 }

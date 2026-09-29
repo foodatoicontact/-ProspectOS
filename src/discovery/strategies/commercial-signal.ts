@@ -25,7 +25,22 @@ const PATTERNS:[string,RegExp,string][]=[
  ['PUBLIC_TENDER_SIGNAL',/appel d.offres|consultation publique|marché public/i,'Appel d’offres ou demande publique explicitement mentionné'],
  ['EXPANSION_SIGNAL',/expansion (?:internationale|nationale|du réseau)|développement à l.international|développement du réseau/i,'Expansion explicitement annoncée'],
 ];
-export function matchCommercialSignal(ctx:Pick<ObservationContext,'lines'>):{type:string;line:string;claim:string}|null{
- for(const [type,re,claim] of PATTERNS){const line=ctx.lines.find(l=>re.test(l));if(line)return {type,line,claim}}
+// Which signals the label actually asks for. "Signal de recrutement / alternance / croissance" asks for hiring and
+// growth: a public tender ("Appel d'offres") is another signal and never satisfies it. A label naming no specific
+// signal ("Signal commercial observable", "Business signal") accepts every explicit event, as before.
+const LABEL_SIGNALS:[string,RegExp][]=[
+ ['RECRUITING_SIGNAL',/recrut|embauche|alternan|emploi|hiring|job/],
+ ['NEW_LOCATION_SIGNAL',/ouverture|implantation|agence|croissance|expansion|growth/],
+ ['LAUNCH_SIGNAL',/lancement|nouveaut|nouvelle offre|croissance|launch|growth/],
+ ['PUBLIC_TENDER_SIGNAL',/appel d.offres|marches? publics?|commande publique|tender|dce/],
+ ['EXPANSION_SIGNAL',/expansion|croissance|developpement|growth/],
+];
+export function acceptedSignalTypes(label:string):Set<string>{
+ const l=normalizeLabel(label);const named=LABEL_SIGNALS.filter(([,re])=>re.test(l)).map(([t])=>t);
+ return new Set(named.length?named:COMMERCIAL_SIGNAL_TYPES);
+}
+export function matchCommercialSignal(ctx:Pick<ObservationContext,'lines'>,label?:string):{type:string;line:string;claim:string}|null{
+ const accepted=label===undefined?null:acceptedSignalTypes(label);
+ for(const [type,re,claim] of PATTERNS){if(accepted&&!accepted.has(type))continue;const line=ctx.lines.find(l=>re.test(l));if(line)return {type,line,claim}}
  return null;
 }

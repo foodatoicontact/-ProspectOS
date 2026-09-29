@@ -468,6 +468,8 @@ export const en={
  'discovery.priorityReason.content_source':'found through an article or content page',
  'discovery.priorityReason.listing_or_editorial_shape':'list or article page',
  'discovery.priorityReason.not_a_company_candidate':'not an exploitable company',
+ 'discovery.priorityReason.cooperative_or_network':'cooperative or network of professionals, not a single company',
+ 'discovery.priorityReason.public_body':'public body, not a company',
  'discovery.sourceType.official_site':'Organization’s own site',
  'discovery.sourceType.job_board':'Job board / job ad',
  'discovery.sourceType.marketplace':'Marketplace / platform',

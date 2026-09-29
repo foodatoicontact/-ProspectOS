@@ -474,6 +474,8 @@ export const fr={
  'discovery.priorityReason.content_source':'repérée via un article ou une page de contenu',
  'discovery.priorityReason.listing_or_editorial_shape':'page de type liste ou article',
  'discovery.priorityReason.not_a_company_candidate':'pas une entreprise exploitable',
+ 'discovery.priorityReason.cooperative_or_network':'coopérative ou réseau de professionnels, pas une entreprise unique',
+ 'discovery.priorityReason.public_body':'acteur public, pas une entreprise',
  'discovery.sourceType.official_site':'Site de l’organisation',
  'discovery.sourceType.job_board':'Job board / offre d’emploi',
  'discovery.sourceType.marketplace':'Marketplace / plateforme',

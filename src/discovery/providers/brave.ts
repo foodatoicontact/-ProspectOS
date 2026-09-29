@@ -11,6 +11,7 @@ import {locationTarget,mentionedPlace} from '../geo-fr.ts';
 import {planSearchQueries} from '../query-plan.ts';
 import {resolveMarket,type MarketReason} from '../market.ts';
 import {diagnoseDiscoveryFailure} from '../failure-diagnostics.ts';
+import {entityTypeOf} from '../entity-type.ts';
 const RawSchema=z.object({title:z.string().min(1),url:z.string().url(),description:z.string().optional()}).passthrough();
 // Attached in-memory onto each raw result between searchCompanies and normalizeResult — never
 // serialized, never persisted as its own column; it only ever ends up inside Candidate.raw_metadata
@@ -141,6 +142,9 @@ export class BraveProvider implements DiscoveryProvider {
  source_class:gate.admissible?'COMPANY_CANDIDATE':'IRRELEVANT',
  source_type:resolution.sourceType,
  page_type:gate.pageType,
+ // COMPANY / COOPERATIVE / FEDERATION / NETWORK / DIRECTORY / MARKETPLACE / PUBLIC_BODY (entity-type.ts): what kind of
+ // organization this is, for the reviewer and review priority — never an evidence status, never an acceptance rule.
+ entity_type:entityTypeOf({pageType:gate.pageType,reasonCode:gate.reasonCode,sourceType:resolution.sourceType,name:entity?.name??null,title,description}),
  admissibility:{admissible:gate.admissible,reason_code:gate.reasonCode,page_type_reasons:gate.pageTypeReasons},
  location_state:gate.location.state,
  location_target:gate.location.target,

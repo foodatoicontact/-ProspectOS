@@ -51,5 +51,7 @@ export class SupabaseDiscoveryRepository implements DiscoveryRepository {
  async prospect(id:string){return checked(this.db.from('prospects').select('id,website,organization_id,project_id').eq('id',id).single())}
  async projectCriteria(projectId:string){const project=await checked(this.db.from('projects').select('*,icps(*)').eq('id',projectId).single());return resolveProjectCriteria(project.icps)}
  async consumeAnalysis(id:string){await checked(this.db.rpc('consume_analysis_quota',{p_prospect_id:id}))}
+ // The member's own client (RLS): only a prospect of their organization, and only while its city is empty.
+ async fillProspectCity(id:string,city:string){await checked(this.db.from('prospects').update({city:city.slice(0,120)}).eq('id',id).or('city.is.null,city.eq.'))}
  async saveObservations(id:string,observations:Observation[]){return checked(this.db.rpc('save_discovery_observations',{p_prospect_id:id,p_observations:observations.map(toStorageSafeObservation)}))}
 }

@@ -6,10 +6,12 @@ import {ObservationService,EvidenceProposalService} from './observations.ts';
 import {diagnoseDiscoveryFailure,type DiscoveryStage} from './failure-diagnostics.ts';
 import {mergeSameEntityCandidates,sameCanonicalOrganization} from './admissibility.ts';
 import {pageIntentsFor,internalLinkScore} from './strategies/icp-intents.ts';
+import {officialAddressIn,addressCity} from './strategies/address.ts';
 import {eligibleNoveltyCounts,isEligibleCandidate,noveltyRates,type ProjectMemory,type Novelty} from './novelty.ts';
 import {ProjectNovelty} from './novelty-engine.ts';
 import {reviewPriority} from './review-priority.ts';
-import {buildSearchVariants,desiredNewResults,searchUntilNewTarget,type SearchUntilNewResult} from './search-until-new.ts';
+import {buildSearchVariants,desiredNewResults,searchUntilNewTarget,MAX_PROVIDER_CALLS,PASS_TIMEOUT_MS,TIME_BUDGET_MS,type SearchUntilNewResult} from './search-until-new.ts';
+import {planSecondaryExpansion,resolveSecondaryCandidates,secondaryQuery} from './secondary-sources.ts';
 export interface DiscoveryRepository {
  start(input:DiscoveryInput,provider:string):Promise<DiscoveryRun>;
  existing(projectId:string):Promise<Identity[]>;
@@ -22,6 +24,9 @@ export interface DiscoveryRepository {
  projectCriteria(projectId:string):Promise<Criterion[]>;
  consumeAnalysis(id:string):Promise<void>;
  saveObservations(id:string,observations:Observation[]):Promise<unknown[]>;
+ // Fills the prospect's city ONLY while it is empty (never overwrites what a member wrote), from the address the
+ // organization publishes on its own analyzed site. Optional: without it the address stays an observation only.
+ fillProspectCity?(id:string,city:string):Promise<void>;
 }
 export type PageFetcher=(url:string)=>Promise<{url:string;html:string}>;
 export type SafeLogger=(event:Record<string,string|number|null>)=>void;
@@ -46,6 +51,7 @@ export class DiscoveryService {
  constructor(repo:DiscoveryRepository,provider:DiscoveryProvider,log:SafeLogger=noop,meter?:SearchMeter){this.repo=repo;this.provider=provider;this.dedupe=new DeduplicationService();this.log=log;this.meter=meter}
  // Read through a method: the provider sets it during the awaited search, which flow analysis cannot see.
  lastSearch():ProviderSearchReport|undefined{return this.provider.lastSearch}
+ expandSecondarySources(input:DiscoveryInput,normalized:Candidate[],known:Identity[],start:number){return expandSecondary.call(this,input,normalized,known,start)}
  async find_prospects(raw:unknown){
  const input=DiscoveryInputSchema.parse(raw);this.provider.lastSearch=undefined;const run=await this.repo.start(input,this.provider.id);const start=Date.now();
  let metered=false;const meterSearch=async()=>{const sent=this.lastSearch()?.requests_sent??0;if(metered||!this.meter||sent<1)return;metered=true;try{await this.meter(run,sent)}catch{/* Cost-ledger visibility is best-effort (see usage.ts). */}};
@@ -79,6 +85,7 @@ export class DiscoveryService {
   const engine=new ProjectNovelty(mem,input.location);const rank=merged.kept.map(c=>!isEligibleCandidate(c.raw_metadata.source_class)?2:engine.classify(c).status==='NEW'?0:1);
   normalized.push(...[0,1,2].flatMap(g=>merged.kept.filter((_,i)=>rank[i]===g)).slice(0,input.max_results));
  }else{if(mode==='search_new')fallback=memory?'provider_unsupported':'novelty_unavailable';normalized.push(...normalizeAll(await this.provider.searchCompanies(input)))}
+ const secondary=await this.expandSecondarySources(input,normalized,known,start);
  await meterSearch();
  const search=this.lastSearch();
  // Partial search failure: some queries failed, at least one succeeded — the run continues on the results
@@ -95,9 +102,29 @@ export class DiscoveryService {
  // Review priority (review-priority.ts): which candidate to look at first, computed after the in-run merge
  // (several concordant sources count). Stored for traceability only — never an evidence status, never a score.
  const prioritized={...labelled,raw_metadata:{...labelled.raw_metadata,review_priority:reviewPriority(labelled.raw_metadata,labelled.website)}};candidates.push({candidate:prioritized,dedupe});seen.push(candidate)}
- stage='save';const results=await this.repo.saveResults(run,candidates);const counts=novelty?eligibleNoveltyCounts(candidates,c=>c.candidate.raw_metadata.source_class,c=>c.candidate.raw_metadata.novelty as Novelty,entitiesMerged+deepMerged):null;const metrics={provider:this.provider.id,duration_ms:Date.now()-start,...searchMetrics(search),results:results.length,normalization_rejected:normalizationRejected,entities_merged:entitiesMerged+deepMerged,ai_tokens:0,ai_cost_estimate:0,search_mode:mode,...(fallback?{search_mode_fallback:fallback}:{}),...(deep?deepSearchMetrics(deep,desired,uniqueTotal,counts?.new_results??0):{}),...(counts?{...counts,...noveltyRates(counts)}:{novelty_unavailable:1}),...(memoryTruncated?{novelty_memory_truncated:1}:{})};stage='finish';await this.repo.finish(run.id,results.length,metrics);this.log(Object.fromEntries(Object.entries(metrics).map(([k,v])=>[k,Array.isArray(v)?v.join(','):v])) as Record<string,string|number|null>);return {...run,status:'completed',provider_mode:this.provider.mode,results,result_count:results.length};
+ stage='save';const results=await this.repo.saveResults(run,candidates);const counts=novelty?eligibleNoveltyCounts(candidates,c=>c.candidate.raw_metadata.source_class,c=>c.candidate.raw_metadata.novelty as Novelty,entitiesMerged+deepMerged):null;const metrics={provider:this.provider.id,duration_ms:Date.now()-start,...searchMetrics(search),results:results.length,normalization_rejected:normalizationRejected,entities_merged:entitiesMerged+deepMerged,ai_tokens:0,ai_cost_estimate:0,search_mode:mode,...(fallback?{search_mode_fallback:fallback}:{}),...(deep?deepSearchMetrics(deep,desired,uniqueTotal,counts?.new_results??0):{}),...secondary,...(counts?{...counts,...noveltyRates(counts)}:{novelty_unavailable:1}),...(memoryTruncated?{novelty_memory_truncated:1}:{})};stage='finish';await this.repo.finish(run.id,results.length,metrics);this.log(Object.fromEntries(Object.entries(metrics).map(([k,v])=>[k,Array.isArray(v)?v.join(','):v])) as Record<string,string|number|null>);return {...run,status:'completed',provider_mode:this.provider.mode,results,result_count:results.length};
  }catch(error){await meterSearch();await this.repo.finish(run.id,0,{duration_ms:Date.now()-start,...searchMetrics(this.lastSearch())},'DISCOVERY_FAILED');this.log({provider:this.provider.id,duration_ms:Date.now()-start,error:'DISCOVERY_FAILED',...searchMetrics(this.lastSearch()),...diagnoseDiscoveryFailure(stage,error)});throw Error('DISCOVERY_FAILED')}
  }
+}
+// Secondary sources (secondary-sources.ts): names cited by the directories, rankings and articles of this run are
+// looked for ONCE, with one request of the run's own budget (never beyond MAX_PROVIDER_CALLS, never past the time
+// budget), and only the ones found on their own official site join the results — then the normal pipeline decides.
+// Results set aside make room for them (max_results unchanged); a failure never fails the run. Counts only in metrics.
+async function expandSecondary(this:DiscoveryService,input:DiscoveryInput,normalized:Candidate[],known:Identity[],start:number):Promise<Record<string,number>>{
+ const plan=planSecondaryExpansion(normalized,known,{query:input.query,categories:input.categories,location:input.location});
+ const metrics:Record<string,number>={secondary_sources:plan.sources,secondary_names_extracted:plan.extracted,secondary_names_known:plan.skippedKnown,secondary_names_searched:0,secondary_requests:0,secondary_candidates:0,secondary_unresolved:0};
+ const sent=this.lastSearch()?.requests_sent??0;
+ if(!plan.names.length||!this.provider.searchVariant||sent>=MAX_PROVIDER_CALLS||Date.now()-start+PASS_TIMEOUT_MS>TIME_BUDGET_MS)return metrics;
+ metrics.secondary_names_searched=plan.names.length;metrics.secondary_requests=1;
+ let found:Candidate[]=[];
+ try{for(const raw of (await this.provider.searchVariant(input,secondaryQuery(plan.names))).slice(0,input.max_results)){try{found.push(this.provider.normalizeResult(raw))}catch{/* dropped like any unnormalizable result */}}}
+ catch{metrics.secondary_failed=1;return metrics}
+ const {resolved,unresolved}=resolveSecondaryCandidates(found,plan.names);metrics.secondary_unresolved=unresolved;
+ const fresh=resolved.filter(r=>!normalized.some(n=>n.website&&r.website&&new URL(n.website).hostname.replace(/^www\./,'')===new URL(r.website).hostname.replace(/^www\./,'')));
+ const cites=new Set(plan.names.map(n=>n.source_url));
+ for(const keepCiting of [false,true])for(let i=normalized.length-1;i>=0&&normalized.length+fresh.length>input.max_results;i--){const c=normalized[i]!;if(!isEligibleCandidate(c.raw_metadata.source_class)&&(keepCiting||!cites.has(c.source_url)))normalized.splice(i,1)}
+ const added=fresh.slice(0,Math.max(0,input.max_results-normalized.length));normalized.push(...added);metrics.secondary_candidates=added.length;
+ return metrics;
 }
 // Depth 1, same origin, at most MAX_EXTRA_PAGES pages besides the first one (3 in total, unchanged). The
 // link words used to be restaurant-only (menu, carte, commande, livraison); they are kept, and the generic
@@ -156,7 +183,10 @@ export class CompanyAnalysisService {
  // A weak proposal (a menu heading such as "Tarifs & planning") does not make the page behind it useless.
  const covered=new Set(firstObservations.filter(o=>o.criterion&&o.value===true&&o.confidence>=COVERED_CONFIDENCE).map(o=>o.criterion!));
  let failedPages=0;for(const url of selectInternalPages([...links].map(([url,text])=>({url,text})),criteria,covered)){try{pages.push(await this.fetchPage(url))}catch{failedPages++}}
- const observations=prioritizeObservations([...firstObservations,...pages.slice(1).flatMap(item=>extractor.extract(item.html,item.url,criteria,sourceType))].map(o=>ObservationSchema.parse(o)));const proposed=new EvidenceProposalService().propose(observations,criteria);const saved=await this.repo.saveObservations(prospectId,observations);this.log({provider:'http_html',duration_ms:Date.now()-start,pages:pages.length,failed_pages:failedPages,proposed_evidence:proposed.length,ai_tokens:0,ai_cost_estimate:0});return {observations:saved,pages_analyzed:pages.length,failed_pages:failedPages,proposals:proposed.length,ai_tokens:0,ai_cost_estimate:0};
+ const observations=prioritizeObservations([...firstObservations,...pages.slice(1).flatMap(item=>extractor.extract(item.html,item.url,criteria,sourceType))].map(o=>ObservationSchema.parse(o)));const proposed=new EvidenceProposalService().propose(observations,criteria);const saved=await this.repo.saveObservations(prospectId,observations);
+ // The official address, read on the authorized site itself: reported to the prospect card while its city is empty.
+ const address=sourceType==='official_website'?observations.map(o=>o.observation_type==='OFFICIAL_ADDRESS'?officialAddressIn([o.source_excerpt]):null).find(Boolean):null;
+ let cityFilled=0;if(address&&this.repo.fillProspectCity){try{await this.repo.fillProspectCity(prospectId,addressCity(address));cityFilled=1}catch{/* The observation is saved; the card keeps "à confirmer". */}}this.log({provider:'http_html',duration_ms:Date.now()-start,pages:pages.length,failed_pages:failedPages,proposed_evidence:proposed.length,official_address:address?1:0,city_filled:cityFilled,ai_tokens:0,ai_cost_estimate:0});return {observations:saved,pages_analyzed:pages.length,failed_pages:failedPages,proposals:proposed.length,ai_tokens:0,ai_cost_estimate:0};
  // The original cause (never sent to the client — the route always returns the generic mapped
  // message) is logged here so a real failure stays diagnosable from server logs alone.
  // Each failure gets a precise code (analysisFailureCode) so the user knows WHY — never an address, a host or

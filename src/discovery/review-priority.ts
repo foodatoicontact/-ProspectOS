@@ -11,7 +11,7 @@ export type ReviewPriorityLevel = 'HIGH' | 'MEDIUM' | 'LOW';
 export type ReviewPriorityReason =
  | 'official_site' | 'named_by_third_party' | 'website_identified' | 'query_terms_observed' | 'single_query_term' | 'no_specific_query_term'
  | 'location_mentioned' | 'several_sources' | 'business_site_shape' | 'job_ad_source' | 'content_source' | 'listing_or_editorial_shape'
- | 'not_a_company_candidate';
+ | 'not_a_company_candidate' | 'cooperative_or_network' | 'public_body';
 export type ReviewPriority = {level: ReviewPriorityLevel; reasons: ReviewPriorityReason[]};
 
 // Words of a brief that say nothing about the target's activity ("entreprises", "sociétés", "PME"…): observing
@@ -22,7 +22,7 @@ const specificTerms = (terms: unknown): string[] => Array.isArray(terms) ? terms
 
 type Meta = Record<string, unknown> & {
  source_class?: unknown; entity_confidence?: unknown; company_domain_method?: unknown; relevance_terms?: unknown; location_state?: unknown;
- page_type?: unknown; quality_signal?: unknown; additional_sources?: unknown;
+ page_type?: unknown; quality_signal?: unknown; additional_sources?: unknown; entity_type?: unknown;
 };
 
 export function reviewPriority(meta: Meta | null | undefined, website?: string | null): ReviewPriority {
@@ -43,9 +43,14 @@ export function reviewPriority(meta: Meta | null | undefined, website?: string |
  if (m.quality_signal === 'listicle_pattern' || m.quality_signal === 'editorial_pattern' || m.quality_signal === 'aggregator_pattern') { points -= 1; reasons.push('listing_or_editorial_shape'); }
  if (m.page_type === 'THIRD_PARTY_JOB_BOARD') { points -= 1; reasons.push('job_ad_source'); }
  if (m.page_type === 'NEWS_ARTICLE' || m.page_type === 'BLOG_OR_CONTENT' || m.page_type === 'UNKNOWN') { points -= 1; reasons.push('content_source'); }
+ // A cooperative, a network of members or a public body is correctly identified, but it is not the single company a
+ // prospect list targets: it stays visible (a possible partner or client) and never tops the review list.
+ const notASingleCompany = m.entity_type === 'COOPERATIVE' || m.entity_type === 'NETWORK' || m.entity_type === 'PUBLIC_BODY';
+ if (m.entity_type === 'COOPERATIVE' || m.entity_type === 'NETWORK') { points -= 2; reasons.push('cooperative_or_network'); }
+ if (m.entity_type === 'PUBLIC_BODY') { points -= 2; reasons.push('public_body'); }
  // HIGH needs the organization's own site AND at least two specific activity terms observed: an identified
  // company whose activity matches the brief. A name read on someone else's page is at most MEDIUM.
- const level: ReviewPriorityLevel = ownSite && terms.length >= 2 && points >= 5 ? 'HIGH' : points >= 2 ? 'MEDIUM' : 'LOW';
+ const level: ReviewPriorityLevel = !notASingleCompany && ownSite && terms.length >= 2 && points >= 5 ? 'HIGH' : points >= 2 ? 'MEDIUM' : 'LOW';
  return {level, reasons};
 }
 

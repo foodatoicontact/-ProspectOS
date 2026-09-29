@@ -7,6 +7,7 @@ import {findTargetFitCriterion,evaluateTargetFit,TARGET_FIT_DIMENSION_LABELS} fr
 import {findNeedFitCriterion,matchNeedFitSignal} from './need-fit.ts';
 import {extractIcpConceptProposals} from './icp-concepts.ts';
 import {extractIntentObservation,intentLayerUnderstands} from './icp-intents.ts';
+import {officialAddressIn} from './address.ts';
 // Sector-agnostic extraction: works from the project's own ICP labels instead of any hardcoded vertical.
 // A criterion never seen at compile time can still receive a proposal as long as it exists in the ICP passed in.
 const STOPWORDS=new Set(['dans','pour','avec','sans','plus','votre','vos','vous','notre','nos','nous','cette','ces','sont','être','avoir','leur','leurs','qui','que','dont','tout','tous','toute','toutes','fait','faire','très','bien','aussi','donc','ainsi','comme','the','and','for','with','this','that','from','your','have']);
@@ -22,6 +23,10 @@ export function extractGenericObservations(ctx:ObservationContext,criteria:Crite
  const phone=text.match(PHONE_PATTERN)?.[0];
  const contactCriterion=phone?findContactChannelCriterion(criteria):null;
  const attachPhoneTo=contactCriterion&&!covered.has(contactCriterion.key)?contactCriterion:null;
+ // The postal address the analyzed site publishes: a sourced observation (no criterion, no value). The analysis
+ // service may fill the prospect's still-empty city from it — only for the organization's own site (services.ts).
+ const address=officialAddressIn(lines);
+ if(address)out.push(make(null,'OFFICIAL_ADDRESS',address.line,null,'OBSERVED',`Adresse publiée par le site : ${address.postalCode} ${address.city}${address.department?` (${address.department}, ${address.region})`:''}`,.8));
  if(phone){
   if(attachPhoneTo)out.push(make(attachPhoneTo.key,'PHONE_RAW',phone,true,'OBSERVED','Numéro de téléphone professionnel public documenté',.8));
   else out.push(make(null,'PHONE_RAW',phone,null,'OBSERVED','Numéro public présent ; usage commercial non déduit',.95));
@@ -31,7 +36,7 @@ export function extractGenericObservations(ctx:ObservationContext,criteria:Crite
  // commercial/growth event (recruiting, opening, launch, tender, expansion). Existence of a website,
  // a phone number, or the company itself is never enough — only a concrete, named event is.
  const signalCriterion=findCommercialSignalCriterion(criteria);
- const signalMatch=signalCriterion&&!covered.has(signalCriterion.key)?matchCommercialSignal(ctx):null;
+ const signalMatch=signalCriterion&&!covered.has(signalCriterion.key)?matchCommercialSignal(ctx,signalCriterion.label):null;
  const attachSignalTo=signalMatch?signalCriterion:null;
  if(attachSignalTo&&signalMatch)out.push(make(attachSignalTo.key,signalMatch.type,signalMatch.line,true,'OBSERVED',signalMatch.claim,.75));
  // target_fit: the ICP's OWN user-authored rules are the sole vocabulary — never the label, never a

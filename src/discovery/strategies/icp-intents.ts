@@ -21,7 +21,7 @@ import {icpSignalType,icpSignalHash,conceptsForLabel,NEGATION,withoutNegationExe
 // achetées = 1 offerte") is INSUFFICIENT. Neither is ever proposed as a fact: both are kept as contextual
 // notes (value null, stored without criterion — see toStorageSafeObservation) so the reviewer sees why the
 // criterion stays "À confirmer". Contact data (phone, e-mail) only ever supports a contact criterion.
-export type IntentId='ACTIVITY_OR_SERVICE'|'BOOKING_OR_REGISTRATION'|'SCHEDULE_OR_REGULARITY'|'CAPACITY'|'EVENT_OR_COMMUNITY'|'CONTACTABILITY'|'DECISION_MAKER'|'PRICING_OR_OFFER'|'LOCATION_OR_PHYSICAL_PRESENCE';
+export type IntentId='ACTIVITY_OR_SERVICE'|'BOOKING_OR_REGISTRATION'|'SCHEDULE_OR_REGULARITY'|'CAPACITY'|'EVENT_OR_COMMUNITY'|'CONTACTABILITY'|'DECISION_MAKER'|'PRICING_OR_OFFER'|'LOCATION_OR_PHYSICAL_PRESENCE'|'PUBLIC_REFERENCE'|'PUBLIC_PROCUREMENT'|'HEADCOUNT';
 export type Polarity='positive'|'negative'|'insufficient';
 export const INTENT_NOTE_TYPES={negative:'ICP_INTENT_NEGATIVE',insufficient:'ICP_INTENT_INSUFFICIENT'} as const;
 
@@ -46,7 +46,9 @@ const PRICE_OR_PROMO=/€|\d\s*euros?(?=[^a-z]|$)|(?:^|[^a-z])(?:achete\w*|offer
 function pastYear(n:string,year:number):boolean{for(const m of n.matchAll(/(?:^|[^0-9])((?:19|20)\d{2})(?=[^0-9]|$)/g))if(Number(m[1])<year)return true;return false}
 
 // ---------------------------------------------------------------- intent families
-type Support={reason:string;confidence:number};
+// `outside`: the sentence states the fact the label asks about, but outside what the label accepts (a headcount
+// outside the label's range): kept as a contextual note, never proposed.
+type Support={reason:string;confidence:number;outside?:boolean};
 type Intent={
  id:IntentId;
  // A label names this intent. `blockedBy` keeps a label that only looks like it out (e.g. "Liste de contacts
@@ -58,6 +60,8 @@ type Intent={
  support(n:string,criterion:Interpretation):Support|null;
  // Promotional wording is not proof of this intent (it is proof of an offer).
  priceIsNotProof?:boolean;
+ // A past fact still proves this intent (a reference delivered in 2022 is a reference; a headcount is a fact).
+ pastIsProof?:boolean;
  // Internal page names worth fetching for this intent (path + link text, normalized).
  page:RegExp;
 };
@@ -184,6 +188,8 @@ const decisionMaker:Intent={
 
 const pricing:Intent={
  id:'PRICING_OR_OFFER',
+ // "Promotion immobilière / foncière" is a trade (property development), not a commercial promotion.
+ blockedBy:/promotions? (immobilier\w*|fonci\w*)|promoteurs?/,
  label:words("tarifs?|tarifaires?|prix|pricing|abonnements?|formules?|forfaits?|fidelisation|fidelite|promotions?|offres commerciales|offre commerciale|offres? (tarifaires?|promotionnelles?|speciales?|de fidelite)|carte de fidelite|loyalty"),
  cue:/[a-z0-9]/,
  support(n){
@@ -207,7 +213,75 @@ const location:Intent={
  page:words('acces|plan d acces|nous trouver|adresse|localisation|venir'),
 };
 
-export const INTENTS:Intent[]=[activity,booking,schedule,capacity,events,contact,decisionMaker,pricing,location];
+// ---------------------------------------------------------------- public-sector references and procurement
+// OBSERVATION → INTERPRETATION. The page states a fact ("Maître d'ouvrage : Grenoble Alpes Métropole"); the proposal
+// is the interpretation of it ("référence avec un acteur public"), always INFERRED and confirmed by a human. A public
+// body is named ONLY together with the context that makes it a reference (maître d'ouvrage, client, projet, marché…)
+// or as an unambiguous public-body name standing alone (a references table cell such as "Ville de Vaulx-en-Velin").
+// "Région Auvergne-Rhône-Alpes" alone is a place as often as a client: it needs the context.
+// Unambiguous public bodies. A place phrase is not one: "dans la ville de Lyon", "sur la commune de X", "la
+// métropole lyonnaise" name a location, never a client (the article before the noun rules them out).
+const STRONG_BODY="(?<!la )(?<!sa )(?<!notre )villes? (?:de|d')|(?<!la )(?<!sa )communes? (?:de|d')|mairies? (?:de|d')|conseils? (?:departementa\\w*|regiona\\w*|genera\\w*)|(?!(?:dans|toute|sur|pour|avec|vers|en|la|sa|notre|une|de|du)\\s)[a-z-]{3,} (?:[a-z-]+ )?metropole|(?<!la )(?<!sa )metropole (?:de |du |d')[a-z-]+|communautes? (?:de communes|d'agglomeration|urbaines?)|agglo|cc [a-z-]+|sivom|sivu|syndicats? (?:mixtes?|intercommuna\\w*)|offices? publics?(?: de l'habitat)?|opac|oph|bailleurs? sociaux|bailleur social|hlm|centres? hospitaliers?|chu|ministeres?|prefectures?|sdis|epci|collectivites?(?: territoriales?)?";
+// Public too, but as often a place or a building type: named as the CLIENT only ("Maître d'ouvrage : Région…").
+const WEAK_BODY="regions? [a-z-]+|departements? (?:de|du|des|d')|lycees?|colleges?|universites?|hopita\\w*|etablissements? publics?|logements? sociaux|habitat social|services? de l'etat|l'etat";
+const STANDALONE_PUBLIC_BODY=words("(?<!la )villes? (?:de|d')|(?<!la )communes? (?:de|d')|mairies? (?:de|d')|(?!(?:dans|toute|sur|pour|avec|vers|en|la|sa|notre|une|de|du)\\s)[a-z-]{3,} (?:[a-z-]+ )?metropole|(?<!la )metropole (?:de |du |d')[a-z-]+|communautes? (?:de communes|d'agglomeration|urbaine)|conseil (?:departemental|regional)|offices? publics? de l'habitat|bailleurs? sociaux|bailleur social");
+const REFERENCE_CONTEXT=words("maitres? d'ouvrage|maitrise d'ouvrage|moa|clients?|donneurs? d'ordres?|pour le compte (?:de|du|des|d')|references?|realisations?|chantiers?|operations?|projets?|marches?|lots?|travaux (?:pour|de|du|d')|construction (?:de|du|d'|des)|rehabilitation|renovation|livr\\w*|montant");
+const CLIENT_CONTEXT=words("maitres? d'ouvrage|maitrise d'ouvrage|moa|clients? publics?|donneurs? d'ordres?|pour le compte (?:de|du|des|d')");
+const PUBLIC_BODY=`${STRONG_BODY}|${WEAK_BODY}`;
+const publicReference:Intent={
+ id:'PUBLIC_REFERENCE',pastIsProof:true,
+ label:/(collectivit|bailleurs? sociaux|bailleur social|etablissements? publics?|acteurs? publics?|secteur public|maitres? d'ouvrage public|donneurs? d'ordres? publics?|references? publiques?|clients? publics?|organismes? publics?|acheteurs? publics?)/,
+ cue:words(PUBLIC_BODY),
+ support(n){
+  const strong=words(STRONG_BODY).test(n);
+  if(!strong&&!(words(WEAK_BODY).test(n)&&CLIENT_CONTEXT.test(n)))return null;
+  if(!strong||REFERENCE_CONTEXT.test(n))return {reason:'Référence avec un acteur public (maître d’ouvrage, client ou projet public cité)',confidence:.55};
+  if(n.length<=80&&STANDALONE_PUBLIC_BODY.test(n))return {reason:'Le site cite un acteur public (collectivité, bailleur social…) : référence possible',confidence:.45};
+  return null;
+ },
+ page:words('references?|realisations?|projets?|chantiers?|nos operations|operations|portfolio|nos travaux|clients?'),
+};
+// Answering public tenders is a practice: a lone "Appel d'offres" heading (a menu, a news title) proves nothing.
+// Only an explicit construction does — the company answers, won or holds public contracts.
+const TENDER="marches? publics?|appels? d'offres|commande publique|consultations? publiques?|dce|procedures? adaptees?|mapa";
+const publicProcurement:Intent={
+ id:'PUBLIC_PROCUREMENT',pastIsProof:true,
+ label:words(TENDER),
+ cue:words(TENDER),
+ support(n){
+  if(new RegExp(`${W}(repond\\w*|remport\\w*|attributaire\\w*|titulaire\\w*|laureat\\w*|soumissionn\\w*|habitue\\w*|specialis\\w*|experience|expertise|accompagn\\w*)${E}.{0,60}${W}(${TENDER})${E}`).test(n))return {reason:'Le site indique répondre à des marchés publics ou en être titulaire',confidence:.55};
+  if(new RegExp(`${W}(${TENDER})${E}.{0,50}${W}(remport\\w*|obtenu\\w*|attribue\\w*|gagne\\w*|notifie\\w*)${E}`).test(n))return {reason:'Le site mentionne un marché public remporté',confidence:.55};
+  return null;
+ },
+ page:words('references?|realisations?|marches? publics?|appels? d.offres|actualites?|entreprise|qui sommes[- ]nous|a propos'),
+};
+// Headcount: an explicit count of employees, checked against the range the label itself states ("10 à 100
+// salariés"). A count outside the range is a contextual note, never a proposal ("270 professionnels").
+const STAFF="salaries|collaborateurs|collaboratrices|employes|personnes|compagnons|employees|professionnels|agents";
+function labelRange(label:string):{min:number;max:number}|null{
+ const tolerance=/environ|approximativement|~/.test(label)?.2:0;
+ const range=/(\d{1,5})\s*(?:a|-|–|et)\s*(\d{1,5})\s*(?:salaries|collaborateurs|employes|personnes|employees)/.exec(label);
+ if(range){const a=Number(range[1]),b=Number(range[2]);return {min:Math.floor(Math.min(a,b)*(1-tolerance)),max:Math.ceil(Math.max(a,b)*(1+tolerance))}}
+ const over=/(?:plus de|au moins|minimum|>=?)\s*(\d{1,5})\s*(?:salaries|collaborateurs|employes|personnes)/.exec(label);if(over)return {min:Number(over[1]),max:Infinity};
+ const under=/(?:moins de|au plus|maximum|<=?)\s*(\d{1,5})\s*(?:salaries|collaborateurs|employes|personnes)/.exec(label);if(under)return {min:0,max:Number(under[1])};
+ return null;
+}
+const headcount:Intent={
+ id:'HEADCOUNT',pastIsProof:true,
+ label:words('salaries|collaborateurs|employes|effectifs?|headcount|employees|taille (?:de l\'entreprise|d\'entreprise|de la structure)'),
+ cue:words(STAFF),
+ support(n,criterion){
+  const m=new RegExp(`(?:^|[^0-9])(\\d{1,3}(?:[ .]\\d{3})?)\\s+(${STAFF})${E}`).exec(n)??/effectifs?\s*:?\s*(?:de\s+)?(\d{1,3}(?:[ .]\d{3})?)()/.exec(n);
+  if(!m)return null;
+  const count=Number(m[1].replace(/[ .]/g,''));if(!count)return null;
+  const range=labelRange(criterion.label);const what=m[2]||'personnes';
+  if(range&&(count<range.min||count>range.max))return {reason:`Effectif publié (${count} ${what}) hors de la fourchette du critère`,confidence:.3,outside:true};
+  return {reason:`Effectif publié : ${count} ${what}`,confidence:.55};
+ },
+ page:words('entreprise|societe|qui sommes[- ]nous|a propos|about|notre equipe|equipe|chiffres cles|presentation|histoire'),
+};
+
+export const INTENTS:Intent[]=[activity,booking,schedule,capacity,events,contact,decisionMaker,pricing,location,publicReference,publicProcurement,headcount];
 
 // ---------------------------------------------------------------- reading a criterion label
 // A label is a set of ALTERNATIVES ("Cours / séances / réservation active", "Lieu physique ou activité
@@ -226,6 +300,10 @@ const LOCAL_QUALIFIER=words('localement|sur place|en local|de proximite|local|lo
 // The segment asks for a TARGET activity ("discipline cible", "activité ciblée", "correspondant à…"): only a
 // structured source can say which one.
 const TARGET_REQUIREMENT=words("disciplines?|cibles?|ciblees?|target\\w*|correspondant\\w*");
+// A generic activity (nothing named) is only ever about SESSIONS — courses, workshops, classes — which is all the
+// activity sentences below can prove. "Activité réelle de montage et développement d'opérations" names a business
+// activity no session sentence ("Ateliers d'étudiants") can establish: the segment is left to the other layers.
+const SESSION_ACTIVITY=words(`${ACT_NOUN}|pratique\\w*|disciplines?`);
 const listItems=(s:string)=>s.split(ALTERNATIVES).map(x=>x.replace(/^(le|la|les|l'|du|de la|des)\s+/,'').trim()).filter(x=>x.length>=2&&x.length<=40);
 function targetFitCategories(criteria:Criterion[]):string[]{
  const out:string[]=[];
@@ -249,7 +327,7 @@ export function interpretCriterion(rawLabel:string,criteria:Criterion[]=[]):Inte
  for(const segment of segments){
   for(const i of segmentIntents(segment,label)){
    if(i.id!=='ACTIVITY_OR_SERVICE'){ids.add(i.id);continue}
-   if(enumerated.length||TARGET_REQUIREMENT.test(segment))namedRequired=true;else genericActivity=true;
+   if(enumerated.length||TARGET_REQUIREMENT.test(segment))namedRequired=true;else if(SESSION_ACTIVITY.test(segment))genericActivity=true;
   }
  }
  const fromRule=namedRequired&&!enumerated.length?targetFitCategories(criteria):[];
@@ -269,11 +347,12 @@ function evaluateLine(intent:Intent,raw:string,n:string,criterion:Interpretation
  const cueMatch=cue.exec(n);if(!cueMatch)return null;
  const plain=withoutNegationExemptions(n); // same length: cue positions stay valid
  const support=intent.support(n,criterion);
+ if(support?.outside)return {polarity:'insufficient',line:raw,reason:support.reason,confidence:support.confidence,intent:intent.id};
  if(intent.id==='CONTACTABILITY'||intent.id==='PRICING_OR_OFFER'||intent.id==='LOCATION_OR_PHYSICAL_PRESENCE'){if(!support)return null} // cue = any text: only a supported line counts
  if(NEGATED_CUE.test(plain.slice(0,cueMatch.index+1)))return {polarity:'negative',line:raw,reason:'Le site indique explicitement l’absence de cet élément',confidence:.3,intent:intent.id};
  if(NEGATION.test(plain))return support?{polarity:'insufficient',line:raw,reason:'Formulation négative ou ambiguë : ne permet pas de conclure',confidence:.3,intent:intent.id}:null;
  if(TENTATIVE.test(n))return {polarity:'insufficient',line:raw,reason:'Mention future ou incertaine (« bientôt », « à venir »…) : pas une activité actuelle établie',confidence:.3,intent:intent.id};
- if(PAST_WORDS.test(n)||pastYear(n,year))return {polarity:'insufficient',line:raw,reason:'Mention passée (année ou édition antérieure) : ne prouve pas une activité actuelle',confidence:.3,intent:intent.id};
+ if(!intent.pastIsProof&&(PAST_WORDS.test(n)||pastYear(n,year)))return {polarity:'insufficient',line:raw,reason:'Mention passée (année ou édition antérieure) : ne prouve pas une activité actuelle',confidence:.3,intent:intent.id};
  if(intent.priceIsNotProof&&PRICE_OR_PROMO.test(n))return {polarity:'insufficient',line:raw,reason:'Mention tarifaire ou promotionnelle : ne suffit pas à établir ce critère',confidence:.3,intent:intent.id};
  return support?{polarity:'positive',line:raw,reason:support.reason,confidence:Math.min(.6,support.confidence),intent:intent.id}:null;
 }

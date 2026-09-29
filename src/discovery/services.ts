@@ -51,7 +51,7 @@ export class DiscoveryService {
  constructor(repo:DiscoveryRepository,provider:DiscoveryProvider,log:SafeLogger=noop,meter?:SearchMeter){this.repo=repo;this.provider=provider;this.dedupe=new DeduplicationService();this.log=log;this.meter=meter}
  // Read through a method: the provider sets it during the awaited search, which flow analysis cannot see.
  lastSearch():ProviderSearchReport|undefined{return this.provider.lastSearch}
- expandSecondarySources(input:DiscoveryInput,normalized:Candidate[],known:Identity[],start:number){return expandSecondary.call(this,input,normalized,known,start)}
+ expandSecondarySources(input:DiscoveryInput,normalized:Candidate[],known:Identity[],start:number,pool:Candidate[]=normalized){return expandSecondary.call(this,input,normalized,known,start,pool)}
  async find_prospects(raw:unknown){
  const input=DiscoveryInputSchema.parse(raw);this.provider.lastSearch=undefined;const run=await this.repo.start(input,this.provider.id);const start=Date.now();
  let metered=false;const meterSearch=async()=>{const sent=this.lastSearch()?.requests_sent??0;if(metered||!this.meter||sent<1)return;metered=true;try{await this.meter(run,sent)}catch{/* Cost-ledger visibility is best-effort (see usage.ts). */}};
@@ -77,7 +77,10 @@ export class DiscoveryService {
   // CURRENT_RUN_DUPLICATE), then only COMPANY_CANDIDATEs classified NEW count — never a page set aside.
   const newCount=(all:Candidate[])=>{const engine=new ProjectNovelty(mem,input.location);return mergeSameEntityCandidates(all).kept.map(c=>({c,status:engine.classify(c).status})).filter(x=>isEligibleCandidate(x.c.raw_metadata.source_class)&&x.status==='NEW').length};
   deep=await searchUntilNewTarget<Candidate>({variants:buildSearchVariants(input),desiredNewResults:desired,maxProviderCalls:input.optional_filters.max_provider_calls,startedAt:start,
-   runPass:async variant=>{stage='provider_search';return normalizeAll(await this.provider.searchVariant!(input,variant.query))},countNew:newCount});
+   runPass:async variant=>{stage='provider_search';return normalizeAll(await this.provider.searchVariant!(input,variant.query))},countNew:newCount,
+   // The last request goes to SECONDARY_RESOLUTION instead of a third primary pass when the passes so far already
+   // surfaced cited companies worth resolving (same selection as expandSecondary below). Same cap: 3 requests.
+   reserveLastCall:all=>planSecondaryExpansion(mergeSameEntityCandidates(all).kept,known,{query:input.query,categories:input.categories,location:input.location}).names.length>0});
   // Every pass merged (the same actor met twice is one candidate), then: exploitable NEW actors, the other
   // exploitable candidates (seen, added, ignored), and only then the results set aside — capped at max_results.
   // A page set aside never pushes out a known exploitable organization.
@@ -85,7 +88,9 @@ export class DiscoveryService {
   const engine=new ProjectNovelty(mem,input.location);const rank=merged.kept.map(c=>!isEligibleCandidate(c.raw_metadata.source_class)?2:engine.classify(c).status==='NEW'?0:1);
   normalized.push(...[0,1,2].flatMap(g=>merged.kept.filter((_,i)=>rank[i]===g)).slice(0,input.max_results));
  }else{if(mode==='search_new')fallback=memory?'provider_unsupported':'novelty_unavailable';normalized.push(...normalizeAll(await this.provider.searchCompanies(input)))}
- const secondary=await this.expandSecondarySources(input,normalized,known,start);
+ // Planned from EVERY result the passes returned (the same pool the reservation decision read), not only the ones
+ // kept within max_results — a citing source cut from the list still names its companies.
+ const secondary=await this.expandSecondarySources(input,normalized,known,start,deep?mergeSameEntityCandidates(deep.candidates).kept:normalized);
  await meterSearch();
  const search=this.lastSearch();
  // Partial search failure: some queries failed, at least one succeeded — the run continues on the results
@@ -102,7 +107,9 @@ export class DiscoveryService {
  // Review priority (review-priority.ts): which candidate to look at first, computed after the in-run merge
  // (several concordant sources count). Stored for traceability only — never an evidence status, never a score.
  const prioritized={...labelled,raw_metadata:{...labelled.raw_metadata,review_priority:reviewPriority(labelled.raw_metadata,labelled.website)}};candidates.push({candidate:prioritized,dedupe});seen.push(candidate)}
- stage='save';const results=await this.repo.saveResults(run,candidates);const counts=novelty?eligibleNoveltyCounts(candidates,c=>c.candidate.raw_metadata.source_class,c=>c.candidate.raw_metadata.novelty as Novelty,entitiesMerged+deepMerged):null;const metrics={provider:this.provider.id,duration_ms:Date.now()-start,...searchMetrics(search),results:results.length,normalization_rejected:normalizationRejected,entities_merged:entitiesMerged+deepMerged,ai_tokens:0,ai_cost_estimate:0,search_mode:mode,...(fallback?{search_mode_fallback:fallback}:{}),...(deep?deepSearchMetrics(deep,desired,uniqueTotal,counts?.new_results??0):{}),...secondary,...(counts?{...counts,...noveltyRates(counts)}:{novelty_unavailable:1}),...(memoryTruncated?{novelty_memory_truncated:1}:{})};stage='finish';await this.repo.finish(run.id,results.length,metrics);this.log(Object.fromEntries(Object.entries(metrics).map(([k,v])=>[k,Array.isArray(v)?v.join(','):v])) as Record<string,string|number|null>);return {...run,status:'completed',provider_mode:this.provider.mode,results,result_count:results.length};
+ stage='save';const results=await this.repo.saveResults(run,candidates);const counts=novelty?eligibleNoveltyCounts(candidates,c=>c.candidate.raw_metadata.source_class,c=>c.candidate.raw_metadata.novelty as Novelty,entitiesMerged+deepMerged):null;const metrics={provider:this.provider.id,duration_ms:Date.now()-start,...searchMetrics(search),results:results.length,normalization_rejected:normalizationRejected,entities_merged:entitiesMerged+deepMerged,ai_tokens:0,ai_cost_estimate:0,search_mode:mode,...(fallback?{search_mode_fallback:fallback}:{}),...(deep?{...deepSearchMetrics(deep,desired,uniqueTotal,counts?.new_results??0),
+  // Every request sent, split by purpose: PRIMARY_SEARCH passes and the SECONDARY_RESOLUTION request (≤ 3 in all).
+  provider_calls:deep.providerCalls+(secondary.secondary_requests??0),primary_calls:deep.providerCalls,secondary_resolution_calls:secondary.secondary_requests??0,...(deep.lastCallReserved?{secondary_call_reserved:1}:{})}:{}),...secondary,...(counts?{...counts,...noveltyRates(counts)}:{novelty_unavailable:1}),...(memoryTruncated?{novelty_memory_truncated:1}:{})};stage='finish';await this.repo.finish(run.id,results.length,metrics);this.log(Object.fromEntries(Object.entries(metrics).map(([k,v])=>[k,Array.isArray(v)?v.join(','):v])) as Record<string,string|number|null>);return {...run,status:'completed',provider_mode:this.provider.mode,results,result_count:results.length};
  }catch(error){await meterSearch();await this.repo.finish(run.id,0,{duration_ms:Date.now()-start,...searchMetrics(this.lastSearch())},'DISCOVERY_FAILED');this.log({provider:this.provider.id,duration_ms:Date.now()-start,error:'DISCOVERY_FAILED',...searchMetrics(this.lastSearch()),...diagnoseDiscoveryFailure(stage,error)});throw Error('DISCOVERY_FAILED')}
  }
 }
@@ -110,8 +117,8 @@ export class DiscoveryService {
 // looked for ONCE, with one request of the run's own budget (never beyond MAX_PROVIDER_CALLS, never past the time
 // budget), and only the ones found on their own official site join the results — then the normal pipeline decides.
 // Results set aside make room for them (max_results unchanged); a failure never fails the run. Counts only in metrics.
-async function expandSecondary(this:DiscoveryService,input:DiscoveryInput,normalized:Candidate[],known:Identity[],start:number):Promise<Record<string,number>>{
- const plan=planSecondaryExpansion(normalized,known,{query:input.query,categories:input.categories,location:input.location});
+async function expandSecondary(this:DiscoveryService,input:DiscoveryInput,normalized:Candidate[],known:Identity[],start:number,pool:Candidate[]):Promise<Record<string,number>>{
+ const plan=planSecondaryExpansion(pool,known,{query:input.query,categories:input.categories,location:input.location});
  const metrics:Record<string,number>={secondary_sources:plan.sources,secondary_names_extracted:plan.extracted,secondary_names_known:plan.skippedKnown,secondary_names_searched:0,secondary_requests:0,secondary_candidates:0,secondary_unresolved:0};
  const sent=this.lastSearch()?.requests_sent??0;
  if(!plan.names.length||!this.provider.searchVariant||sent>=MAX_PROVIDER_CALLS||Date.now()-start+PASS_TIMEOUT_MS>TIME_BUDGET_MS)return metrics;

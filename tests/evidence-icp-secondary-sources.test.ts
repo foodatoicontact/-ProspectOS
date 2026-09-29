@@ -3,7 +3,7 @@
 // typed, and directories/rankings become SECONDARY SOURCES of company names — resolved on their own official site
 // through the normal pipeline, never added because a page cites them. Evidence-first is unchanged throughout.
 // Pure tests: no network (the provider is a fake fetch), no database.
-import test from 'node:test';
+import test,{mock} from 'node:test';
 import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
 import {ObservationService,EvidenceProposalService} from '../src/discovery/observations.ts';
@@ -269,4 +269,71 @@ test('13 — KPIs (printed): evidence mapping and secondary discovery on the Tho
  assert.ok(mapped>=3);
  assert.ok(plan.sources>=2&&plan.names.length>=2);
  assert.ok(results.every(r=>meta(r).source_class!=='COMPANY_CANDIDATE'||!['DIRECTORY','BLOG_OR_CONTENT','NEWS_ARTICLE'].includes(meta(r).page_type)),'no directory or ranking in the shortlist');
+});
+
+// ================================================================ budget: "Rechercher de nouveaux acteurs" (search_new)
+// 3 Brave requests per run, unchanged. After two PRIMARY_SEARCH passes, when the set-aside sources already cite
+// companies to resolve, the third request is the SECONDARY_RESOLUTION instead of a third primary pass.
+const OFFICIAL=(slug:string,name:string)=>({title:`${name} - Entreprise de gros œuvre et maçonnerie`,url:`https://www.${slug}.example/`,description:`${name}, entreprise BTP de gros œuvre et maçonnerie en Auvergne-Rhône-Alpes.`});
+const KOMPASS={title:'Entreprises du Bâtiment en Rhône-Alpes - Kompass',url:'https://fr.kompass.example/a/batiment/rhone-alpes/',description:'GFE (Goncalves Frères Étanchéité) est une entreprise spécialisée dans l’étanchéité. Basée à Chambéry (Savoie).'};
+type Hit={title:string;url:string;description:string};
+let clock=0;
+function newActorsRun(script:{passes:Hit[][];secondary?:Hit[]|'fail';tick?:number},known:Array<{name:string;website:string}>=[]){
+ const calls:Array<'PRIMARY'|'SECONDARY'>=[];let primary=0;
+ const p=new BraveProvider('KEY',(async(url:URL)=>{
+  if(script.tick)clock+=script.tick;
+  const secondary=(url.searchParams.get('q')??'').includes('"');calls.push(secondary?'SECONDARY':'PRIMARY');
+  if(secondary&&script.secondary==='fail')return new Response('{}',{status:500});
+  const results=secondary?(script.secondary??[]):(script.passes[primary++]??[]);
+  return new Response(JSON.stringify({web:{results}}),{status:200});
+ }) as unknown as typeof fetch);
+ const r=repo(known);r.r.memory=async()=>({results:[],runs:[]});
+ const input={project_id:'p',query:'entreprises BTP gros œuvre',location:ARA,categories:['BTP','VRD','maçonnerie'],max_results:20,optional_filters:{search_mode:'search_new' as const,desired_new_results:20}};
+ return {run:()=>new DiscoveryService(r.r,p).find_prospects(input),calls,saved:r.saved,metrics:r.metrics};
+}
+const TWO_PASSES_WITH_CITATIONS=()=>[[OFFICIAL('ribiere-bench','Ribiere Bench'),RANKING],[OFFICIAL('cabestan-bench','Cabestan Bench'),KOMPASS],[OFFICIAL('never-fetched','Never Fetched')]];
+test('B.1 — secondary names after 2 passes → no 3rd primary pass; call 3 = SECONDARY_RESOLUTION; total ≤ 3',async()=>{
+ const t=newActorsRun({passes:TWO_PASSES_WITH_CITATIONS(),secondary:[OFFICIAL('alpha-construction','Alpha Construction')]});
+ await t.run();
+ assert.deepEqual(t.calls,['PRIMARY','PRIMARY','SECONDARY']);
+ const m=t.metrics();
+ assert.equal(m.provider_calls,3);assert.equal(m.primary_calls,2);assert.equal(m.secondary_resolution_calls,1);assert.equal(m.secondary_call_reserved,1);
+ assert.equal(t.saved.some(s=>s.candidate.name==='Never Fetched'),false);
+});
+test('B.2 — no secondary name after 2 passes → 3rd primary pass allowed, total = 3',async()=>{
+ const t=newActorsRun({passes:[[OFFICIAL('one-bench','One Bench')],[OFFICIAL('two-bench','Two Bench')],[OFFICIAL('three-bench','Three Bench')]]});
+ await t.run();
+ assert.deepEqual(t.calls,['PRIMARY','PRIMARY','PRIMARY']);
+ assert.equal(t.metrics().secondary_resolution_calls,0);assert.equal(t.metrics().secondary_call_reserved,undefined);
+});
+test('B.3 — the resolved official site goes through the normal pipeline: COMPANY_CANDIDATE, review priority, novelty, never verified',async()=>{
+ const t=newActorsRun({passes:TWO_PASSES_WITH_CITATIONS(),secondary:[OFFICIAL('alpha-construction','Alpha Construction')]});
+ await t.run();
+ const alpha=t.saved.find(s=>s.candidate.name==='Alpha Construction');
+ assert.ok(alpha);const m=meta(alpha.candidate);
+ assert.equal(m.source_class,'COMPANY_CANDIDATE');assert.ok(m.review_priority);assert.ok(m.novelty);assert.equal(m.secondary_origin.cited_name,'Alpha Construction');
+ assert.doesNotMatch(JSON.stringify({...alpha.candidate,raw_metadata:{...m,location_state:undefined}}),/"VERIFIED"/,'no evidence status (location_state is the zone match, not a proof)');
+});
+test('B.4 — resolution fails → no false prospect, run completes, no 4th call',async()=>{
+ const t=newActorsRun({passes:TWO_PASSES_WITH_CITATIONS(),secondary:'fail'});
+ await t.run();
+ assert.deepEqual(t.calls,['PRIMARY','PRIMARY','SECONDARY']);
+ assert.equal(t.metrics().secondary_failed,1);assert.equal(t.metrics().secondary_candidates,0);
+ assert.equal(t.saved.filter(s=>meta(s.candidate).secondary_origin).length,0);
+});
+test('B.5 — every cited name already known → no reservation, no duplicate',async()=>{
+ const known=['Alpha Construction','Beta TP','Gamma VRD','Goncalves Frères Étanchéité'].map((name,i)=>({name,website:`https://k${i}.example/`}));
+ const t=newActorsRun({passes:TWO_PASSES_WITH_CITATIONS()},known);
+ await t.run();
+ assert.deepEqual(t.calls,['PRIMARY','PRIMARY','PRIMARY'],'nothing to resolve: the budget stays with the primary search');
+ assert.equal(t.saved.filter(s=>meta(s.candidate).secondary_origin).length,0);
+});
+test('B.6 — time budget too short → fail-safe: no extra pass, no resolution, never a 4th call',async()=>{
+ clock=1_000_000;const now=mock.method(Date,'now',()=>clock);
+ try{
+  const t=newActorsRun({passes:TWO_PASSES_WITH_CITATIONS(),secondary:[OFFICIAL('alpha-construction','Alpha Construction')],tick:15_000});
+  await t.run();
+  assert.deepEqual(t.calls,['PRIMARY','PRIMARY']);
+  assert.equal(t.metrics().secondary_resolution_calls,0);
+ }finally{now.mock.restore()}
 });

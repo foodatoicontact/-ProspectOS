@@ -19,7 +19,7 @@ import {compareLocation,isPlaceName,locationTarget,placesIn,type LocationState} 
 export type PageType = 'OFFICIAL_ORGANIZATION_SITE' | 'OFFICIAL_JOB_PAGE' | 'THIRD_PARTY_JOB_BOARD' | 'DIRECTORY' | 'TRAINING_PROVIDER' | 'TRAINING_COURSE_PAGE'
  | 'NEWS_ARTICLE' | 'BLOG_OR_CONTENT' | 'SOCIAL_PROFILE' | 'GOVERNMENT_OR_PUBLIC_DIRECTORY' | 'UNKNOWN';
 export type AdmissibilityReason = 'ADMISSIBLE' | 'TRAINING_COURSE_PAGE' | 'DIRECTORY_PAGE' | 'PUBLIC_DIRECTORY_PAGE' | 'SOCIAL_PROFILE_PAGE'
- | 'EXCLUDED_BY_QUERY' | 'ENTITY_UNRESOLVED' | 'NO_OBSERVABLE_RELEVANCE' | 'LOCATION_MISMATCH';
+ | 'EXCLUDED_BY_QUERY' | 'ENTITY_UNRESOLVED' | 'NO_OBSERVABLE_RELEVANCE' | 'LOCATION_MISMATCH' | 'SECTOR_BODY_PAGE';
 export type EntityMethod = 'own_site' | 'own_job_page' | 'job_title_employer' | 'labeled_field' | 'title_organization' | 'explicit_title_pattern' | 'cited_domain';
 // RESOLVED_HIGH: the organization's own site/job page identifies it (name + website). RESOLVED_MEDIUM: an
 // organization explicitly named by a secondary source, identity/website not confirmed. UNRESOLVED: no
@@ -88,6 +88,7 @@ const TRAINING_ORG_NAME = /\b(MFR|maison familiale rurale|CFA|organisme de forma
 const TRAINING_LABEL = /(formation|^cfa|campus|academie|academy|^ecole)/;
 const CONTENT_TITLE = /(^\s*(qu['’]est[- ]ce|comment|pourquoi|quel(le)?s? |tout savoir|guide|fiche m[ée]tier|d[ée]finition|devenir)\b|\?)/i;
 const NEWS_PATH = /^(actualites?|actus?|news|article|articles|presse|magazine|\d{4})$/i;
+const OWN_CORPORATE_PATH = /^(a-propos|apropos|about|about-us|qui-sommes-nous|presentation|l-entreprise|la-societe|entreprise|societe|accueil|home|index)$/i;
 const BLOG_PATH = /^(blog|blogs|dossiers?|conseils?|guides?|fiches?-metiers?|metiers?)$/i;
 
 // Generic organizational forms (never a sector's brand list): a job-ad title segment carrying one of
@@ -114,8 +115,30 @@ function sameEntityAsDomain(name: string, domain: string | null): boolean {
 }
 
 const OWN_NAME_MAX_WORDS = 6;
-function ownNameInTitle(title: string, domain: string | null): string | undefined {
+// The site's own name in its title, strongest match first:
+//   1. a segment, or 2-3 consecutive segments, spelling EXACTLY the domain label ("MDTP" on mdtp.fr; "VRD - Services"
+//      on vrd-services.com -> "VRD Services"): exact spellings beat a mere prefix ("VRD" alone);
+//   2. a short segment the label starts with ("AM BTP" on ambtpvrd.fr) — never a long SEO sentence (> 6 words);
+//   3. the leading words of a segment spelling the label.
+// A weak resemblance never names anything.
+// Strong enough to call an otherwise unclassified page the organization's own site: the name spells the domain
+// label exactly, or covers a substantial start of it ("AM BTP" = 5 of the 8 characters of ambtpvrd). A short
+// prefix ("Sky" for skygroupe) is only a resemblance and classifies nothing.
+export function strongOwnName(name: string | undefined, label: string): boolean {
+ if (!name || label.length < 3) return false;
+ const core = alnum(name);
+ return core === label || (core.length >= 5 && label.startsWith(core) && core.length / label.length >= 0.6);
+}
+export function ownNameInTitle(title: string, domain: string | null): string | undefined {
  const segments = nameSegments(title);
+ const exactLabel = alnum(domain?.split('.')[0] ?? '');
+ if (exactLabel.length >= 3) {
+  for (let i = 0; i < segments.length; i++) for (const n of [1, 2, 3]) {
+   if (i + n > segments.length) break;
+   const joined = segments.slice(i, i + n).join(' ');
+   if (alnum(joined) === exactLabel && joined.split(/\s+/).length <= OWN_NAME_MAX_WORDS && !isPlaceName(joined)) return joined;
+  }
+ }
  const whole = segments.find(s => s.split(/\s+/).length <= OWN_NAME_MAX_WORDS && sameEntityAsDomain(s, domain) && !isPlaceName(s));
  if (whole) return whole;
  const label = alnum(domain?.split('.')[0] ?? '');
@@ -153,7 +176,11 @@ function leadsWithOrganizationForm(s: string): boolean {
  const m = EMPLOYER_MARKER.exec(s);
  return !!m && s.slice(0, m.index).trim().split(/\s+/).filter(Boolean).every(w => /^(la|le|les|l['’]?)$/i.test(w));
 }
+// "Entreprise de travaux VRD et assainissement à Lyon", "Entreprise générale de bâtiment": a description of an
+// activity, never an organization's name.
+const ACTIVITY_DESCRIPTION = /^(une |l['’])?entreprises? (de |d['’]|du |des |g[ée]n[ée]rale|sp[ée]cialis[ée]e|familiale|tous corps|ind[ée]pendante)/i;
 function isOrganizationSegment(s: string, sourceDomain: string | null): boolean {
+ if (ACTIVITY_DESCRIPTION.test(s)) return false;
  if (s.length < 3 || s.length > 80 || ROLE_START.test(s) || STRONG_JOB.test(s) || !leadsWithOrganizationForm(s) || CATEGORY_IN_PLACE.test(s)) return false;
  if (isPlaceName(s) || /^[A-Z0-9]{5,12}$/.test(s) || /^\d{2,5}$/.test(s)) return false;
  if (!hasDistinctiveName(s)) return false; // "Centre social", "Association": a type, not an organization
@@ -208,6 +235,11 @@ const ACCENTS: Record<string, string> = {communaute: 'communauté', agglomeratio
 export function canonicalOrganizationName(name: string): string {
  const n = name.replace(/\s+/g, ' ').trim();
  if (!/[a-zà-ÿ]/i.test(n) || (n !== n.toUpperCase() && n !== n.toLowerCase())) return n;
+ // A short name written in capitals made only of initials ("MDTP", "AM BTP": at most 4 letters and one vowel per
+ // word) is kept as written. A capitalized word ("AVAL", "RIBIERE") or a long name is recased as before.
+ const tokens = n.split(' ');
+ const initials = (t: string): boolean => { const letters = t.replace(/[^\p{L}]/gu, ''); return letters.length >= 2 && letters.length <= 4 && (letters.match(/[AEIOUYÀ-ÆÈ-ÏÒ-ÖÙ-Ü]/g) ?? []).length <= 1; };
+ if (n === n.toUpperCase() && tokens.length <= 3 && tokens.every(initials)) return n;
  const word = (w: string, first: boolean): string => {
   const lower = w.toLowerCase();
   if (ACRONYMS.has(lower)) return lower.toUpperCase();
@@ -257,6 +289,11 @@ export function classifyCandidatePage(input: {title: string; description: string
   return isNews && !CONTENT_TITLE.test(title) ? {pageType: 'NEWS_ARTICLE', reasons: ['news_structure']} : {pageType: 'BLOG_OR_CONTENT', reasons: ['content_structure']};
  }
  if (sourceType === 'official_site') return {pageType: 'OFFICIAL_ORGANIZATION_SITE', reasons: ['own_site']};
+ // "Entreprise de travaux VRD… à Lyon - MDTP" on mdtp.fr: a long SEO sentence, then the brand that the page's own
+ // domain spells. On the site's home, a corporate page or the page named after the site itself, the page IS the
+ // organization's own site. An article ends with its publisher's name too, hence the path condition.
+ if (strongOwnName(ownNameInTitle(title, domain), label) && (segments.length === 0 || (segments.length === 1 && (OWN_CORPORATE_PATH.test(segments[0]!) || alnum(segments[0]!) === label))))
+  return {pageType: 'OFFICIAL_ORGANIZATION_SITE', reasons: ['brand_segment_matches_domain']};
  // Never promoted to an official site on a title/domain resemblance alone: an unknown page only ever
  // yields an organization it explicitly names.
  return {pageType: 'UNKNOWN', reasons: ['no_structural_signal']};
@@ -297,7 +334,8 @@ export function resolveCandidateEntity(pageType: PageType, input: {title: string
    const named = !segment && !(r.companyName.status === 'RESOLVED' && r.companyName.method === 'own_site_title') ? titleSegments(input.title).map(cleanSegment).find(s => isOrganizationSegment(s, domain)) : undefined;
    if (named) return {name: named, website: null, canonicalUrl: null, method: 'title_organization', confidence: 'RESOLVED_MEDIUM'};
    if (r.companyDomain.status === 'RESOLVED' && r.companyDomain.method === 'own_site' && r.companyName.status === 'RESOLVED')
-    return {name: r.companyName.method === 'own_site_title' || !segment ? r.companyName.name : segment, website: r.companyDomain.website, canonicalUrl: r.companyDomain.canonical_url, method: 'own_site', confidence: 'RESOLVED_HIGH'};
+    // A title segment spelling the domain label exactly ('VRD Services' on vrd-services.com) beats any shorter prefix.
+    return {name: (segment && alnum(segment) === alnum((domain ?? '').split('.')[0] ?? '')) || !(r.companyName.method === 'own_site_title' || !segment) ? segment! : r.companyName.name, website: r.companyDomain.website, canonicalUrl: r.companyDomain.canonical_url, method: 'own_site', confidence: 'RESOLVED_HIGH'};
    return segment ? own(segment, 'own_site') : null;
   }
   case 'OFFICIAL_JOB_PAGE': {
@@ -324,6 +362,41 @@ export function resolveCandidateEntity(pageType: PageType, input: {title: string
   default:
    return null;
  }
+}
+
+// ------------------------------------------------------------
+// Sector bodies and page words.
+// ------------------------------------------------------------
+// A professional body of the sector — federation, trade union, chamber, professional order, cluster — speaks
+// FOR the companies the user is looking for; it is not one of them. Its page stays visible as a source (with
+// its reason), but it is not proposed as a prospect unless the brief itself targets such bodies or looks for
+// employers/structures in general (a job seeker's "structures employeuses" does include a federation). Public
+// bodies that buy works (syndicat intercommunal, syndicat des eaux, syndicat mixte) are NOT sector bodies.
+const SECTOR_BODY = /^(la |le |les |l['’])?(f[ée]d[ée]rations?|conf[ée]d[ée]ration|syndicats? (?!(intercommunal|mixte|des eaux|d['’]eau|d['’]assainissement|d['’][ée]nergie|de communes|d['’][ée]lectricit[ée]|de bassin|des ordures))|syndicat$|union (professionnelle|patronale|r[ée]gionale des|nationale des|des entreprises)|chambres? (de commerce|des m[ée]tiers|r[ée]gionale|syndicale|d['’]agriculture|professionnelle)|ordre (des|national)|clusters?\b|p[ôo]le de comp[ée]titivit[ée]|interprofession|organisation professionnelle|groupement professionnel|observatoire (des|r[ée]gional))/i;
+// Reinforcing only: well-known national professional bodies written as acronyms.
+const SECTOR_BODY_ACRONYM = /^(FNTP|FRTP|FFB|CAPEB|UNICEM|SYNTEC|CINOV|MEDEF|CPME|U2P|UMIH|CCI|CMA)\b/;
+const SECTOR_INTENT = /\b(f[ée]d[ée]rations?|syndicats?|chambres?|unions?|organisations? professionnelles?|associations?|clusters?|r[ée]seaux?|interprofessions?|ordres? professionnels?|structures?|employeu\w*|recrut\w*|alternan\w*|stages?)\b/i;
+export function isSectorBody(name: string, title: string): boolean {
+ return [name, ...titleSegments(title)].some(s => SECTOR_BODY.test(s.trim()) || SECTOR_BODY_ACRONYM.test(s.trim()));
+}
+export const briefTargetsSectorBodies = (context: QueryContext | undefined): boolean =>
+ !!context && SECTOR_INTENT.test(`${parseQueryExclusions(context.query).cleanedQuery} ${context.categories.join(' ')}`);
+
+// Words of the PAGE, not of the organization ("Accueil - Ribière", "Ribière | Recrutement", "Bienvenue chez
+// X"): removed at either end of a name, only when a distinctive name remains. Never anything in the middle.
+const PAGE_WORDS = "accueil|home|homepage|page d['’]accueil|site officiel|recrutement|nos offres(?: d['’]emploi)?|offres d['’]emploi|contact(?:ez-nous)?|qui sommes[- ]nous|nos r[ée]alisations|nos services|mentions l[ée]gales";
+// A page word is only removed when a separator cuts it from the name ("Accueil - X", "X | Recrutement"), so a
+// company named "Home Services" keeps its name; the two greeting forms are removed before the name itself.
+const LEADING_PAGE_WORDS = new RegExp(`^(?:(?:${PAGE_WORDS})\\s*[-–—|:,]\\s*|(?:bienvenue (?:chez|sur|dans)|site officiel de)\\s+)`, 'i');
+const TRAILING_PAGE_WORDS = new RegExp(`\\s*[-–—|:,]\\s*(?:${PAGE_WORDS})\\s*$`, 'i');
+export function stripPageWords(name: string): string {
+ let n = name.replace(/\s+/g, ' ').trim();
+ for (let i = 0; i < 3; i++) {
+  const next = n.replace(LEADING_PAGE_WORDS, '').replace(TRAILING_PAGE_WORDS, '').trim();
+  if (next === n || next.length < 2 || !hasDistinctiveName(next)) break;
+  n = next;
+ }
+ return n;
 }
 
 // ------------------------------------------------------------
@@ -356,7 +429,7 @@ export function evaluateCandidateAdmissibility(input: {title: string; descriptio
  // Entity resolution is attempted before any project-level dedup/exclusion (services.ts): an
  // organization later found to be already known is still correctly RESOLVED.
  const found = resolveCandidateEntity(pageType, input);
- const entity = found ? {...found, name: canonicalOrganizationName(found.name)} : null;
+ const entity = found ? {...found, name: canonicalOrganizationName(stripPageWords(found.name))} : null;
  const placeNames = tgt ? tgt.cityTokens : [];
  const sourceDomain = urlParts(input.url).domain;
  if (!entity || entity.name.trim().length < 2 || isPlaceName(entity.name, placeNames) || isQueryEchoOrGeneric(entity.name, input.context)
@@ -365,6 +438,9 @@ export function evaluateCandidateAdmissibility(input: {title: string; descriptio
  // "Exclure organismes de formation": an organization whose own name says it is a training institution
  // is excluded whatever page named it.
  if (exclusions.pageTypes.has('TRAINING_PROVIDER') && TRAINING_ORG_NAME.test(entity.name)) return verdict('EXCLUDED_BY_QUERY', entity);
+ // A federation, trade union or chamber of the sector: kept as a visible source, never proposed as a prospect
+ // unless the brief targets such bodies (see isSectorBody).
+ if (!briefTargetsSectorBodies(input.context) && isSectorBody(entity.name, input.title)) return verdict('SECTOR_BODY_PAGE', entity);
  if (input.resolution.classificationReasons.includes('no_observable_relevance')) return verdict('NO_OBSERVABLE_RELEVANCE', entity);
  if (loc.state === 'MISMATCH') return verdict('LOCATION_MISMATCH', entity);
  return verdict('ADMISSIBLE', entity);

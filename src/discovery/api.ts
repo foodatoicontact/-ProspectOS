@@ -28,6 +28,14 @@ const ANALYSIS_REFUSALS:Record<string,[string,number]>={
  DISCOVERY_CAPABILITY_INVALID:['Analyse bloquée : ce prospect ne provient pas d’un site officiel découvert et accepté.',403],
  WEBSITE_MISMATCH:['Analyse bloquée : le site du prospect ne correspond plus au site découvert et accepté.',403],
  ROBOTS_DENIED:['Analyse refusée : le robots.txt du site ne l’autorise pas. Aucune preuve validée.',422],
+ ROBOTS_UNAVAILABLE:['Analyse impossible : le robots.txt du site est inaccessible (accès refusé ou erreur serveur). Par prudence, rien n’a été lu.',422],
+ SITE_TIMEOUT:['Analyse impossible : le site n’a pas répondu à temps. Réessayez plus tard.',504],
+ SITE_NOT_FOUND:['Analyse impossible : le nom de domaine du site ne répond pas (domaine introuvable). Vérifiez le site officiel.',422],
+ SITE_BLOCKED:['Analyse impossible : le site refuse les visites automatisées (accès refusé).',422],
+ SITE_HTTP_ERROR:['Analyse impossible : le site a renvoyé une erreur.',502],
+ SITE_REDIRECT_REFUSED:['Analyse impossible : le site redirige vers un autre domaine que le site officiel accepté.',422],
+ SITE_NOT_HTML:['Analyse impossible : la page du site n’est pas une page web lisible.',422],
+ SITE_TOO_LARGE:['Analyse impossible : la page du site est trop volumineuse.',422],
 };
 const json=(data:unknown,status=200)=>Response.json(data,{status,headers:{'Cache-Control':'no-store'}});
 const log=(event:Record<string,string|number|null>)=>console.info(JSON.stringify({component:'discovery',...event}));

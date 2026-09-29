@@ -8,6 +8,7 @@ import {mergeSameEntityCandidates,sameCanonicalOrganization} from './admissibili
 import {pageIntentsFor,internalLinkScore} from './strategies/icp-intents.ts';
 import {eligibleNoveltyCounts,isEligibleCandidate,noveltyRates,type ProjectMemory,type Novelty} from './novelty.ts';
 import {ProjectNovelty} from './novelty-engine.ts';
+import {reviewPriority} from './review-priority.ts';
 import {buildSearchVariants,desiredNewResults,searchUntilNewTarget,type SearchUntilNewResult} from './search-until-new.ts';
 export interface DiscoveryRepository {
  start(input:DiscoveryInput,provider:string):Promise<DiscoveryRun>;
@@ -90,7 +91,10 @@ export class DiscoveryService {
  stage='dedupe';const dedupe=this.dedupe.match(candidate,known);
  // Resolution first, project dedup second: a resolved organization already in the project by name is
  // flagged for review (never silently merged, never dropped) even without a shared website/phone.
- if(dedupe.status==='unique'&&candidate.raw_metadata.source_class==='COMPANY_CANDIDATE'){const same=known.find(k=>sameCanonicalOrganization(k.name,candidate.name));if(same){dedupe.status='merge_review_required';dedupe.duplicate_of=same.id??null;dedupe.reason='Organisation déjà présente dans ce projet (même nom canonique) : revue nécessaire'}}const within=this.dedupe.match(candidate,seen);if(dedupe.status==='unique'&&within.status!=='unique'){dedupe.status='merge_review_required';dedupe.reason='Résultat similaire dans cette recherche : revue nécessaire'}const labelled=novelty?{...candidate,raw_metadata:{...candidate.raw_metadata,novelty:novelty.classify(candidate,{duplicateOf:dedupe.status==='duplicate_candidate'?dedupe.duplicate_of:null})}}:candidate;candidates.push({candidate:labelled,dedupe});seen.push(candidate)}
+ if(dedupe.status==='unique'&&candidate.raw_metadata.source_class==='COMPANY_CANDIDATE'){const same=known.find(k=>sameCanonicalOrganization(k.name,candidate.name));if(same){dedupe.status='merge_review_required';dedupe.duplicate_of=same.id??null;dedupe.reason='Organisation déjà présente dans ce projet (même nom canonique) : revue nécessaire'}}const within=this.dedupe.match(candidate,seen);if(dedupe.status==='unique'&&within.status!=='unique'){dedupe.status='merge_review_required';dedupe.reason='Résultat similaire dans cette recherche : revue nécessaire'}const labelled=novelty?{...candidate,raw_metadata:{...candidate.raw_metadata,novelty:novelty.classify(candidate,{duplicateOf:dedupe.status==='duplicate_candidate'?dedupe.duplicate_of:null})}}:candidate;
+ // Review priority (review-priority.ts): which candidate to look at first, computed after the in-run merge
+ // (several concordant sources count). Stored for traceability only — never an evidence status, never a score.
+ const prioritized={...labelled,raw_metadata:{...labelled.raw_metadata,review_priority:reviewPriority(labelled.raw_metadata,labelled.website)}};candidates.push({candidate:prioritized,dedupe});seen.push(candidate)}
  stage='save';const results=await this.repo.saveResults(run,candidates);const counts=novelty?eligibleNoveltyCounts(candidates,c=>c.candidate.raw_metadata.source_class,c=>c.candidate.raw_metadata.novelty as Novelty,entitiesMerged+deepMerged):null;const metrics={provider:this.provider.id,duration_ms:Date.now()-start,...searchMetrics(search),results:results.length,normalization_rejected:normalizationRejected,entities_merged:entitiesMerged+deepMerged,ai_tokens:0,ai_cost_estimate:0,search_mode:mode,...(fallback?{search_mode_fallback:fallback}:{}),...(deep?deepSearchMetrics(deep,desired,uniqueTotal,counts?.new_results??0):{}),...(counts?{...counts,...noveltyRates(counts)}:{novelty_unavailable:1}),...(memoryTruncated?{novelty_memory_truncated:1}:{})};stage='finish';await this.repo.finish(run.id,results.length,metrics);this.log(Object.fromEntries(Object.entries(metrics).map(([k,v])=>[k,Array.isArray(v)?v.join(','):v])) as Record<string,string|number|null>);return {...run,status:'completed',provider_mode:this.provider.mode,results,result_count:results.length};
  }catch(error){await meterSearch();await this.repo.finish(run.id,0,{duration_ms:Date.now()-start,...searchMetrics(this.lastSearch())},'DISCOVERY_FAILED');this.log({provider:this.provider.id,duration_ms:Date.now()-start,error:'DISCOVERY_FAILED',...searchMetrics(this.lastSearch()),...diagnoseDiscoveryFailure(stage,error)});throw Error('DISCOVERY_FAILED')}
  }
@@ -119,6 +123,23 @@ export function prioritizeObservations(all:Observation[]):Observation[]{
  const unknown=all.filter(o=>{if(o.status!=='UNKNOWN'||informed.has(o.criterion))return false;informed.add(o.criterion);return true});
  return [...informative,...unknown].slice(0,40);
 }
+// Why "Analyser le site" failed, as a code the user can act on. Only the fetcher's own messages are read; the
+// SSRF/policy refusals that must not be explained (non-public address, forbidden host…) stay ANALYSIS_FAILED.
+// A code never carries a host, an address or a URL.
+export type AnalysisFailureCode='ROBOTS_DENIED'|'ROBOTS_UNAVAILABLE'|'SITE_TIMEOUT'|'SITE_NOT_FOUND'|'SITE_BLOCKED'|'SITE_HTTP_ERROR'|'SITE_REDIRECT_REFUSED'|'SITE_NOT_HTML'|'SITE_TOO_LARGE'|'ANALYSIS_FAILED';
+export function analysisFailureCode(message:string):AnalysisFailureCode{
+ if(message==='Blocked by robots.txt')return 'ROBOTS_DENIED';
+ const robots=/^Robots check failed: /.test(message);const inner=message.replace(/^Robots check failed: /,'');
+ if(robots&&(/^HTTP status (401|403|429|5\d\d)$/.test(inner)||/^Unsupported robots content type/.test(inner)))return 'ROBOTS_UNAVAILABLE';
+ if(/timed out/i.test(inner))return 'SITE_TIMEOUT';
+ if(/^DNS returned no addresses$|ENOTFOUND|EAI_AGAIN|getaddrinfo/.test(inner))return 'SITE_NOT_FOUND';
+ if(/^HTTP status (401|403|429)$/.test(inner))return 'SITE_BLOCKED';
+ if(/^HTTP status \d{3}$/.test(inner))return 'SITE_HTTP_ERROR';
+ if(/^(Host is outside the authorized domain|HTTPS downgrade is forbidden|Maximum redirects exceeded|Redirect response has no location)$/.test(inner))return 'SITE_REDIRECT_REFUSED';
+ if(/^Unsupported content type/.test(inner))return 'SITE_NOT_HTML';
+ if(/^Response is too large$/.test(inner))return 'SITE_TOO_LARGE';
+ return 'ANALYSIS_FAILED';
+}
 export class CompanyAnalysisService {
  repo:DiscoveryRepository;fetchPage:PageFetcher;log:SafeLogger;
  constructor(repo:DiscoveryRepository,fetchPage:PageFetcher,log:SafeLogger=noop){this.repo=repo;this.fetchPage=fetchPage;this.log=log}
@@ -138,9 +159,8 @@ export class CompanyAnalysisService {
  const observations=prioritizeObservations([...firstObservations,...pages.slice(1).flatMap(item=>extractor.extract(item.html,item.url,criteria,sourceType))].map(o=>ObservationSchema.parse(o)));const proposed=new EvidenceProposalService().propose(observations,criteria);const saved=await this.repo.saveObservations(prospectId,observations);this.log({provider:'http_html',duration_ms:Date.now()-start,pages:pages.length,failed_pages:failedPages,proposed_evidence:proposed.length,ai_tokens:0,ai_cost_estimate:0});return {observations:saved,pages_analyzed:pages.length,failed_pages:failedPages,proposals:proposed.length,ai_tokens:0,ai_cost_estimate:0};
  // The original cause (never sent to the client — the route always returns the generic mapped
  // message) is logged here so a real failure stays diagnosable from server logs alone.
- // A robots.txt refusal of the site itself is reported as such; every other failure (network, SSRF policy,
- // redirect, size, content type, timeout) stays the generic ANALYSIS_FAILED — no address or host detail
- // ever reaches the client.
- }catch(cause){const originalCause=cause instanceof Error?cause.cause:undefined;const original=originalCause instanceof Error?originalCause.message:cause instanceof Error?cause.message:String(cause);const code=original==='Blocked by robots.txt'?'ROBOTS_DENIED':'ANALYSIS_FAILED';this.log({provider:'http_html',duration_ms:Date.now()-start,pages:0,error:code,cause:original});throw Error(code)}
+ // Each failure gets a precise code (analysisFailureCode) so the user knows WHY — never an address, a host or
+ // the raw message, which stays in the server log only.
+ }catch(cause){const originalCause=cause instanceof Error?cause.cause:undefined;const original=originalCause instanceof Error?originalCause.message:cause instanceof Error?cause.message:String(cause);const code=analysisFailureCode(original);this.log({provider:'http_html',duration_ms:Date.now()-start,pages:0,error:code,cause:original});throw Error(code)}
  }
 }

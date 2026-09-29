@@ -202,7 +202,9 @@ test('B18-12 / B5 / B19 — filters Nouveaux / Déjà vus / Ajoutés / Ignorés;
  assert.match(panel, /\(\['ALL','NEW','SEEN','ADDED','IGNORED','CURRENT_RUN_DUPLICATE'\] as const\)/);
  assert.match(panel, /aria-pressed=\{noveltyTab===k\}/);
  // Exploitable candidates in novelty order, then the unresolved ones (no novelty label, never in a novelty tab).
- assert.match(panel, /const shown=\(hasNovelty\?\[\.\.\.newFirst\(candidates\.filter\(eligible\),histOf\),\.\.\.candidates\.filter\(r=>!eligible\(r\)\)\]:candidates\)\.filter\(r=>noveltyTab==='ALL'\|\|novOf\(r\)\?\.status===noveltyTab\);/);
+ // New first, then (inside each novelty level) review priority; set-aside results always last.
+ assert.match(panel, /const prioritized=byReviewPriority\(candidates\.filter\(eligible\),r=>priorityOf\(r\)\);/);
+ assert.match(panel, /const shown=\(hasNovelty\?\[\.\.\.newFirst\(prioritized,histOf\),\.\.\.candidates\.filter\(r=>!eligible\(r\)\)\]:\[\.\.\.prioritized,\.\.\.candidates\.filter\(r=>!eligible\(r\)\)\]\)\.filter\(r=>noveltyTab==='ALL'\|\|novOf\(r\)\?\.status===noveltyTab\);/);
  assert.match(panel, /const histOf=\(r:DiscoveryResult\)=>eligible\(r\)\?noveltyOf\(r\.normalized_payload\.raw_metadata\):null;/);
  // A run starts on "all", unless the user explicitly chose "Nouveaux en priorité" for it (its own search mode).
  assert.match(panel, /setResults\(rows\);setNoveltyTab\(summary\.search_mode==='new_first'\?'NEW':'ALL'\);/);

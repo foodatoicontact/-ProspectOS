@@ -1,4 +1,5 @@
 import type {Criterion} from '../../domain/core.ts';
+import {DECISION_MAKER_LABEL} from './icp-intents.ts';
 // Deterministic, explainable recognition of a "documented professional contact channel" criterion,
 // driven entirely by the project's own ICP — never a per-project hardcode (no "if Test SaaS").
 // Recognition is a closed, literal key vocabulary, deliberately NOT a fuzzy label/word match: a
@@ -14,7 +15,9 @@ export const CONTACT_CHANNEL_KEYS=['contactability','contact_channel','contact_d
 // would be proposed as proof of whatever the user renamed it to.
 const CONTACT_LABEL=/contact|joignab|telephon|coordonn|canal|e-?mail|phone|reachab/;
 const normalizeLabel=(label:string)=>label.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
-export function isContactChannelCriterion(c:Criterion):boolean{return (CONTACT_CHANNEL_KEYS as readonly string[]).includes(c.key)&&CONTACT_LABEL.test(normalizeLabel(c.label))}
+// A decision-maker contact ("Contact décisionnaire identifiable") is not a contact channel: a switchboard
+// number never identifies the person, whatever key the criterion kept.
+export function isContactChannelCriterion(c:Criterion):boolean{const label=normalizeLabel(c.label);return (CONTACT_CHANNEL_KEYS as readonly string[]).includes(c.key)&&CONTACT_LABEL.test(label)&&!DECISION_MAKER_LABEL.test(label)}
 export function findContactChannelCriterion(criteria:Criterion[]):Criterion|null{
  return criteria.find(isContactChannelCriterion)??null;
 }

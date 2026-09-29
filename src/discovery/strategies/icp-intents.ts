@@ -21,7 +21,7 @@ import {icpSignalType,icpSignalHash,conceptsForLabel,NEGATION,withoutNegationExe
 // achetées = 1 offerte") is INSUFFICIENT. Neither is ever proposed as a fact: both are kept as contextual
 // notes (value null, stored without criterion — see toStorageSafeObservation) so the reviewer sees why the
 // criterion stays "À confirmer". Contact data (phone, e-mail) only ever supports a contact criterion.
-export type IntentId='ACTIVITY_OR_SERVICE'|'BOOKING_OR_REGISTRATION'|'SCHEDULE_OR_REGULARITY'|'CAPACITY'|'EVENT_OR_COMMUNITY'|'CONTACTABILITY'|'PRICING_OR_OFFER'|'LOCATION_OR_PHYSICAL_PRESENCE';
+export type IntentId='ACTIVITY_OR_SERVICE'|'BOOKING_OR_REGISTRATION'|'SCHEDULE_OR_REGULARITY'|'CAPACITY'|'EVENT_OR_COMMUNITY'|'CONTACTABILITY'|'DECISION_MAKER'|'PRICING_OR_OFFER'|'LOCATION_OR_PHYSICAL_PRESENCE';
 export type Polarity='positive'|'negative'|'insufficient';
 export const INTENT_NOTE_TYPES={negative:'ICP_INTENT_NEGATIVE',insufficient:'ICP_INTENT_INSUFFICIENT'} as const;
 
@@ -33,6 +33,8 @@ const words=(list:string)=>new RegExp(`${W}(?:${list})${E}`);
 const PHONE=/(?:\+33\s*(?:\(0\)\s*)?|(?:^|[^0-9])0)[1-9](?:[ .-]?\d{2}){4}/;
 const EMAIL=/[a-z0-9._%+-]+@[a-z0-9-]+(?:\.[a-z0-9-]+)+/;
 const hasContactData=(n:string)=>PHONE.test(n)||EMAIL.test(n);
+// A label asking for an identifiable decision-maker (see decisionMaker below). Shared with contact-channel.ts.
+export const DECISION_MAKER_LABEL=/(decisionnaire|decideur|decision[- ]?maker|dirigeant|interlocuteur|nominati)/;
 
 // ---------------------------------------------------------------- guards (all on the normalized line)
 // NEGATION / withoutNegationExemptions: the single definition shared with the rule engine (icp-concepts.ts).
@@ -156,7 +158,7 @@ const events:Intent={
 const contact:Intent={
  id:'CONTACTABILITY',
  label:/(joignab|coordonnees|canal de contact|moyens? de contact|contact (pro|professionnel|direct|documente|joignable)|contactab|reachab|telephone (pro|professionnel|joignable|de contact)|e-?mail (pro|professionnel|de contact)|^contacts?$|^contacts? )/,
- blockedBy:/(liste|fichier|base de|campagne|marketing|commande|order|vente|achat|paiement)/,
+ blockedBy:new RegExp(`(liste|fichier|base de|campagne|marketing|commande|order|vente|achat|paiement)|${DECISION_MAKER_LABEL.source}`),
  cue:/[a-z0-9]|\d/,
  support(n){
   if(PHONE.test(n))return {reason:'Le site affiche un numéro de téléphone',confidence:.55};
@@ -165,6 +167,19 @@ const contact:Intent={
   return null;
  },
  page:words('contact\\w*|nous joindre|nous ecrire'),
+};
+
+// A decision-maker contact ("Contact décisionnaire identifiable") asks for a PERSON or a precise decision
+// role. A company's switchboard number, a contact@ address or a contact form never identifies one: such a
+// label is kept out of the contact-channel intent above (blockedBy) and only an explicit role supports it.
+// Contact data never supports it either (evaluateLine): a named role is proposed, the phone is not.
+const DECISION_ROLE="directeur\\w*|directrice\\w*|dirigeant\\w*|dirigeante\\w*|gerant\\w*|gerante\\w*|president\\w*|presidente\\w*|pdg|ceo|cto|cfo|coo|dsi|fondateur\\w*|fondatrice\\w*|co-?fondat\\w*|chef d'entreprise|responsable (?:des |du |de la )?(?:achats?|commercial\\w*|ventes?|recrutement|rh|ressources humaines|it|informatique|systemes? d'information|technique|marketing|developpement|d'agence|d'exploitation)";
+const decisionMaker:Intent={
+ id:'DECISION_MAKER',
+ label:DECISION_MAKER_LABEL,
+ cue:words(DECISION_ROLE),
+ support(n){return words(DECISION_ROLE).test(n)?{reason:'Le site nomme un dirigeant ou un rôle décisionnaire',confidence:.5}:null},
+ page:words('equipe|notre equipe|qui sommes[- ]nous|a propos|direction|contact\\w*|mentions legales'),
 };
 
 const pricing:Intent={
@@ -192,7 +207,7 @@ const location:Intent={
  page:words('acces|plan d acces|nous trouver|adresse|localisation|venir'),
 };
 
-export const INTENTS:Intent[]=[activity,booking,schedule,capacity,events,contact,pricing,location];
+export const INTENTS:Intent[]=[activity,booking,schedule,capacity,events,contact,decisionMaker,pricing,location];
 
 // ---------------------------------------------------------------- reading a criterion label
 // A label is a set of ALTERNATIVES ("Cours / séances / réservation active", "Lieu physique ou activité

@@ -9,9 +9,9 @@ test('site metadata targets generic B2B prospecting rather than only Foodatoi',(
   assert.equal(siteMetadata.canonical,SITE_URL);
 });
 
-test('SEO landing pages cover the four approved search intents',()=>{
+test('SEO landing pages cover the six approved search intents',()=>{
   assert.deepEqual(seoPages.map(p=>p.slug).sort(),[
-    'lead-scoring','prospection-b2b','prospection-ia','prospection-restaurants'
+    'lead-scoring','prioriser-liste-prospects','prospection-b2b','prospection-ia','prospection-restaurants','qualifier-un-prospect-b2b'
   ]);
   for(const page of seoPages){
     assert.ok(page.title.length>20);

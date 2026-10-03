@@ -9,6 +9,7 @@
     "start": "next start --hostname 0.0.0.0",
     "test": "node --experimental-strip-types --experimental-test-module-mocks --test tests/*.test.ts",
     "typecheck": "tsc --noEmit",
+    "test:seo-html": "node tests/seo-html.mjs",
     "test:db": "node tests/rls-runner.mjs",
     "test:discovery-db": "node tests/discovery-db.mjs",
     "test:discovery-trust-db": "node tests/discovery-trust-boundary-db.mjs",

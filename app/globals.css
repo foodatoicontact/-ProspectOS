@@ -388,3 +388,15 @@ button,.button{transition:background-color .18s ease,border-color .18s ease,colo
 .process-strip{gap:6px;margin-bottom:10px}.process-strip li{font-size:12px;padding:4px 10px 4px 4px}.process-index{min-width:22px;height:22px;font-size:10px}
 .demo-mission-disclaimer{font-size:11.5px}
 }
+/* Account: one subscription block (offer, status, date, usage, portal). */
+.subscription-card{display:grid;gap:8px;padding:16px;border-radius:12px;background:#f8fbf4;border:1px solid #d6e5c9}
+.subscription-head{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.subscription-offer{font-family:'Manrope',sans-serif;font-weight:800;font-size:16px;letter-spacing:-.02em;margin:0!important;color:var(--ink)}
+.subscription-date{margin:0!important;font-size:13px;color:#3f5047}
+.subscription-usage{border-top:1px solid #e1eadb;padding-top:8px}
+.subscription-usage p{margin:0 0 4px;font-size:13px}
+.subscription-usage p.reached{color:#a4553f;font-weight:600}
+.subscription-card .subscription-manage{width:100%;min-height:44px;margin-top:4px;font-size:14px}
+.subscription-unavailable{margin:4px 0 0!important;font-size:12.5px;line-height:1.55;color:#5c4a1e;background:#fbf4e3;border:1px solid #efe0b8;border-radius:8px;padding:10px 12px}
+.subscription-card p[role=alert]{margin:0!important}
+.subscription-head .status-pill{padding:3px 10px;border-radius:999px;font-size:11px;font-weight:700;white-space:nowrap}

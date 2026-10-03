@@ -137,8 +137,8 @@ test('the pricing component renders amounts and quotas from OFFERS only, with th
  assert.match(pricing,/available=plan\?\(context==='public'\|\|availability\?\.\[plan\]===true\):false/);
 });
 test('the account billing block: subscriber → summary + portal, no pricing cards; manual plans see no cards',()=>{
- assert.match(billingSection,/const showPlans=!current&&entitlementPlan!=='INTERNAL'&&entitlementPlan!=='ENTERPRISE';/);
- assert.match(billingSection,/\{offers\?\.portal&&<button type="button" disabled=\{busy\} onClick=\{onPortal\}>\{tr\('billing\.manage'\)\}<\/button>\}/);
+ assert.match(billingSection,/const showPlans=!view\?\.current&&entitlementPlan!=='INTERNAL'&&entitlementPlan!=='ENTERPRISE';/);
+ assert.match(billingSection,/view\.manage==='portal'/,'manage button driven by the server availability (see the subscription management tests)');
  assert.match(billingSection,/<PricingPlans locale=\{locale\} context="account" availability=\{offers\}/,'same component as the demo');
  assert.match(page,/<PricingPlans locale=\{locale\} context=\{mode==='live'\?'account':'public'\} availability=\{mode==='live'\?billingOffers:null\}/);
 });
@@ -179,15 +179,55 @@ test('no copy announces live payment or automated sending',()=>{
 });
 
 // ---------------------------------------------------------------- final mobile polish
-test('account: the offer is named once (Accès), usage and subscription card never repeat it',()=>{
- assert.match(page,/<div className="account-field plan-identity"><span className="muted">\{tr\('account\.access'\)\}<\/span><p className="plan-identity-name">/);
- assert.match(page,/<div className="account-field usage"><span className="muted">\{tr\('account\.usage'\)\}<\/span>/,'usage label without the offer name');
- assert.doesNotMatch(billingSection,/offerNameKey|offerForDbPlan|billing\.betaName|billing\.proName/,'the subscription card shows status, date and portal only');
- assert.match(billingSection,/<p className="subscription-title"><span className="muted">\{tr\('billing\.currentTitle'\)\}<\/span><span className=\{`status-pill/);
+test('account: a current subscription is ONE block; Accès / Utilisation are kept for everyone else',()=>{
+ assert.match(page,/const subscribed=hasCurrentSubscription\(billingStatus\);/);
+ assert.match(page,/\{!subscribed&&<div className="account-field plan-identity"><span className="muted">\{tr\('account\.access'\)\}<\/span><p className="plan-identity-name">/);
+ assert.match(page,/\{!subscribed&&usage&&<div className="account-field usage"><span className="muted">\{tr\('account\.usage'\)\}<\/span>/);
+ assert.match(page,/<BillingSection locale=\{locale\} offers=\{billingOffers\} status=\{billingStatus\} busy=\{busy\} usage=\{usage\}[^\n]*?onPortal=\{openBillingPortal\}\/>/);
+ assert.match(billingSection,/<p className="subscription-offer">\{tr\(view\.offer==='BETA'\?'account\.usagePaid':'account\.usagePro'\)\}<\/p>/,'offer named once, inside the block');
  assert.equal(fr['billing.currentTitle'],'Votre abonnement');
 });
 test('demo help: the 7 steps stay visible; the score note and the 4 live limitations stay present, folded',()=>{
  assert.match(page,/<ol className="onboarding-steps"[^>]*>\{\(locale==='fr'\?DEMO_ONBOARDING_STEPS:DEMO_ONBOARDING_STEPS_EN\)\.map/);
  assert.match(page,/<details className="demo-help-more"><summary>\{tr\('demoHelp\.moreSummary'\)\}<\/summary><p className="muted">\{tr\('demoHelp\.zeroScore'\)\}<\/p><ul className="muted">\{\(locale==='fr'\?DEMO_LIVE_LIMITATIONS:DEMO_LIVE_LIMITATIONS_EN\)\.map/);
  assert.ok(fr['demoHelp.moreSummary']&&en['demoHelp.moreSummary']);
+});
+
+// ---------------------------------------------------------------- subscription management access
+import {subscriptionView} from '../src/domain/subscription-view.ts';
+const END='2026-10-28T10:00:00Z';
+test('PAID active subscription → "Gérer mon abonnement" through the portal',()=>{
+ const v=subscriptionView({has_customer:true,plan:'PAID',status:'active',cancel_at_period_end:false,current_period_end:END},OPEN)!;
+ assert.deepEqual(v,{offer:'BETA',status:'active',current:true,cancelScheduled:false,date:{kind:'renews',iso:END},manage:'portal'});
+});
+test('cancel_at_period_end → button still there, access kept until current_period_end',()=>{
+ const v=subscriptionView({has_customer:true,plan:'PAID',status:'active',cancel_at_period_end:true,current_period_end:END},OPEN)!;
+ assert.equal(v.manage,'portal');assert.equal(v.cancelScheduled,true);assert.deepEqual(v.date,{kind:'ends',iso:END});
+ assert.equal(fr['billing.cancelScheduled'],'Abonnement résilié : accès maintenu jusqu’au');
+ for(const status of ['trialing','past_due','unpaid','paused'])assert.equal(subscriptionView({has_customer:true,plan:'PRO',status},OPEN)!.manage,'portal',status);
+});
+test('portal not configured on this deployment → explicit message, never a dead button',()=>{
+ const v=subscriptionView({has_customer:true,plan:'PAID',status:'active',cancel_at_period_end:true,current_period_end:END},{BETA:false,PRO:false,portal:false})!;
+ assert.equal(v.manage,'unavailable');
+ assert.match(billingSection,/\{view\.manage==='portal'\n?\s*\?<button type="button" className="primary subscription-manage"[^>]*onClick=\{manage\}>\{tr\('billing\.manage'\)\}<\/button>\n?\s*:<p className="subscription-unavailable" role="note">\{tr\('billing\.portalUnavailable'\)\}/);
+ assert.match(fr['billing.portalUnavailable'],/n’est pas disponible/);assert.ok(en['billing.portalUnavailable']);
+ assert.doesNotMatch(fr['plan.subscribedNotice'],/Gérer mon abonnement/,'the notice never points to a button that may not exist');
+});
+test('no subscription → no subscription block, no manage button',()=>{
+ assert.equal(subscriptionView({has_customer:false},OPEN),null);
+ assert.equal(subscriptionView(null,OPEN),null);
+ assert.equal(subscriptionView({has_customer:true,status:null},OPEN),null);
+ assert.match(billingSection,/\{view&&<section className="subscription-card"/,'the button lives only inside the subscription block');
+ assert.equal((billingSection.match(/tr\('billing\.manage'\)/g)??[]).length,1);
+});
+test('click → existing portal route; the URL comes from the server, never built by the browser',async()=>{
+ assert.match(page,/async function openBillingPortal\(\)\{const \{url\}=await api\('billing\/portal','POST',\{\}\);if\(typeof url==='string'\)window\.location\.assign\(url\)\}/);
+ assert.match(billingSection,/async function manage\(\)\{setOpening\(true\);setPortalError\(''\);try\{await onPortal\(\)\}catch\(e\)\{setPortalError/,'a refusal is shown inside the account dialog');
+ for(const src of [page,billingSection,await read('../src/domain/subscription-view.ts')])assert.doesNotMatch(src,/billing\.stripe\.com|checkout\.stripe\.com|https:\/\/[a-z.]*stripe/i);
+});
+test('subscribed → no second checkout: pricing cards hidden, intent decision SUBSCRIBED',()=>{
+ assert.match(billingSection,/const showPlans=!view\?\.current&&entitlementPlan!=='INTERNAL'&&entitlementPlan!=='ENTERPRISE';/);
+ assert.equal(subscriptionView({has_customer:true,plan:'PAID',status:'active',cancel_at_period_end:true,current_period_end:END},OPEN)!.current,true);
+ assert.deepEqual(decidePlanIntent('PRO',OPEN,{has_customer:true,plan:'PAID',status:'active',cancel_at_period_end:true}),{action:'SUBSCRIBED'});
+ assert.equal(subscriptionView({has_customer:true,plan:'PAID',status:'canceled'},OPEN)!.current,false,'an ended subscription may subscribe again');
 });

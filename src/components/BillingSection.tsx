@@ -1,10 +1,14 @@
 'use client';
-import {type Locale,translate,type TKey} from '../i18n';
+import {useState} from 'react';
+import {type Locale,translate,type TKey,usageCounterLabel,usageResetLabel} from '../i18n';
 import {PricingPlans} from './PricingPlans';
-import {hasCurrentSubscription,type BillingAvailability,type BillingSummary} from '../domain/plan-intent';
+import {type BillingAvailability,type BillingSummary} from '../domain/plan-intent';
+import {subscriptionView} from '../domain/subscription-view';
+import type {UsageView} from '../domain/pricing';
 // Account page billing block. Display only: the offers shown as buyable, the subscription status and every
 // button come from the server's answer (billing_offers / billing); the browser only sends the offer NAME
-// ('BETA' or 'PRO') to /api/v1/billing/checkout and follows the hosted payment page URL it gets back.
+// ('BETA' or 'PRO') to /api/v1/billing/checkout, or asks POST /api/v1/billing/portal for the Customer Portal,
+// and follows the URL the server returns — it never builds a payment-provider URL itself.
 // A current subscription is managed in the portal: no second checkout is ever offered next to it.
 export type BillingOffers=BillingAvailability;
 export type BillingStatus=BillingSummary;
@@ -12,21 +16,33 @@ export type BillingStatus=BillingSummary;
 const STATUS_KEYS=['active','trialing','past_due','unpaid','paused','canceled','incomplete'] as const;
 const statusKey=(s:string|null|undefined):TKey=>(STATUS_KEYS as readonly string[]).includes(s??'')?`billing.status.${s}` as TKey:'billing.status.unknown';
 
-export function BillingSection({locale,offers,status,busy,entitlementPlan,onCheckout,onPortal}:{locale:Locale;offers:BillingOffers|null;status:BillingStatus|null;busy:boolean;entitlementPlan?:string|null;onCheckout:(plan:'BETA'|'PRO')=>void;onPortal:()=>void}){
+export function BillingSection({locale,offers,status,usage,busy,entitlementPlan,onCheckout,onPortal}:{locale:Locale;offers:BillingOffers|null;status:BillingStatus|null;usage?:UsageView|null;busy:boolean;entitlementPlan?:string|null;onCheckout:(plan:'BETA'|'PRO')=>void;onPortal:()=>Promise<void>}){
  const tr=(k:TKey)=>translate(locale,k);
- const current=hasCurrentSubscription(status);
+ const [opening,setOpening]=useState(false);const [portalError,setPortalError]=useState('');
+ const view=subscriptionView(status,offers);
  const date=(iso:string)=>new Date(iso).toLocaleDateString(locale==='fr'?'fr-FR':'en-US');
  // Manual plans (INTERNAL, ENTERPRISE) are outside self-service: no pricing cards for them.
- const showPlans=!current&&entitlementPlan!=='INTERNAL'&&entitlementPlan!=='ENTERPRISE';
+ const showPlans=!view?.current&&entitlementPlan!=='INTERNAL'&&entitlementPlan!=='ENTERPRISE';
+ // The error is shown here, inside the account dialog, not in the page notice hidden behind it.
+ async function manage(){setOpening(true);setPortalError('');try{await onPortal()}catch(e){setPortalError(e instanceof Error?e.message:tr('error.generic'))}finally{setOpening(false)}}
  return <div className="account-field billing">
-  {status?.status==='past_due'&&<p className="reached" role="alert">{tr('billing.pastDue')}</p>}
-  {/* The offer itself is named once, in the "Accès" field above: this card only adds status, date and the portal. */}
-  {status?.has_customer&&status.status&&<div className="subscription-card">
-   <p className="subscription-title"><span className="muted">{tr('billing.currentTitle')}</span><span className={`status-pill tone-${current?'verified':'neutral'}`}>{tr(statusKey(status.status))}</span></p>
-   {current&&status.current_period_end&&<p className="muted">{status.cancel_at_period_end?`${tr('billing.cancelScheduled')} ${date(status.current_period_end)}`:`${tr('billing.renewsOn')} ${date(status.current_period_end)}`}</p>}
-   {status.status==='canceled'&&<p className="muted">{tr('billing.ended')}</p>}
-   {offers?.portal&&<button type="button" disabled={busy} onClick={onPortal}>{tr('billing.manage')}</button>}
-  </div>}
+  {view&&<section className="subscription-card" aria-labelledby="subscription-title">
+   <div className="subscription-head"><span id="subscription-title" className="muted">{tr('billing.currentTitle')}</span><span className={`status-pill tone-${view.current?'verified':'neutral'}`}>{tr(statusKey(view.status))}</span></div>
+   {view.current&&view.offer&&<p className="subscription-offer">{tr(view.offer==='BETA'?'account.usagePaid':'account.usagePro')}</p>}
+   {view.status==='past_due'&&<p className="reached" role="alert">{tr('billing.pastDue')}</p>}
+   {view.date&&<p className="subscription-date">{view.date.kind==='ends'?`${tr('billing.cancelScheduled')} ${date(view.date.iso)}`:`${tr('billing.renewsOn')} ${date(view.date.iso)}`}</p>}
+   {view.status==='canceled'&&<p className="muted">{tr('billing.ended')}</p>}
+   {view.current&&usage&&<div className="subscription-usage">
+    <p className={usage.discovery.reached?'reached':''}>{usageCounterLabel(locale,'discovery',usage.discovery.used,usage.discovery.limit)}</p>
+    <p className={usage.analysis.reached?'reached':''}>{usageCounterLabel(locale,'analysis',usage.analysis.used,usage.analysis.limit)}</p>
+    <p className={usage.aiOffer.reached?'reached':''}>{usageCounterLabel(locale,'ai_offer',usage.aiOffer.used,usage.aiOffer.limit)}</p>
+    {usage.active&&usage.kind==='paid'&&!view.cancelScheduled&&<p className="muted">{usageResetLabel(locale,usage.periodEnd)}</p>}
+   </div>}
+   {view.manage==='portal'
+    ?<button type="button" className="primary subscription-manage" disabled={busy||opening} aria-busy={opening} onClick={manage}>{tr('billing.manage')}</button>
+    :<p className="subscription-unavailable" role="note">{tr('billing.portalUnavailable')} <a href="/mentions-legales">{tr('offers.contact')}</a></p>}
+   {portalError&&<p className="reached" role="alert">{portalError}</p>}
+  </section>}
   {showPlans&&<PricingPlans locale={locale} context="account" availability={offers} busy={busy} onChoose={onCheckout} layout="stack"/>}
  </div>;
 }

@@ -19,7 +19,7 @@ import {compareLocation,isPlaceName,locationTarget,placesIn,type LocationState} 
 export type PageType = 'OFFICIAL_ORGANIZATION_SITE' | 'OFFICIAL_JOB_PAGE' | 'THIRD_PARTY_JOB_BOARD' | 'DIRECTORY' | 'TRAINING_PROVIDER' | 'TRAINING_COURSE_PAGE'
  | 'NEWS_ARTICLE' | 'BLOG_OR_CONTENT' | 'SOCIAL_PROFILE' | 'GOVERNMENT_OR_PUBLIC_DIRECTORY' | 'UNKNOWN';
 export type AdmissibilityReason = 'ADMISSIBLE' | 'TRAINING_COURSE_PAGE' | 'DIRECTORY_PAGE' | 'PUBLIC_DIRECTORY_PAGE' | 'SOCIAL_PROFILE_PAGE'
- | 'EXCLUDED_BY_QUERY' | 'ENTITY_UNRESOLVED' | 'NO_OBSERVABLE_RELEVANCE' | 'LOCATION_MISMATCH' | 'SECTOR_BODY_PAGE' | 'EVENT_PAGE';
+ | 'EXCLUDED_BY_QUERY' | 'ENTITY_UNRESOLVED' | 'NO_OBSERVABLE_RELEVANCE' | 'LOCATION_MISMATCH' | 'SECTOR_BODY_PAGE' | 'EVENT_PAGE' | 'ENTITY_TYPE_MISMATCH';
 export type EntityMethod = 'own_site' | 'own_job_page' | 'job_title_employer' | 'labeled_field' | 'title_organization' | 'explicit_title_pattern' | 'cited_domain';
 // RESOLVED_HIGH: the organization's own site/job page identifies it (name + website). RESOLVED_MEDIUM: an
 // organization explicitly named by a secondary source, identity/website not confirmed. UNRESOLVED: no
@@ -390,6 +390,38 @@ const EVENT_INTENT = /\b(salons?|[ée]v[ée]nements?|[ée]v[ée]nementiel|organi
 export function isEventPage(title: string, description: string): boolean { return EVENT_NOUN.test(title) && EVENT_SIGN.test(`${title} ${description}`); }
 export const briefTargetsEvents = (context: QueryContext | undefined): boolean =>
  !!context && EVENT_INTENT.test(`${parseQueryExclusions(context.query).cleanedQuery} ${context.categories.join(' ')}`);
+// ENTITY TYPE × SEARCH INTENT. A real organization with a real domain is not a commercial prospect by default: a
+// federation, an association, a public body or a media/publisher is set aside (ENTITY_TYPE_MISMATCH) when the brief
+// explicitly asks for commercial actors ("Entreprise BTP…", "PME…", "sociétés…") and does NOT ask for that kind of
+// actor too. A brief asking for it ("fédérations BTP", "associations professionnelles", "organismes publics",
+// "médias spécialisés") keeps it; a brief that says neither leaves the organization reviewable. Nothing here
+// judges fit, size, competition or confirmed activity — that stays human qualification.
+export type NonCommercialKind = 'FEDERATION' | 'ASSOCIATION' | 'PUBLIC_BODY' | 'MEDIA';
+export const PUBLIC_BODY_NAME = /^(ville|commune|mairie) (de|d')|conseil (departemental|regional|general)|(^|\s)metropole(\s|$)|communaute (de communes|d'agglomeration|urbaine)|^region\s|^departement\s|office public de l'habitat|^prefecture/;
+const ASSOCIATION_SIGN = /^(?:l['’])?association\s|(?:^|[^\p{L}])(?:l['’]association|association (?:des|de|du|professionnelle|r[ée]gionale))(?!\p{L})/iu;
+// A publisher's own site says what it publishes, in its title: "L'actualité du BTP", a magazine, a journal…
+const MEDIA_TITLE = /(?:^|[^\p{L}])(?:l['’]actualit[ée] (?:du|de la|des|de l['’])|toute l['’]actualit[ée]|magazines?|journal|quotidien|hebdomadaire|webzine|m[ée]dia (?:sp[ée]cialis|d['’]information|de r[ée]f[ée]rence))(?!\p{L})/iu;
+const foldName = (s: string): string => fold(s).replace(/[’`]/g, "'");
+export function nonCommercialKind(name: string, title: string, url: string): NonCommercialKind | null {
+ if (isSectorBody(name, title)) return 'FEDERATION';
+ if (PUBLIC_BODY_NAME.test(foldName(name))) return 'PUBLIC_BODY';
+ const host = urlParts(url).host;
+ if (/(^|\.)asso\.fr$/.test(host) || ASSOCIATION_SIGN.test(name) || titleSegments(title).some(s => ASSOCIATION_SIGN.test(s))) return 'ASSOCIATION';
+ if (MEDIA_TITLE.test(title)) return 'MEDIA';
+ return null;
+}
+const COMMERCIAL_INTENT = /(?:^|[^\p{L}])(entreprises?|soci[ée]t[ée]s?|pme|eti|tpe|startups?|start-ups?|commerces?|commer[çc]ants?|[ée]tablissements?|prestataires?|fournisseurs?|fabricants?|industriels?|artisans?|cabinets?|agences?|bureaux d['’][ée]tudes?|distributeurs?|n[ée]gociants?)(?!\p{L})/iu;
+const KIND_INTENT: Record<NonCommercialKind, RegExp> = {
+ FEDERATION: /(?:^|[^\p{L}])(f[ée]d[ée]rations?|conf[ée]d[ée]rations?|syndicats?|chambres?|unions? (?:professionnelles?|patronales?)|organisations? professionnelles?|associations? professionnelles?|interprofessions?|clusters?|ordres? professionnels?|organismes? professionnels?)(?!\p{L})/iu,
+ ASSOCIATION: /(?:^|[^\p{L}])(associations?|associatifs?|associatives?)(?!\p{L})/iu,
+ PUBLIC_BODY: /(?:^|[^\p{L}])(organismes? publics?|acteurs? publics?|collectivit[ée]s?|administrations?|[ée]tablissements? publics?|services? publics?|mairies?|communes?|intercommunalit[ée]s?|epci|acheteurs? publics?)(?!\p{L})/iu,
+ MEDIA: /(?:^|[^\p{L}])(m[ée]dias?|presse|journaux|journal|magazines?|[ée]diteurs?|publications?|journalistes?)(?!\p{L})/iu,
+};
+export function entityTypeMismatch(kind: NonCommercialKind | null, context: QueryContext | undefined): boolean {
+ if (!kind || !context) return false;
+ const brief = `${parseQueryExclusions(context.query).cleanedQuery} ${context.categories.join(' ')}`;
+ return COMMERCIAL_INTENT.test(brief) && !KIND_INTENT[kind].test(brief);
+}
 export const briefTargetsSectorBodies = (context: QueryContext | undefined): boolean =>
  !!context && SECTOR_INTENT.test(`${parseQueryExclusions(context.query).cleanedQuery} ${context.categories.join(' ')}`);
 
@@ -456,6 +488,7 @@ export function evaluateCandidateAdmissibility(input: {title: string; descriptio
  // (labeled field, job employer) is still that organization, not the event.
  if (!briefTargetsEvents(input.context) && isEventPage(input.title, input.description) && (entity.method === 'own_site' || entity.method === 'title_organization' || EVENT_NOUN.test(entity.name)))
   return verdict('EVENT_PAGE', entity);
+ if (entityTypeMismatch(nonCommercialKind(entity.name, input.title, input.url), input.context)) return verdict('ENTITY_TYPE_MISMATCH', entity);
  if (input.resolution.classificationReasons.includes('no_observable_relevance')) return verdict('NO_OBSERVABLE_RELEVANCE', entity);
  if (loc.state === 'MISMATCH') return verdict('LOCATION_MISMATCH', entity);
  return verdict('ADMISSIBLE', entity);

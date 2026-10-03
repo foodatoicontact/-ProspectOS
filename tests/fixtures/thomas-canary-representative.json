@@ -1,0 +1,68 @@
+{
+ "description": "REPRESENTATIVE FIXTURES (not raw Brave output): result shapes reported by the production canary of PR #9 on the Thomas/AppelGagnant BTP brief (2026-10). Titles/snippets are reconstructed for the organizations the canary named (FNTP regional site, FFB AURA, CRA, Le Moniteur, Cercara) plus ordinary companies and set-aside pages. 'expected': company = an organization a caller could work (incl. reviewable ambiguous companies); non_commercial = federation/association/public body/media; content = page that must not become a prospect.",
+ "query": "Entreprise BTP recrute ou se développe nouveaux chantiers croissance 2026",
+ "location": "Auvergne-Rhône-Alpes",
+ "categories": [
+  "BTP",
+  "construction",
+  "travaux publics"
+ ],
+ "rows": [
+  {
+   "id": "fntp",
+   "expected": "non_commercial",
+   "title": "FRTP Auvergne-Rhône-Alpes - FRTP Auvergne-Rhône-Alpes",
+   "url": "https://frtpaura.fntp.fr/",
+   "description": "La FRTP Auvergne-Rhône-Alpes représente les entreprises de travaux publics de la région : chantiers, emploi, recrutement, croissance."
+  },
+  {
+   "id": "ffb",
+   "expected": "non_commercial",
+   "title": "Fédération Française du Bâtiment Région Auvergne-Rhône-Alpes",
+   "url": "https://www.ffbatiment.fr/organisation-ffb/federations-regionales/auvergne-rhone-alpes",
+   "description": "En soutien des 11 Fédérations Départementales du BTP, la FFB AURA accompagne les entreprises du bâtiment : emploi, recrutement, chantiers."
+  },
+  {
+   "id": "cra",
+   "expected": "non_commercial",
+   "title": "CRA - Construction Rhône-Alpes : l'association des entreprises de construction",
+   "url": "https://www.cra.asso.fr/",
+   "description": "Le CRA fédère les entreprises du BTP en Auvergne-Rhône-Alpes, chantiers et recrutement."
+  },
+  {
+   "id": "moniteur",
+   "expected": "non_commercial",
+   "title": "Le Moniteur - L'actualité du BTP, de la construction et des travaux publics",
+   "url": "https://www.lemoniteur.fr/",
+   "description": "Toute l'actualité du BTP : entreprises, chantiers, recrutement et croissance en Auvergne-Rhône-Alpes."
+  },
+  {
+   "id": "cercara",
+   "expected": "company",
+   "title": "Cercara - Accueil",
+   "url": "https://www.cercara.fr/",
+   "description": "Cercara, entreprise en Auvergne-Rhône-Alpes : nouveaux chantiers 2026."
+  },
+  {
+   "id": "company-btp",
+   "expected": "company",
+   "title": "Dupuis Construction - Entreprise générale du BTP à Lyon",
+   "url": "https://www.dupuis-construction.example/",
+   "description": "Dupuis Construction, entreprise BTP à Lyon (Rhône), recrute des chefs de chantier pour ses nouveaux chantiers 2026."
+  },
+  {
+   "id": "job-board",
+   "expected": "content",
+   "title": "Chef de chantier BTP : 120 offres d'emploi en Auvergne-Rhône-Alpes | Jobboard",
+   "url": "https://www.jobboard.example/emplois/chef-de-chantier/auvergne-rhone-alpes",
+   "description": "120 offres d'emploi de chef de chantier BTP."
+  },
+  {
+   "id": "article",
+   "expected": "content",
+   "title": "BTP : les 5 tendances de recrutement à suivre en 2026",
+   "url": "https://www.actu-btp.example/recrutement-btp-tendances-2026",
+   "description": "Le BTP recrute en Auvergne-Rhône-Alpes : nos conseils pour les entreprises."
+  }
+ ]
+}

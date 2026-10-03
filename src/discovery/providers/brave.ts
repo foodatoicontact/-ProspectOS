@@ -144,7 +144,7 @@ export class BraveProvider implements DiscoveryProvider {
  page_type:gate.pageType,
  // COMPANY / COOPERATIVE / FEDERATION / NETWORK / DIRECTORY / MARKETPLACE / PUBLIC_BODY (entity-type.ts): what kind of
  // organization this is, for the reviewer and review priority — never an evidence status, never an acceptance rule.
- entity_type:entityTypeOf({pageType:gate.pageType,reasonCode:gate.reasonCode,sourceType:resolution.sourceType,name:entity?.name??null,title,description}),
+ entity_type:entityTypeOf({pageType:gate.pageType,reasonCode:gate.reasonCode,sourceType:resolution.sourceType,name:entity?.name??null,title,description,url:r.url}),
  admissibility:{admissible:gate.admissible,reason_code:gate.reasonCode,page_type_reasons:gate.pageTypeReasons},
  location_state:gate.location.state,
  location_target:gate.location.target,

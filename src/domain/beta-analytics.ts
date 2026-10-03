@@ -27,6 +27,27 @@ export function funnelStage(u:BetaAnalyticsUser):FunnelStage{
  return 'SIGNED_UP';
 }
 
+// A closed account ("Supprimer mon compte"). Canonical signal: its entitlement is REVOKED — written by
+// delete_own_account() itself (migration 018), the same signal the database uses to give the beta seat back.
+// The anonymized email (anonymizeAuthUser: deleted+<id>@deleted.invalid) is only a secondary, display-side
+// guard for accounts closed before 018 and not yet repaired; it never decides a seat or an access.
+const DELETED_EMAIL=/^deleted\+[0-9a-f-]{36}@deleted\.invalid$/i;
+export function isDeletedAccount(u:Pick<BetaAnalyticsUser,'status'|'email'>):boolean{
+ return u.status==='REVOKED'||DELETED_EMAIL.test(u.email??'');
+}
+// History is never rewritten: every signup stays counted in "historical signups"; the funnel and the active
+// figures are computed on accounts that still exist.
+export type AccountPopulation={historical_signups:number; active_accounts:number; deleted_accounts:number};
+export function accountPopulation(users:BetaAnalyticsUser[]):AccountPopulation{
+ const deleted=users.filter(isDeletedAccount).length;
+ return {historical_signups:users.length,active_accounts:users.length-deleted,deleted_accounts:deleted};
+}
+export function activeAccounts(users:BetaAnalyticsUser[]):BetaAnalyticsUser[]{return users.filter(u=>!isDeletedAccount(u))}
+// A trial that is actually running now: BETA, ACTIVE, not past its end date, account not closed.
+export function isRunningTrial(u:BetaAnalyticsUser,now=Date.now()):boolean{
+ return u.plan==='BETA'&&u.status==='ACTIVE'&&!!u.expires_at&&new Date(u.expires_at).getTime()>now&&!isDeletedAccount(u);
+}
+
 // Never negative, never fabricated for a user with no entitlement at all (null, not 0 — 0 would falsely
 // read as "expires today").
 export function daysRemaining(expiresAt:string|null,now=Date.now()):number|null{

@@ -169,7 +169,7 @@ test('app/page.tsx: no business event renders literally "Aucun événement méti
 });
 test('app/page.tsx: the small-sample funnel caveat is shown to the user, never presented as statistically significant',async()=>{
  const source=await readFile(new URL('../app/page.tsx',import.meta.url),'utf8');
- assert.match(source,/funnelSampleNote\(locale,betaAnalytics\.users\.length\)/);
+ assert.match(source,/funnelSampleNote\(locale,activeAccounts\(betaAnalytics\.users\)\.length\)/);
  const format=await readFile(new URL('../src/i18n/format.ts',import.meta.url),'utf8');
  assert.match(format,/non statistiquement significatifs/);
 });

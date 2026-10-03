@@ -1,29 +1,34 @@
 'use client';
 import {type Locale,translate,type TKey} from '../i18n';
+import {PricingPlans,offerNameKey} from './PricingPlans';
+import {offerForDbPlan} from '../domain/offers';
+import {hasCurrentSubscription,type BillingAvailability,type BillingSummary} from '../domain/plan-intent';
 // Account page billing block. Display only: the offers shown as buyable, the subscription status and every
 // button come from the server's answer (billing_offers / billing); the browser only sends the offer NAME
 // ('BETA' or 'PRO') to /api/v1/billing/checkout and follows the hosted payment page URL it gets back.
-export type BillingOffers={BETA:boolean;PRO:boolean;portal:boolean};
-export type BillingStatus={has_customer:boolean;plan?:'PAID'|'PRO'|null;status?:string|null;cancel_at_period_end?:boolean;current_period_end?:string|null};
+// A current subscription is managed in the portal: no second checkout is ever offered next to it.
+export type BillingOffers=BillingAvailability;
+export type BillingStatus=BillingSummary;
 
-export function BillingSection({locale,offers,status,busy,onCheckout,onPortal}:{locale:Locale;offers:BillingOffers|null;status:BillingStatus|null;busy:boolean;onCheckout:(plan:'BETA'|'PRO')=>void;onPortal:()=>void}){
+const STATUS_KEYS=['active','trialing','past_due','unpaid','paused','canceled','incomplete'] as const;
+const statusKey=(s:string|null|undefined):TKey=>(STATUS_KEYS as readonly string[]).includes(s??'')?`billing.status.${s}` as TKey:'billing.status.unknown';
+
+export function BillingSection({locale,offers,status,busy,entitlementPlan,onCheckout,onPortal}:{locale:Locale;offers:BillingOffers|null;status:BillingStatus|null;busy:boolean;entitlementPlan?:string|null;onCheckout:(plan:'BETA'|'PRO')=>void;onPortal:()=>void}){
  const tr=(k:TKey)=>translate(locale,k);
- const buyable=!!offers&&(offers.BETA||offers.PRO);
- const current=status?.has_customer&&status.status&&['active','past_due','unpaid','trialing','paused'].includes(status.status);
- if(!buyable&&!(offers?.portal&&status?.has_customer))return null;
+ const current=hasCurrentSubscription(status);
+ const date=(iso:string)=>new Date(iso).toLocaleDateString(locale==='fr'?'fr-FR':'en-US');
+ const offer=offerForDbPlan(status?.plan);
+ // Manual plans (INTERNAL, ENTERPRISE) are outside self-service: no pricing cards for them.
+ const showPlans=!current&&entitlementPlan!=='INTERNAL'&&entitlementPlan!=='ENTERPRISE';
  return <div className="account-field billing">
   {status?.status==='past_due'&&<p className="reached" role="alert">{tr('billing.pastDue')}</p>}
-  {current&&status?.cancel_at_period_end&&status.current_period_end&&<p className="muted">{tr('billing.cancelScheduled')} {new Date(status.current_period_end).toLocaleDateString(locale==='fr'?'fr-FR':'en-US')}</p>}
-  {status?.has_customer&&status.status==='canceled'&&<p className="muted">{tr('billing.ended')}</p>}
-  {offers?.portal&&status?.has_customer&&<button disabled={busy} onClick={onPortal}>{tr('billing.manage')}</button>}
-  {buyable&&!current&&<>
-   <span className="muted">{tr('billing.title')}</span>
-   <div className="billing-plans">
-    {offers!.BETA&&<div className="billing-plan"><p><b>{tr('billing.betaName')}</b></p><p>{tr('billing.betaPrice')}</p><p className="muted">{tr('billing.betaLimits')}</p><p className="muted">{tr('billing.betaNote')}</p><button className="primary" disabled={busy} onClick={()=>onCheckout('BETA')}>{tr('billing.subscribe')}</button></div>}
-    {offers!.PRO&&<div className="billing-plan"><p><b>{tr('billing.proName')}</b></p><p>{tr('billing.proPrice')}</p><p className="muted">{tr('billing.proLimits')}</p><button className="primary" disabled={busy} onClick={()=>onCheckout('PRO')}>{tr('billing.subscribe')}</button></div>}
-    <div className="billing-plan"><p><b>{tr('billing.enterpriseName')}</b></p><p>{tr('billing.enterprisePrice')}</p><p className="muted">{tr('billing.enterpriseNote')}</p><a className="button" href="/mentions-legales">{tr('billing.contact')}</a></div>
-   </div>
-   <p className="muted">{tr('billing.terms')}</p>
-  </>}
+  {status?.has_customer&&status.status&&<div className="subscription-card">
+   <p className="subscription-title"><span className="muted">{tr('billing.currentTitle')}</span><b>{offer?tr(offerNameKey(offer.id)):'—'}</b></p>
+   <p><span className="muted">{tr('billing.statusLabel')} : </span><span className={`status-pill tone-${current?'verified':'neutral'}`}>{tr(statusKey(status.status))}</span></p>
+   {current&&status.current_period_end&&<p className="muted">{status.cancel_at_period_end?`${tr('billing.cancelScheduled')} ${date(status.current_period_end)}`:`${tr('billing.renewsOn')} ${date(status.current_period_end)}`}</p>}
+   {status.status==='canceled'&&<p className="muted">{tr('billing.ended')}</p>}
+   {offers?.portal&&<button type="button" disabled={busy} onClick={onPortal}>{tr('billing.manage')}</button>}
+  </div>}
+  {showPlans&&<PricingPlans locale={locale} context="account" availability={offers} busy={busy} onChoose={onCheckout} layout="stack"/>}
  </div>;
 }

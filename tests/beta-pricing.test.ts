@@ -128,15 +128,21 @@ test('M — trial ended: data kept, clear message, upgrade offer, no deletion pa
  assert.match(page,/\{entitlementPlan==='BETA'&&betaActive===false&&!\(billingOffers\?\.BETA\|\|billingOffers\?\.PRO\)&&<div className="account-field upgrade"><p><b>\{tr\('account\.upgrade'\)\}<\/b><\/p><p className="muted">\{tr\('account\.upgradeNote'\)\}<\/p><\/div>\}/);
  assert.equal(fr['account.upgradeNote'],'Pendant la bêta, l’activation de l’abonnement se fait manuellement. Contactez-nous pour continuer.');
  assert.equal(en['account.upgradeNote'],'During the beta, subscriptions are activated manually. Contact us to continue.');
- assert.equal(fr['pricing.manualActivation'],'Pendant la bêta, l’activation de l’abonnement se fait manuellement.');
- assert.match(page,/<li>\{tr\('pricing\.paidLimits'\)\}<\/li><\/ul><p className="muted">\{tr\('pricing\.manualActivation'\)\}<\/p>/,'the public pricing says it too');
+ // The public pricing no longer claims a manual activation unconditionally (false wherever online payment is
+ // open): it says the paid plan is taken from the account and granted only after the server's confirmation.
+ assert.equal('pricing.manualActivation' in fr,false);
+ assert.equal(fr['pricing.activation'],'Le passage à une offre payante se fait depuis votre compte. L’accès payant n’est accordé qu’après confirmation du paiement par notre serveur.');
+ assert.match(page,/<li>\{tr\('pricing\.paidLimits'\)\}<\/li><\/ul><p className="muted">\{tr\('pricing\.activation'\)\}<\/p>/,'the public pricing says it');
  for(const v of Object.values(fr))assert.doesNotMatch(v,/payer maintenant|acheter|s’abonner en ligne|checkout|paiement sécurisé/i);
  for(const v of Object.values(en))assert.doesNotMatch(v,/pay now|buy now|subscribe online|checkout|secure payment/i);
  // Self-service payment exists since 017, but never as a button of its own: the page only calls the server
  // with the offer name, and the offers block renders only what GET account says is buyable on this deployment.
  assert.doesNotMatch(page,/stripe|paiement-en-ligne|href="\/pay/i,'no fake payment button');
- assert.deepEqual(page.match(/checkout/gi)?.length,4,'startCheckout (declared + passed as onCheckout) and the server route, nothing else');
- assert.match(page,/async function startCheckout\(plan:'BETA'\|'PRO'\)\{const \{url\}=await api\('billing\/checkout','POST',\{plan\}\);/);
+ // Every mention of checkout in the page is the startCheckout helper, the BillingSection onCheckout prop, the
+ // intent decision constant or the server route: no other entry to the payment page.
+ assert.ok((page.match(/checkout/gi)?.length??0)>=3);
+ assert.equal(page.replace(/startCheckout|onCheckout=|action==='CHECKOUT'|'billing\/checkout'/g,'').match(/checkout/gi),null,'only startCheckout and the server route');
+ assert.match(page,/async function startCheckout\(plan:'BETA'\|'PRO',t=token\)\{const \{url\}=await api\('billing\/checkout','POST',\{plan\},t\);/);
  assert.match(page,/<BillingSection locale=\{locale\} offers=\{billingOffers\}/);
 });
 test('Plan limit — the refusal is its own code (429), localized, distinct from the hourly quota',async()=>{

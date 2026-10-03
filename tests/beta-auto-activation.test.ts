@@ -12,7 +12,11 @@ const route=readFileSync(new URL('../app/api/v1/[...path]/route.ts',import.meta.
 test('a session that arrives without login() — confirmation link, restored session — claims the trial too', () => {
  const listener=page.slice(page.indexOf('auth.auth.onAuthStateChange('));
  const body=listener.slice(0,listener.indexOf('return()=>data.subscription.unsubscribe()'));
- assert.match(body,/if\(event==='SIGNED_IN'\|\|event==='INITIAL_SESSION'\)\{const t=session\.access_token;setTimeout\(\(\)=>\{void loadAccount\(t\)\},0\)\}/);
+ // Hotfix #11: from the welcome screen the session enters the app (enterWorkspace → loadProjects, loadAccount, live);
+ // during a manual login or in any other mode, loadAccount alone, as before. Either way the trial is claimed.
+ assert.match(body,/if\(event==='SIGNED_IN'\|\|event==='INITIAL_SESSION'\)\{const t=session\.access_token;setTimeout\(\(\)=>\{modeRef\.current==='welcome'&&!loginInFlight\.current\?void enterWorkspace\(t\):void loadAccount\(t\)\},0\)\}/);
+ const enter=page.slice(page.indexOf('async function enterWorkspace('),page.indexOf('async function enterWorkspace(')+300);
+ assert.match(enter,/await loadAccount\(t\)/,'enterWorkspace claims through loadAccount, unchanged');
  assert.doesNotMatch(body,/TOKEN_REFRESHED/,'a routine token refresh never re-attempts activation');
  assert.ok(body.indexOf('loadAccount')>body.indexOf('if(session)'),'only ever with an authenticated session');
 });

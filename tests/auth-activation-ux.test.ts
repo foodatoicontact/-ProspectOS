@@ -78,3 +78,62 @@ test('wording: every auth string exists in FR and EN, none mentions Supabase or 
  assert.ok(keys.length>=18);
  for(const k of keys){assert.ok((en as Record<string,string>)[k],`missing EN ${k}`);for(const v of [(fr as Record<string,string>)[k],(en as Record<string,string>)[k]])assert.doesNotMatch(v,/supabase|token|auth\b|OTP|redirect/i,k)}
 });
+
+// ================================================================ hotfix #11 — confirmation return + auth error UX
+// Post-beta audit: a session arriving from the confirmation link (or restored on reload) claimed the trial but left the
+// user on the welcome screen with no message — only login() entered the app. An expired/used link was silent, and an
+// unexpected or network error was shown raw, in English.
+import * as authUx from '../src/domain/auth-ux.ts';
+const listener=page.slice(page.indexOf('auth.auth.onAuthStateChange('),page.indexOf('return()=>data.subscription.unsubscribe()'));
+const enterFn=page.slice(page.indexOf('async function enterWorkspace('),page.indexOf('async function enterWorkspace(')+600);
+test('#11 A/B — a session from the confirmation link or a reload enters the app: loadProjects + loadAccount + live mode, no second login',()=>{
+ assert.ok(page.includes('async function enterWorkspace('),'one shared entry for a session that did not come from login()');
+ assert.match(enterFn,/await loadProjects\(t\);await loadAccount\(t\);setMode\('live'\)/);
+ assert.match(listener,/if\(event==='SIGNED_IN'\|\|event==='INITIAL_SESSION'\)/);
+ assert.match(listener,/modeRef\.current==='welcome'&&!loginInFlight\.current\?void enterWorkspace\(t\):void loadAccount\(t\)/,'the welcome screen enters the app; an in-flight login or any other mode keeps the previous behaviour (no double load)');
+ assert.match(page,/loginInFlight\.current=true;try\{/);assert.match(page,/finally\{loginInFlight\.current=false\}/);
+});
+test('#11 A — confirmation success message, non-blocking, only after entering with a session',()=>{
+ assert.equal(authUx.authReturnFromUrl('https://prospectos-v0.vercel.app/#access_token=x&expires_in=3600&refresh_token=y&token_type=bearer&type=signup'),'CONFIRMED');
+ assert.equal(authUx.authReturnFromUrl('https://prospectos-v0.vercel.app/?type=signup'),'CONFIRMED');
+ assert.equal(authUx.authReturnFromUrl('https://prospectos-v0.vercel.app/'),null);
+ assert.match(enterFn,/if\(AUTH_RETURN==='CONFIRMED'&&!confirmedShown\.current\)\{confirmedShown\.current=true;setNotice\(tr\('auth\.emailConfirmed'\)\)\}/);
+ assert.equal(fr['auth.emailConfirmed'],'Adresse confirmée — bienvenue dans ProspectOS');assert.ok(en['auth.emailConfirmed']);
+ assert.ok(page.indexOf('const AUTH_RETURN=')<page.indexOf('const auth=sbUrl'),'read before the auth client consumes and clears the URL');
+});
+test('#11 C — no session: no app, no trial claim, no authenticated load',()=>{
+ const noSession=listener.slice(listener.indexOf('else {'));
+ assert.doesNotMatch(noSession,/enterWorkspace|loadAccount|loadProjects|activate-trial/);
+ assert.match(noSession,/setMode\('welcome'\)/);
+ assert.ok(listener.indexOf('if(session){')<listener.indexOf('enterWorkspace(t)'),'entering always requires a session');
+});
+test('#11 D — expired or already used link: "Me connecter" tab, plain French message, never a raw Supabase error',()=>{
+ for(const url of ['https://p.example/#error=access_denied&error_code=otp_expired&error_description=Email+link+is+invalid+or+has+expired','https://p.example/?error=access_denied&error_code=otp_expired','https://p.example/?error_code=flow_state_expired'])
+  assert.equal(authUx.authReturnFromUrl(url),'LINK_INVALID',url);
+ assert.match(page,/if\(AUTH_RETURN==='LINK_INVALID'\)\{setAuthView\('login'\);setNotice\(tr\('auth\.linkInvalid'\)\)/);
+ assert.match(fr['auth.linkInvalid'],/n’est plus valide/);assert.match(fr['auth.linkInvalid'],/connectez-vous|renvoyer/i);
+ assert.doesNotMatch(fr['auth.linkInvalid'],/otp|expired|supabase/i);
+});
+test('#11 E/F — unknown auth error → generic French message; network error → connection message; known cases unchanged',()=>{
+ assert.equal(authUx.authErrorKey({name:'AuthRetryableFetchError',status:0,message:'Failed to fetch'}),'auth.networkError');
+ assert.equal(authUx.authErrorKey(new TypeError('Failed to fetch')),'auth.networkError');
+ assert.equal(authUx.authErrorKey({status:0,message:'Load failed'}),'auth.networkError');
+ assert.equal(authUx.authErrorKey({code:'weak_password',status:422,message:'Password should contain…'}),'auth.unknownError');
+ assert.equal(authUx.authErrorKey(null),'auth.unknownError');
+ assert.match(fr['auth.unknownError'],/Une erreur est survenue/);assert.match(fr['auth.networkError'],/connexion/);
+ assert.doesNotMatch(page,/throw result\.error|throw r\.error/,'no raw Supabase error reaches the screen');
+ assert.match(loginFn,/setNotice\(tr\(authErrorKey\(result\.error\)\)\);return\}/);
+ assert.match(resendFn,/setNotice\(tr\(authErrorKey\(r\.error\)\)\);return\}/);
+ // The specific translations stay first.
+ assert.ok(loginFn.indexOf("isEmailRateLimitError(result.error)")<loginFn.indexOf('authErrorKey(result.error)'));
+ assert.ok(loginFn.indexOf("outcome==='INVALID_CREDENTIALS'")<loginFn.indexOf('authErrorKey(result.error)'));
+});
+test('#11 G — demo mode untouched: the listener only enters from the welcome screen, demo() is unchanged',()=>{
+ assert.match(page,/function demo\(\)\{clearWorkspace\(\);/);
+ assert.match(page,/const modeRef=useRef\(mode\);modeRef\.current=mode;/);
+});
+test('#11 H — anti-enumeration kept: no account-existence read, neutral sign-up answer unchanged',()=>{
+ assert.doesNotMatch(page,/identities/);
+ assert.match(loginFn,/if\(!result\.data\.session\)\{setPendingEmail\(email\);setLastSentAt\(Date\.now\(\)\);return\}/);
+ for(const k of ['auth.emailConfirmed','auth.linkInvalid','auth.unknownError','auth.networkError'])for(const v of [(fr as Record<string,string>)[k],(en as Record<string,string>)[k]])assert.doesNotMatch(v??'',/supabase|token|existe|exists/i,k);
+});

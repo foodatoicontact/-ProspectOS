@@ -80,7 +80,8 @@ try {
   `);
   await db.exec(await readFile(new URL('../db/schema.sql', import.meta.url), 'utf8'));
   const migrations = (await readdir(new URL('../db/migrations/', import.meta.url))).filter(f => f.endsWith('.sql')).sort();
-  assert.equal(migrations.at(-1), '017_stripe_billing.sql');
+  // 017 is this bloc's migration; 018 (deleted accounts release their beta seat) only re-creates account/trial functions.
+  assert.deepEqual(migrations.slice(migrations.indexOf('017_stripe_billing.sql')), ['017_stripe_billing.sql', '018_deleted_accounts_release_beta_capacity.sql']);
   for (const f of migrations) await db.exec(await readFile(new URL(`../db/migrations/${f}`, import.meta.url), 'utf8'));
   await sql('update prospectos_private.discovery_quota_settings set runs_per_hour=100000, analyses_per_hour=100000, analyses_per_user_per_hour=100000, ai_offer_per_hour=100000');
 

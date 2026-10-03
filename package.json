@@ -30,7 +30,8 @@
     "test:commercial-quotas-db": "node tests/beta-commercial-quotas-db.mjs",
     "test:commercial-quota-concurrency-realpg": "bash tests/commercial-quota-concurrency-realpg.sh",
     "test:stripe-billing-db": "node --experimental-strip-types tests/stripe-billing-db.mjs",
-    "test:all": "npm test && npm run test:db && npm run test:discovery-db && npm run test:discovery-trust-db && npm run test:ai-quota-db && npm run test:outreach-db && npm run test:account-db && npm run test:cost-byok-db && npm run test:trial-db && npm run test:beta-auto-db && npm run test:beta-analytics-db && npm run test:dynamic-analysis-db && npm run test:icp-evidence-db && npm run test:discovery-history-db && npm run test:semantic-icp-db && npm run typecheck && npm run test:novelty-db && npm run test:search-until-new-db && npm run test:commercial-quotas-db && npm run test:stripe-billing-db"
+    "test:deleted-beta-db": "node tests/deleted-beta-capacity-db.mjs",
+    "test:all": "npm test && npm run test:db && npm run test:discovery-db && npm run test:discovery-trust-db && npm run test:ai-quota-db && npm run test:outreach-db && npm run test:account-db && npm run test:cost-byok-db && npm run test:trial-db && npm run test:beta-auto-db && npm run test:beta-analytics-db && npm run test:dynamic-analysis-db && npm run test:icp-evidence-db && npm run test:discovery-history-db && npm run test:semantic-icp-db && npm run typecheck && npm run test:novelty-db && npm run test:search-until-new-db && npm run test:commercial-quotas-db && npm run test:stripe-billing-db && npm run test:deleted-beta-db"
   },
   "dependencies": {
     "@supabase/supabase-js": "2.116.0",

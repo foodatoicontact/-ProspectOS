@@ -10,7 +10,7 @@ import {hasVerifiedCopy,reviewSummaryReady,createInFlight} from '../src/componen
 import {fetchApiJson} from '../src/components/api-response';
 import {usageView,isEmailRateLimitError,type UsageView} from '../src/domain/pricing';
 import {scoreState} from '../src/domain/score-display';
-import {authOutcome,confirmationRedirect,initialAuthView,resendSecondsLeft,KNOWN_ACCOUNT_KEY,type AuthView} from '../src/domain/auth-ux';
+import {authOutcome,authErrorKey,authReturnFromUrl,confirmationRedirect,initialAuthView,resendSecondsLeft,KNOWN_ACCOUNT_KEY,type AuthView} from '../src/domain/auth-ux';
 import {BillingSection,type BillingOffers,type BillingStatus} from '../src/components/BillingSection';
 import {projectCriteria} from '../src/domain/relations';
 import {proposeEvidence} from '../src/domain/analysis';
@@ -32,6 +32,8 @@ function listToText(list?:string[]):string{return (list??[]).join(', ')}
 // whole name instead of scrolling it out of view on a narrow screen.
 function autoGrow(el:HTMLTextAreaElement|null){if(!el)return;el.style.height='auto';el.style.height=`${el.scrollHeight+2}px`}
 const sbUrl=process.env.NEXT_PUBLIC_SUPABASE_URL,sbKey=process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
+// Back from the confirmation e-mail (or an expired link): read once, before the auth client consumes and clears the URL.
+const AUTH_RETURN=typeof window==='undefined'?null:authReturnFromUrl(window.location.href);
 const auth=sbUrl&&sbKey?createClient(sbUrl,sbKey):null;
 const initials=(s:string)=>s.split(/\s+/).slice(0,2).map(x=>x[0]).join('');
 export default function Home(){
@@ -49,7 +51,11 @@ export default function Home(){
  // Account creation vs sign-in: two explicit views. pendingEmail: a sign-up (or a sign-in of a not yet confirmed
  // account) waiting for its confirmation e-mail — the "check your inbox" screen replaces the form.
  const [authView,setAuthView]=useState<AuthView>('signup');const [pendingEmail,setPendingEmail]=useState('');const [lastSentAt,setLastSentAt]=useState(0);const [clock,setClock]=useState(0);
- useEffect(()=>{try{setAuthView(initialAuthView(localStorage.getItem(KNOWN_ACCOUNT_KEY)))}catch{/* private mode: first-visit view */}},[]);
+ useEffect(()=>{try{setAuthView(initialAuthView(localStorage.getItem(KNOWN_ACCOUNT_KEY)))}catch{/* private mode: first-visit view */}
+  // An expired or already used confirmation link: say so in plain words and offer sign-in (or a new e-mail from there).
+  if(AUTH_RETURN==='LINK_INVALID'){setAuthView('login');setNotice(tr('auth.linkInvalid'));try{const u=new URL(window.location.href);u.hash='';['error','error_code','error_description'].forEach(k=>u.searchParams.delete(k));window.history.replaceState(window.history.state,'',u)}catch{/* cosmetic */}}},[]);
+ // A session that did not come from login() (confirmation link, reload): entered once, never twice, never in demo.
+ const modeRef=useRef(mode);modeRef.current=mode;const loginInFlight=useRef(false);const confirmedShown=useRef(false);
  useEffect(()=>{if(!pendingEmail)return;setClock(Date.now());const id=setInterval(()=>setClock(Date.now()),1000);return()=>clearInterval(id)},[pendingEmail]);
  const resendIn=pendingEmail&&lastSentAt?resendSecondsLeft(lastSentAt,clock||Date.now()):0;
  function rememberAccount(){try{localStorage.setItem(KNOWN_ACCOUNT_KEY,'1')}catch{/* best effort */}}
@@ -129,7 +135,7 @@ export default function Home(){
  // reload. loadAccount() is what claims the self-service trial (activate_trial, idempotent and
  // capacity-locked server-side), so it runs here too — the first authenticated arrival claims the slot,
  // never a mere sign-up. Deferred out of the auth callback, as supabase-js requires for async work.
- useEffect(()=>{if(!auth)return;const {data}=auth.auth.onAuthStateChange((event,session)=>{if(session){if(identity.current&&identity.current!==session.user.id){clearWorkspace();setMode('welcome')}identity.current=session.user.id;setToken(session.access_token);setUserEmail(session.user.email??'');setPendingEmail('');rememberAccount();if(event==='SIGNED_IN'||event==='INITIAL_SESSION'){const t=session.access_token;setTimeout(()=>{void loadAccount(t)},0)}}else {identity.current=null;setToken('');setUserEmail('');setOrgName('');clearWorkspace();setMode('welcome')}});return()=>data.subscription.unsubscribe()},[]);
+ useEffect(()=>{if(!auth)return;const {data}=auth.auth.onAuthStateChange((event,session)=>{if(session){if(identity.current&&identity.current!==session.user.id){clearWorkspace();setMode('welcome')}identity.current=session.user.id;setToken(session.access_token);setUserEmail(session.user.email??'');setPendingEmail('');rememberAccount();if(event==='SIGNED_IN'||event==='INITIAL_SESSION'){const t=session.access_token;setTimeout(()=>{modeRef.current==='welcome'&&!loginInFlight.current?void enterWorkspace(t):void loadAccount(t)},0)}}else {identity.current=null;setToken('');setUserEmail('');setOrgName('');clearWorkspace();setMode('welcome')}});return()=>data.subscription.unsubscribe()},[]);
  async function loadProjects(t=token){clearWorkspace();const r=revision.current;const rows=await api('projects','GET',undefined,t);const mapped=rows.map((p:any)=>({...p,criteria:projectCriteria(p.icps)}));if(r!==revision.current)return;setProjects(mapped);if(mapped[0]){setProjectId(mapped[0].id);await loadProspects(mapped[0].id,t)}}
  async function loadProspects(id:string,t=token){const r=++revision.current;clearDraft();setSelected('');setProspects([]);const rows=await api(`prospects?project_id=${id}`,'GET',undefined,t);if(r!==revision.current)return;setProspects(rows);setSelected(rows[0]?.id??'')}
  // Acceptance is re-checked here, not only via the disabled button, so it can never be bypassed by
@@ -138,13 +144,17 @@ export default function Home(){
  // migration, and it never gates or blocks anything: an existing account (including the historical
  // INTERNAL one) that predates this field is completely unaffected, since nothing ever reads it back
  // to allow or deny an action. It exists purely as a timestamped, versioned record of consent.
- async function login(signup=false){if(!auth){setNotice(tr('login.noSupabaseNotice'));return}if(signup&&!legalAccepted){setNotice(tr('login.legalRequired'));return}await work(async()=>{const result=signup?await auth.auth.signUp({email,password,options:{emailRedirectTo:confirmationRedirect(window.location.origin),data:{terms_accepted_at:new Date().toISOString(),terms_version:TERMS_VERSION,privacy_version:PRIVACY_VERSION}}}):await auth.auth.signInWithPassword({email,password});if(result.error){if(isEmailRateLimitError(result.error)){setNotice(tr('login.emailRateLimited'));return}const outcome=authOutcome(result.error);if(outcome==='CONFIRMATION_REQUIRED'){setPendingEmail(email);return}if(outcome==='INVALID_CREDENTIALS'){setNotice(tr('auth.invalidCredentials'));return}if(outcome==='ALREADY_REGISTERED'){setNotice(tr('auth.alreadyRegistered'));setAuthView('login');return}throw result.error}if(!result.data.session){setPendingEmail(email);setLastSentAt(Date.now());return}rememberAccount();const t=result.data.session.access_token;setToken(t);setUserEmail(result.data.session.user.email??'');await loadProjects(t);
+ async function login(signup=false){if(!auth){setNotice(tr('login.noSupabaseNotice'));return}if(signup&&!legalAccepted){setNotice(tr('login.legalRequired'));return}await work(async()=>{loginInFlight.current=true;try{const result=signup?await auth.auth.signUp({email,password,options:{emailRedirectTo:confirmationRedirect(window.location.origin),data:{terms_accepted_at:new Date().toISOString(),terms_version:TERMS_VERSION,privacy_version:PRIVACY_VERSION}}}):await auth.auth.signInWithPassword({email,password});if(result.error){if(isEmailRateLimitError(result.error)){setNotice(tr('login.emailRateLimited'));return}const outcome=authOutcome(result.error);if(outcome==='CONFIRMATION_REQUIRED'){setPendingEmail(email);return}if(outcome==='INVALID_CREDENTIALS'){setNotice(tr('auth.invalidCredentials'));return}if(outcome==='ALREADY_REGISTERED'){setNotice(tr('auth.alreadyRegistered'));setAuthView('login');return}setNotice(tr(authErrorKey(result.error)));return}if(!result.data.session){setPendingEmail(email);setLastSentAt(Date.now());return}rememberAccount();const t=result.data.session.access_token;setToken(t);setUserEmail(result.data.session.user.email??'');await loadProjects(t);
  // Best-effort only: the account panel simply omits what it can't fetch, it never blocks login.
  await loadAccount(t);
- setMode('live')})}
+ setMode('live')}finally{loginInFlight.current=false}})}
+ // The same entry for a session established without login() — back from the confirmation link or restored on reload.
+ // The session is required (only the auth listener calls it, with the session's own token); the trial claim stays in
+ // loadAccount, unchanged. The confirmation message is shown once and never blocks the app.
+ async function enterWorkspace(t:string){try{await loadProjects(t);await loadAccount(t);setMode('live');if(AUTH_RETURN==='CONFIRMED'&&!confirmedShown.current){confirmedShown.current=true;setNotice(tr('auth.emailConfirmed'))}}catch{/* the welcome screen stays: sign-in remains available */}}
  // Sends the confirmation e-mail again — never more than once per RESEND_COOLDOWN_SECONDS from this screen, and
  // Supabase Auth applies its own server-side limit on top. Same neutral answer whether or not the address exists.
- async function resendConfirmation(){if(!auth||!pendingEmail||resendIn>0)return;await work(async()=>{const r=await auth.auth.resend({type:'signup',email:pendingEmail,options:{emailRedirectTo:confirmationRedirect(window.location.origin)}});setLastSentAt(Date.now());if(r.error){if(isEmailRateLimitError(r.error)){setNotice(tr('login.emailRateLimited'));return}throw r.error}setNotice(tr('auth.resent'))})}
+ async function resendConfirmation(){if(!auth||!pendingEmail||resendIn>0)return;await work(async()=>{const r=await auth.auth.resend({type:'signup',email:pendingEmail,options:{emailRedirectTo:confirmationRedirect(window.location.origin)}});setLastSentAt(Date.now());if(r.error){if(isEmailRateLimitError(r.error)){setNotice(tr('login.emailRateLimited'));return}setNotice(tr(authErrorKey(r.error)));return}setNotice(tr('auth.resent'))})}
  async function status(value:string){if(!current)return;await work(async()=>{if(mode==='live')await api(`prospects/${current.id}`,'PATCH',{status:value});setProspects(ps=>ps.map(p=>p.id===current.id?{...p,status:value}:p));log(`${tr('log.statusPrefix')}${statusLabel(value,locale)}`)})}
  async function createProject(form:FormData){await work(async()=>{const name=String(form.get('name')??'').trim();const projectOffer=String(form.get('offer')??'').trim();if(!name)throw Error(tr('validation.projectNameRequired'));const starter=DEFAULT_CRITERIA.map(c=>({...c}));let p:Project;if(mode==='demo')p={id:crypto.randomUUID(),organization_id:DEMO_PROJECT.organization_id,name,offer:projectOffer,criteria:starter};else{let orgs=await api('organizations');let org=orgs[0]?.id;if(!org)org=await api('organizations','POST',{name:tr('project.defaultOrgName')});const row=await api('projects','POST',{name,organization_id:org,offer:projectOffer});await api('icps','POST',{project_id:row.id,criteria:starter});p={...row,criteria:starter}}setProjects(ps=>[...ps,p]);setProjectId(p.id);setSelected('');if(mode==='live')setProspects([]);setModal('');setView('icp');setNotice(tr('project.createdNotice'))})}
  async function addProspect(form:FormData){await work(async()=>{const name=String(form.get('name')).trim(),website=String(form.get('website')),city=String(form.get('city')??'');if(!safeLink(website))throw Error(tr('validation.urlRequired'));const data={name,website,city,project_id:projectId};let p:Prospect;if(mode==='demo')p={...data,id:crypto.randomUUID(),organization_id:project!.organization_id,status:'À analyser',evidence:[],channels:[]};else p={...await api('prospects','POST',data),evidence:[],channels:[]};setProspects(ps=>[p,...ps]);setSelected(p.id);setFromDiscovery(false);setFromList(true);setModal('');clearDraft();setNotice(tr('prospect.addedNotice'))})}

@@ -30,3 +30,26 @@ export function confirmationRedirect(origin:string):string|undefined{
  try{const u=new URL(origin);return u.protocol==='https:'||u.hostname==='localhost'?`${u.origin}/`:undefined}catch{return undefined}
 }
 export const resendSecondsLeft=(lastSentAt:number,now:number)=>Math.max(0,Math.ceil((lastSentAt+RESEND_COOLDOWN_SECONDS*1000-now)/1000));
+
+// Where the user comes back from, read from the URL the confirmation e-mail opened — BEFORE the auth client consumes
+// and clears it. CONFIRMED: Supabase confirmed the address (implicit flow "#…&type=signup", or "?type=signup").
+// LINK_INVALID: the link expired or was already used ("error_code=otp_expired", "error=access_denied"…). Never a
+// session by itself: entering the app always waits for the session the auth client establishes.
+export type AuthReturn='CONFIRMED'|'LINK_INVALID'|null;
+export function authReturnFromUrl(href:string):AuthReturn{
+ let u:URL;try{u=new URL(href)}catch{return null}
+ const params=new URLSearchParams(u.search);
+ for(const [k,v] of new URLSearchParams(u.hash.replace(/^#/,'')))params.set(k,v);
+ if(params.get('error_code')||params.get('error')||params.get('error_description'))return 'LINK_INVALID';
+ const type=params.get('type');
+ return type==='signup'||type==='email'?'CONFIRMED':null;
+}
+// The words for an auth error no specific rule translated: a connection problem says so; anything else is a plain
+// French sentence — never Supabase's raw English message, code or stack.
+export function authErrorKey(error:unknown):'auth.networkError'|'auth.unknownError'{
+ if(!error||typeof error!=='object')return 'auth.unknownError';
+ const e=error as {name?:unknown;status?:unknown;message?:unknown};
+ const message=typeof e.message==='string'?e.message:'';
+ if(e.name==='AuthRetryableFetchError'||e.status===0||/failed to fetch|networkerror|network request failed|load failed|fetch failed/i.test(message))return 'auth.networkError';
+ return 'auth.unknownError';
+}

@@ -157,7 +157,7 @@ test('E-mail rate limit — the agreed FR/EN message replaces the raw Supabase e
  assert.equal(isEmailRateLimitError({status:429,message:'Email rate limit exceeded'}),true);
  for(const other of [{status:400,message:'Invalid login credentials'},{status:422,message:'User already registered'},{status:429,message:'Too many requests'},null,'x'])assert.equal(isEmailRateLimitError(other),false);
  assert.match(page,/if\(result\.error\)\{if\(isEmailRateLimitError\(result\.error\)\)\{setNotice\(tr\('login\.emailRateLimited'\)\);return\}/);
- assert.match(page,/if\(r\.error\)\{if\(isEmailRateLimitError\(r\.error\)\)\{setNotice\(tr\('login\.emailRateLimited'\)\);return\}throw r\.error\}/,'resend: same agreed message');
+ assert.match(page,/if\(r\.error\)\{if\(isEmailRateLimitError\(r\.error\)\)\{setNotice\(tr\('login\.emailRateLimited'\)\);return\}setNotice\(tr\(authErrorKey\(r\.error\)\)\);return\}/,'resend: same agreed rate-limit message first, then a translated generic/network message — never the raw error (hotfix #11)');
 });
 
 // ---------------------------------------------------------------- Q, R: existing limits untouched

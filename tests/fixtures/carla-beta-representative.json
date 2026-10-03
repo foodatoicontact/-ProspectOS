@@ -1,0 +1,78 @@
+{
+ "description": "REPRESENTATIVE FIXTURES (not real Brave output): result shapes reported by the Carla beta test (B2B marketing, Grand Ouest). Names are fictional except where the beta feedback named the case (E-Declic, NHU) — used only as golden test data, never in the engine. 'expected': company = an organization a caller could work; content = a page/topic/event that must not become a prospect.",
+ "query": "\"Normandie\" \"recrute\" \"responsable marketing\" entreprise 2026",
+ "location": "Normandie, France",
+ "categories": [],
+ "rows": [
+  {
+   "id": "nhu-blog",
+   "expected": "content",
+   "title": "E-commerce : les 5 tendances à suivre en 2026 - NHU",
+   "url": "https://www.nhu.example/blog/e-commerce-tendances-2026",
+   "description": "Le e-commerce poursuit sa croissance en Normandie. Découvrez les tendances, les chiffres clés et nos conseils pour les PME."
+  },
+  {
+   "id": "nhu-article",
+   "expected": "content",
+   "title": "Le e-commerce en Normandie progresse de 12 % | NHU",
+   "url": "https://nhu.example/e-commerce-normandie-2026/",
+   "description": "Selon une étude, les PME normandes accélèrent leur transformation digitale."
+  },
+  {
+   "id": "generic-article",
+   "expected": "content",
+   "title": "Marketing B2B : 7 conseils pour recruter un responsable marketing en 2026",
+   "url": "https://www.blog-marketing.example/conseils-recruter-responsable-marketing-2026",
+   "description": "Recruter un responsable marketing en Normandie : nos conseils."
+  },
+  {
+   "id": "event",
+   "expected": "content",
+   "title": "Salon Normandie Business 2026 - 300 exposants à Caen",
+   "url": "https://www.salon-normandie-business.example/exposants",
+   "description": "Rejoignez le salon B2B de Normandie : 300 entreprises exposantes, conférences, rendez-vous d'affaires."
+  },
+  {
+   "id": "e-declic",
+   "expected": "company",
+   "title": "E-Declic - Agence web, SEO et webmarketing à Caen",
+   "url": "https://www.e-declic.example/",
+   "description": "E-Declic, agence web à Caen (Normandie) : création de sites, référencement SEO, webmarketing pour les PME. Nous recrutons un responsable marketing."
+  },
+  {
+   "id": "news-names-company",
+   "expected": "company",
+   "title": "Biscuiterie Dupont ouvre un nouveau site à Rouen et recrute 30 personnes",
+   "url": "https://actu.media.example/economie/biscuiterie-dupont-nouveau-site-rouen",
+   "description": "La Biscuiterie Dupont, PME normande, inaugure un nouveau site à Rouen en 2026."
+  },
+  {
+   "id": "own-job",
+   "expected": "company",
+   "title": "Acme Industrie recrute un Responsable Marketing (H/F)",
+   "url": "https://www.acme-industrie.example/recrutement/responsable-marketing",
+   "description": "Rejoignez Acme Industrie à Caen."
+  },
+  {
+   "id": "own-job-dup",
+   "expected": "company",
+   "title": "Acme Industrie - Fabricant de pièces industrielles à Caen",
+   "url": "http://acme-industrie.example/?utm_source=x",
+   "description": "Acme Industrie, PME industrielle normande : nous recrutons un responsable marketing."
+  },
+  {
+   "id": "directory",
+   "expected": "content",
+   "title": "Entreprises de marketing en Normandie - Annuaire",
+   "url": "https://www.annuaire-pro.example/marketing/normandie",
+   "description": "Liste des 120 entreprises : 1. Alpha Conseil · 2. Beta Média"
+  },
+  {
+   "id": "job-board",
+   "expected": "content",
+   "title": "Responsable marketing : 45 offres d'emploi en Normandie | Jobboard",
+   "url": "https://www.jobboard.example/emplois/responsable-marketing/normandie",
+   "description": "45 offres d'emploi de responsable marketing en Normandie."
+  }
+ ]
+}

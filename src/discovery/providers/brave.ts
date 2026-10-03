@@ -153,6 +153,9 @@ export class BraveProvider implements DiscoveryProvider {
  // A place the source text explicitly names (display only, never an identity field: city stays null so
  // deduplication and novelty keys are unchanged). null = unknown.
  observed_location:mentionedPlace(gate.location.target?locationTarget(gate.location.target):null,`${title} ${description}`),
+ // Where that place was read: the organization's own site (OWN_SITE, still to confirm) or a third-party page —
+ // an article's place is the article's, never assumed to be the company's (THIRD_PARTY_SOURCE).
+ observed_location_basis:entity?.confidence==='RESOLVED_HIGH'?'OWN_SITE':'THIRD_PARTY_SOURCE',
  source_domain:resolution.sourceDomain,
  company_name:entity?.name??null,
  company_domain:entity?.website?sourceDomainOf(entity.website):null,

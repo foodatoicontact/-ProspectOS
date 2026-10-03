@@ -19,7 +19,7 @@ import {compareLocation,isPlaceName,locationTarget,placesIn,type LocationState} 
 export type PageType = 'OFFICIAL_ORGANIZATION_SITE' | 'OFFICIAL_JOB_PAGE' | 'THIRD_PARTY_JOB_BOARD' | 'DIRECTORY' | 'TRAINING_PROVIDER' | 'TRAINING_COURSE_PAGE'
  | 'NEWS_ARTICLE' | 'BLOG_OR_CONTENT' | 'SOCIAL_PROFILE' | 'GOVERNMENT_OR_PUBLIC_DIRECTORY' | 'UNKNOWN';
 export type AdmissibilityReason = 'ADMISSIBLE' | 'TRAINING_COURSE_PAGE' | 'DIRECTORY_PAGE' | 'PUBLIC_DIRECTORY_PAGE' | 'SOCIAL_PROFILE_PAGE'
- | 'EXCLUDED_BY_QUERY' | 'ENTITY_UNRESOLVED' | 'NO_OBSERVABLE_RELEVANCE' | 'LOCATION_MISMATCH' | 'SECTOR_BODY_PAGE';
+ | 'EXCLUDED_BY_QUERY' | 'ENTITY_UNRESOLVED' | 'NO_OBSERVABLE_RELEVANCE' | 'LOCATION_MISMATCH' | 'SECTOR_BODY_PAGE' | 'EVENT_PAGE';
 export type EntityMethod = 'own_site' | 'own_job_page' | 'job_title_employer' | 'labeled_field' | 'title_organization' | 'explicit_title_pattern' | 'cited_domain';
 // RESOLVED_HIGH: the organization's own site/job page identifies it (name + website). RESOLVED_MEDIUM: an
 // organization explicitly named by a secondary source, identity/website not confirmed. UNRESOLVED: no
@@ -379,6 +379,17 @@ const SECTOR_INTENT = /\b(f[ée]d[ée]rations?|syndicats?|chambres?|unions?|orga
 export function isSectorBody(name: string, title: string): boolean {
  return [name, ...titleSegments(title)].some(s => SECTOR_BODY.test(s.trim()) || SECTOR_BODY_ACRONYM.test(s.trim()));
 }
+// An event — trade show, fair, forum, congress, conference, webinar — gathers the companies the user looks for; the
+// event itself (its own site, its exhibitor page) is not one of them. It stays visible as a source with its reason.
+// Recognised only with an event noun AND a sign of an event (an edition year, exhibitors, registration, programme):
+// a "Salon de coiffure" or a company called "Forum Immobilier" is never caught. Never applied when the brief itself
+// looks for events or their organisers.
+const EVENT_NOUN = /(?:^|[^\p{L}])(salons?(?! de (?:coiffure|beaut[ée]|th[ée]|toilettage|massage|esth[ée]tique))|foires?|forums?|congr[eè]s|conf[ée]rences?|webinaires?|webinars?|meetups?|trade ?shows?|expositions?|festivals?|sommets?|summits?|rencontres (?:d['’]affaires|professionnelles|r[ée]gionales))(?!\p{L})/iu;
+const EVENT_SIGN = /(?:^|[^\p{L}0-9])(20\d\d|exposants?|inscriptions?|inscrivez-vous|billetterie|programme|stands?|intervenants?|participants|[ée]dition)(?![\p{L}0-9])/iu;
+const EVENT_INTENT = /\b(salons?|[ée]v[ée]nements?|[ée]v[ée]nementiel|organisateurs?|forums?|congr[eè]s|conf[ée]rences?|events?|exposants?)\b/i;
+export function isEventPage(title: string, description: string): boolean { return EVENT_NOUN.test(title) && EVENT_SIGN.test(`${title} ${description}`); }
+export const briefTargetsEvents = (context: QueryContext | undefined): boolean =>
+ !!context && EVENT_INTENT.test(`${parseQueryExclusions(context.query).cleanedQuery} ${context.categories.join(' ')}`);
 export const briefTargetsSectorBodies = (context: QueryContext | undefined): boolean =>
  !!context && SECTOR_INTENT.test(`${parseQueryExclusions(context.query).cleanedQuery} ${context.categories.join(' ')}`);
 
@@ -441,6 +452,10 @@ export function evaluateCandidateAdmissibility(input: {title: string; descriptio
  // A federation, trade union or chamber of the sector: kept as a visible source, never proposed as a prospect
  // unless the brief targets such bodies (see isSectorBody).
  if (!briefTargetsSectorBodies(input.context) && isSectorBody(entity.name, input.title)) return verdict('SECTOR_BODY_PAGE', entity);
+ // The event's own pages, or a name that is the event itself. An organization the event page names explicitly
+ // (labeled field, job employer) is still that organization, not the event.
+ if (!briefTargetsEvents(input.context) && isEventPage(input.title, input.description) && (entity.method === 'own_site' || entity.method === 'title_organization' || EVENT_NOUN.test(entity.name)))
+  return verdict('EVENT_PAGE', entity);
  if (input.resolution.classificationReasons.includes('no_observable_relevance')) return verdict('NO_OBSERVABLE_RELEVANCE', entity);
  if (loc.state === 'MISMATCH') return verdict('LOCATION_MISMATCH', entity);
  return verdict('ADMISSIBLE', entity);

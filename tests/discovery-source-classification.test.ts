@@ -263,7 +263,7 @@ test('UI: only a COMPANY_CANDIDATE gets "Entreprise identifiée" and an add butt
  // Not addable: only "Ignorer" is offered; the explanation stays in the detail.
  assert.match(source, /r\.status==='pending'&&!canAdd\?<button disabled=\{busy\} onClick=\{\(\)=>ignore\(r\)\}>/);
  assert.match(source, /\{r\.status==='pending'&&!canAdd&&<p className="muted">\{tr\('discovery\.notAddable'\)\}<\/p>\}/);
- assert.match(source, /\{tr\('discovery\.currentScore'\)\} <b>0\/100<\/b>/, 'the 0/100 score line is preserved');
+ assert.match(source, /\{tr\('discovery\.currentScore'\)\} <b>\{tr\('score\.notScored'\)\}<\/b>/, 'the score line is preserved: "not scored" (no verified evidence), never a fake 0/100');
 });
 test('i18n: every new key exists in FR and EN with genuinely distinct values; no key claims "verified"', async () => {
  const {fr} = await import('../src/i18n/fr.ts');

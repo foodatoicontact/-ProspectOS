@@ -51,6 +51,9 @@ const CATEGORY_PATH_SEGMENT = /^(categories?|categorie|category|secteurs?|activi
 const MARKETPLACE_VOCABULARY = /\b(marketplace|plateforme|trouvez (les |des |un |une )?(meilleurs? )?(freelances?|prestataires?|consultants?|experts?|profils?))\b/i;
 const DIRECTORY_VOCABULARY = /\b(annuaire|comparateur)\b/i;
 const EDITORIAL_PATH_SEGMENT = /^(actualites?|actus?|news|article|articles|blog|magazine|presse|dossiers?|\d{4})$/i;
+// An article's own slug: several hyphenated words with a year ("/e-commerce-normandie-2026/"). A company page is not
+// dated in its address; a publisher's article on its own domain is (a media's brand in the title is not a prospect).
+const isDatedArticleSlug = (segment: string): boolean => /^[a-z0-9]+(?:-[a-z0-9]+){2,}$/i.test(segment) && /(?:^|-)20\d\d(?:-|$)/.test(segment);
 // A title (or title segment) that opens with a singular role noun describes a PERSON offering a
 // service ("Consultant Freelance en Marketing Digital", "Jean Dupont - Consultante indépendante"), not
 // an organization. Plural forms ("Consultants en stratégie") and explicit organization markers
@@ -102,7 +105,7 @@ export function classifySourceType(input: {title: string; description: string; u
   return {type: 'directory', reasons: ['directory_structure']};
  if (paramKeys.some(k => SEARCH_PARAM_KEYS.has(k)) || segments.some(s => SEARCH_PATH_SEGMENT.test(s)) || RESULTS_COUNT.test(title))
   return {type: 'search_page', reasons: ['search_page_structure']};
- if (input.quality.signal === 'listicle_pattern' || input.quality.signal === 'editorial_pattern' || segments.some(s => EDITORIAL_PATH_SEGMENT.test(s)))
+ if (input.quality.signal === 'listicle_pattern' || input.quality.signal === 'editorial_pattern' || segments.some(s => EDITORIAL_PATH_SEGMENT.test(s) || isDatedArticleSlug(s)))
   return {type: 'editorial', reasons: ['editorial_structure']};
  if ((!ORGANIZATION_MARKER.test(title) && titleSegments(title).some(s => ROLE_START.test(s))) || segments.some(s => PROFILE_PATH_SEGMENT.test(s)))
   return {type: 'individual_profile', reasons: ['individual_role_or_profile_path']};

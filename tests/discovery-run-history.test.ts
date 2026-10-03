@@ -124,7 +124,10 @@ test('9 — navigation: the open run is kept per project and restored; back retu
  assert.match(panel, /if\(summary&&!cancelled\)void viewRun\(summary,true\)/, 'the remembered run is reopened with its scroll position');
  assert.match(panel, /summary=summarizeRuns\(\[await api\(`discovery-runs\/\$\{activeRunId\}`\)\]\)\[0\]/, 'a remembered run older than the first history page is read on its own');
 });
-test('7 — an added candidate shows its prospect\'s current score from the existing engine; others keep 0/100', () => {
- assert.match(panel, /if\(r\.status!=='accepted'\|\|!r\.prospect_id\)return null;const p=existing\.find\(x=>x\.id===r\.prospect_id\);if\(!p\)return null;try\{return scoreProspect\(criteria,p\.evidence\)\.score\}/);
- assert.match(panel, /\{tr\('discovery\.currentScore'\)\} <b>0\/100<\/b>/);
+// Beta quality: "no verified evidence" is shown as "Non scoré", never as a 0/100 (score-display.ts); a settled score
+// (coverage > 0) is still the existing engine's number.
+test('7 — an added candidate shows its prospect\'s current score from the existing engine; others are "not scored", never 0/100', () => {
+ assert.match(panel, /if\(r\.status!=='accepted'\|\|!r\.prospect_id\)return null;const p=existing\.find\(x=>x\.id===r\.prospect_id\);if\(!p\)return null;try\{return scoreProspect\(criteria,p\.evidence\)\}/);
+ assert.match(panel, /<b>\{scoreState\(score\)==='SCORED'\?`\$\{score\.score\}\/100`:tr\('score\.notScored'\)\}<\/b>/);
+ assert.match(panel, /\{tr\('discovery\.currentScore'\)\} <b>\{tr\('score\.notScored'\)\}<\/b>/);
 });

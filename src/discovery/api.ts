@@ -111,6 +111,9 @@ export async function handleDiscovery(request:Request,path:string[],body:unknown
  if(action==='analyze'&&method==='POST'){
  // The request body is never read here: the destination is decided from server data only.
  const p=await repo.prospect(id);
+ // NOT_APPLICABLE: an organization known only from a third-party page has no official website to analyze. Said as
+ // such — before any authorization, fetch or plan unit — instead of a refusal that reads like a policy block.
+ if(!p.website)return json({error:'Analyse non applicable : aucun site officiel n’est identifié pour cette entreprise. Ajoutez son site officiel pour l’analyser.',code:'NO_OFFICIAL_WEBSITE'},422);
  // Commercial plan: an analysis that produced no result (fetch failed, site unreachable, refused, timeout)
  // gives its plan unit back through the privileged client. The hourly anti-abuse log is left untouched.
  const tracked=trackAnalysisReservation(repo);

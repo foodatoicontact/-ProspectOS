@@ -88,10 +88,16 @@ function namesMultipleEntities(candidate: string): boolean {
 // capitalized word(s)" heuristic. Fails closed (null) on a listing title (its "X :" prefix is the
 // search term, not an entity), on a multi-entity match, on an implausible capture, and on a name made
 // only of the user's own query words / generic role words (the search echoed back by the page).
+// "E-commerce : les 5 tendances à suivre", "Marketing B2B : 7 conseils pour…": the prefix is the TOPIC of an editorial
+// piece, not an organization. "Grand Frais : 30 nouveaux magasins" keeps working: a business fact follows the colon.
+const EDITORIAL_AFTER_COLON = /^[^.!?]{0,40}?\b(conseils?|astuces?|tendances?|erreurs?|[ée]tapes?|questions?|id[ée]es?|outils?|bonnes pratiques|choses|raisons|fa[çc]ons|cl[ée]s|secrets?|tips|ways|trends|tout savoir|guide|comment|pourquoi|d[ée]finition|ce qu['’]il faut|enjeux|chiffres cl[ée]s|bilan|perspectives|tour d['’]horizon)\b/i;
 function extractCompanyNameFromTitle(title: string, context?: QueryContext): {name: string; method: CompanyNameMethod} | null {
  const trimmed = title.trim();
  if (isListingTitle(trimmed)) return null;
+ const afterColon = /^[^:]{2,60}:\s+(.*)$/.exec(trimmed)?.[1];
+ const editorialColon = !!afterColon && EDITORIAL_AFTER_COLON.test(afterColon);
  for (const [pattern, method] of [[COLON_PREFIX_PATTERN, 'colon_prefix'], [LEADING_VERB_PATTERN, 'leading_verb'], [CHEZ_PATTERN, 'chez_mention']] as const) {
+  if (method === 'colon_prefix' && editorialColon) continue;
   const match = pattern.exec(trimmed);
   if (!match) continue;
   const name = match[1]!.trim();

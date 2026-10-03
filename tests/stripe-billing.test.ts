@@ -105,7 +105,7 @@ test('H — the browser cannot inject price_id, amount, currency, customer or an
   assert.equal(r.status,400,JSON.stringify(extra));assert.equal(stripe.calls.length,0);
  }
  const page=await read('../app/page.tsx');
- assert.match(page,/api\('billing\/checkout','POST',\{plan\}\)/,'the page sends the offer name only');
+ assert.match(page,/api\('billing\/checkout','POST',\{plan\},t\)/,'the page sends the offer name only (t = the session token, sent as the Authorization header, never in the body)');
 });
 test('Checkout collects B2B invoicing data (company, billing address, VAT id); automatic tax only when explicitly enabled',async()=>{
  const {stripe}=await checkout({plan:'PRO'});

@@ -42,6 +42,10 @@ export const DEMO_ONBOARDING_STEPS_EN:string[]=[
  'ProspectOS then prepares the outreach.',
  'Sending stays human.',
 ];
+// Short visual titles for the 7 onboarding steps above (same order, same count). Presentation only: the
+// step sentences themselves stay exactly the factual text of DEMO_ONBOARDING_STEPS.
+export const DEMO_ONBOARDING_TITLES:string[]=['Découverte','Observations','Statut','Vérification','Score','Approche','Action'];
+export const DEMO_ONBOARDING_TITLES_EN:string[]=['Discovery','Observations','Status','Verification','Score','Outreach','Action'];
 // A visible, honest marker — never mixed with the fixture label below. These 5 establishments are real
 // public businesses (see the excerpts' own source URLs); nothing here is invented or private. Wording
 // deliberately separates "this company exists" from "this data is already verified" — a prior version

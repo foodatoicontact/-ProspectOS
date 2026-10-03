@@ -298,3 +298,105 @@ button:focus-visible,summary:focus-visible,a:focus-visible,select:focus-visible,
 .auth-switch{display:grid;grid-template-columns:1fr 1fr;gap:4px;padding:4px;background:#f1f4ec;border-radius:10px}.auth-switch button{border:0;background:transparent;color:#5e6f62;font-size:13px;padding:11px 8px;min-height:44px}.auth-switch button.active{background:#fff;color:var(--ink);box-shadow:0 1px 4px #19342c1a;font-weight:700}
 .login .auth-hint{margin:14px 0 0;font-size:12px;color:#6f7b70;text-align:center}.login .auth-hint .text-button{font-size:12px;font-weight:700;padding:4px 2px;text-decoration:underline}
 .check-email h2{margin-top:18px}.check-email>p{font-size:13px;color:var(--ink);overflow-wrap:anywhere}.check-email ol{padding-left:20px;margin:0 0 18px;font-size:13px;line-height:1.7}.check-email>button{width:100%}.check-email-links{display:flex;flex-wrap:wrap;justify-content:space-between;gap:4px;margin:10px 0}.check-email-links .text-button{font-size:12px;min-height:44px}
+/* Demo / billing UX: demo mission, onboarding steps, pricing cards, plan intent, subscription, prospect header. */
+button,.button{transition:background-color .18s ease,border-color .18s ease,color .18s ease,box-shadow .18s ease}
+.primary:not(:disabled):hover{box-shadow:0 6px 16px -8px #236c5399}
+.demo-mission{display:flex;justify-content:space-between;gap:28px;align-items:flex-start;padding:26px 28px;margin-bottom:22px;background:linear-gradient(180deg,#fff,#fbfcf8);border-color:#dfe6dc}
+.demo-mission h2{font-size:24px;margin:2px 0 8px}
+.demo-mission-objective{font-size:14px;line-height:1.6;color:#46574d;margin:0 0 16px;max-width:680px}
+.demo-mission-objective span{font-weight:700;color:var(--ink)}
+.process-strip{list-style:none;display:flex;flex-wrap:wrap;gap:8px;margin:0 0 14px;padding:0}
+.process-strip li{display:inline-flex;align-items:center;gap:8px;font-size:13px;font-weight:600;color:#2f4a3c;background:#f1f6ec;border:1px solid #dbe7d2;border-radius:999px;padding:6px 12px 6px 6px}
+.process-index{display:inline-flex;align-items:center;justify-content:center;min-width:26px;height:26px;border-radius:13px;background:#fff;border:1px solid #d3e2c8;font-size:11px;color:#3f6a43;font-weight:800}
+.demo-mission-disclaimer{font-size:12px;line-height:1.6;color:#5f6c64;margin:0;max-width:680px}
+.demo-mission-actions{display:flex;flex-direction:column;align-items:stretch;gap:4px;flex-shrink:0}
+.demo-mission-actions .primary{padding:13px 18px;font-size:14px;min-height:44px}
+.demo-mission-actions .text-button{font-size:12px;justify-content:center;min-height:40px}
+.demo-help{position:relative;display:block;background:#fff;border:1px solid var(--line);border-radius:12px;padding:20px 48px 16px 22px;margin-bottom:22px;color:var(--ink)}
+.demo-help h3{font-size:16px;margin:0 0 14px}
+.demo-help .onboarding-steps{list-style:none;margin:0 0 14px;padding:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
+.onboarding-steps li{display:flex;flex-direction:column;gap:4px;padding:12px;border:1px solid #e3eadf;border-radius:10px;background:#fafbf7;font-size:12px;line-height:1.5;color:#46574d}
+.onboarding-steps .step-index{font-family:'Manrope',sans-serif;font-size:11px;font-weight:800;color:#4f7a52;letter-spacing:.06em}
+.onboarding-steps b{font-size:13px;color:var(--ink)}
+.demo-help>p.muted,.demo-help ul.muted li{font-size:12px;line-height:1.6;color:#5f6c64}
+.demo-help>button{position:absolute;top:12px;right:12px;width:32px;height:32px;padding:0;border:0;background:none;font-size:18px;color:#5f6c64}
+.pricing-modal{width:min(1080px,calc(100vw - 32px));padding:34px 34px 28px}
+.pricing-modal h2{font-size:28px;margin:4px 0 8px}
+.pricing-subtitle{color:#56645b;font-size:14px;line-height:1.6;max-width:680px;margin:0 0 24px}
+.pricing-cards{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}
+.plan-card{display:flex;flex-direction:column;gap:14px;background:#fff;border:1px solid #e1e7df;border-radius:14px;padding:22px;min-width:0;transition:border-color .2s ease,box-shadow .2s ease}
+.plan-card:hover{border-color:#cbd9c6;box-shadow:0 12px 30px -20px #19342c66}
+.plan-emphasis{border-color:#a9c99a;box-shadow:inset 0 0 0 1px #a9c99a}
+.plan-selected{border-color:var(--green);box-shadow:inset 0 0 0 1px var(--green),0 0 0 3px #236c5322}
+.plan-head{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
+.plan-head h3{font-size:17px;margin:0;flex:1 1 auto}
+.plan-badge{font-size:11px;font-weight:700;color:#3f5a1c;background:#eef5dc;border:1px solid #d6e5b5;border-radius:999px;padding:3px 9px;white-space:nowrap}
+.plan-badge-selected{color:#fff;background:var(--green);border-color:var(--green)}
+.plan-price{margin:0;display:flex;align-items:baseline;gap:6px;flex-wrap:wrap}
+.plan-price b{font-family:'Manrope',sans-serif;font-size:34px;letter-spacing:-.04em;line-height:1.1;color:var(--ink)}
+.plan-price span{font-size:13px;color:#5f6c64}
+.plan-quotas,.plan-points{list-style:none;margin:0;padding:0;display:grid;gap:8px;font-size:13px;line-height:1.45}
+.plan-quotas li{padding-left:20px;position:relative;color:var(--ink);font-weight:600}
+.plan-quotas li::before{content:'';position:absolute;left:2px;top:6px;width:8px;height:8px;border-radius:2px;background:#9fc485}
+.plan-points{color:#56645b;border-top:1px solid var(--line);padding-top:12px}
+.plan-points li::before{content:'✓';margin-right:7px;color:#4f7a52;font-weight:800}
+.plan-cta{margin-top:auto}
+.plan-cta button,.plan-cta .button{width:100%;min-height:44px;font-size:14px}
+.plan-cta button:disabled{cursor:not-allowed;opacity:.62}
+.pricing-note{font-size:12px;color:#5f6c64;line-height:1.6;margin:18px 0 0}
+.pricing-stack .pricing-cards{grid-template-columns:1fr;gap:12px}
+.pricing-stack .plan-card{padding:16px;gap:10px}
+.pricing-stack .plan-price b{font-size:26px}
+.subscription-card{border:1px solid var(--line);border-radius:10px;padding:14px 16px;background:#fafbf6;margin-bottom:12px}
+.subscription-card p{margin:0 0 6px}
+.subscription-title{display:flex;flex-direction:column;gap:2px}
+.subscription-card button{margin-top:6px;min-height:44px}
+.plan-intent{border:1px solid #cfe0c3;background:#f3f8ee;border-radius:10px;padding:12px 14px;margin-bottom:18px}
+.plan-intent p{margin:0 0 4px;font-size:14px}
+.plan-intent small{display:block;font-size:12px;color:#56645b;line-height:1.5}
+.plan-intent-actions{display:flex;gap:14px}
+.plan-intent-actions .text-button{font-size:12px;padding:8px 0;min-height:36px;font-weight:600}
+.see-offers{font-size:12px;font-weight:700;padding:8px 0;min-height:36px}
+.detail-head h2{font-size:24px;letter-spacing:-.03em}
+.detail-facts{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+.detail-facts>span{font-size:11px;padding:4px 8px;border-radius:6px;border:1px solid #e1e7d9;background:#f8f9f5;color:#4e5d49}
+.detail-coverage b{color:var(--ink)}
+.score-ring{width:84px;height:84px}.score-ring b{font-size:26px}
+.login{border-radius:16px}.pricing-offer{border-radius:12px;background:#fbfcf8}
+@media(max-width:900px){.pricing-cards{grid-template-columns:1fr}.pricing-modal{padding:26px 18px 20px}}
+@media(max-width:700px){.demo-mission{flex-direction:column;gap:16px;padding:20px 18px}.demo-mission-actions{width:100%}.demo-mission h2{font-size:21px}.demo-help .onboarding-steps{grid-template-columns:1fr 1fr}.pricing-modal h2{font-size:23px}.score-ring{width:72px;height:72px}}
+@media(prefers-reduced-motion:reduce){button,.button,.plan-card{transition:none}}
+@media(min-width:1200px){.demo-help .onboarding-steps{grid-template-columns:repeat(7,minmax(0,1fr))}}
+/* Final polish: compact demo timeline on mobile, single offer identity in the account. */
+.demo-help-more{margin-top:4px;font-size:12px}
+.demo-help-more summary{cursor:pointer;font-weight:600;color:var(--green);min-height:36px;display:flex;align-items:center}
+.plan-identity{background:#f3f8ee;border:1px solid #d6e5c9;border-radius:10px;padding:12px 14px}
+.plan-identity>p.plan-identity-name{font-family:'Manrope',sans-serif;font-weight:800;font-size:16px;letter-spacing:-.02em;margin:2px 0 4px}
+.subscription-title{flex-direction:row!important;align-items:center;justify-content:space-between;gap:10px}
+@media(max-width:1199px){
+.demo-help{padding:14px 44px 10px 16px;margin-bottom:16px}
+.demo-help h3{font-size:15px;margin-bottom:8px}
+.demo-help .onboarding-steps{display:block;position:relative;margin:0 0 6px}
+.demo-help .onboarding-steps::before{content:'';position:absolute;left:11px;top:10px;bottom:10px;width:1px;background:#d6e2cf}
+.onboarding-steps li{display:block;position:relative;padding:4px 0 4px 32px;border:0;background:none;border-radius:0;font-size:12.5px;line-height:1.45}
+.onboarding-steps .step-index{position:absolute;left:0;top:4px;width:23px;height:19px;display:inline-flex;align-items:center;justify-content:center;border-radius:10px;background:#fff;border:1px solid #cfdfc4;font-size:10px}
+.onboarding-steps li b{display:inline;font-size:12.5px;margin-right:6px}
+.onboarding-steps li span:not(.step-index){display:inline;color:#56645b}
+}
+@media(max-width:700px){
+.demo-mission{padding:16px}.demo-mission h2{font-size:19px;margin-bottom:6px}.demo-mission-objective{font-size:13px;margin-bottom:10px}
+.process-strip{gap:6px;margin-bottom:10px}.process-strip li{font-size:12px;padding:4px 10px 4px 4px}.process-index{min-width:22px;height:22px;font-size:10px}
+.demo-mission-disclaimer{font-size:11.5px}
+}
+/* Account: one subscription block (offer, status, date, usage, portal). */
+.subscription-card{display:grid;gap:8px;padding:16px;border-radius:12px;background:#f8fbf4;border:1px solid #d6e5c9}
+.subscription-head{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.subscription-offer{font-family:'Manrope',sans-serif;font-weight:800;font-size:16px;letter-spacing:-.02em;margin:0!important;color:var(--ink)}
+.subscription-date{margin:0!important;font-size:13px;color:#3f5047}
+.subscription-usage{border-top:1px solid #e1eadb;padding-top:8px}
+.subscription-usage p{margin:0 0 4px;font-size:13px}
+.subscription-usage p.reached{color:#a4553f;font-weight:600}
+.subscription-card .subscription-manage{width:100%;min-height:44px;margin-top:4px;font-size:14px}
+.subscription-unavailable{margin:4px 0 0!important;font-size:12.5px;line-height:1.55;color:#5c4a1e;background:#fbf4e3;border:1px solid #efe0b8;border-radius:8px;padding:10px 12px}
+.subscription-card p[role=alert]{margin:0!important}
+.subscription-head .status-pill{padding:3px 10px;border-radius:999px;font-size:11px;font-weight:700;white-space:nowrap}

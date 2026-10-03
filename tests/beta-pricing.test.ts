@@ -156,7 +156,8 @@ test('E-mail rate limit — the agreed FR/EN message replaces the raw Supabase e
  assert.equal(isEmailRateLimitError({status:429,message:'For security purposes, you can only request this after 42 seconds.'}),true);
  assert.equal(isEmailRateLimitError({status:429,message:'Email rate limit exceeded'}),true);
  for(const other of [{status:400,message:'Invalid login credentials'},{status:422,message:'User already registered'},{status:429,message:'Too many requests'},null,'x'])assert.equal(isEmailRateLimitError(other),false);
- assert.match(page,/if\(result\.error\)\{if\(isEmailRateLimitError\(result\.error\)\)\{setNotice\(tr\('login\.emailRateLimited'\)\);return\}throw result\.error\}/);
+ assert.match(page,/if\(result\.error\)\{if\(isEmailRateLimitError\(result\.error\)\)\{setNotice\(tr\('login\.emailRateLimited'\)\);return\}/);
+ assert.match(page,/if\(r\.error\)\{if\(isEmailRateLimitError\(r\.error\)\)\{setNotice\(tr\('login\.emailRateLimited'\)\);return\}throw r\.error\}/,'resend: same agreed message');
 });
 
 // ---------------------------------------------------------------- Q, R: existing limits untouched

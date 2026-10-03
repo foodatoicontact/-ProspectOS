@@ -243,7 +243,7 @@ test('G — "Créer un compte" is disabled until the checkbox is checked; "Se co
  const welcomeMatch=page.match(/if\(mode==='welcome'\)return <main className="welcome">[\s\S]*?<\/main>;/);
  const welcome=welcomeMatch![0];
  assert.match(welcome,/onClick=\{\(\)=>login\(true\)\}>\{tr\('landing\.trialCta'\)\}/);
- const createAccountButton=welcome.match(/<button type="button" disabled=\{[^}]*\} onClick=\{\(\)=>login\(true\)\}>\{tr\('landing\.trialCta'\)\}<\/button>/);
+ const createAccountButton=welcome.match(/<button type="button" className="primary" disabled=\{[^}]*\} onClick=\{\(\)=>login\(true\)\}>\{tr\('landing\.trialCta'\)\}<\/button>/);
  assert.ok(createAccountButton,'signup CTA button not found with an expected disabled expression');
  assert.match(createAccountButton[0],/!legalAccepted/);
  const loginButton=welcome.match(/<button className="primary" disabled=\{[^}]*\}>\{tr\('landing\.loginButton'\)\}<\/button>/);
@@ -260,7 +260,7 @@ test('G — login() re-checks acceptance server-request-side (not just via the d
 // including the historical INTERNAL one, is never affected).
 // ------------------------------------------------------------
 test('H — signUp records terms_version/privacy_version/terms_accepted_at via Supabase Auth\'s own options.data (user_metadata) — no new table, no new migration',()=>{
- assert.match(page,/auth\.auth\.signUp\(\{email,password,options:\{data:\{terms_accepted_at:new Date\(\)\.toISOString\(\),terms_version:TERMS_VERSION,privacy_version:PRIVACY_VERSION\}\}\}\)/);
+ assert.match(page,/auth\.auth\.signUp\(\{email,password,options:\{emailRedirectTo:confirmationRedirect\(window\.location\.origin\),data:\{terms_accepted_at:new Date\(\)\.toISOString\(\),terms_version:TERMS_VERSION,privacy_version:PRIVACY_VERSION\}\}\}\)/);
 });
 test('H — TERMS_VERSION and PRIVACY_VERSION are non-empty version strings, single source of truth shared by the pages and the signup call',()=>{
  assert.match(TERMS_VERSION,/^\d{4}-\d{2}-\d{2}$/);

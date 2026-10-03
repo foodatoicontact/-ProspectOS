@@ -177,3 +177,17 @@ test('no copy announces live payment or automated sending',()=>{
   assert.doesNotMatch(v,/paiement réel|paiement activé|live payment|payment is live|envoi automatique activé|sends automatically/i);
  }
 });
+
+// ---------------------------------------------------------------- final mobile polish
+test('account: the offer is named once (Accès), usage and subscription card never repeat it',()=>{
+ assert.match(page,/<div className="account-field plan-identity"><span className="muted">\{tr\('account\.access'\)\}<\/span><p className="plan-identity-name">/);
+ assert.match(page,/<div className="account-field usage"><span className="muted">\{tr\('account\.usage'\)\}<\/span>/,'usage label without the offer name');
+ assert.doesNotMatch(billingSection,/offerNameKey|offerForDbPlan|billing\.betaName|billing\.proName/,'the subscription card shows status, date and portal only');
+ assert.match(billingSection,/<p className="subscription-title"><span className="muted">\{tr\('billing\.currentTitle'\)\}<\/span><span className=\{`status-pill/);
+ assert.equal(fr['billing.currentTitle'],'Votre abonnement');
+});
+test('demo help: the 7 steps stay visible; the score note and the 4 live limitations stay present, folded',()=>{
+ assert.match(page,/<ol className="onboarding-steps"[^>]*>\{\(locale==='fr'\?DEMO_ONBOARDING_STEPS:DEMO_ONBOARDING_STEPS_EN\)\.map/);
+ assert.match(page,/<details className="demo-help-more"><summary>\{tr\('demoHelp\.moreSummary'\)\}<\/summary><p className="muted">\{tr\('demoHelp\.zeroScore'\)\}<\/p><ul className="muted">\{\(locale==='fr'\?DEMO_LIVE_LIMITATIONS:DEMO_LIVE_LIMITATIONS_EN\)\.map/);
+ assert.ok(fr['demoHelp.moreSummary']&&en['demoHelp.moreSummary']);
+});

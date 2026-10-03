@@ -715,4 +715,5 @@ export const fr={
  'detail.statusLabel':'Statut',
  'detail.coverageShort':'Couverture des preuves',
  'detail.scoreLabel':'Score',
+ 'demoHelp.moreSummary':'Score à 0 et limites de cette démo',
 } as const;

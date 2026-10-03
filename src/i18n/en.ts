@@ -709,4 +709,5 @@ export const en={
  'detail.statusLabel':'Status',
  'detail.coverageShort':'Evidence coverage',
  'detail.scoreLabel':'Score',
+ 'demoHelp.moreSummary':'Score of 0 and limits of this demo',
 } satisfies Record<keyof typeof fr,string>;

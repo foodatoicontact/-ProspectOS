@@ -26,7 +26,7 @@ test('loadAccount claims only when there is no entitlement, and sends no identit
 
 test('a sign-up awaiting email confirmation never claims a slot (no session yet)', () => {
  const fn=page.slice(page.indexOf('async function login('));
- const noSession=fn.indexOf("if(!result.data.session){setNotice(tr('login.confirmEmail'));return}");
+ const noSession=fn.indexOf("if(!result.data.session){setPendingEmail(email);setLastSentAt(Date.now());return}");
  assert.ok(noSession>0&&noSession<fn.indexOf('await loadAccount(t)'),'returns before loadAccount when there is no session');
 });
 

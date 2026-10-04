@@ -127,3 +127,29 @@ test('i18n — every quick start key exists in FR and EN',()=>{
  const keys=[...new Set([...quick.matchAll(/'(quick\.[A-Za-z0-9]+)'/g),...panel.matchAll(/'(quick\.[A-Za-z0-9]+)'/g),...page.matchAll(/'(quick\.[A-Za-z0-9]+)'/g)].map(m=>m[1]))];
  for(const k of [...keys,'quick.step1','quick.step2','quick.step3'])assert.ok((fr as Record<string,string>)[k]&&(en as Record<string,string>)[k],k);
 });
+
+// ---------------------------------------------------------------- canary inputs (PR #15 review)
+test('canary A — simple target: category, area and need come from the user’s words; brand used as project name',()=>{
+ const p=buildTargetingProposal({offerText:'Foodatoi permet aux restaurants de recevoir directement leurs commandes click & collect sans commission.',targetText:'Restaurants indépendants en Occitanie, avec commande à emporter.'});
+ assert.equal(p.projectName.value,'Foodatoi · Occitanie');
+ assert.deepEqual([p.discovery.query,p.categories.value,p.locations.value,p.signals.value],['restaurants indépendants',['restaurant'],['Occitanie'],['commande à emporter']]);
+ assert.equal(readyForDiscovery(p),true);
+});
+test('canary B — a size class is not a sector: category and search "À préciser"; needs split and kept verbatim',()=>{
+ const p=buildTargetingProposal({offerText:'Nous accompagnons les PME dans la sécurisation de leur infrastructure informatique.',targetText:'PME de 20 à 200 salariés en Île-de-France ayant des besoins en cybersécurité ou en sécurisation de leur SI.'});
+ assert.deepEqual(p.categories.value,[]);assert.equal(p.discovery.query,'');assert.ok(p.missing.includes('category'));
+ assert.deepEqual(p.locations.value,['Île-de-France']);
+ assert.deepEqual(p.signals.value,['cybersécurité','sécurisation de leur SI']);
+ assert.deepEqual(p.notes,['20 à 200 salariés'],'size stays a note, never a rule');
+ assert.equal(p.projectName.value,'Mon projet · Île-de-France','a pronoun is never used as a name');
+ assert.equal(readyForDiscovery(p),false,'the user completes the search before Discovery');
+});
+test('canary C — ambiguous input: nothing invented, the user completes then continues',()=>{
+ const p=buildTargetingProposal({offerText:'Nous aidons les entreprises à améliorer leurs opérations.',targetText:'Entreprises autour de Toulouse qui pourraient avoir besoin de nous.'});
+ assert.deepEqual([p.discovery.query,p.categories.value,p.signals.value],['',[],[]]);
+ assert.deepEqual(p.locations.value,['Toulouse']);assert.equal(readyForDiscovery(p),false);
+ assert.equal(p.criteria[1].rules,undefined,'no need rule from a wish about the vendor');
+ const e=applyEdits(p,{projectName:'',offer:p.offer.value,categories:['garage'],locations:['Toulouse'],signals:['prise de rendez-vous en ligne'],query:'garages automobiles'});
+ assert.equal(readyForDiscovery(e),true);
+ assert.deepEqual(e.discovery,{query:'garages automobiles',location:'Toulouse',categories:['garage']});
+});

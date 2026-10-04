@@ -48,6 +48,11 @@ export function extractLocations(text:string):string[]{
 // (no public page states it reliably enough for a literal match).
 const SIZE=/\b\d+\s*(?:à|-|–)\s*\d+\s*(?:établissements?|salariés?|employés?|personnes|sites?|points de vente)\b|\b(?:plus|moins) de \d+\s*(?:établissements?|salariés?|employés?|personnes)\b/i;
 const LEADING=/^(?:avec|ayant|proposant|qui (?:ont|proposent|font|vendent|utilisent)|qui|offrant|faisant)\s+/i;
+// Words that name a size or a kind of organisation, not a type of business: searching for them, or expecting
+// them literally on a prospect's site, would invent a segmentation. They make the category "À préciser".
+const GENERIC_HEAD=/^(?:entreprises?|soci[ée]t[ée]s?|pme|tpe|eti|ge|structures?|organisations?|organismes?|clients?|prospects?|professionnels?|acteurs?|business|bo[iî]tes?|boites?|firmes?|compagnies?|cibles?)$/i;
+// Wishes about the vendor ("qui pourraient avoir besoin de nous") are not observable on a prospect's site.
+const VAGUE=/\b(?:besoin de nous|nos services|notre offre|nos solutions|pourraient|pourrait|int[ée]ress[ée]e?s?|potentiel(?:le)?s?|susceptibles?|[ée]ventuellement)\b/i;
 // A plural head noun to its singular, conservatively (only a trailing s/x on a long enough word).
 const singular=(w:string)=>w.length>4&&/[sx]$/i.test(w)&&!/ss$/i.test(w)?w.slice(0,-1):w;
 
@@ -57,17 +62,21 @@ export function parseTarget(targetText:string):{query:string;categories:string[]
  const notes:string[]=[];const size=SIZE.exec(text);if(size)notes.push(size[0]);
  // Clauses: the first one names who; the following ones (or "avec …") describe what to observe.
  const clauses=text.split(/[,;.\n]|\s+(?=avec\s)|\s+(?=qui\s)|\s+(?=ayant\s)|\s+(?=proposant\s)/i).map(clean).filter(Boolean);
- let head=(clauses[0]??'').replace(/\s+(?:en|à|a|dans|sur|autour de|près de|proche de)\s+.*$/i,'').replace(SIZE,'').trim();
+ let head=(clauses[0]??'').replace(SIZE,' ').replace(/\s+(?:de|d’|d')\s*$/i,'').replace(/\s+(?:en|à|a|dans|sur|autour de|près de|proche de)\s+.*$/i,'').replace(/\s+(?:de|d’|d')\s*$/i,'').trim();
  // A place written inside the first clause ("PME de Haute-Garonne") belongs to the zone, not to the search words.
  for(const place of locations)head=head.replace(new RegExp(`\\s+(?:de|du|des|d’|d')?\\s*${place.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')}\\b`,'i'),'').trim();
- const query=clean(head).toLowerCase().slice(0,120);
- const firstWord=query.split(' ').find(w=>w.length>2)??'';
+ const words=clean(head).toLowerCase().split(' ').filter(Boolean);
+ // A generic head ("PME", "entreprises") is not a search: query and category stay "À préciser".
+ const generic=!words.length||GENERIC_HEAD.test(words[0]);
+ const query=generic?'':words.join(' ').slice(0,120);
+ const firstWord=generic?'':words.find(w=>w.length>2)??'';
  const categories=firstWord?[singular(firstWord)]:[];
  const placeFolds=locations.map(foldPlace);
  const signals=uniq(clauses.slice(1)
-  .map(c=>clean(c.replace(LEADING,'').replace(/^(?:la|le|les|un|une|des|du|de la|l’|l')\s*/i,'')))
-  .filter(c=>c.length>=4&&!SIZE.test(c)&&!placeFolds.some(p=>foldPlace(c)===p||foldPlace(c).replace(/^(en|a|dans|sur) /,'')===p))
-  .map(c=>c.replace(/\s+(?:en|à|dans)\s+[A-ZÀ-ÖØ-Ý].*$/,'').slice(0,80).toLowerCase()))
+  .flatMap(c=>c.split(/\s+ou\s+/i))
+  .map(c=>clean(c.replace(LEADING,'').replace(/^(?:des |de |d’|d')?besoins?\s+(?:en|de|d’|d')\s*/i,'').replace(/^(?:en|de|d’|d')\s+/i,'').replace(/^(?:la|le|les|un|une|des|du|de la|l’|l')\s*/i,'')))
+  .filter(c=>c.length>=4&&!SIZE.test(c)&&!VAGUE.test(c)&&!placeFolds.some(p=>foldPlace(c)===p||foldPlace(c).replace(/^(en|a|dans|sur) /,'')===p))
+  .map(c=>c.replace(/\s+(?:en|à|dans)\s+[A-ZÀ-ÖØ-Ý].*$/,'').slice(0,80)))
   .slice(0,MAX_LIST);
  return {query,categories,locations,signals,notes};
 }
@@ -76,7 +85,9 @@ export function projectNameFrom(offerText:string,offerUrl?:string,firstLocation?
  let base='';
  const url=offerUrl&&safeLink(offerUrl);
  if(url){const host=new URL(url).hostname.replace(/^www\./,'').split('.')[0];base=host?host.charAt(0).toUpperCase()+host.slice(1):''}
- if(!base)base=clean(offerText).split(' ').slice(0,4).join(' ').replace(/[,.;:!?]+$/,'');
+ // Otherwise a brand-like first word ("Foodatoi permet…"); a pronoun or an article is never a name.
+ const first=clean(offerText).split(' ')[0]?.replace(/[,.;:!?]+$/,'')??'';
+ if(!base&&/^[A-ZÀ-ÖØ-Ý0-9][\p{L}0-9&’'-]{1,40}$/u.test(first)&&!/^(?:nous|je|j’|on|notre|nos|le|la|les|l’|un|une|des|ce|cette|ces|mon|ma|mes|votre|vos|il|elle|ils|elles|avec|pour|en|chez|depuis|grâce|aider|accompagner)$/i.test(first))base=first;
  if(!base)base='Mon projet';
  return (firstLocation?`${base} · ${firstLocation}`:base).slice(0,120);
 }

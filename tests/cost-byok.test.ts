@@ -46,7 +46,9 @@ test('last4 always returns exactly 4 characters, even for a very short input', (
 // ============================================================
 const discoveryApi=readFileSync(new URL('../src/discovery/api.ts',import.meta.url),'utf8');
 test('Z — recordApiUsage for a search is only ever called for the real Brave provider, never for fixture/TEST', () => {
- const braveBranch=discoveryApi.match(/const meter=name==='brave'\?async\([^)]*\)=>\{[^\n]*?recordApiUsage\([^\n]*\}:undefined;/);
+ // Since the register (019): the branch is gated by isMeteredSearchProvider, true for 'brave' only (asserted below).
+ const braveBranch=discoveryApi.match(/const meter=isMeteredSearchProvider\(name\)\?async\([^)]*\)=>\{[^\n]*?recordApiUsage\([^\n]*provider:'brave'[^\n]*\}:undefined;/);
+ assert.match(readFileSync(new URL('../src/discovery/providers/index.ts',import.meta.url),'utf8'),/export function isMeteredSearchProvider\(id:string\|undefined\):boolean\{return id==='brave'\}/);
  assert.ok(braveBranch,'recordApiUsage must be called from inside the brave-only branch');
  // And the inverse: the whole discovery POST handler contains exactly one recordApiUsage call — nothing
  // in the fixture path (which runs unconditionally before the brave-only guard) reaches it either.
@@ -61,7 +63,7 @@ test('Z — recordApiUsage for a search is only ever called for the real Brave p
 // added that could bypass the gate for provider==='brave' specifically).
 // ============================================================
 test('AA — the entitlement gate for a Discovery search runs before the provider is even selected, so it can never be bypassed for the real (Brave) provider specifically', () => {
- const gateBeforeProvider=discoveryApi.match(/requireActiveEntitlement\(db,user\.id\);[\s\S]*?const provider=name==='brave'/);
+ const gateBeforeProvider=discoveryApi.match(/requireActiveEntitlement\(db,user\.id\);[\s\S]*?const provider=createDiscoveryProvider\(/);
  assert.ok(gateBeforeProvider,'requireActiveEntitlement must run before any provider — fixture or brave — is instantiated');
 });
 

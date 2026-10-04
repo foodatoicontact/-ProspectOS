@@ -52,12 +52,12 @@ test('dataset — the verdict never depends on the name: every row renamed gives
 });
 
 // ——— synthetic rules ———
-const site=(o:Raw={})=>({siret:'00000000000001',activite_principale:'25.62B',etat_administratif:'A',region:'84',commune:'69123',libelle_commune:'LYON',tranche_effectif_salarie:'12',est_siege:false,...o});
-const company=(o:Raw={})=>({siren:'000000001',nom_complet:'ACME',nom_raison_sociale:'ACME',etat_administratif:'A',section_activite_principale:'C',activite_principale:'25.62B',tranche_effectif_salarie:'32',
- siege:{region:'11',commune:'75101',libelle_commune:'PARIS',code_postal:'75001',etat_administratif:'A',activite_principale:'70.10Z'},matching_etablissements:[],...o});
+const site=(o:Raw={})=>({siret:'00000000000001',activite_principale:'25.62B',etat_administratif:'A',region:'84',commune:'69123',libelle_commune:'LYON',tranche_effectif_salarie:'12',est_siege:false,statut_diffusion_etablissement:'O',...o});
+const company=(o:Raw={})=>({siren:'000000001',nom_complet:'ACME',nom_raison_sociale:'ACME',etat_administratif:'A',statut_diffusion:'O',section_activite_principale:'C',activite_principale:'25.62B',tranche_effectif_salarie:'32',
+ siege:{region:'11',commune:'75101',libelle_commune:'PARIS',code_postal:'75001',etat_administratif:'A',activite_principale:'70.10Z',statut_diffusion_etablissement:'O'},matching_etablissements:[],...o});
 
 test('rule A — a head office in the zone is enough',()=>{
- const v=admitRegistryCompany(company({siege:{region:'84',commune:'38185',libelle_commune:'GRENOBLE',code_postal:'38000',etat_administratif:'A',activite_principale:'25.62B'}}),AURA);
+ const v=admitRegistryCompany(company({siege:{region:'84',commune:'38185',libelle_commune:'GRENOBLE',code_postal:'38000',etat_administratif:'A',activite_principale:'25.62B',statut_diffusion_etablissement:'O'}}),AURA);
  assert.equal(v.admitted,true);assert.equal(v.admitted&&v.rule,'SIEGE_IN_ZONE');
 });
 
@@ -79,7 +79,7 @@ test('rule B — each failing condition alone sets the company aside',()=>{
 });
 
 test('a closed company is never retained, even with its head office in the zone',()=>{
- assert.equal(admitRegistryCompany(company({etat_administratif:'C',siege:{region:'84',commune:'69123',libelle_commune:'LYON',code_postal:'69001',etat_administratif:'A'}}),AURA).admitted,false);
+ assert.equal(admitRegistryCompany(company({etat_administratif:'C',siege:{region:'84',commune:'69123',libelle_commune:'LYON',code_postal:'69001',etat_administratif:'A',statut_diffusion_etablissement:'O'}}),AURA).admitted,false);
 });
 
 test('department zone — sites are matched on their commune code',()=>{
@@ -215,7 +215,7 @@ test('evidence-first — the register proves identity, never a need: no observat
 });
 
 test('dedup — two legal entities sharing a name stay two companies; the same SIREN twice is one',async()=>{
- const twin=(siren:string)=>company({siren,nom_complet:'ACME',nom_raison_sociale:'ACME',siege:{region:'84',commune:'69123',libelle_commune:'LYON',code_postal:'69001',etat_administratif:'A'}});
+ const twin=(siren:string)=>company({siren,nom_complet:'ACME',nom_raison_sociale:'ACME',siege:{region:'84',commune:'69123',libelle_commune:'LYON',code_postal:'69001',etat_administratif:'A',statut_diffusion_etablissement:'O'}});
  const {p}=provider(url=>url.searchParams.get('section_activite_principale')==='C'?{results:[twin('111111111'),twin('222222222'),twin('111111111')],total_results:3,page:1,per_page:25,total_pages:1}:empty);
  const repo=new Repo();await new DiscoveryService(repo,p).find_prospects(VIGIL);
  assert.deepEqual(repo.saved.map(c=>c.raw_metadata.siren).sort(),['111111111','222222222']);

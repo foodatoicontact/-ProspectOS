@@ -264,7 +264,9 @@ test('I — the refund is commercial only: the hourly log row stays, and both an
 test('J — a real Discovery is charged at launch whatever it finds; a fixture run is not charged to the plan',()=>{
  assert.match(migration,/perform prospectos_private\.consume_discovery_quota\(tenant,'discovery',p_provider<>'fixture'\);/);
  const services=discoveryApi; // the Discovery Engine itself is untouched: the provider id recorded is the one executed
- assert.match(services,/const provider=name==='brave'\?new BraveProvider\(process\.env\.BRAVE_SEARCH_API_KEY\?\?''\):new FixtureProvider\(\);/);
+ // Migration 019 added the register: the provider is built by the explicit factory (providers/index.ts), whose id
+ // is the one recorded by start_discovery — 'registry' is billed like 'brave' by the unchanged line above.
+ assert.match(services,/const provider=createDiscoveryProvider\(name,process\.env\);/);
 });
 
 // ---------------------------------------------------------------- K: beta capacity message

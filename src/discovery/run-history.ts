@@ -5,7 +5,7 @@ import {SEARCH_MODES,STOP_REASONS,type SearchMode,type StopReason} from './searc
 export type RunStatus = 'running' | 'completed' | 'failed';
 export type RunState = RunStatus | 'interrupted';
 export type RunSummary = {
- id: string; query: string; location: string; categories: string[]; provider: 'fixture' | 'brave';
+ id: string; query: string; location: string; categories: string[]; provider: 'fixture' | 'brave' | 'registry'; employee_range?: {min: number; max: number} | null;
  status: RunStatus; started_at: string; completed_at: string | null; result_count: number; max_results: number | null;
  accepted_count: number; ignored_count: number;
  // Novelty counters of the run (metrics jsonb, novelty.ts) — null for runs made before the novelty engine.
@@ -52,14 +52,17 @@ export function runState(run: Pick<RunSummary, 'status' | 'started_at'>, now = n
 // Without `decided` (the panel re-reading the API's answer), the counts already in the row are kept.
 export function summarizeRuns(runs: RunRow[], decided?: DecidedRow[]): RunSummary[] {
  return runs.map((r): RunSummary => {
-  const filters = r.filters_json as {max_results?: unknown; search_mode?: unknown; desired_new_results?: unknown} | null | undefined;
+  const filters = r.filters_json as {max_results?: unknown; search_mode?: unknown; desired_new_results?: unknown; employee_range?: unknown} | null | undefined;
+  const range = filters?.employee_range as {min?: unknown; max?: unknown} | undefined;
   const max = filters?.max_results ?? r.max_results;
   const chosen = filters?.search_mode ?? r.search_mode;
   const desired = filters?.desired_new_results ?? r.desired_new_results;
   return {
    id: r.id, query: r.query, location: r.location,
    categories: Array.isArray(r.categories) ? r.categories.filter((c): c is string => typeof c === 'string') : [],
-   provider: r.provider === 'brave' ? 'brave' : 'fixture',
+   provider: r.provider === 'brave' ? 'brave' : r.provider === 'registry' ? 'registry' : 'fixture',
+   // The register's structured headcount filter, when the run had one (replayed as is; never a criterion).
+   ...(range && typeof range.min === 'number' && typeof range.max === 'number' ? {employee_range: {min: range.min, max: range.max}} : {}),
    status: r.status === 'completed' ? 'completed' : r.status === 'failed' ? 'failed' : 'running',
    started_at: r.started_at, completed_at: r.completed_at, result_count: r.result_count,
    max_results: typeof max === 'number' ? max : null,
@@ -74,14 +77,16 @@ export function summarizeRuns(runs: RunRow[], decided?: DecidedRow[]): RunSummar
 }
 
 // "Rejouer la recherche": the form's values only. Nothing is launched — the user still clicks the button.
-export type ReplayFields = {query: string; location: string; categories: string; max: number; provider: 'fixture' | 'brave'; searchMode: SearchMode; desiredNew: number | null};
-export function replayFields(run: RunSummary, braveAvailable: boolean): ReplayFields {
+export type ReplayFields = {query: string; location: string; categories: string; max: number; provider: 'fixture' | 'brave' | 'registry'; searchMode: SearchMode; desiredNew: number | null; employeeRange?: {min: number; max: number} | null};
+// registryAvailable: live mode only (the register needs no key) — a demo replay never preselects a real source.
+export function replayFields(run: RunSummary, braveAvailable: boolean, registryAvailable = false): ReplayFields {
  return {
   query: run.query, location: run.location, categories: run.categories.join(', '),
   max: Math.min(20, Math.max(1, run.max_results ?? 20)),
-  provider: run.provider === 'brave' && braveAvailable ? 'brave' : 'fixture',
+  provider: run.provider === 'brave' && braveAvailable ? 'brave' : run.provider === 'registry' && registryAvailable ? 'registry' : 'fixture',
   // The search mode and new-actors target are prefilled too — nothing is launched.
   searchMode: run.search_mode, desiredNew: run.search_mode === 'search_new' ? run.desired_new_results : null,
+  ...(run.employee_range ? {employeeRange: run.employee_range} : {}),
  };
 }
 

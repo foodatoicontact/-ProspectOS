@@ -12,12 +12,14 @@ export const REGISTRY_ENDPOINT='https://recherche-entreprises.api.gouv.fr/search
 export const REGISTRY_PROVENANCE={source:'API Recherche d’entreprises (annuaire-entreprises.data.gouv.fr)',licence:'Licence Ouverte 2.0 (Etalab)'};
 const PER_PAGE=25;// the API maximum
 const MAX_PAGES_PER_GROUP=4;
+// Each NAF group is queried and fails on its own: a group the API refuses (e.g. the agri-food code list) is
+// counted (failure code, failed_groups) and the other groups' companies are kept — never retried another way.
 // The API allows 7 requests per second: requests of one search are sent one after another, spaced accordingly.
 export const MIN_REQUEST_INTERVAL_MS=Math.ceil(1000/7)+10;
 
 type Admitted=Extract<Admission,{admitted:true}>;
 export type RegistryHit=RegistryCompany&{registry_admission:Admitted;registry_zone:RegistryZone;registry_groups:Array<Pick<NafGroup,'key'|'label'>>};
-export type RegistryAdmissionReport={examined:number;admitted:number;rejected:Partial<Record<RejectionReason,number>>;duplicates:number;unmapped_terms:string[]};
+export type RegistryAdmissionReport={examined:number;admitted:number;rejected:Partial<Record<RejectionReason,number>>;duplicates:number;unmapped_terms:string[];failed_groups:Array<NafGroup['key']>};
 type Options={fetch?:typeof fetch;wait?:(ms:number)=>Promise<void>;maxPagesPerGroup?:number};
 
 export function registryUrl(group:NafGroup,zone:RegistryZone,tranches:string[],page:number):URL{
@@ -37,7 +39,7 @@ export class RegistryProvider implements DiscoveryProvider {
  async searchCompanies(input:DiscoveryInput):Promise<RegistryHit[]>{
   const report:ProviderSearchReport={queries_planned:0,requests_sent:0,requests_failed:0,failure_codes:[],country:'FR',country_reason:'registry_fr'};this.lastSearch=report;
   const {groups,unmapped}=proposeNafGroups([...input.categories,input.query]);
-  const admission:RegistryAdmissionReport={examined:0,admitted:0,rejected:{},duplicates:0,unmapped_terms:unmapped};this.lastAdmission=admission;
+  const admission:RegistryAdmissionReport={examined:0,admitted:0,rejected:{},duplicates:0,unmapped_terms:unmapped,failed_groups:[]};this.lastAdmission=admission;
   const zone=resolveRegistryZone(input.location);
   if(!zone){report.failure_codes.push('REGISTRY_ZONE_UNMAPPED');return []}
   if(!groups.length){report.failure_codes.push('REGISTRY_SECTOR_UNMAPPED');return []}
@@ -51,9 +53,9 @@ export class RegistryProvider implements DiscoveryProvider {
     report.requests_sent++;
     let body:{results?:RegistryCompany[];total_pages?:number};
     try{const res=await this.request(registryUrl(group,zone,tranches,page),{headers:{accept:'application/json'}});
-     if(!res.ok){report.requests_failed++;report.failure_codes.push(`HTTP_${res.status}`);break}
+     if(!res.ok){report.requests_failed++;report.failure_codes.push(`HTTP_${res.status}`);admission.failed_groups.push(group.key);break}
      body=await res.json() as typeof body}
-    catch{report.requests_failed++;report.failure_codes.push('NETWORK_ERROR');break}
+    catch{report.requests_failed++;report.failure_codes.push('NETWORK_ERROR');admission.failed_groups.push(group.key);break}
     const results=Array.isArray(body.results)?body.results:[];
     for(const company of results){
      if(!company||typeof company.siren!=='string')continue;

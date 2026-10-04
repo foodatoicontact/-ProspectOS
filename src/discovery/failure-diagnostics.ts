@@ -5,7 +5,7 @@
 // a key or a token.
 export type DiscoveryStage='existing'|'provider_search'|'normalize'|'dedupe'|'save'|'finish';
 type Diagnosis={stage:DiscoveryStage;cause:string;http_status:number|null;fields:string|null;db_code:string|null;error_name:string|null};
-const KNOWN_PROVIDER_CODES=new Set(['BRAVE_EMPTY_RESPONSE','BRAVE_RESPONSE_TOO_LARGE']);
+const KNOWN_PROVIDER_CODES=new Set(['BRAVE_EMPTY_RESPONSE','BRAVE_RESPONSE_TOO_LARGE','REGISTRY_UNAVAILABLE']);
 const KNOWN_REPOSITORY_CODES=new Set(['DATABASE_REQUEST_FAILED','CONFIGURATION_REQUIRED','QUOTA_EXCEEDED','MAX_RESULTS_EXCEEDED']);
 const safeSegment=(s:unknown)=>typeof s==='number'?String(s):typeof s==='string'&&/^[A-Za-z_][A-Za-z0-9_]{0,40}$/.test(s)?s:'?';
 const safeCode=(s:unknown)=>typeof s==='string'&&/^[a-z_]{1,40}$/.test(s)?s:'?';

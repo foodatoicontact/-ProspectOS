@@ -16,11 +16,25 @@ const MAX_PAGES_PER_GROUP=4;
 // counted (failure code, failed_groups) and the other groups' companies are kept — never retried another way.
 // The API allows 7 requests per second: requests of one search are sent one after another, spaced accordingly.
 export const MIN_REQUEST_INTERVAL_MS=Math.ceil(1000/7)+10;
+// Bounds of one search, well inside the route's 60 s limit (app/api/v1/[...path]/route.ts): each request is aborted
+// after REGISTRY_REQUEST_TIMEOUT_MS, no request starts once REGISTRY_TIME_BUDGET_MS is spent (what was found is
+// kept), a response over MAX_RESPONSE_BYTES is refused unparsed, redirects are refused. No retry, ever.
+export const REGISTRY_REQUEST_TIMEOUT_MS=10000;
+export const REGISTRY_TIME_BUDGET_MS=30000;
+const MAX_RESPONSE_BYTES=2_000_000;
+class RegistryRequestError extends Error{}
+async function readBounded(res:Response):Promise<unknown>{
+ const reader=res.body?.getReader();if(!reader)throw new RegistryRequestError('INVALID_RESPONSE');
+ let total=0;const chunks:Uint8Array[]=[];
+ try{while(true){const {done,value}=await reader.read();if(done)break;total+=value.length;if(total>MAX_RESPONSE_BYTES)throw new RegistryRequestError('RESPONSE_TOO_LARGE');chunks.push(value)}}finally{await reader.cancel().catch(()=>{})}
+ const bytes=new Uint8Array(total);let offset=0;for(const c of chunks){bytes.set(c,offset);offset+=c.length}
+ try{return JSON.parse(new TextDecoder().decode(bytes))}catch{throw new RegistryRequestError('INVALID_RESPONSE')}
+}
 
 type Admitted=Extract<Admission,{admitted:true}>;
 export type RegistryHit=RegistryCompany&{registry_admission:Admitted;registry_zone:RegistryZone;registry_groups:Array<Pick<NafGroup,'key'|'label'>>};
 export type RegistryAdmissionReport={examined:number;admitted:number;rejected:Partial<Record<RejectionReason,number>>;duplicates:number;unmapped_terms:string[];failed_groups:Array<NafGroup['key']>};
-type Options={fetch?:typeof fetch;wait?:(ms:number)=>Promise<void>;maxPagesPerGroup?:number};
+type Options={fetch?:typeof fetch;wait?:(ms:number)=>Promise<void>;maxPagesPerGroup?:number;timeoutMs?:number;timeBudgetMs?:number;now?:()=>number};
 
 export function registryUrl(group:NafGroup,zone:RegistryZone,tranches:string[],page:number):URL{
  const url=new URL(REGISTRY_ENDPOINT);
@@ -33,8 +47,8 @@ export function registryUrl(group:NafGroup,zone:RegistryZone,tranches:string[],p
 
 export class RegistryProvider implements DiscoveryProvider {
  id='registry';mode='live' as const;lastSearch?:ProviderSearchReport;lastAdmission?:RegistryAdmissionReport;
- private request:typeof fetch;private wait:(ms:number)=>Promise<void>;private maxPages:number;
- constructor(options:Options={}){this.request=options.fetch??fetch;this.wait=options.wait??(ms=>new Promise(r=>setTimeout(r,ms)));this.maxPages=options.maxPagesPerGroup??MAX_PAGES_PER_GROUP}
+ private request:typeof fetch;private wait:(ms:number)=>Promise<void>;private maxPages:number;private timeoutMs:number;private budgetMs:number;private now:()=>number;
+ constructor(options:Options={}){this.request=options.fetch??fetch;this.wait=options.wait??(ms=>new Promise(r=>setTimeout(r,ms)));this.maxPages=options.maxPagesPerGroup??MAX_PAGES_PER_GROUP;this.timeoutMs=options.timeoutMs??REGISTRY_REQUEST_TIMEOUT_MS;this.budgetMs=options.timeBudgetMs??REGISTRY_TIME_BUDGET_MS;this.now=options.now??Date.now}
 
  async searchCompanies(input:DiscoveryInput):Promise<RegistryHit[]>{
   const report:ProviderSearchReport={queries_planned:0,requests_sent:0,requests_failed:0,failure_codes:[],country:'FR',country_reason:'registry_fr'};this.lastSearch=report;
@@ -45,25 +59,27 @@ export class RegistryProvider implements DiscoveryProvider {
   if(!groups.length){report.failure_codes.push('REGISTRY_SECTOR_UNMAPPED');return []}
   report.queries_planned=groups.length;
   const range=input.optional_filters.employee_range;const tranches=range?employeeTranchesFor(range):[];
-  const perGroup:RegistryHit[][]=[];
+  const perGroup:RegistryHit[][]=[];const started=this.now();let outOfTime=false;
   for(const group of groups){
    const hits:RegistryHit[]=[];
-   for(let page=1;page<=this.maxPages;page++){
+   for(let page=1;page<=this.maxPages&&!outOfTime;page++){
+    if(this.now()-started>=this.budgetMs){outOfTime=true;report.failure_codes.push('TIME_BUDGET_REACHED');break}
     if(report.requests_sent)await this.wait(MIN_REQUEST_INTERVAL_MS);
     report.requests_sent++;
     let body:{results?:RegistryCompany[];total_pages?:number};
-    try{const res=await this.request(registryUrl(group,zone,tranches,page),{headers:{accept:'application/json'}});
-     if(!res.ok){report.requests_failed++;report.failure_codes.push(`HTTP_${res.status}`);admission.failed_groups.push(group.key);break}
-     body=await res.json() as typeof body}
-    catch{report.requests_failed++;report.failure_codes.push('NETWORK_ERROR');admission.failed_groups.push(group.key);break}
-    const results=Array.isArray(body.results)?body.results:[];
+    try{const res=await this.request(registryUrl(group,zone,tranches,page),{headers:{accept:'application/json'},signal:AbortSignal.timeout(this.timeoutMs),redirect:'error'});
+     if(!res.ok){await res.body?.cancel().catch(()=>{});report.requests_failed++;report.failure_codes.push(`HTTP_${res.status}`);admission.failed_groups.push(group.key);break}
+     body=await readBounded(res) as typeof body}
+    catch(error){const name=(error as {name?:unknown})?.name;
+     report.requests_failed++;report.failure_codes.push(error instanceof RegistryRequestError?error.message:name==='TimeoutError'||name==='AbortError'?'TIMEOUT':'NETWORK_ERROR');admission.failed_groups.push(group.key);break}
+    const results=Array.isArray(body?.results)?body.results:[];
     for(const company of results){
      if(!company||typeof company.siren!=='string')continue;
      admission.examined++;const verdict=admitRegistryCompany(company,zone);
      if(verdict.admitted)hits.push({...company,registry_admission:verdict,registry_zone:zone,registry_groups:[{key:group.key,label:group.label}]});
      else admission.rejected[verdict.reason]=(admission.rejected[verdict.reason]??0)+1;
     }
-    if(hits.length>=input.max_results||!results.length||page>=(body.total_pages??0))break;
+    if(hits.length>=input.max_results||!results.length||page>=(typeof body?.total_pages==='number'?body.total_pages:0))break;
    }
    perGroup.push(hits);
   }

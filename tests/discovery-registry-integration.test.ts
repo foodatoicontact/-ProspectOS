@@ -149,3 +149,32 @@ test('UI — the register option is a public-data source, never presented as evi
  assert.match(fr['discovery.registryNote'],/identit/i);assert.match(fr['discovery.registryNote'],/n.est pas une preuve/i);
  assert.doesNotMatch(fr['discovery.registryNote']+fr['discovery.providerRegistry'],/clé|API key/i);
 });
+
+// ——— trust boundary: every register request is bounded in time, size and redirects ———
+test('bounds — a register request that hangs is aborted by its own timeout; the group fails alone',async()=>{
+ const seen:RequestInit[]=[];
+ const p=new RegistryProvider({timeoutMs:20,wait:async()=>{},fetch:(async(_u:string|URL,init:RequestInit)=>{seen.push(init);return new Promise<Response>((_,reject)=>init.signal!.addEventListener('abort',()=>reject(init.signal!.reason)))}) as unknown as typeof fetch});
+ // AbortSignal.timeout's timer does not keep Node's event loop alive on its own (a server does): hold it open here.
+ const keepAlive=setInterval(()=>{},50);
+ try{await assert.rejects(p.searchCompanies(DiscoveryInputSchema.parse(VIGIL)),/REGISTRY_UNAVAILABLE/)}finally{clearInterval(keepAlive)}
+ assert.deepEqual(p.lastSearch!.failure_codes,['TIMEOUT','TIMEOUT']);
+ assert.ok(seen.every(i=>i.redirect==='error'),'redirects are refused, like Brave');
+});
+
+test('bounds — an oversized register response is refused, never parsed',async()=>{
+ const huge=JSON.stringify({results:[],total_pages:1,pad:'x'.repeat(2_100_000)});
+ const p=new RegistryProvider({wait:async()=>{},fetch:(async()=>new Response(huge,{status:200,headers:{'content-type':'application/json'}})) as unknown as typeof fetch});
+ await assert.rejects(p.searchCompanies(DiscoveryInputSchema.parse(VIGIL)),/REGISTRY_UNAVAILABLE/);
+ assert.deepEqual(p.lastSearch!.failure_codes,['RESPONSE_TOO_LARGE','RESPONSE_TOO_LARGE']);
+});
+
+test('bounds — pagination stops at the run time budget, keeping what was found (well under the 60 s route limit)',async()=>{
+ let clock=0;const sent:URL[]=[];
+ const full=(i:number)=>({siren:String(200000000+i),nom_raison_sociale:`S${i}`,etat_administratif:'A',statut_diffusion:'O',siege:{region:'84',commune:'69123',etat_administratif:'A',statut_diffusion_etablissement:'O'},matching_etablissements:[]});
+ const p=new RegistryProvider({timeBudgetMs:1000,now:()=>clock,wait:async()=>{},fetch:(async(u:string|URL)=>{const url=new URL(String(u));sent.push(url);clock+=600;const n=Number(url.searchParams.get('page'));return Response.json({results:[full(n)],total_pages:9})}) as unknown as typeof fetch});
+ const out=await p.searchCompanies(DiscoveryInputSchema.parse({...VIGIL,categories:['industriel']}));
+ assert.equal(sent.length,2,'no request is started once the budget is spent');assert.equal(out.length,2);
+ assert.ok(p.lastSearch!.failure_codes.includes('TIME_BUDGET_REACHED'));
+ const {REGISTRY_TIME_BUDGET_MS,REGISTRY_REQUEST_TIMEOUT_MS}=await import('../src/discovery/providers/registry.ts');
+ assert.ok(REGISTRY_TIME_BUDGET_MS+REGISTRY_REQUEST_TIMEOUT_MS<=45000&&REGISTRY_REQUEST_TIMEOUT_MS<=12000);
+});

@@ -167,7 +167,7 @@ test('demo mission header: honest disclaimer, the 5-step process, and the upgrad
  assert.match(page,/\{mode==='demo'&&<DemoMission locale=\{locale\} missionName=\{project\?\.name\?\?DEMO_PROJECT\.name\}[^\n]*?onUpgrade=\{\(\)=>setModal\('pricing'\)\}\/>\}/);
 });
 test('the pricing dialog is the only dialog open when it is shown (the generic workspace dialog excludes it)',()=>{
- assert.match(page,/\{modal&&modal!=='account'&&modal!=='delete-account'&&modal!=='byok-anthropic'&&modal!=='pricing'&&<div className="modal-backdrop"/);
+ assert.match(page,/\{modal&&modal!=='account'&&modal!=='delete-account'&&modal!=='byok-anthropic'&&modal!=='pricing'&&modal!=='quickstart'&&<div className="modal-backdrop"/);
 });
 test('prospect header: status and evidence coverage are written out, never colour-only',()=>{
  assert.match(page,/<span className="status">\{tr\('detail\.statusLabel'\)\} : \{statusLabel\(current\.status,locale\)\}<\/span><span className="detail-coverage">\{tr\('detail\.coverageShort'\)\} : <b>\{scored\.coverage\}%<\/b><\/span>/);

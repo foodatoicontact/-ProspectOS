@@ -15,12 +15,15 @@ export type QuickStartApi={
 };
 const list=(s:string)=>s.split(/[,\n]/).map(x=>x.trim()).filter(Boolean);
 
-export function QuickStart({locale,aiAvailable,busy,onApi}:{locale:Locale;aiAvailable:boolean;busy:boolean;onApi:QuickStartApi}){
+// resume (optional): an unfinished onboarding project found after a refresh / a return (see isUnfinishedOnboarding).
+// Its id is reused — never a second project. Only what the server kept is restored: the offer (saved at step 1);
+// the target sentence, the URL and an AI result were never stored, so the user answers step 2 again.
+export function QuickStart({locale,aiAvailable,busy,onApi,resume=null}:{locale:Locale;aiAvailable:boolean;busy:boolean;onApi:QuickStartApi;resume?:{projectId:string;offer:string}|null}){
  const tr=(k:TKey)=>translate(locale,k);
- const [step,setStep]=useState<1|2|3>(1);
- const [offerText,setOfferText]=useState('');const [offerUrl,setOfferUrl]=useState('');const [useAi,setUseAi]=useState(true);
+ const [step,setStep]=useState<1|2|3>(resume?.offer.trim()?2:1);
+ const [offerText,setOfferText]=useState(resume?.offer??'');const [offerUrl,setOfferUrl]=useState('');const [useAi,setUseAi]=useState(true);
  const [targetText,setTargetText]=useState('');
- const [projectId,setProjectId]=useState<string|null>(null);
+ const [projectId,setProjectId]=useState<string|null>(resume?.projectId??null);
  const [analysis,setAnalysis]=useState<OfferAnalysis>(null);const [aiNote,setAiNote]=useState('');
  const [proposal,setProposal]=useState<TargetingProposal|null>(null);const [editing,setEditing]=useState(false);
  const [working,setWorking]=useState(false);const [error,setError]=useState('');

@@ -67,7 +67,7 @@ test('5 — human edits before Discovery rebuild the criteria and the search',()
  assert.match(quick,/onApi\.confirm\(projectId!,current\)/,'what is saved is what the user reviewed');
 });
 test('6 — manual mode stays one click away (before and after the proposal)',()=>{
- assert.match(page,/manual:async\(id,p\)=>\{if\(!id\)\{setModal\('project'\);return\}if\(p\)await saveTargeting\(id,p\.criteria,p\.offer\.value\);setModal\(''\);setView\('icp'\)\}/);
+ assert.match(page,/manual:async\(id,p\)=>\{if\(!id\)\{setModal\('project'\);return\}if\(p\)await saveTargeting\(id,p\.criteria,p\.offer\.value\);quickStartProject\.current=null;setModal\(''\);setView\('icp'\)\}/);
  assert.match(quick,/tr\('quick\.manual'\)/);assert.match(quick,/tr\('quick\.advanced'\)/);
  assert.equal(fr['quick.manual'],'Configurer manuellement');assert.match(fr['quick.advanced'],/Paramètres avancés/);
 });
@@ -107,8 +107,8 @@ test('11, 12 — auth and billing untouched by the quick start',()=>{
  for(const src of [quick,domain])assert.doesNotMatch(code(src),/\bauth\b|supabase|signIn|signUp|billing|checkout|portal|entitlement|price_/i);
  assert.match(page,/await loadProjects\(t\);await loadAccount\(t\);setMode\('live'\)/,'session entry unchanged');
 });
-test('14 — existing users: the quick start appears only for a live account without any project, or on demand',()=>{
- assert.match(page,/const showQuickStart=mode==='live'&&!projects\.length&&view==='prospects';/);
+test('14 — existing users: the quick start appears only without a project, for an unfinished onboarding project, or on demand',()=>{
+ assert.match(page,/const showQuickStart=mode==='live'&&view==='prospects'&&\(!projects\.length\|\|!!resumeProject\);/);
  assert.match(page,/onClick=\{\(\)=>setModal\(mode==='live'\?'quickstart':'project'\)\}>\{tr\('nav\.newProject'\)\}/);
  assert.match(page,/\{view==='prospects'&&!showQuickStart&&<div className="prospect-grid">/);
 });
@@ -152,4 +152,40 @@ test('canary C — ambiguous input: nothing invented, the user completes then co
  const e=applyEdits(p,{projectName:'',offer:p.offer.value,categories:['garage'],locations:['Toulouse'],signals:['prise de rendez-vous en ligne'],query:'garages automobiles'});
  assert.equal(readyForDiscovery(e),true);
  assert.deepEqual(e.discovery,{query:'garages automobiles',location:'Toulouse',categories:['garage']});
+});
+
+
+// ---------------------------------------------------------------- resume (refresh / return)
+import {isStarterIcp,isUnfinishedOnboarding} from '../src/domain/onboarding.ts';
+const starter=()=>DEFAULT_CRITERIA.map(c=>({...c}));
+test('resume — only an untouched project is an unfinished onboarding; every signal of real use excludes it',()=>{
+ const base={projectCount:1,criteria:starter(),prospectCount:0,discoveryRunCount:0};
+ assert.equal(isUnfinishedOnboarding(base),true);
+ assert.equal(isUnfinishedOnboarding({...base,projectCount:2}),false,'several projects → ambiguous → never');
+ assert.equal(isUnfinishedOnboarding({...base,projectCount:0}),false);
+ assert.equal(isUnfinishedOnboarding({...base,prospectCount:1}),false,'a prospect → the project is used');
+ assert.equal(isUnfinishedOnboarding({...base,discoveryRunCount:1}),false,'a Discovery run → used');
+ assert.equal(isUnfinishedOnboarding({...base,discoveryRunCount:null}),false,'unknown history → not resumed');
+ const edited=(f:(c:ReturnType<typeof starter>)=>void)=>{const c=starter();f(c);return isUnfinishedOnboarding({...base,criteria:c})};
+ assert.equal(edited(c=>{c[0].weight=30;c[1].weight=25}),false,'weights edited');
+ assert.equal(edited(c=>{c[2].label='Signal renommé'}),false,'label edited');
+ assert.equal(edited(c=>{c[0].rules={type:'target_fit',config:{match:'any_defined',categories:['x']}}}),false,'a rule = configured');
+ assert.equal(edited(c=>{c.push({key:'extra',label:'Extra',weight:0}as never)}),false,'criteria added');
+ assert.equal(isUnfinishedOnboarding({...base,criteria:buildTargetingProposal({offerText:OFFER,targetText:TARGET}).criteria}),false,'a confirmed quick start is configured');
+ assert.equal(isStarterIcp(null),false);
+});
+test('resume — the page checks the existing read-only Discovery history route; any failure means no resume',()=>{
+ assert.match(page,/api\(`projects\/\$\{only\.id\}\/discovery\?limit=1&offset=0`\)\.then\(runs=>\{if\(!cancelled\)setResumeProjectId\(Array\.isArray\(runs\)&&isUnfinishedOnboarding\(\{projectCount:1,criteria:only\.criteria,prospectCount:0,discoveryRunCount:runs\.length\}\)\?only\.id:null\)\}\)\.catch\(\(\)=>\{if\(!cancelled\)setResumeProjectId\(null\)\}\)/);
+ assert.match(page,/if\(mode!=='live'\|\|!only\|\|!isUnfinishedOnboarding\(\{projectCount:projects\.length,criteria:only\.criteria,prospectCount:prospects\.filter\(p=>p\.project_id===only\.id\)\.length,discoveryRunCount:0\}\)\)\{setResumeProjectId\(null\);return\}/,'local signals first: a used project is excluded before any read');
+});
+test('resume — the same project id is reused, the saved offer restored, the user continues at step 2 (no second project)',()=>{
+ assert.match(page,/resume=\{resumeProject\?\{projectId:resumeProject\.id,offer:resumeProject\.offer\?\?''\}:null\}/);
+ assert.match(quick,/const \[projectId,setProjectId\]=useState<string\|null>\(resume\?\.projectId\?\?null\);/);
+ assert.match(quick,/const \[step,setStep\]=useState<1\|2\|3>\(resume\?\.offer\.trim\(\)\?2:1\);/,'the offer was saved at step 1: resume at step 2');
+ assert.match(quick,/const id=projectId\?\?await onApi\.createProject\(draftName,offerText\.trim\(\)\);/,'an existing project id is never re-created');
+ assert.match(page,/createProject:async\(name,projectOffer\)=>\{const first=!projects\.length;const p=await createLiveProject\(name,projectOffer,DEFAULT_CRITERIA\.map\(c=>\(\{\.\.\.c\}\)\)\);if\(first\)\{quickStartProject\.current=p\.id;setResumeProjectId\(p\.id\)\}/,'the in-progress quick start keeps its own project without a remount');
+});
+test('resume — a configured account never sees the quick start by itself; "Nouveau projet" still creates on demand',()=>{
+ assert.match(page,/onClick=\{\(\)=>setModal\(mode==='live'\?'quickstart':'project'\)\}>\{tr\('nav\.newProject'\)\}/);
+ assert.doesNotMatch(page,/setResumeProjectId\(projects\[0\]\.id\)/,'never "one project = resume"');
 });

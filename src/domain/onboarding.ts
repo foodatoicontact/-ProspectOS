@@ -142,3 +142,19 @@ export function applyEdits(p:TargetingProposal,e:ProposalEdits):TargetingProposa
 export const readyForDiscovery=(p:TargetingProposal)=>p.discovery.query.length>=2&&p.discovery.location.length>=2&&p.offer.value.length>0;
 // The existing analyze-company route requires an http(s) source URL and 30–10 000 characters of text.
 export const canAnalyzeOffer=(offerText:string,offerUrl?:string)=>!!offerUrl&&!!safeLink(offerUrl)&&clean(offerText).length>=30&&offerText.length<=10000;
+
+// Quick start resume. Without any stored "onboarding" marker (no column, no new route), a project is treated as
+// an unfinished onboarding only when EVERY signal of real use is absent — so a project someone actually works
+// with can never be pulled back into the quick start:
+//  - it is the account's only project (several projects → ambiguous → never resumed);
+//  - its ICP is exactly the starter ICP saved at creation (same keys, labels, weights, no rule): any edit in the
+//    ICP editor or a confirmed quick start changes it;
+//  - it has no prospect (hence no evidence, no outreach, no score);
+//  - the server lists no Discovery run for it. Unknown (null: the read failed) → not resumed.
+export function isStarterIcp(criteria:Criterion[]|null|undefined):boolean{
+ if(!Array.isArray(criteria)||criteria.length!==DEFAULT_CRITERIA.length)return false;
+ return DEFAULT_CRITERIA.every((d,i)=>{const c=criteria[i];return !!c&&c.key===d.key&&c.label===d.label&&c.weight===d.weight&&!c.rules})&&criteria.every(c=>!c.rules);
+}
+export function isUnfinishedOnboarding(s:{projectCount:number;criteria:Criterion[]|null|undefined;prospectCount:number;discoveryRunCount:number|null}):boolean{
+ return s.projectCount===1&&isStarterIcp(s.criteria)&&s.prospectCount===0&&s.discoveryRunCount===0;
+}

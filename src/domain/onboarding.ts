@@ -20,6 +20,8 @@ export type TargetingProposal={
  offer:Field<string>;
  offerSummary:Field<string>|null;
  target:Field<string>;
+ // The employee range the user wrote, structured (parseEmployeeRange) — null when none was written.
+ employeeRange:{min:number;max:number}|null;
  categories:Field<string[]>;
  locations:Field<string[]>;
  signals:Field<string[]>;
@@ -46,7 +48,7 @@ export function extractLocations(text:string):string[]{
 }
 // "1 à 5 établissements", "10-50 salariés": kept as a note for the human, never turned into a scored rule
 // (no public page states it reliably enough for a literal match).
-const SIZE=/\b\d+\s*(?:à|-|–)\s*\d+\s*(?:établissements?|salariés?|employés?|personnes|sites?|points de vente)\b|\b(?:plus|moins) de \d+\s*(?:établissements?|salariés?|employés?|personnes)\b/i;
+const SIZE=/\b(?:entre\s+)?\d+\s*(?:à|-|–|et)\s*\d+\s*(?:établissements?|salariés?|employés?|personnes|collaborateurs|sites?|points de vente)\b|\b(?:plus|moins) de \d+\s*(?:établissements?|salariés?|employés?|personnes)\b/i;
 const LEADING=/^(?:avec|ayant|proposant|qui (?:ont|proposent|font|vendent|utilisent)|qui|offrant|faisant)\s+/i;
 // Words that name a size or a kind of organisation, not a type of business: searching for them, or expecting
 // them literally on a prospect's site, would invent a segmentation. They make the category "À préciser".
@@ -55,6 +57,24 @@ const GENERIC_HEAD=/^(?:entreprises?|soci[ée]t[ée]s?|pme|tpe|eti|ge|structures
 const VAGUE=/\b(?:besoin de nous|nos services|notre offre|nos solutions|pourraient|pourrait|int[ée]ress[ée]e?s?|potentiel(?:le)?s?|susceptibles?|[ée]ventuellement)\b/i;
 // A plural head noun to its singular, conservatively (only a trailing s/x on a long enough word).
 const singular=(w:string)=>w.length>4&&/[sx]$/i.test(w)&&!/ss$/i.test(w)?w.slice(0,-1):w;
+// An adjective qualifying a size word ("ETI industrielles", "PME agroalimentaires") to its dictionary form
+// (masculine singular), the form a company's own pages use for their activity: -elle→-el, -ale→-al, -ive→-if,
+// -euse→-eux, -ienne→-ien. Plain French morphology — no sector vocabulary.
+const lemma=(w:string)=>singular(w).replace(/elle$/i,'el').replace(/ienne$/i,'ien').replace(/euse$/i,'eux').replace(/([^i])ive$/i,'$1if').replace(/([^i])ale$/i,'$1al');
+// An article opening the description ("Des ETI…", "Les restaurants…") is grammar, never a business word.
+const ARTICLE=/^(?:(?:des|les|la|le|un|une|du|de la|de)\s+|l[’']|d[’'])/i;
+// Discourse markers and tense words ("idéalement", "notamment", "récemment") structure a sentence: never a need.
+const DISCOURSE=/^(?:id[ée]alement|notamment|surtout|principalement|prioritairement|typiquement|g[ée]n[ée]ralement|souvent|plut[ôo]t|[ée]galement|aussi|de pr[ée]f[ée]rence|si possible|par exemple|en particulier)\b\s*/i;
+const TIME_TAIL=/\s+(?:r[ée]cemment|actuellement|en ce moment|aujourd['’]hui|derni[èe]rement|depuis peu)$/i;
+// The first words of a relative clause that only conjugate ("ont eu un incident" → "incident"): an auxiliary and
+// its participle, then the article. A real verb ("recrutent un RSSI") is kept: it carries the meaning.
+const AUXILIARY=/^(?:(?:ont|a|avons|avez|sont|est)\s+)?(?:eu|été|ete|subi|connu)\s+(?:(?:un|une|des|le|la|les|de|du)\s+|l[’']|d[’'])?/i;
+// "200 à 2000 salariés", "entre 200 et 2000 salariés", "10-50 employés": the employee range the user wrote — a
+// structured constraint shown to the human, never search words (no new rule: the scored criteria are unchanged).
+export function parseEmployeeRange(text:string):{min:number;max:number}|null{
+ const m=/\b(?:entre\s+)?(\d{1,6})\s*(?:à|-|–|et)\s*(\d{1,6})\s*(?:salariés?|employés?|collaborateurs|personnes)\b/i.exec(text);
+ if(!m)return null;const a=Number(m[1]),b=Number(m[2]);return a&&b?{min:Math.min(a,b),max:Math.max(a,b)}:null;
+}
 
 export function parseTarget(targetText:string):{query:string;categories:string[];locations:string[];signals:string[];notes:string[]}{
  const text=clean(targetText);
@@ -62,7 +82,7 @@ export function parseTarget(targetText:string):{query:string;categories:string[]
  const notes:string[]=[];const size=SIZE.exec(text);if(size)notes.push(size[0]);
  // Clauses: the first one names who; the following ones (or "avec …") describe what to observe.
  const clauses=text.split(/[,;.\n]|\s+(?=avec\s)|\s+(?=qui\s)|\s+(?=ayant\s)|\s+(?=proposant\s)/i).map(clean).filter(Boolean);
- let head=(clauses[0]??'').replace(SIZE,' ').replace(/\s+(?:de|d’|d')\s*$/i,'').replace(/\s+(?:en|à|a|dans|sur|autour de|près de|proche de)\s+.*$/i,'').replace(/\s+(?:de|d’|d')\s*$/i,'').trim();
+ let head=(clauses[0]??'').replace(ARTICLE,'').replace(SIZE,' ').replace(/\s+(?:de|d’|d')\s*$/i,'').replace(/\s+(?:en|à|a|dans|sur|autour de|près de|proche de)\s+.*$/i,'').replace(/\s+(?:de|d’|d')\s*$/i,'').trim();
  // A place written inside the first clause ("PME de Haute-Garonne") belongs to the zone, not to the search words.
  for(const place of locations)head=head.replace(new RegExp(`\\s+(?:de|du|des|d’|d')?\\s*${place.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')}\\b`,'i'),'').trim();
  const words=clean(head).toLowerCase().split(' ').filter(Boolean);
@@ -70,11 +90,15 @@ export function parseTarget(targetText:string):{query:string;categories:string[]
  const generic=!words.length||GENERIC_HEAD.test(words[0]);
  const query=generic?'':words.join(' ').slice(0,120);
  const firstWord=generic?'':words.find(w=>w.length>2)??'';
- const categories=firstWord?[singular(firstWord)]:[];
+ // A size word followed by what it does ("ETI industrielles ou agroalimentaires"): those qualifiers are the
+ // business words the user wrote — each coordinated one is a category. The size word itself never is.
+ const qualifiers=generic?words.slice(1).join(' ').split(/\s+(?:ou|et)\s+|\s*,\s*/).map(q=>q.split(' ')[0]??'').filter(q=>q.length>2&&!/^(?:de|des|du|en|et|ou)$/i.test(q)).map(lemma):[];
+ const categories=uniq(firstWord?[singular(firstWord)]:qualifiers).slice(0,MAX_LIST);
  const placeFolds=locations.map(foldPlace);
  const signals=uniq(clauses.slice(1)
   .flatMap(c=>c.split(/\s+ou\s+/i))
-  .map(c=>clean(c.replace(LEADING,'').replace(/^(?:des |de |d’|d')?besoins?\s+(?:en|de|d’|d')\s*/i,'').replace(/^(?:en|de|d’|d')\s+/i,'').replace(/^(?:la|le|les|un|une|des|du|de la|l’|l')\s*/i,'')))
+  .map(c=>clean(c.replace(DISCOURSE,'').replace(/^(?:ou|et)\s+/i,'').replace(/\s+(?:ou|et)$/i,'').replace(LEADING,'').replace(AUXILIARY,'').replace(TIME_TAIL,'').replace(/^(?:des |de |d’|d')?besoins?\s+(?:en|de|d’|d')\s*/i,'').replace(/^(?:en|de|d’|d')\s+/i,'').replace(/^(?:la|le|les|un|une|des|du|de la|l’|l')\s*/i,'')))
+  .filter(c=>!DISCOURSE.test(c+' ')&&c.split(' ').some(w=>w.length>=3))
   .filter(c=>c.length>=4&&!SIZE.test(c)&&!VAGUE.test(c)&&!placeFolds.some(p=>foldPlace(c)===p||foldPlace(c).replace(/^(en|a|dans|sur) /,'')===p))
   .map(c=>c.replace(/\s+(?:en|à|dans)\s+[A-ZÀ-ÖØ-Ý].*$/,'').slice(0,80)))
   .slice(0,MAX_LIST);
@@ -114,6 +138,7 @@ export function buildTargetingProposal(a:OnboardingAnswers):TargetingProposal{
   offer:{value:offerText,origin:'user'},
   offerSummary:summary?{value:summary,origin:'ai'}:null,
   target:{value:targetText,origin:'user'},
+  employeeRange:parseEmployeeRange(targetText),
   categories:{value:t.categories,origin:'extracted'},
   locations:{value:t.locations,origin:'extracted'},
   signals:{value:t.signals,origin:'extracted'},

@@ -8,6 +8,7 @@ import {findNeedFitCriterion,matchNeedFitSignal} from './need-fit.ts';
 import {extractIcpConceptProposals} from './icp-concepts.ts';
 import {extractIntentObservation,intentLayerUnderstands} from './icp-intents.ts';
 import {officialAddressIn} from './address.ts';
+import {eventDateIn,isHistorical,isResolved,negatedBefore,eventDateLabel} from './event-time.ts';
 // Sector-agnostic extraction: works from the project's own ICP labels instead of any hardcoded vertical.
 // A criterion never seen at compile time can still receive a proposal as long as it exists in the ICP passed in.
 const STOPWORDS=new Set(['dans','pour','avec','sans','plus','votre','vos','vous','notre','nos','nous','cette','ces','sont','être','avoir','leur','leurs','qui','que','dont','tout','tous','toute','toutes','fait','faire','très','bien','aussi','donc','ainsi','comme','the','and','for','with','this','that','from','your','have']);
@@ -35,10 +36,21 @@ export function extractGenericObservations(ctx:ObservationContext,criteria:Crite
  // self-contained, cross-sector concept this engine can prove deterministically: an explicit
  // commercial/growth event (recruiting, opening, launch, tender, expansion). Existence of a website,
  // a phone number, or the company itself is never enough — only a concrete, named event is.
+ // An EVENT is a current signal only when the sentence neither dates it more than a year before the collection
+ // nor says it is over or did not happen (event-time.ts). Otherwise it stays a dated, historical note (value
+ // null: never proposed, never scored). collected_at is never used as the date of the event: an undated event
+ // stays a proposal whose claim says the date is not published.
+ // The reference moment is this extraction's own collected_at (the one every observation of the page carries).
+ const now=new Date(make(null,'UNKNOWN','',null,'UNKNOWN','',0).collected_at);
+ const current=lines.filter(l=>{const d=eventDateIn(l);return !isResolved(l)&&!(d&&isHistorical(d,now))});
+ const pastNote=(key:string,type:string,line:string,what:string,negated=false)=>{const d=eventDateIn(line);
+  out.push(make(key,`${type}_HISTORICAL`,line,null,'INFERRED',isResolved(line)||negated?`${what} : événement présenté comme terminé, résolu ou absent — pas un signal actuel (${eventDateLabel(d)})`:`${what} : information historique (${eventDateLabel(d)}) — pas un signal actuel`,.3))};
  const signalCriterion=findCommercialSignalCriterion(criteria);
- const signalMatch=signalCriterion&&!covered.has(signalCriterion.key)?matchCommercialSignal(ctx,signalCriterion.label):null;
+ const signalMatch=signalCriterion&&!covered.has(signalCriterion.key)?matchCommercialSignal({lines:current},signalCriterion.label):null;
  const attachSignalTo=signalMatch?signalCriterion:null;
- if(attachSignalTo&&signalMatch)out.push(make(attachSignalTo.key,signalMatch.type,signalMatch.line,true,'OBSERVED',signalMatch.claim,.75));
+ if(attachSignalTo&&signalMatch)out.push(make(attachSignalTo.key,signalMatch.type,signalMatch.line,true,'OBSERVED',`${signalMatch.claim} (${eventDateLabel(eventDateIn(signalMatch.line))}) — extrait à vérifier`,.75));
+ const pastSignal=signalCriterion&&!covered.has(signalCriterion.key)&&!signalMatch?matchCommercialSignal(ctx,signalCriterion.label):null;
+ if(signalCriterion&&pastSignal)pastNote(signalCriterion.key,pastSignal.type,pastSignal.line,pastSignal.claim);
  // target_fit: the ICP's OWN user-authored rules are the sole vocabulary — never the label, never a
  // per-sector guess. Unsatisfied rules never produce value:false; the criterion simply falls through
  // to the ordinary loop below (INFERRED/UNKNOWN), exactly as an ICP without any rules always has.
@@ -47,19 +59,29 @@ export function extractGenericObservations(ctx:ObservationContext,criteria:Crite
  const attachTargetFitTo=targetFitEvaluation?.satisfied?targetFitCriterion:null;
  if(attachTargetFitTo&&targetFitEvaluation){
   const claim=targetFitEvaluation.matches.map(m=>`${TARGET_FIT_DIMENSION_LABELS[m.dimension]} correspond à « ${m.matchedValue} »`).join(' ; ');
-  out.push(make(attachTargetFitTo.key,'TARGET_FIT_RULE_MATCH',targetFitEvaluation.matches[0].line,true,'OBSERVED',`Règle ICP explicite satisfaite : ${claim}`,.85));
+  out.push(make(attachTargetFitTo.key,'TARGET_FIT_RULE_MATCH',targetFitEvaluation.matches[0].line,true,'OBSERVED',`Correspondance proposée avec la règle ICP : ${claim} — extrait à vérifier`,.85));
  }
  // need_fit: same discipline — the vocabulary is exclusively the user's own rules.config.signals.
  const needFitCriterion=findNeedFitCriterion(criteria);
- const needFitMatch=needFitCriterion&&!covered.has(needFitCriterion.key)&&needFitCriterion.rules?.type==='need_fit'?matchNeedFitSignal(ctx,needFitCriterion.rules.config.signals):null;
+ const needFitRules=needFitCriterion&&!covered.has(needFitCriterion.key)&&needFitCriterion.rules?.type==='need_fit'?needFitCriterion.rules.config.signals:null;
+ // A signal the sentence negates right before it ("jamais subi d'incident cyber") is not a need either.
+ const signalsOf=(rules:unknown)=>Array.isArray(rules)?rules.filter((x):x is string=>typeof x==='string'):[];
+ const negatedLine=(l:string)=>signalsOf(needFitRules).some(sig=>matchNeedFitSignal({lines:[l]},[sig])&&negatedBefore(l,sig));
+ const needFitMatch=needFitRules?matchNeedFitSignal({lines:current.filter(l=>!negatedLine(l))},needFitRules):null;
  const attachNeedFitTo=needFitMatch?needFitCriterion:null;
- if(attachNeedFitTo&&needFitMatch)out.push(make(attachNeedFitTo.key,'NEED_FIT_SIGNAL_MATCH',needFitMatch.line,true,'OBSERVED',`Signal de besoin défini par l'utilisateur explicitement observé : « ${needFitMatch.signal} »`,.8));
+ if(attachNeedFitTo&&needFitMatch)out.push(make(attachNeedFitTo.key,'NEED_FIT_SIGNAL_MATCH',needFitMatch.line,true,'OBSERVED',`Signal de besoin potentiel détecté : « ${needFitMatch.signal} » (${eventDateLabel(eventDateIn(needFitMatch.line))}) — extrait à vérifier`,.8));
+ const pastNeed=needFitCriterion&&needFitRules&&!needFitMatch?matchNeedFitSignal(ctx,needFitRules):null;
+ if(needFitCriterion&&pastNeed)pastNote(needFitCriterion.key,'NEED_FIT_SIGNAL_MATCH',pastNeed.line,`Signal de besoin « ${pastNeed.signal} »`,negatedBefore(pastNeed.line,pastNeed.signal));
+ // A criterion whose only match is historical or resolved is not handed to the weaker matchers below: they
+ // would re-propose the same sentence without its date.
+ const pastOnly=new Set([...(pastSignal&&signalCriterion?[signalCriterion.key]:[]),...(pastNeed&&needFitCriterion?[needFitCriterion.key]:[])]);
  for(const criterion of criteria){
   if(covered.has(criterion.key))continue; // already handled by a specialized preset for this ICP
   if(attachPhoneTo&&criterion.key===attachPhoneTo.key)continue; // already given a stronger, deterministic signal above — no redundant/weaker guess
   if(attachSignalTo&&criterion.key===attachSignalTo.key)continue; // idem, for the explicit commercial-signal rule above
   if(attachTargetFitTo&&criterion.key===attachTargetFitTo.key)continue; // idem, for the explicit target_fit rule above
   if(attachNeedFitTo&&criterion.key===attachNeedFitTo.key)continue; // idem, for the explicit need_fit rule above
+  if(pastOnly.has(criterion.key))continue; // idem: only a historical or resolved mention, kept as a note above
   // ICP evidence mapping: an explicit sentence matching a concept the criterion's own label names
   // becomes an INFERRED proposal (value true, evidence INFERRED_UNCONFIRMED: never scored until a human
   // confirms it). It replaces the weaker keyword guess below for that criterion only.

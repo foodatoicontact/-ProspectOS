@@ -12,7 +12,9 @@ import {DIRECTORY_PHRASES,isKnownAggregatorHost,type QualityAssessment} from './
 export type SourceClass = 'COMPANY_CANDIDATE' | 'SIGNAL_SOURCE' | 'IRRELEVANT' | 'UNCERTAIN';
 export type SourceType = 'official_site' | 'editorial' | 'job_board' | 'marketplace' | 'directory' | 'search_page' | 'individual_profile' | 'unknown';
 // location: the zone the user typed for this search (Discovery input), used by the admissibility gate.
-export interface QueryContext { query: string; categories: string[]; location?: string }
+// searched: the queries this run actually sent (signal queries included) — used ONLY by the query-echo guard below,
+// never as relevance terms: a page is not relevant because it repeats a signal word.
+export interface QueryContext { query: string; categories: string[]; location?: string; searched?: string[] }
 
 // An exclusion written in the query ("Exclure organismes de formation et pages DEJEPS", "sauf…", "hors…").
 // The clause is an instruction, not a search term: it is never sent to the search engine (it would
@@ -131,7 +133,7 @@ export const queryTerms = (context: QueryContext | undefined): string[] =>
 export function isQueryEchoOrGeneric(name: string, context: QueryContext | undefined): boolean {
  const words = fold(name).split(/[^a-z0-9]+/).filter(w => w.length >= 2);
  if (!words.length) return true;
- const terms = new Set(queryTerms(context));
+ const terms = new Set([...queryTerms(context), ...fold((context?.searched ?? []).join(' ')).split(/[^a-z0-9]+/).filter(t => t.length >= 2)]);
  return words.every(w => ROLE_WORDS.has(w) || terms.has(w) || terms.has(w.replace(/[sx]$/, '')) || terms.has(`${w}s`));
 }
 

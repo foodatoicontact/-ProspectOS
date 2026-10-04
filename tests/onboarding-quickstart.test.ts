@@ -189,3 +189,14 @@ test('resume — a configured account never sees the quick start by itself; "Nou
  assert.match(page,/onClick=\{\(\)=>setModal\(mode==='live'\?'quickstart':'project'\)\}>\{tr\('nav\.newProject'\)\}/);
  assert.doesNotMatch(page,/setResumeProjectId\(projects\[0\]\.id\)/,'never "one project = resume"');
 });
+
+test('canary fix — while the quick start is shown, the header no longer offers the historical "Créer un projet" form',()=>{
+ assert.match(page,/\{!showQuickStart&&<button disabled=\{busy\} className="primary" onClick=\{\(\)=>setModal\(project\?'prospect':'project'\)\}>＋ \{project\?tr\('actions\.addProspect'\):tr\('actions\.createProject'\)\}<\/button>\}/);
+ // The only remaining entries to the manual form: the quick start's own "Configurer manuellement", and the
+ // header/empty-state buttons when the quick start is NOT shown (demo, or an account that has a project).
+ const entries=[...page.matchAll(/setModal\((?:project\?'prospect':)?'project'\)/g)].length;
+ assert.equal(entries,3,'header (guarded), empty state (hidden with the quick start), quick start "Configurer manuellement"');
+ assert.match(page,/manual:async\(id,p\)=>\{if\(!id\)\{setModal\('project'\);return\}/);
+ assert.match(page,/\{view==='prospects'&&!showQuickStart&&<div className="prospect-grid">/,'the empty-state button lives in the grid hidden by the quick start');
+ assert.match(page,/const showQuickStart=mode==='live'&&view==='prospects'&&\(!projects\.length\|\|!!resumeProject\);/,'demo never shows the quick start, so its header button is unchanged');
+});

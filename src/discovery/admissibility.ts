@@ -383,6 +383,33 @@ const SECTOR_BODY = /^(la |le |les |l['’])?(f[ée]d[ée]rations?|conf[ée]d[é
 // Reinforcing only: well-known national professional bodies written as acronyms.
 const SECTOR_BODY_ACRONYM = /^(FNTP|FRTP|FFB|CAPEB|UNICEM|SYNTEC|CINOV|MEDEF|CPME|U2P|UMIH|CCI|CMA)\b/;
 const SECTOR_INTENT = /\b(f[ée]d[ée]rations?|syndicats?|chambres?|unions?|organisations? professionnelles?|associations?|clusters?|r[ée]seaux?|interprofessions?|ordres? professionnels?|structures?|employeu\w*|recrut\w*|alternan\w*|stages?)\b/i;
+// A title segment "les|l' <sector> en|dans|de|du [la] <zone>" whose sector words are ALL the user's own search words
+// (query, categories — never a sector list) and whose zone is a region ("région …"), a known place or the run's zone.
+// Narrow by construction: an offer ("Fabricant …", "Leader de …"), a tagline ("L'excellence industrielle en …",
+// "L'industrie du futur en …") or a product ("Les plats cuisinés de …") never matches; the organization's own name
+// segment is never read as the descriptor.
+const SECTOR_STEM = (w: string): string => w.slice(0, 6);
+export function sectorPortalTitle(title: string, entityName: string, domain: string | null, context: QueryContext | undefined): boolean {
+ if (!context) return false;
+ const sector = new Set(fold(`${context.query} ${context.categories.join(' ')}`).split(/[^a-z0-9]+/).filter(w => w.length >= 4).map(SECTOR_STEM));
+ if (!sector.size) return false;
+ const zone = context.location ? fold(context.location).replace(/[^a-z0-9]+/g, ' ').trim() : '';
+ const isZone = (tail: string): boolean => /^r[ée]gion\s+\S/i.test(tail) || isPlaceName(tail) || (!!zone && fold(tail).replace(/[^a-z0-9]+/g, ' ').trim() === zone);
+ for (const raw of titleSegments(title)) {
+  const segment = cleanSegment(raw);
+  if ((domain && sameEntityAsDomain(segment, domain)) || alnum(segment) === alnum(entityName)) continue;
+  const lead = /^(?:les\s+|l['’]\s*)(.+)$/i.exec(segment);
+  if (!lead) continue;
+  const words = lead[1]!.split(/\s+/);
+  for (let i = 1; i < words.length - 1 && i <= 3; i++) {
+   if (!/^(?:en|dans|de|du)$/i.test(words[i]!)) continue;
+   const head = fold(words.slice(0, i).join(' ')).split(/[^a-z0-9]+/).filter(w => w.length >= 3);
+   const tail = words.slice(i + 1).join(' ').replace(/^la\s+/i, '');
+   if (head.length && head.every(w => sector.has(SECTOR_STEM(w))) && isZone(tail)) return true;
+  }
+ }
+ return false;
+}
 export function isSectorBody(name: string, title: string): boolean {
  return [name, ...titleSegments(title)].some(s => SECTOR_BODY.test(s.trim()) || SECTOR_BODY_ACRONYM.test(s.trim()));
 }
@@ -519,6 +546,11 @@ export function evaluateCandidateAdmissibility(input: {title: string; descriptio
  if (!briefTargetsEvents(input.context) && isEventPage(input.title, input.description) && (entity.method === 'own_site' || entity.method === 'title_organization' || EVENT_NOUN.test(entity.name)))
   return verdict('EVENT_PAGE', entity);
  if (entityTypeMismatch(nonCommercialKind(entity.name, input.title, input.url, input.description), input.context)) return verdict('ENTITY_TYPE_MISMATCH', entity);
+ // An organization's own page whose title presents the searched sector AS A WHOLE in a zone ("Les industries
+ // agroalimentaires en région X", "L'agroalimentaire en X") speaks for the sector, not for what it makes or sells: a
+ // sector body or portal, kept visible as a sector source (sectorPortalTitle). After the
+ // organization-kind check: a page that says what the organization IS keeps that more precise kind.
+ if (!briefTargetsSectorBodies(input.context) && (pageType === 'OFFICIAL_ORGANIZATION_SITE' || pageType === 'TRAINING_PROVIDER') && sectorPortalTitle(input.title, entity.name, sourceDomain, input.context)) return verdict('SECTOR_BODY_PAGE', entity);
  if (input.resolution.classificationReasons.includes('no_observable_relevance')) return verdict('NO_OBSERVABLE_RELEVANCE', entity);
  if (loc.state === 'MISMATCH') return verdict('LOCATION_MISMATCH', entity);
  return verdict('ADMISSIBLE', entity);

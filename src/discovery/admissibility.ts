@@ -318,7 +318,11 @@ export function resolveCandidateEntity(pageType: PageType, input: {title: string
  const own = (name: string, method: EntityMethod): ResolvedEntity | null => { const origin = originOf(input.url); return origin ? {name, website: origin, canonicalUrl: origin, method, confidence: 'RESOLVED_HIGH'} : null; };
  const {segments} = urlParts(input.url);
  const explicit = (jobSignal: boolean): ResolvedEntity | null => { const e = explicitOrganization(input, domain, jobSignal, input.context); return e ? {name: e.name, website: null, canonicalUrl: null, method: e.method, confidence: 'RESOLVED_MEDIUM'} : null; };
- const pattern = (): ResolvedEntity | null => r.companyName.status === 'RESOLVED' && EXPLICIT_METHODS.has(r.companyName.method) ? {name: r.companyName.name, website: null, canonicalUrl: null, method: 'explicit_title_pattern', confidence: 'RESOLVED_MEDIUM'} : null;
+ // A job title is never an organization: a title-pattern name that opens with a role (the same ROLE_START that keeps
+ // roles out of organization segments) is a job title when the page is a job board or when the name ends with a
+ // place ("Développeur Java Lyon"). Elsewhere a role-like first word stays possible ("Direct …" as a brand).
+ const jobTitle = (name: string): boolean => { const n = cleanSegment(name); if (!ROLE_START.test(n)) return false; if (pageType === 'THIRD_PARTY_JOB_BOARD') return true; const w = n.split(/\s+/); return [1, 2, 3].some(k => w.length > k && isPlaceName(w.slice(-k).join(' '))); };
+ const pattern = (): ResolvedEntity | null => r.companyName.status === 'RESOLVED' && EXPLICIT_METHODS.has(r.companyName.method) && !jobTitle(r.companyName.name) ? {name: r.companyName.name, website: null, canonicalUrl: null, method: 'explicit_title_pattern', confidence: 'RESOLVED_MEDIUM'} : null;
  const cited = r.companyDomain.status === 'RESOLVED' && r.companyDomain.method === 'domain_in_text' ? r.companyDomain : null;
  if (cited && r.companyName.status === 'RESOLVED') return {name: r.companyName.name, website: cited.website, canonicalUrl: cited.canonical_url, method: 'cited_domain', confidence: 'RESOLVED_MEDIUM'};
  switch (pageType) {
@@ -399,7 +403,7 @@ export const briefTargetsEvents = (context: QueryContext | undefined): boolean =
 // actor too. A brief asking for it ("fédérations BTP", "associations professionnelles", "organismes publics",
 // "médias spécialisés") keeps it; a brief that says neither leaves the organization reviewable. Nothing here
 // judges fit, size, competition or confirmed activity — that stays human qualification.
-export type NonCommercialKind = 'FEDERATION' | 'ASSOCIATION' | 'PUBLIC_BODY' | 'MEDIA' | 'TRAINING';
+export type NonCommercialKind = 'FEDERATION' | 'ASSOCIATION' | 'PUBLIC_BODY' | 'MEDIA' | 'TRAINING' | 'FOUNDATION';
 export const PUBLIC_BODY_NAME = /^(ville|commune|mairie) (de|d')|conseil (departemental|regional|general)|(^|\s)metropole(\s|$)|communaute (de communes|d'agglomeration|urbaine)|^region\s|^departement\s|office public de l'habitat|^prefecture/;
 const ASSOCIATION_SIGN = /^(?:l['’])?association\s|(?:^|[^\p{L}])(?:l['’]association|association (?:des|de|du|professionnelle|r[ée]gionale))(?!\p{L})/iu;
 // A publisher's own site says what it publishes, in its title: "L'actualité du BTP", a magazine, a journal…
@@ -411,9 +415,16 @@ const foldName = (s: string): string => fold(s).replace(/[’`]/g, "'");
 const SELF_ASSOCIATION = /(?:^|[^\p{L}])(?:est|sommes)\s+(?:l['’]|une\s+)association(?!\p{L})|(?:^|[^\p{L}])association (?:loi (?:de )?1901|qui (?:repr[ée]sente|f[ée]d[èe]re|regroupe|rassemble))(?!\p{L})/iu;
 const SELF_TRAINING = /(?:^|[^\p{L}])(?:(?:institut|organisme|centre|[ée]cole)s? de formation|cfa|centre de formation d['’]apprentis)(?!\p{L})/iu;
 const TRAINING_TITLE_SEGMENT = /^(?:nos )?formations?\s+(?:en|aux?|à|de|d['’]|pour)\s/iu;
+// "X est une organisation professionnelle / une fédération / un cluster / la filière …", "X est une fondation": the
+// entity says what it IS (copula + article + kind). Being "membre d'un cluster", "adhérente à une fédération" or "un
+// acteur de la filière" never matches — the kind must follow the article directly.
+const SELF_FEDERATION = /(?:^|[^\p{L}])(?:est|sommes)\s+(?:l['’]|la\s+|le\s+|une?\s+)(?:organisation professionnelle|f[ée]d[ée]ration|syndicat professionnel|union professionnelle|interprofession|cluster|p[ôo]le de comp[ée]titivit[ée]|fili[èe]re)(?!\p{L})/iu;
+const SELF_FOUNDATION = /(?:^|[^\p{L}])(?:est|sommes)\s+(?:la\s+|une\s+)fondation(?!\p{L})/iu;
 const SELF_PUBLIC_AGENCY = /(?:^|[^\p{L}])(?:est|sommes)\s+(?:l['’]|une\s+)agence (?:r[ée]gionale|d[ée]partementale|nationale|publique)(?!\p{L})|(?:^|[^\p{L}])[ée]tablissement public(?!\p{L})/iu;
 function selfDescribedKind(title: string, description: string): NonCommercialKind | null {
  const text = `${title} ${description}`;
+ if (SELF_FEDERATION.test(text)) return 'FEDERATION';
+ if (SELF_FOUNDATION.test(text)) return 'FOUNDATION';
  if (SELF_ASSOCIATION.test(text)) return 'ASSOCIATION';
  if (SELF_TRAINING.test(text) || titleSegments(title).some(s => TRAINING_TITLE_SEGMENT.test(cleanSegment(s)))) return 'TRAINING';
  if (SELF_PUBLIC_AGENCY.test(text)) return 'PUBLIC_BODY';
@@ -434,6 +445,7 @@ const KIND_INTENT: Record<NonCommercialKind, RegExp> = {
  PUBLIC_BODY: /(?:^|[^\p{L}])(organismes? publics?|acteurs? publics?|collectivit[ée]s?|administrations?|[ée]tablissements? publics?|services? publics?|mairies?|communes?|intercommunalit[ée]s?|epci|acheteurs? publics?)(?!\p{L})/iu,
  MEDIA: /(?:^|[^\p{L}])(m[ée]dias?|presse|journaux|journal|magazines?|[ée]diteurs?|publications?|journalistes?)(?!\p{L})/iu,
  TRAINING: /(?:^|[^\p{L}])(formations?|organismes? de formation|instituts?|[ée]coles?|cfa|centres? de formation|apprentissage)(?!\p{L})/iu,
+ FOUNDATION: /(?:^|[^\p{L}])(fondations?|fonds de dotation|m[ée]c[ée]nat)(?!\p{L})/iu,
 };
 export function entityTypeMismatch(kind: NonCommercialKind | null, context: QueryContext | undefined): boolean {
  if (!kind || !context) return false;

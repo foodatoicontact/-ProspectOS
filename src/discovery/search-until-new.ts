@@ -7,7 +7,7 @@
 //
 // Bounded by construction: a finite list of variants, a hard cap of MAX_PROVIDER_CALLS requests, and a time
 // budget checked before every additional pass. No LLM, no network here (the pass runner is injected).
-import {planSearchQueries} from './query-plan.ts';
+import {planSearchQueries,signalQueriesOf,type PlanInput} from './query-plan.ts';
 
 export const SEARCH_MODES = ['all', 'new_first', 'search_new'] as const;
 export type SearchMode = typeof SEARCH_MODES[number];
@@ -21,18 +21,20 @@ export const TIME_BUDGET_MS = 40_000;
 export type StopReason = 'TARGET_REACHED' | 'MAX_PROVIDER_CALLS' | 'NO_MORE_VARIANTS' | 'NO_NEW_RESULTS' | 'PROVIDER_ERROR' | 'TIME_BUDGET';
 export const STOP_REASONS: readonly StopReason[] = ['TARGET_REACHED', 'MAX_PROVIDER_CALLS', 'NO_MORE_VARIANTS', 'NO_NEW_RESULTS', 'PROVIDER_ERROR', 'TIME_BUDGET'];
 
-export type SearchVariant = {query: string; kind: 'plan' | 'category'};
+export type SearchVariant = {query: string; kind: 'plan' | 'signal' | 'category'};
 const fold = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
 
 // Deterministic, finite variants: every query of the existing plan on its own (A), then one variant per
 // user category with the zone (C). Built only from the user's own words — never a sector, place or client
 // name hard-coded here. (B — provider pagination — is not used: see docs/DISCOVERY_SEARCH_UNTIL_NEW.md.)
-export function buildSearchVariants(input: {query: string; location: string; categories: string[]}): SearchVariant[] {
+export function buildSearchVariants(input: PlanInput): SearchVariant[] {
  const plan = planSearchQueries(input);
+ // The need-signal queries of the plan (query-plan.ts) keep their place right after the main query.
+ const signals = new Set(signalQueriesOf(input));
  const out: SearchVariant[] = [];
  const seen = new Set<string>();
  const push = (query: string, kind: SearchVariant['kind']) => { const key = fold(query); if (!key || seen.has(key)) return; seen.add(key); out.push({query, kind}); };
- for (const q of plan.queries) push(q, 'plan');
+ for (const q of plan.queries) push(q, signals.has(q) ? 'signal' : 'plan');
  for (const c of input.categories) push([c.trim(), plan.zone].filter(Boolean).join(' ').toLowerCase(), 'category');
  return out.slice(0, 6);
 }
@@ -64,10 +66,12 @@ export async function searchUntilNewTarget<C>(opts: {
  const all: C[] = [];
  const passes: PassReport[] = [];
  let calls = 0, newFound = 0, stop: StopReason | null = null, reserved = false;
- for (const variant of opts.variants) {
+ for (const [index, variant] of opts.variants.entries()) {
+  // Budget priority: main query, then need-signal queries, then a secondary-resolution request with what is left.
+  const signalAhead = opts.variants.slice(index).some(v => v.kind === 'signal');
   if (calls >= cap) { stop = 'MAX_PROVIDER_CALLS'; break; }
   if (calls > 0 && now() - start + passTimeout > budget) { stop = 'TIME_BUDGET'; break; }
-  if (calls >= 2 && calls === cap - 1 && opts.reserveLastCall?.(all)) { stop = 'MAX_PROVIDER_CALLS'; reserved = true; break; }
+  if (calls >= 2 && calls === cap - 1 && !signalAhead && opts.reserveLastCall?.(all)) { stop = 'MAX_PROVIDER_CALLS'; reserved = true; break; }
   calls++;
   const t0 = now();
   let found: C[];
@@ -84,7 +88,7 @@ export async function searchUntilNewTarget<C>(opts: {
   if (newFound >= opts.desiredNewResults) { stop = 'TARGET_REACHED'; break; }
   // A complementary pass that brought no new actor (after dedup and memory): the next variants of the same
   // market are unlikely to do better — stop instead of spending the remaining requests.
-  if (calls > 1 && newFound <= before) { stop = 'NO_NEW_RESULTS'; break; }
+  if (calls > 1 && newFound <= before && !opts.variants.slice(index + 1).some(v => v.kind === 'signal')) { stop = 'NO_NEW_RESULTS'; break; }
  }
  if (!stop) stop = calls >= cap ? 'MAX_PROVIDER_CALLS' : 'NO_MORE_VARIANTS';
  return {candidates: all, passes, providerCalls: calls, stopReason: stop, newFound, lastCallReserved: reserved};

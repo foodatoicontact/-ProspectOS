@@ -13,6 +13,9 @@
 // Exclusion clauses ("Exclure …") are removed before anything is read: they are instructions for the
 // admissibility gate, never search terms. Queries that normalize to (almost) the same words are sent once.
 import {stripExclusionClauses} from './source-classification.ts';
+import {findNeedFitCriterion} from './strategies/need-fit.ts';
+import {isMeaningfulTerm} from './strategies/text-match.ts';
+import type {Criterion} from '../domain/core.ts';
 
 export const MAX_SEARCH_QUERIES = 3;
 const MAX_SUBJECT_WORDS = 3;
@@ -52,7 +55,12 @@ const isContent = (key: string, zone: Set<string>): boolean => key.length > 0 &&
 
 export type QueryPlan = {queries: string[]; subjects: string[]; topics: string[]; zone: string};
 
-export function planSearchQueries(input: {query: string; location: string; categories: string[]}): QueryPlan {
+// The project's need signals travel with the run (optional_filters.criteria, the ICP sent with the search):
+// read from there, never stored again. Absent or without a need_fit rule → the plan is exactly the one above.
+export type PlanInput = {query: string; location: string; categories: string[]; optional_filters?: {criteria?: Criterion[]}};
+export const MAX_SIGNAL_QUERIES = 2;
+
+export function planSearchQueries(input: PlanInput): QueryPlan {
  const zone = input.location.replace(/[(),;/|]+/g, ' ').replace(/\s+/g, ' ').trim().split(' ').slice(0, MAX_ZONE_WORDS).join(' ');
  const zoneStems = new Set(zone.split(' ').map(stem).filter(Boolean));
  const tokens = tokenize(stripExclusionClauses(input.query));
@@ -102,8 +110,34 @@ export function planSearchQueries(input: {query: string; location: string; categ
   kept.push(key); queries.push(text);
   if (queries.length === MAX_SEARCH_QUERIES) break;
  }
- return {queries: queries.length ? queries : [zone.toLowerCase()], subjects: subjectPhrases.map(s => s.join(' ')), topics: topicPhrases.map(s => s.join(' ')), zone};
+ const main = queries.length ? queries : [zone.toLowerCase()];
+ // 4. Signal-first: the main query stays first; then at most MAX_SIGNAL_QUERIES queries, one per need signal the
+ // user wrote ([what they look for] + [the signal's content words] + [zone]); the rest of the main plan fills what
+ // is left of the same budget. A signal query is PROVENANCE ONLY: a page it returns is not proof of the signal.
+ const signals = signalQueries(input, [...(subjectPhrases[0] ?? topicPhrases[0] ?? [])], zone, zoneStems, kept);
+ return {queries: [main[0]!, ...signals, ...main.slice(1)].slice(0, MAX_SEARCH_QUERIES), subjects: subjectPhrases.map(s => s.join(' ')), topics: topicPhrases.map(s => s.join(' ')), zone};
 }
+
+// The queries the need signals add (in the order of the ICP): nothing for a signal without a meaningful word
+// ("des", "idéalement" — same guard as the evidence matcher), nor for one that only repeats a query already planned.
+function signalQueries(input: PlanInput, anchor: string[], zone: string, zoneStems: Set<string>, kept: Set<string>[]): string[] {
+ const criterion = Array.isArray(input.optional_filters?.criteria) ? findNeedFitCriterion(input.optional_filters.criteria) : null;
+ const signals = criterion?.rules?.type === 'need_fit' && Array.isArray(criterion.rules.config.signals) ? criterion.rules.config.signals.filter((s): s is string => typeof s === 'string') : [];
+ const out: string[] = [];
+ for (const signal of signals) {
+  if (out.length === MAX_SIGNAL_QUERIES) break;
+  const words = tokenize(signal).filter(isWord).filter(t => isContent(t.key, zoneStems) && isMeaningfulTerm(t.word)).map(t => t.word);
+  if (!words.length) continue;
+  const seen = new Set<string>();
+  const unique = [...anchor, ...words].filter(w => { const k = stem(w); if (!k || seen.has(k)) return false; seen.add(k); return true; });
+  const key = new Set([...seen, ...zoneStems]);
+  if (kept.some(k => similarity(k, key) >= NEAR_DUPLICATE)) continue;
+  kept.push(key); out.push([...unique, zone].filter(Boolean).join(' ').toLowerCase());
+ }
+ return out;
+}
+// The signal queries of a plan (for the Search-Until-New pass kind and its budget priority).
+export const signalQueriesOf = (input: PlanInput): string[] => { const all = planSearchQueries(input).queries; const base = planSearchQueries({query: input.query, location: input.location, categories: input.categories}).queries; return all.filter(q => !base.includes(q)); };
 
 // Jaccard similarity of two stem sets.
 function similarity(a: Set<string>, b: Set<string>): number {

@@ -158,3 +158,17 @@ export function isStarterIcp(criteria:Criterion[]|null|undefined):boolean{
 export function isUnfinishedOnboarding(s:{projectCount:number;criteria:Criterion[]|null|undefined;prospectCount:number;discoveryRunCount:number|null}):boolean{
  return s.projectCount===1&&isStarterIcp(s.criteria)&&s.prospectCount===0&&s.discoveryRunCount===0;
 }
+
+// Discovery opened OUTSIDE the quick start (header "Trouver des prospects", empty state): the form starts from
+// what the saved ICP already states in its target_fit rule — nothing else. Never a search query (that would be
+// a fabricated "requête métier"), never a launch. A single location fills the zone; several locations are
+// ambiguous for a one-zone search → the zone stays empty. Categories are copied as written. No rule → null.
+export function discoveryPrefillFromIcp(criteria:Criterion[]|null|undefined):{query:string;location:string;categories:string[];origin:'icp'}|null{
+ const rule=(criteria??[]).find(c=>(c.key==='target_fit'||c.key==='icp_target_fit'||c.key==='target_match')&&c.rules?.type==='target_fit')?.rules;
+ if(!rule||rule.type!=='target_fit'||typeof rule.config!=='object'||rule.config===null)return null;
+ const strings=(v:unknown)=>Array.isArray(v)?v.filter((x):x is string=>typeof x==='string').map(clean).filter(x=>x.length>=2):[];
+ const locations=strings(rule.config.locations),categories=strings(rule.config.categories).slice(0,MAX_LIST);
+ const location=locations.length===1?locations[0].slice(0,120):'';
+ if(!location&&!categories.length)return null;
+ return {query:'',location,categories,origin:'icp'};
+}

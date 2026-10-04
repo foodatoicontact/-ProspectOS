@@ -38,12 +38,15 @@ const STATE_LABEL:Record<'candidate'|'added'|'ignored'|'unresolved',TKey>={candi
 const EMPTY_FIELDS:ReplayFields={query:'',location:'',categories:'',max:20,provider:'fixture',searchMode:'all',desiredNew:null};
 // prefill (optional, quick start): fills the search form ONCE from the reviewed targeting — it never launches a
 // search; the user still reads the form and clicks the launch button. Absent → the panel behaves exactly as before.
-export type DiscoveryPrefill={query:string;location:string;categories:string[]};
+// origin 'icp': zone/categories copied from the saved ICP when Discovery is opened outside the quick start.
+// A prefill only fills EMPTY fields (it never overwrites what is already in the form), is skipped when a past
+// search is reopened, and never selects a paid source by itself (only the reviewed quick start may preselect it).
+export type DiscoveryPrefill={query:string;location:string;categories:string[];origin?:'quickstart'|'icp'};
 export function DiscoveryPanel({projectId,projectName,offer,criteria,mode,api,onAdded,existing,locale,activeRunId=null,onActiveRunChange,onOpenProspect,onProjectChanged,prefill=null,onPrefillUsed}:{projectId:string;projectName:string;offer:string;criteria:Criterion[];mode:'demo'|'live';api:Api;onAdded:(p:Prospect)=>void;existing:Prospect[];locale:Locale;activeRunId?:string|null;onActiveRunChange?:(runId:string|null)=>void;onOpenProspect?:(prospectId:string)=>void;onProjectChanged?:()=>void;prefill?:DiscoveryPrefill|null;onPrefillUsed?:()=>void}){
  const tr=(key:TKey)=>translate(locale,key);
  const launching=useRef(createInFlight());
- const prefillApplied=useRef(!!prefill&&!activeRunId);
- useEffect(()=>{if(!prefill||activeRunId)return;setFields(f=>({...f,query:prefill.query,location:prefill.location,categories:prefill.categories.join(', ')}));setInfo(tr('quick.discoveryPrefilled'));onPrefillUsed?.()},[]);
+ const prefillApplied=useRef(!!prefill&&!activeRunId&&prefill.origin!=='icp');
+ useEffect(()=>{if(!prefill||activeRunId)return;setFields(f=>({...f,query:f.query||prefill.query,location:f.location||prefill.location,categories:f.categories||prefill.categories.join(', ')}));setInfo(tr(prefill.origin==='icp'?'quick.discoveryFromIcp':'quick.discoveryPrefilled'));onPrefillUsed?.()},[]);
  const [provider,setProvider]=useState('fixture');const [available,setAvailable]=useState(false);const [results,setResults]=useState<DiscoveryResult[]>([]);const [run,setRun]=useState('');const [runs,setRuns]=useState<RunSummary[]|null>(null);const [current,setCurrent]=useState<RunSummary|null>(null);const [fields,setFields]=useState<ReplayFields>(EMPTY_FIELDS);const [replayed,setReplayed]=useState(false);const [historyError,setHistoryError]=useState(false);const [hasMoreRuns,setHasMoreRuns]=useState(false);const [resultsShown,setResultsShown]=useState(RESULTS_PAGE);const [formOpen,setFormOpen]=useState(true);const [noveltyTab,setNoveltyTab]=useState<'ALL'|NoveltyStatus>('ALL');const formRef=useRef<HTMLFormElement>(null);const [cost,setCost]=useState<any>(null);const [busy,setBusy]=useState(false);const [error,setError]=useState('');const [info,setInfo]=useState('');const [deepPending,setDeepPending]=useState(false);const version=useRef(0);
  useEffect(()=>{version.current++;setResults([]);setRun('');setCost(null);setCurrent(null);setRuns(null);setHistoryError(false);let cancelled=false;if(mode==='live')api('discovery-config').then(c=>{if(!cancelled){const brave=c.providers.some((p:any)=>p.id==='brave'&&p.available);setAvailable(brave);if(brave&&prefillApplied.current)setProvider('brave')}}).catch(()=>{if(!cancelled)setError(tr('discovery.configUnavailable'))});
  // History and the run that was open before leaving this screen: reads only, never a search.

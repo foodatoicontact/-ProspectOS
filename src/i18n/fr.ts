@@ -768,4 +768,11 @@ export const fr={
  'quick.discoveryPrefilled':'Recherche préparée à partir de votre ciblage : vérifiez les champs puis lancez-la.',
  'quick.readyNotice':'Ciblage enregistré. Votre recherche est prête : vérifiez-la puis lancez-la.',
  'quick.modalAria':'Démarrage rapide',
+ 'activation.targetTitle':'Votre projet n’a pas encore de ciblage',
+ 'activation.targetBody':'Décrivez votre cible en une phrase : ProspectOS vous propose un ciblage à vérifier, puis prépare votre première recherche.',
+ 'activation.prepareTargeting':'Préparer mon ciblage',
+ 'activation.findTitle':'Votre ciblage est prêt',
+ 'activation.findBody':'Lancez une recherche à partir de votre ciblage, puis vérifiez à la source les preuves de chaque établissement trouvé.',
+ 'activation.addManually':'Ajouter un établissement manuellement',
+ 'quick.discoveryFromIcp':'Zone et catégories reprises de votre ICP : complétez la recherche, vérifiez-la, puis lancez-la.',
 } as const;

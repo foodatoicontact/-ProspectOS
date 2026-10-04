@@ -437,3 +437,4 @@ button,.button{transition:background-color .18s ease,border-color .18s ease,colo
 .quickstart-modal .quickstart{margin:0;border:0;box-shadow:none}
 @media(max-width:700px){.quickstart{padding:20px 16px}.quickstart h2{font-size:21px}.quick-actions .primary{width:100%}.quick-actions{justify-content:stretch}.quick-actions .text-button{margin-right:0}}
 .quickstart textarea::placeholder,.quickstart input::placeholder{color:#97a29a;font-weight:400}
+.activation-empty{display:grid;justify-items:center;gap:10px;text-align:center}.activation-empty .primary{min-height:44px;padding:12px 20px;font-size:14px}.activation-empty .activation-manual{font-size:13px;min-height:40px;justify-content:center}

@@ -98,10 +98,10 @@ test('10 — Discovery unchanged: the form is pre-filled once, never launched; t
  const p=buildTargetingProposal({offerText:OFFER,targetText:TARGET});
  assert.doesNotThrow(()=>DiscoveryInputSchema.parse({project_id:'p1',query:p.discovery.query,location:p.discovery.location,categories:p.discovery.categories,max_results:20}));
  const effect=panel.slice(panel.indexOf('const prefillApplied'),panel.indexOf('const prefillApplied')+400);
- assert.match(effect,/useEffect\(\(\)=>\{if\(!prefill\|\|activeRunId\)return;setFields\(f=>\(\{\.\.\.f,query:prefill\.query,location:prefill\.location,categories:prefill\.categories\.join\(', '\)\}\)\);setInfo\(tr\('quick\.discoveryPrefilled'\)\);onPrefillUsed\?\.\(\)\},\[\]\);/);
+ assert.match(effect,/useEffect\(\(\)=>\{if\(!prefill\|\|activeRunId\)return;setFields\(f=>\(\{\.\.\.f,query:f\.query\|\|prefill\.query,location:f\.location\|\|prefill\.location,categories:f\.categories\|\|prefill\.categories\.join\(', '\)\}\)\);/);
  assert.doesNotMatch(effect,/search\(|api\(/,'pre-filling never searches');
  assert.match(panel,/prefill=null,onPrefillUsed\}/,'absent by default: the panel behaves as before');
- assert.match(page,/prefill=\{discoveryPrefill\?\.projectId===projectId\?discoveryPrefill:null\} onPrefillUsed=\{\(\)=>setDiscoveryPrefill\(null\)\}/);
+ assert.match(page,/prefill=\{discoveryPrefill\?\.projectId===projectId\?discoveryPrefill:discoveryPrefillFromIcp\(criteria\)\} onPrefillUsed=\{\(\)=>setDiscoveryPrefill\(null\)\}/);
 });
 test('11, 12 — auth and billing untouched by the quick start',()=>{
  for(const src of [quick,domain])assert.doesNotMatch(code(src),/\bauth\b|supabase|signIn|signUp|billing|checkout|portal|entitlement|price_/i);
@@ -109,7 +109,7 @@ test('11, 12 — auth and billing untouched by the quick start',()=>{
 });
 test('14 — existing users: the quick start appears only without a project, for an unfinished onboarding project, or on demand',()=>{
  assert.match(page,/const showQuickStart=mode==='live'&&view==='prospects'&&\(!projects\.length\|\|!!resumeProject\);/);
- assert.match(page,/onClick=\{\(\)=>setModal\(mode==='live'\?'quickstart':'project'\)\}>\{tr\('nav\.newProject'\)\}/);
+ assert.match(page,/onClick=\{\(\)=>\{setQuickResume\(null\);setModal\(mode==='live'\?'quickstart':'project'\)\}\}>\{tr\('nav\.newProject'\)\}/);
  assert.match(page,/\{view==='prospects'&&!showQuickStart&&<div className="prospect-grid">/);
 });
 test('15 — the manual path still works: same creation calls, same starter ICP, same ICP editor',()=>{
@@ -186,17 +186,64 @@ test('resume — the same project id is reused, the saved offer restored, the us
  assert.match(page,/createProject:async\(name,projectOffer\)=>\{const first=!projects\.length;const p=await createLiveProject\(name,projectOffer,DEFAULT_CRITERIA\.map\(c=>\(\{\.\.\.c\}\)\)\);if\(first\)\{quickStartProject\.current=p\.id;setResumeProjectId\(p\.id\)\}/,'the in-progress quick start keeps its own project without a remount');
 });
 test('resume — a configured account never sees the quick start by itself; "Nouveau projet" still creates on demand',()=>{
- assert.match(page,/onClick=\{\(\)=>setModal\(mode==='live'\?'quickstart':'project'\)\}>\{tr\('nav\.newProject'\)\}/);
+ assert.match(page,/onClick=\{\(\)=>\{setQuickResume\(null\);setModal\(mode==='live'\?'quickstart':'project'\)\}\}>\{tr\('nav\.newProject'\)\}/);
  assert.doesNotMatch(page,/setResumeProjectId\(projects\[0\]\.id\)/,'never "one project = resume"');
 });
 
 test('canary fix — while the quick start is shown, the header no longer offers the historical "Créer un projet" form',()=>{
- assert.match(page,/\{!showQuickStart&&<button disabled=\{busy\} className="primary" onClick=\{\(\)=>setModal\(project\?'prospect':'project'\)\}>＋ \{project\?tr\('actions\.addProspect'\):tr\('actions\.createProject'\)\}<\/button>\}/);
- // The only remaining entries to the manual form: the quick start's own "Configurer manuellement", and the
- // header/empty-state buttons when the quick start is NOT shown (demo, or an account that has a project).
- const entries=[...page.matchAll(/setModal\((?:project\?'prospect':)?'project'\)/g)].length;
- assert.equal(entries,3,'header (guarded), empty state (hidden with the quick start), quick start "Configurer manuellement"');
+ assert.match(page,/\{!showQuickStart&&<button disabled=\{busy\} className="primary" onClick=\{\(\)=>\{setQuickResume\(null\);setModal\(project\?'prospect':mode==='live'\?'quickstart':'project'\)\}\}>/);
+ // Live: the manual form is reached only through the quick start's "Configurer manuellement"; the remaining
+ // direct entry is the historical empty state, kept for the demo (and never shown with the quick start).
+ assert.equal([...page.matchAll(/setModal\((?:project\?'prospect':)?'project'\)/g)].length,2);
  assert.match(page,/manual:async\(id,p\)=>\{if\(!id\)\{setModal\('project'\);return\}/);
- assert.match(page,/\{view==='prospects'&&!showQuickStart&&<div className="prospect-grid">/,'the empty-state button lives in the grid hidden by the quick start');
- assert.match(page,/const showQuickStart=mode==='live'&&view==='prospects'&&\(!projects\.length\|\|!!resumeProject\);/,'demo never shows the quick start, so its header button is unchanged');
+ assert.match(page,/const showQuickStart=mode==='live'&&view==='prospects'&&\(!projects\.length\|\|!!resumeProject\);/);
+});
+
+
+// ---------------------------------------------------------------- activation CTAs (second canary)
+import {discoveryPrefillFromIcp} from '../src/domain/onboarding.ts';
+const emptyBlock=page.slice(page.indexOf('className="empty activation-empty"'),page.indexOf('className="empty activation-empty"')+1200);
+test('1 — 0 prospect + generic ICP: primary "Préparer mon ciblage" opens the quick start on THIS project',()=>{
+ assert.match(page,/\{!visible\.length&&mode==='live'&&project&&!all\.length&&<div className="empty activation-empty">\{isStarterIcp\(project\.criteria\)/);
+ assert.match(emptyBlock,/<button className="primary" disabled=\{busy\} onClick=\{\(\)=>\{setQuickResume\(\{projectId:project\.id,offer:project\.offer\?\?''\}\);setModal\('quickstart'\)\}\}>\{tr\('activation\.prepareTargeting'\)\}<\/button>/);
+ assert.match(page,/onApi=\{quickApi\} resume=\{quickResume\}\/><\/section><\/div>\}/,'the dialog resumes the chosen project id (no second project)');
+ assert.equal(fr['activation.prepareTargeting'],'Préparer mon ciblage');
+});
+test('2 — 0 prospect + configured ICP: primary "Trouver des prospects"',()=>{
+ assert.match(emptyBlock,/:<><h3>\{tr\('activation\.findTitle'\)\}<\/h3><p>\{tr\('activation\.findBody'\)\}<\/p><button className="primary" disabled=\{busy\} onClick=\{openDiscovery\}>\{tr\('actions\.findProspects'\)\}<\/button><\/>\}/);
+ assert.doesNotMatch(fr['activation.findBody']+fr['activation.targetBody'],/Offre & ICP/,'the old instructions are gone from the live empty state');
+});
+test('3 — manual add stays available, as a secondary action, in both cases',()=>{
+ assert.match(emptyBlock,/<button type="button" className="text-button activation-manual" disabled=\{busy\} onClick=\{\(\)=>setModal\('prospect'\)\}>\{tr\('activation\.addManually'\)\}<\/button><\/div>\}/);
+ assert.match(page,/modal==='prospect'\?tr\('modal\.addProspect'\)/,'the existing "Ajouter un établissement" dialog is unchanged');
+ assert.match(page,/else if\(modal==='prospect'\)addProspect\(f\)/);
+ assert.equal(fr['activation.addManually'],'Ajouter un établissement manuellement');
+});
+test('4 — live account without a project, outside the Prospects view: "Créer un projet" opens the quick start',()=>{
+ assert.match(page,/setModal\(project\?'prospect':mode==='live'\?'quickstart':'project'\)/);
+});
+test('5, 6, 7 — Discovery outside the quick start: zone and categories from the saved target_fit only',()=>{
+ const icp=proposalCriteria(['restaurant','pizzeria'],['Occitanie'],[]);
+ assert.deepEqual(discoveryPrefillFromIcp(icp),{query:'',location:'Occitanie',categories:['restaurant','pizzeria'],origin:'icp'},'never a fabricated query');
+ assert.deepEqual(discoveryPrefillFromIcp(proposalCriteria([],['Toulouse','Albi'],[]))?.location??null,null,'several zones → ambiguous → no prefill at all when nothing else');
+ assert.deepEqual(discoveryPrefillFromIcp(proposalCriteria(['garage'],['Toulouse','Albi'],[])),{query:'',location:'',categories:['garage'],origin:'icp'},'several zones → zone left empty');
+ assert.equal(discoveryPrefillFromIcp(DEFAULT_CRITERIA),null,'no target_fit → fields left empty');
+ assert.equal(discoveryPrefillFromIcp(null),null);
+ assert.equal(discoveryPrefillFromIcp([{...DEFAULT_CRITERIA[0],rules:{type:'target_fit',config:{match:'any_defined',locations:[42 as never,'']}}},...DEFAULT_CRITERIA.slice(1)]),null,'malformed values ignored');
+});
+test('8, 9 — a prefill never overwrites the form nor a reopened past search',()=>{
+ assert.match(panel,/setFields\(f=>\(\{\.\.\.f,query:f\.query\|\|prefill\.query,location:f\.location\|\|prefill\.location,categories:f\.categories\|\|prefill\.categories\.join\(', '\)\}\)\)/);
+ assert.match(panel,/useEffect\(\(\)=>\{if\(!prefill\|\|activeRunId\)return;/,'a reopened run (activeRunId) is never touched');
+});
+test('10, 11 — no Discovery launched, no quota: the prefill is computed locally and only fills the form',()=>{
+ assert.doesNotMatch(code(domain.slice(domain.indexOf('export function discoveryPrefillFromIcp'))),/api\(|fetch\(/);
+ const effect=panel.slice(panel.indexOf('const prefillApplied'),panel.indexOf('const prefillApplied')+460);
+ assert.doesNotMatch(effect,/search\(|api\(/);
+ assert.match(panel,/const prefillApplied=useRef\(!!prefill&&!activeRunId&&prefill\.origin!=='icp'\);/,'an ICP prefill never preselects the paid source');
+ assert.match(fr['quick.discoveryFromIcp'],/complétez la recherche/);
+});
+test('12 — demo unchanged: the live-only activation block never replaces the demo empty state',()=>{
+ assert.match(page,/\{!visible\.length&&!\(mode==='live'&&project&&!all\.length\)&&<div className="empty"><h3>\{tr\('prospects\.emptyTitle'\)\}<\/h3>/);
+ assert.match(page,/\{project&&<div className="empty-steps">/);
+ for(const k of ['activation.targetTitle','activation.targetBody','activation.findTitle','activation.findBody','activation.prepareTargeting','activation.addManually','quick.discoveryFromIcp'])assert.ok((fr as Record<string,string>)[k]&&(en as Record<string,string>)[k],k);
 });

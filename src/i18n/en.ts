@@ -762,4 +762,11 @@ export const en={
  'quick.discoveryPrefilled':'Search prepared from your targeting: check the fields, then launch it.',
  'quick.readyNotice':'Targeting saved. Your search is ready: check it, then launch it.',
  'quick.modalAria':'Quick start',
+ 'activation.targetTitle':'Your project has no targeting yet',
+ 'activation.targetBody':'Describe your target in one sentence: ProspectOS proposes a targeting for you to review, then prepares your first search.',
+ 'activation.prepareTargeting':'Prepare my targeting',
+ 'activation.findTitle':'Your targeting is ready',
+ 'activation.findBody':'Launch a search from your targeting, then check each business’s evidence at the source.',
+ 'activation.addManually':'Add a business manually',
+ 'quick.discoveryFromIcp':'Area and categories taken from your ICP: complete the search, review it, then launch it.',
 } satisfies Record<keyof typeof fr,string>;

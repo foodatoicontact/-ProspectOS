@@ -7,8 +7,8 @@ import type {SourceType} from './source-classification.ts';
 // The type describes the ENTITY a page names when one was resolved (a company named by a news article is a COMPANY,
 // not the article); the PAGE kind (DIRECTORY, MARKETPLACE, CONTENT) only when no organization could be named.
 // An event (trade show, forum…) is an EVENT, never a company to prospect.
-export type EntityType='COMPANY'|'COOPERATIVE'|'FEDERATION'|'NETWORK'|'ASSOCIATION'|'PUBLIC_BODY'|'MEDIA'|'EVENT'|'DIRECTORY'|'MARKETPLACE'|'CONTENT';
-export const ENTITY_TYPES:readonly EntityType[]=['COMPANY','COOPERATIVE','FEDERATION','NETWORK','ASSOCIATION','PUBLIC_BODY','MEDIA','EVENT','DIRECTORY','MARKETPLACE','CONTENT'];
+export type EntityType='COMPANY'|'COOPERATIVE'|'FEDERATION'|'NETWORK'|'ASSOCIATION'|'PUBLIC_BODY'|'MEDIA'|'TRAINING'|'FOUNDATION'|'EVENT'|'DIRECTORY'|'MARKETPLACE'|'CONTENT';
+export const ENTITY_TYPES:readonly EntityType[]=['COMPANY','COOPERATIVE','FEDERATION','NETWORK','ASSOCIATION','PUBLIC_BODY','MEDIA','TRAINING','FOUNDATION','EVENT','DIRECTORY','MARKETPLACE','CONTENT'];
 const fold=(s:string)=>s.normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase().replace(/[’`]/g,"'");
 const COOPERATIVE=/(^|[^a-z])(cooperative|cooperatives|scop|scic|cuma|groupement d'(artisans|entreprises|professionnels))([^a-z]|$)/;
 const NETWORK=/(^|[^a-z])(reseau (de|d'|national|regional|d'entreprises|d'artisans)|franchise|franchises|franchiseur|collectif de \d+|\d+ (professionnels|artisans|entreprises|membres|adherents) (independants|adherents|associes|partenaires|membres))([^a-z]|$)/;
@@ -22,7 +22,7 @@ export function entityTypeOf(i:{pageType:PageType;reasonCode:AdmissibilityReason
   return null;
  }
  // Federation, association, public body, media: the same detection as the entity-type × intent guard (admissibility.ts).
- const kind=nonCommercialKind(i.name,i.title,i.url??'');
+ const kind=nonCommercialKind(i.name,i.title,i.url??'',i.description);
  if(kind)return kind;
  if(PUBLIC_BODY_NAME.test(fold(i.name)))return 'PUBLIC_BODY';
  const text=fold(`${i.name} ${i.title} ${i.description}`);

@@ -76,7 +76,9 @@ export class BraveProvider implements DiscoveryProvider {
  // re-rank, never a drop (see candidate-quality.ts). The user's own full brief is tagged alongside, in
  // memory only: classification, relevance and exclusions are always judged against it, never against a
  // shortened query.
- const context:QueryContext={query:input.query,categories:input.categories,location:input.location};
+ // searched (query-echo guard only): the run's planned search vocabulary — main and need-signal queries. Never a
+ // secondary-resolution request: that one is made of the company names it looks for.
+ const context:QueryContext={query:input.query,categories:input.categories,location:input.location,searched:planSearchQueries(input).queries};
  const tagged=[...merged.values()].map(r=>Object.assign(r,{__quality:assessCandidateQuality(r,input.location),__context:context} satisfies QualityTagged));
  tagged.sort((a,b)=>(b.__quality?.confidence??0)-(a.__quality?.confidence??0));
  // Several pages of one site found by several queries are one organization at most (merged later in

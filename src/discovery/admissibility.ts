@@ -312,13 +312,17 @@ function titleOrgMatchesDomain(title: string, domain: string | null): boolean {
 function originOf(url: string): string | null { try { return new URL(url).origin; } catch { return null; } }
 const EXPLICIT_METHODS = new Set(['colon_prefix', 'leading_verb', 'chez_mention']);
 
-export function resolveCandidateEntity(pageType: PageType, input: {title: string; description?: string; url: string; resolution: CanonicalResolution; context?: QueryContext}): ResolvedEntity | null {
+export function resolveCandidateEntity(pageType: PageType, input: {title: string; description?: string; url: string; resolution: CanonicalResolution; context?: QueryContext; pageReasons?: string[]}): ResolvedEntity | null {
  const r = input.resolution;
  const {domain} = urlParts(input.url);
  const own = (name: string, method: EntityMethod): ResolvedEntity | null => { const origin = originOf(input.url); return origin ? {name, website: origin, canonicalUrl: origin, method, confidence: 'RESOLVED_HIGH'} : null; };
  const {segments} = urlParts(input.url);
  const explicit = (jobSignal: boolean): ResolvedEntity | null => { const e = explicitOrganization(input, domain, jobSignal, input.context); return e ? {name: e.name, website: null, canonicalUrl: null, method: e.method, confidence: 'RESOLVED_MEDIUM'} : null; };
- const pattern = (): ResolvedEntity | null => r.companyName.status === 'RESOLVED' && EXPLICIT_METHODS.has(r.companyName.method) ? {name: r.companyName.name, website: null, canonicalUrl: null, method: 'explicit_title_pattern', confidence: 'RESOLVED_MEDIUM'} : null;
+ // A job title is never an organization: a title-pattern name that opens with a role (the same ROLE_START that keeps
+ // roles out of organization segments) is a job title when the page is a job board or when the name ends with a
+ // place ("Développeur Java Lyon"). Elsewhere a role-like first word stays possible ("Direct …" as a brand).
+ const jobTitle = (name: string): boolean => { const n = cleanSegment(name); if (!ROLE_START.test(n)) return false; if (pageType === 'THIRD_PARTY_JOB_BOARD') return true; const w = n.split(/\s+/); return [1, 2, 3].some(k => w.length > k && isPlaceName(w.slice(-k).join(' '))); };
+ const pattern = (): ResolvedEntity | null => r.companyName.status === 'RESOLVED' && EXPLICIT_METHODS.has(r.companyName.method) && !jobTitle(r.companyName.name) ? {name: r.companyName.name, website: null, canonicalUrl: null, method: 'explicit_title_pattern', confidence: 'RESOLVED_MEDIUM'} : null;
  const cited = r.companyDomain.status === 'RESOLVED' && r.companyDomain.method === 'domain_in_text' ? r.companyDomain : null;
  if (cited && r.companyName.status === 'RESOLVED') return {name: r.companyName.name, website: cited.website, canonicalUrl: cited.canonical_url, method: 'cited_domain', confidence: 'RESOLVED_MEDIUM'};
  switch (pageType) {
@@ -346,7 +350,10 @@ export function resolveCandidateEntity(pageType: PageType, input: {title: string
    return name ? own(name, 'own_job_page') : null;
   }
   case 'THIRD_PARTY_JOB_BOARD':
-   return explicit(true) ?? pattern();
+   // A job page the classifier found WITHOUT an identified employer: "<role> <place> : Emploi et recrutement" is the
+   // board's own search facet, not an organization — a colon-prefix title pattern never creates the entity there.
+   // An employer the page names explicitly (labeled field, "… chez X", "X recrute") still does.
+   return explicit(true) ?? (input.pageReasons?.includes('job_page_without_identified_employer') && r.companyName.status === 'RESOLVED' && r.companyName.method === 'colon_prefix' ? null : pattern());
   // Pages that are never a prospect themselves: only an organization they name explicitly (labeled
   // field, or the employer of a job offer they publish) — never an entry of a plain directory listing.
   case 'DIRECTORY':
@@ -396,19 +403,40 @@ export const briefTargetsEvents = (context: QueryContext | undefined): boolean =
 // actor too. A brief asking for it ("fédérations BTP", "associations professionnelles", "organismes publics",
 // "médias spécialisés") keeps it; a brief that says neither leaves the organization reviewable. Nothing here
 // judges fit, size, competition or confirmed activity — that stays human qualification.
-export type NonCommercialKind = 'FEDERATION' | 'ASSOCIATION' | 'PUBLIC_BODY' | 'MEDIA';
+export type NonCommercialKind = 'FEDERATION' | 'ASSOCIATION' | 'PUBLIC_BODY' | 'MEDIA' | 'TRAINING' | 'FOUNDATION';
 export const PUBLIC_BODY_NAME = /^(ville|commune|mairie) (de|d')|conseil (departemental|regional|general)|(^|\s)metropole(\s|$)|communaute (de communes|d'agglomeration|urbaine)|^region\s|^departement\s|office public de l'habitat|^prefecture/;
 const ASSOCIATION_SIGN = /^(?:l['’])?association\s|(?:^|[^\p{L}])(?:l['’]association|association (?:des|de|du|professionnelle|r[ée]gionale))(?!\p{L})/iu;
 // A publisher's own site says what it publishes, in its title: "L'actualité du BTP", a magazine, a journal…
 const MEDIA_TITLE = /(?:^|[^\p{L}])(?:l['’]actualit[ée] (?:du|de la|des|de l['’])|toute l['’]actualit[ée]|magazines?|journal|quotidien|hebdomadaire|webzine|m[ée]dia (?:sp[ée]cialis|d['’]information|de r[ée]f[ée]rence))(?!\p{L})/iu;
 const foldName = (s: string): string => fold(s).replace(/[’`]/g, "'");
-export function nonCommercialKind(name: string, title: string, url: string): NonCommercialKind | null {
+// How an organization describes ITSELF (its title, the snippet of its page) when its name says nothing — an acronym:
+// "X est l'association qui représente…", "un institut de formation", "CFA", "l'agence régionale…", a title segment
+// "Formations en …". Generic kinds only; a company merely mentioning an association or a training never matches.
+const SELF_ASSOCIATION = /(?:^|[^\p{L}])(?:est|sommes)\s+(?:l['’]|une\s+)association(?!\p{L})|(?:^|[^\p{L}])association (?:loi (?:de )?1901|qui (?:repr[ée]sente|f[ée]d[èe]re|regroupe|rassemble))(?!\p{L})/iu;
+const SELF_TRAINING = /(?:^|[^\p{L}])(?:(?:institut|organisme|centre|[ée]cole)s? de formation|cfa|centre de formation d['’]apprentis)(?!\p{L})/iu;
+const TRAINING_TITLE_SEGMENT = /^(?:nos )?formations?\s+(?:en|aux?|à|de|d['’]|pour)\s/iu;
+// "X est une organisation professionnelle / une fédération / un cluster / la filière …", "X est une fondation": the
+// entity says what it IS (copula + article + kind). Being "membre d'un cluster", "adhérente à une fédération" or "un
+// acteur de la filière" never matches — the kind must follow the article directly.
+const SELF_FEDERATION = /(?:^|[^\p{L}])(?:est|sommes)\s+(?:l['’]|la\s+|le\s+|une?\s+)(?:organisation professionnelle|f[ée]d[ée]ration|syndicat professionnel|union professionnelle|interprofession|cluster|p[ôo]le de comp[ée]titivit[ée]|fili[èe]re)(?!\p{L})/iu;
+const SELF_FOUNDATION = /(?:^|[^\p{L}])(?:est|sommes)\s+(?:la\s+|une\s+)fondation(?!\p{L})/iu;
+const SELF_PUBLIC_AGENCY = /(?:^|[^\p{L}])(?:est|sommes)\s+(?:l['’]|une\s+)agence (?:r[ée]gionale|d[ée]partementale|nationale|publique)(?!\p{L})|(?:^|[^\p{L}])[ée]tablissement public(?!\p{L})/iu;
+function selfDescribedKind(title: string, description: string): NonCommercialKind | null {
+ const text = `${title} ${description}`;
+ if (SELF_FEDERATION.test(text)) return 'FEDERATION';
+ if (SELF_FOUNDATION.test(text)) return 'FOUNDATION';
+ if (SELF_ASSOCIATION.test(text)) return 'ASSOCIATION';
+ if (SELF_TRAINING.test(text) || titleSegments(title).some(s => TRAINING_TITLE_SEGMENT.test(cleanSegment(s)))) return 'TRAINING';
+ if (SELF_PUBLIC_AGENCY.test(text)) return 'PUBLIC_BODY';
+ return null;
+}
+export function nonCommercialKind(name: string, title: string, url: string, description = ''): NonCommercialKind | null {
  if (isSectorBody(name, title)) return 'FEDERATION';
  if (PUBLIC_BODY_NAME.test(foldName(name))) return 'PUBLIC_BODY';
  const host = urlParts(url).host;
  if (/(^|\.)asso\.fr$/.test(host) || ASSOCIATION_SIGN.test(name) || titleSegments(title).some(s => ASSOCIATION_SIGN.test(s))) return 'ASSOCIATION';
  if (MEDIA_TITLE.test(title)) return 'MEDIA';
- return null;
+ return selfDescribedKind(title, description);
 }
 const COMMERCIAL_INTENT = /(?:^|[^\p{L}])(entreprises?|soci[ée]t[ée]s?|pme|eti|tpe|startups?|start-ups?|commerces?|commer[çc]ants?|[ée]tablissements?|prestataires?|fournisseurs?|fabricants?|industriels?|artisans?|cabinets?|agences?|bureaux d['’][ée]tudes?|distributeurs?|n[ée]gociants?)(?!\p{L})/iu;
 const KIND_INTENT: Record<NonCommercialKind, RegExp> = {
@@ -416,6 +444,8 @@ const KIND_INTENT: Record<NonCommercialKind, RegExp> = {
  ASSOCIATION: /(?:^|[^\p{L}])(associations?|associatifs?|associatives?)(?!\p{L})/iu,
  PUBLIC_BODY: /(?:^|[^\p{L}])(organismes? publics?|acteurs? publics?|collectivit[ée]s?|administrations?|[ée]tablissements? publics?|services? publics?|mairies?|communes?|intercommunalit[ée]s?|epci|acheteurs? publics?)(?!\p{L})/iu,
  MEDIA: /(?:^|[^\p{L}])(m[ée]dias?|presse|journaux|journal|magazines?|[ée]diteurs?|publications?|journalistes?)(?!\p{L})/iu,
+ TRAINING: /(?:^|[^\p{L}])(formations?|organismes? de formation|instituts?|[ée]coles?|cfa|centres? de formation|apprentissage)(?!\p{L})/iu,
+ FOUNDATION: /(?:^|[^\p{L}])(fondations?|fonds de dotation|m[ée]c[ée]nat)(?!\p{L})/iu,
 };
 export function entityTypeMismatch(kind: NonCommercialKind | null, context: QueryContext | undefined): boolean {
  if (!kind || !context) return false;
@@ -471,7 +501,7 @@ export function evaluateCandidateAdmissibility(input: {title: string; descriptio
 
  // Entity resolution is attempted before any project-level dedup/exclusion (services.ts): an
  // organization later found to be already known is still correctly RESOLVED.
- const found = resolveCandidateEntity(pageType, input);
+ const found = resolveCandidateEntity(pageType, {...input, pageReasons: reasons});
  const entity = found ? {...found, name: canonicalOrganizationName(stripPageWords(found.name))} : null;
  const placeNames = tgt ? tgt.cityTokens : [];
  const sourceDomain = urlParts(input.url).domain;
@@ -488,7 +518,7 @@ export function evaluateCandidateAdmissibility(input: {title: string; descriptio
  // (labeled field, job employer) is still that organization, not the event.
  if (!briefTargetsEvents(input.context) && isEventPage(input.title, input.description) && (entity.method === 'own_site' || entity.method === 'title_organization' || EVENT_NOUN.test(entity.name)))
   return verdict('EVENT_PAGE', entity);
- if (entityTypeMismatch(nonCommercialKind(entity.name, input.title, input.url), input.context)) return verdict('ENTITY_TYPE_MISMATCH', entity);
+ if (entityTypeMismatch(nonCommercialKind(entity.name, input.title, input.url, input.description), input.context)) return verdict('ENTITY_TYPE_MISMATCH', entity);
  if (input.resolution.classificationReasons.includes('no_observable_relevance')) return verdict('NO_OBSERVABLE_RELEVANCE', entity);
  if (loc.state === 'MISMATCH') return verdict('LOCATION_MISMATCH', entity);
  return verdict('ADMISSIBLE', entity);

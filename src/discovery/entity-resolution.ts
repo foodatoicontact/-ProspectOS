@@ -95,7 +95,9 @@ function extractCompanyNameFromTitle(title: string, context?: QueryContext): {na
  const trimmed = title.trim();
  if (isListingTitle(trimmed)) return null;
  const afterColon = /^[^:]{2,60}:\s+(.*)$/.exec(trimmed)?.[1];
- const editorialColon = !!afterColon && EDITORIAL_AFTER_COLON.test(afterColon);
+ // A headline in the publisher's own voice ("… : la Région équipe nos apprentis") is about the publisher: what
+ // precedes the colon is its topic, never another organization.
+ const editorialColon = !!afterColon && (EDITORIAL_AFTER_COLON.test(afterColon) || /(?:^|[^\p{L}])(?:nous|nos|notre)(?!\p{L})/iu.test(afterColon));
  for (const [pattern, method] of [[COLON_PREFIX_PATTERN, 'colon_prefix'], [LEADING_VERB_PATTERN, 'leading_verb'], [CHEZ_PATTERN, 'chez_mention']] as const) {
   if (method === 'colon_prefix' && editorialColon) continue;
   const match = pattern.exec(trimmed);

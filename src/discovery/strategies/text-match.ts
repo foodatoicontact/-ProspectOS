@@ -16,3 +16,20 @@ export function findLiteralMatch(lines:string[],needle:string):LiteralMatch|null
  }
  return null;
 }
+// Grammatical words and discourse markers ("des", "ou", "idéalement", "notamment"…): never a business term. A
+// value made only of them (or of words shorter than 3 letters) is not an ICP rule — an ICP saved with one
+// ("des", from an older onboarding parser) must never let it validate a page where every sentence has it.
+const NOT_A_TERM=new Set(['le','la','les','l','un','une','des','de','du','d','au','aux','a','en','dans','sur','pour','par','avec','chez','sans','vers','entre','et','ou','ni','mais','qui','que','qu','dont','ce','ces','cet','cette','son','sa','ses','leur','leurs','notre','nos','votre','vos','tout','tous','toute','toutes','ont','eu','est','sont','ete','avoir','etre',
+ 'idealement','notamment','surtout','principalement','prioritairement','eventuellement','typiquement','generalement','souvent','plutot','egalement','aussi','preference','possible','exemple','particulier','recemment','actuellement','aujourd','hui','dernierement']);
+const termWords=(value:string)=>normalizeForMatch(value).split(/[^a-z0-9]+/).filter(Boolean);
+export function isMeaningfulTerm(value:string):boolean{return termWords(value).some(w=>w.length>=3&&!NOT_A_TERM.has(w))}
+// The content words of a multi-word signal, each reduced to a short stem ("recrutent" / "recrutons" → "recrut").
+const stemOf=(w:string)=>w.length>6?w.slice(0,6):w;
+const contentStems=(value:string)=>[...new Set(termWords(value).filter(w=>w.length>=3&&!NOT_A_TERM.has(w)).map(stemOf))];
+// Concept match for a signal of SEVERAL content words: every one of them (by stem, whole words only) in the same
+// sentence, in any order — "recrutent un RSSI" ↔ "Nous recrutons actuellement un RSSI". Never a single shared word.
+export function findConceptMatch(lines:string[],needle:string):LiteralMatch|null{
+ const stems=contentStems(needle);if(stems.length<2)return null;
+ for(const line of lines){const words=termWords(line).map(stemOf);if(stems.every(s=>words.includes(s)))return {line,value:needle}}
+ return null;
+}

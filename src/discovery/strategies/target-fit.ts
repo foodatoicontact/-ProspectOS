@@ -1,6 +1,6 @@
 import type {Criterion,TargetFitRules} from '../../domain/core.ts';
 import type {ObservationContext} from './restaurant.ts';
-import {findLiteralMatch} from './text-match.ts';
+import {findLiteralMatch,isMeaningfulTerm} from './text-match.ts';
 // Closed, explainable key vocabulary — mirrors contact-channel.ts / commercial-signal.ts. Recognizing
 // the *concept* by key is deliberately not enough on its own: the criterion must ALSO carry a valid,
 // user-authored `rules.type==='target_fit'`. An ICP using one of these keys without ever configuring
@@ -37,7 +37,9 @@ function isValidTargetFitConfig(config:unknown):config is TargetFitRules{
 export function evaluateTargetFit(ctx:Pick<ObservationContext,'lines'>,rules:unknown):TargetFitEvaluation{
  if(!isValidTargetFitConfig(rules))return {satisfied:false,matches:[]};
  const dimensions:[Dimension,string[]|undefined][]=[['categories',rules.categories],['locations',rules.locations],['org_types',rules.org_types]];
- const defined=dimensions.filter((entry):entry is [Dimension,string[]]=>!!entry[1]&&entry[1].length>0);
+ // A grammatical word ("des") or a discourse marker is never a rule value: it would match every page. A
+ // dimension holding only such values is not defined.
+ const defined=dimensions.map(([d,v]):[Dimension,string[]|undefined]=>[d,v?.filter(isMeaningfulTerm)]).filter((entry):entry is [Dimension,string[]]=>!!entry[1]&&entry[1].length>0);
  const matches:TargetFitMatch[]=[];
  for(const [dimension,values] of defined){
   for(const value of values){

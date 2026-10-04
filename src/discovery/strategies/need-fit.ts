@@ -1,6 +1,6 @@
 import type {Criterion} from '../../domain/core.ts';
 import type {ObservationContext} from './restaurant.ts';
-import {findLiteralMatch} from './text-match.ts';
+import {findLiteralMatch,findConceptMatch,isMeaningfulTerm} from './text-match.ts';
 // Same closed-key + user-authored-rules discipline as target-fit.ts / contact-channel.ts. Without a
 // valid rules.type==='need_fit', the criterion behaves exactly as it always has.
 export const NEED_FIT_KEYS=['need_fit','offer_need_fit','need_match'] as const;
@@ -19,7 +19,10 @@ function isStringArray(value:unknown):value is string[]{return Array.isArray(val
 export function matchNeedFitSignal(ctx:Pick<ObservationContext,'lines'>,signals:unknown):NeedFitMatch|null{
  if(!isStringArray(signals))return null;
  for(const signal of signals){
-  const found=findLiteralMatch(ctx.lines,signal);
+  // A grammatical word or a discourse marker ("idéalement") is never a need. A multi-word signal written as a
+  // phrase ("recrutent un RSSI") also matches the same words conjugated in one sentence — never one word alone.
+  if(!isMeaningfulTerm(signal))continue;
+  const found=findLiteralMatch(ctx.lines,signal)??findConceptMatch(ctx.lines,signal);
   if(found)return {signal,line:found.line};
  }
  return null;

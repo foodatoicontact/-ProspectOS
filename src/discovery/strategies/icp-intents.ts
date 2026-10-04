@@ -2,6 +2,7 @@ import {createHash} from 'node:crypto';
 import type {Observation} from '../types.ts';
 import type {Criterion} from '../../domain/core.ts';
 import type {ObservationContext} from './restaurant.ts';
+import {isMeaningfulTerm} from './text-match.ts';
 import {icpSignalType,icpSignalHash,conceptsForLabel,NEGATION,withoutNegationExemptions} from './icp-concepts.ts';
 // Semantic ICP mapping, deterministic: what a criterion ASKS FOR (its intent, read from the label the user
 // wrote) against what a sentence of the page SAYS (an explicit construction, not a lone keyword).
@@ -307,7 +308,7 @@ const SESSION_ACTIVITY=words(`${ACT_NOUN}|pratique\\w*|disciplines?`);
 const listItems=(s:string)=>s.split(ALTERNATIVES).map(x=>x.replace(/^(le|la|les|l'|du|de la|des)\s+/,'').trim()).filter(x=>x.length>=2&&x.length<=40);
 function targetFitCategories(criteria:Criterion[]):string[]{
  const out:string[]=[];
- for(const c of criteria)if(c.rules?.type==='target_fit')for(const v of c.rules.config.categories??[])out.push(normText(v));
+ for(const c of criteria)if(c.rules?.type==='target_fit')for(const v of c.rules.config.categories??[])if(isMeaningfulTerm(v))out.push(normText(v));
  return [...new Set(out.filter(v=>v.length>=2))];
 }
 function segmentIntents(segment:string,label:string):Intent[]{

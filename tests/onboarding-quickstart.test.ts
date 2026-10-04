@@ -247,3 +247,17 @@ test('12 — demo unchanged: the live-only activation block never replaces the d
  assert.match(page,/\{project&&<div className="empty-steps">/);
  for(const k of ['activation.targetTitle','activation.targetBody','activation.findTitle','activation.findBody','activation.prepareTargeting','activation.addManually','quick.discoveryFromIcp'])assert.ok((fr as Record<string,string>)[k]&&(en as Record<string,string>)[k],k);
 });
+test('canary — Discovery already open → "+ Nouveau projet" → quick start → confirm: a fresh form gets the reviewed prefill',()=>{
+ // The panel was mounted behind the quick start (for the project created at step 1, with no targeting yet) and
+ // applies its prefill only at mount: the confirmation must remount it, and only the confirmation does.
+ assert.match(page,/<DiscoveryPanel key=\{`\$\{mode\}:\$\{projectId\}:\$\{discoveryMount\}`\}/);
+ assert.equal((page.match(/setDiscoveryMount\(/g)??[]).length,1,'only the quick start confirmation forces a new Discovery form');
+ const confirm=page.slice(page.indexOf('confirm:async(id,p)=>'),page.indexOf('manual:async(id,p)=>'));
+ assert.match(confirm,/setDiscoveryPrefill\(\{projectId:id,\.\.\.p\.discovery\}\);setDiscoveryMount\(n=>n\+1\);/);
+ assert.doesNotMatch(confirm,/discovery'\s*,\s*'POST'|search\(/,'the confirmation never launches a search');
+ // Foodatoi: the reviewed proposal is what the remounted form receives (query = validated target, zone, categories)
+ const p=buildTargetingProposal({offerText:'Foodatoi permet aux restaurants de recevoir directement leurs commandes à emporter sans commission.',offerUrl:'',targetText:'Restaurants indépendants en Occitanie, avec commande à emporter.'});
+ assert.deepEqual(p.discovery,{query:'restaurants indépendants',location:'Occitanie',categories:['restaurant']});
+ // existing projects: the key only changes on that confirmation, a reopened run / a typed search is never reset
+ assert.match(panel,/useEffect\(\(\)=>\{if\(!prefill\|\|activeRunId\)return;/);
+});

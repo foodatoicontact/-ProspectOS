@@ -572,6 +572,9 @@ function hasDistinctiveName(name: string): boolean {
  return fold(name).replace(/['’]/g, ' ').split(/[^a-z0-9]+/).some(w => w.length >= 3 && !GENERIC_ORG_TOKENS.has(w));
 }
 function sameEntity(a: Mergeable, b: Mergeable): boolean {
+ // A legal identifier settles it: two different SIRENs are two companies, whatever their names.
+ const sa = a.raw_metadata.siren, sb = b.raw_metadata.siren;
+ if (typeof sa === 'string' && typeof sb === 'string') return sa === sb;
  const da = hostOf(a.website), db = hostOf(b.website);
  if (da && db) return da === db;
  // Name-based only when at most one side has a website (the other is a third-party mention of it).

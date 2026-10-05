@@ -301,6 +301,11 @@ button:focus-visible,summary:focus-visible,a:focus-visible,select:focus-visible,
 /* Demo / billing UX: demo mission, onboarding steps, pricing cards, plan intent, subscription, prospect header. */
 button,.button{transition:background-color .18s ease,border-color .18s ease,color .18s ease,box-shadow .18s ease}
 .primary:not(:disabled):hover{box-shadow:0 6px 16px -8px #236c5399}
+.demo-mode-banner{display:flex;justify-content:space-between;align-items:center;gap:20px;padding:18px 22px;margin-bottom:16px;border:1px solid #e3cf9a;border-radius:16px;background:#fff8e6}
+.demo-mode-banner h2{font-size:18px;margin:0 0 6px}
+.demo-mode-banner p{margin:0;font-size:14px;line-height:1.55;color:#4a4232}
+.demo-mode-banner .primary{flex-shrink:0;padding:13px 18px;font-size:14px;min-height:44px}
+@media(max-width:700px){.demo-mode-banner{flex-direction:column;align-items:stretch;gap:14px;padding:16px}.demo-mode-banner .primary{width:100%}}
 .demo-mission{display:flex;justify-content:space-between;gap:28px;align-items:flex-start;padding:26px 28px;margin-bottom:22px;background:linear-gradient(180deg,#fff,#fbfcf8);border-color:#dfe6dc}
 .demo-mission h2{font-size:24px;margin:2px 0 8px}
 .demo-mission-objective{font-size:14px;line-height:1.6;color:#46574d;margin:0 0 16px;max-width:680px}

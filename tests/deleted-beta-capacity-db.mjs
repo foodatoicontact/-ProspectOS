@@ -46,8 +46,12 @@ try {
   await db.exec(await readFile(new URL('../db/schema.sql', import.meta.url), 'utf8'));
   const migrations = (await readdir(new URL('../db/migrations/', import.meta.url))).filter(f => f.endsWith('.sql')).sort();
   // Later migrations must not touch accounts or beta capacity: 019 (Discovery register provider) only widens Discovery providers.
-  assert.deepEqual(migrations.slice(migrations.indexOf('018_deleted_accounts_release_beta_capacity.sql')), ['018_deleted_accounts_release_beta_capacity.sql', '019_discovery_registry_provider.sql']);
+  assert.deepEqual(migrations.slice(migrations.indexOf('018_deleted_accounts_release_beta_capacity.sql')), ['018_deleted_accounts_release_beta_capacity.sql', '019_discovery_registry_provider.sql', '020_public_trial_availability.sql']);
   assert.doesNotMatch((await readFile(new URL('../db/migrations/019_discovery_registry_provider.sql', import.meta.url), 'utf8')).split('\n').filter(l => !l.startsWith('--')).join('\n'), /account_entitlements|beta_program|delete_own_account|memberships/i);
+  // 020 reads the seat count through beta_seats_used() (same REVOKED rule) and never writes accounts or capacity.
+  const m020 = (await readFile(new URL('../db/migrations/020_public_trial_availability.sql', import.meta.url), 'utf8')).split('\n').filter(l => !l.startsWith('--')).join('\n');
+  assert.match(m020, /prospectos_private\.beta_seats_used\(\)/);
+  assert.doesNotMatch(m020, /insert |update |delete |alter |delete_own_account|memberships/i);
   for (const f of migrations) await db.exec(await readFile(new URL(`../db/migrations/${f}`, import.meta.url), 'utf8'));
   await sql('update prospectos_private.beta_program set capacity=3');
 

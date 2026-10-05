@@ -78,7 +78,7 @@ test('route.ts: grant_beta_access / grant_internal_access (admin-only) are never
 // page.tsx is checked only for wiring the right key/helper at the right place.
 test('UI: signup CTA is framed as a free trial with the required subtext',async()=>{
  const source=await readFile(new URL('../app/page.tsx',import.meta.url),'utf8');
- assert.match(source,/tr\('landing\.trialCta'\)/);
+ assert.match(source,/tr\(trialFull\?'landing\.createAccountCta':'landing\.trialCta'\)/);
  assert.match(source,/tr\('landing\.trialSub'\)/);
  assert.equal(fr['landing.trialCta'],'Démarrer mon essai gratuit — 7 jours');
  assert.equal(fr['landing.trialSub'],'Aucune carte bancaire requise pour commencer.');

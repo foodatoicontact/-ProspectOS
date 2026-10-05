@@ -242,8 +242,8 @@ test('G — the CGU/confidentialité links are present in the signup form, openi
 test('G — "Créer un compte" is disabled until the checkbox is checked; "Se connecter" (existing accounts) is never gated by it',()=>{
  const welcomeMatch=page.match(/if\(mode==='welcome'\)return <main className="welcome">[\s\S]*?<\/main>;/);
  const welcome=welcomeMatch![0];
- assert.match(welcome,/onClick=\{\(\)=>login\(true\)\}>\{tr\('landing\.trialCta'\)\}/);
- const createAccountButton=welcome.match(/<button type="button" className="primary" disabled=\{[^}]*\} onClick=\{\(\)=>login\(true\)\}>\{tr\('landing\.trialCta'\)\}<\/button>/);
+ assert.match(welcome,/onClick=\{\(\)=>login\(true\)\}>\{tr\(trialFull\?'landing\.createAccountCta':'landing\.trialCta'\)\}/);
+ const createAccountButton=welcome.match(/<button type="button" className="primary" disabled=\{[^}]*\} onClick=\{\(\)=>login\(true\)\}>\{tr\(trialFull\?'landing\.createAccountCta':'landing\.trialCta'\)\}<\/button>/);
  assert.ok(createAccountButton,'signup CTA button not found with an expected disabled expression');
  assert.match(createAccountButton[0],/!legalAccepted/);
  const loginButton=welcome.match(/<button className="primary" disabled=\{[^}]*\}>\{tr\('landing\.loginButton'\)\}<\/button>/);

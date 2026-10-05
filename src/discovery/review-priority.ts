@@ -11,7 +11,7 @@ export type ReviewPriorityLevel = 'HIGH' | 'MEDIUM' | 'LOW';
 export type ReviewPriorityReason =
  | 'official_site' | 'named_by_third_party' | 'website_identified' | 'query_terms_observed' | 'single_query_term' | 'no_specific_query_term'
  | 'location_mentioned' | 'several_sources' | 'business_site_shape' | 'job_ad_source' | 'content_source' | 'listing_or_editorial_shape'
- | 'not_a_company_candidate' | 'cooperative_or_network' | 'public_body';
+ | 'not_a_company_candidate' | 'cooperative_or_network' | 'public_body' | 'public_registry' | 'registry_activity_code';
 export type ReviewPriority = {level: ReviewPriorityLevel; reasons: ReviewPriorityReason[]};
 
 // Words of a brief that say nothing about the target's activity ("entreprises", "sociétés", "PME"…): observing
@@ -21,7 +21,7 @@ const GENERIC_TERMS = new Set(['entreprise', 'entreprises', 'societe', 'societes
 const specificTerms = (terms: unknown): string[] => Array.isArray(terms) ? terms.filter((t): t is string => typeof t === 'string' && !GENERIC_TERMS.has(t)) : [];
 
 type Meta = Record<string, unknown> & {
- source_class?: unknown; entity_confidence?: unknown; company_domain_method?: unknown; relevance_terms?: unknown; location_state?: unknown;
+ source_class?: unknown; source_type?: unknown; entity_confidence?: unknown; company_domain_method?: unknown; relevance_terms?: unknown; location_state?: unknown;
  page_type?: unknown; quality_signal?: unknown; additional_sources?: unknown; entity_type?: unknown;
 };
 
@@ -31,6 +31,12 @@ export function reviewPriority(meta: Meta | null | undefined, website?: string |
  const reasons: ReviewPriorityReason[] = [];
  let points = 0;
  const ownSite = m.entity_confidence === 'RESOLVED_HIGH';
+ // A company from the public register (providers/registry.ts) is an identity with its declared activity (NAF
+ // code), not a name read on someone else's page: it is said so. Without its official site it stays MEDIUM.
+ if (m.source_type === 'public_registry') {
+  reasons.push('public_registry', 'registry_activity_code');
+  return {level: 'MEDIUM', reasons};
+ }
  if (ownSite) { points += 2; reasons.push('official_site'); } else reasons.push('named_by_third_party');
  if (website) { points += 1; reasons.push('website_identified'); }
  const terms = specificTerms(m.relevance_terms);

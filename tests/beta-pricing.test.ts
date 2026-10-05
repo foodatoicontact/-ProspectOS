@@ -46,7 +46,7 @@ test('Offer — 49 € HT, 7 days, 20/50/5 in trial and 100/250/25 per paid peri
 
 // ---------------------------------------------------------------- N, O: pricing copy on the sign-up card
 test('N — the pricing shows 49 € HT / mois, without commitment, cancellable at any time',()=>{
- assert.equal(fr['pricing.planName'],'ProspectOS Bêta');
+ assert.equal(fr['pricing.planName'],'ProspectOS Solo');
  assert.equal(fr['pricing.price'],'49 € HT / mois');
  assert.equal(fr['pricing.terms'],'7 jours gratuits · Sans engagement · Annulation à tout moment');
  assert.equal(en['pricing.price'],'€49 excl. VAT / month');
@@ -58,7 +58,8 @@ test('O — the CTA announces the 7 free days, no card, and that the beta needs 
  assert.equal(en['landing.trialCta'],'Start my free trial — 7 days');
  assert.equal(fr['pricing.betaAccess'],'Créez votre propre compte pour accéder à la bêta.');
  assert.equal(fr['pricing.trialStart'],'Votre compte démarre avec 7 jours d’essai gratuit.');
- assert.match(page,/onClick=\{\(\)=>login\(true\)\}>\{tr\('landing\.trialCta'\)\}<\/button><small className="muted">\{tr\('landing\.trialSub'\)\}<\/small><div className="pricing-offer">/);
+ // While free-trial seats are open (or unknown) the sign-up promises the trial; once they are gone it offers the plans.
+ assert.match(page,/onClick=\{\(\)=>login\(true\)\}>\{tr\(trialFull\?'landing\.createAccountCta':'landing\.trialCta'\)\}<\/button>\{trialFull\?<>[\s\S]*?<\/>:<><small className="muted">\{tr\('landing\.trialSub'\)\}<\/small><div className="pricing-offer">/);
  assert.match(page,/\{tr\('pricing\.betaAccess'\)\} \{tr\('pricing\.trialStart'\)\}/);
 });
 test('No internal cost and no payment secret ever reaches the browser',()=>{
@@ -123,7 +124,7 @@ test('M — trial ended: data kept, clear message, upgrade offer, no deletion pa
  const v=usageView({...trial,period_end:day(-1),active:false},NOW)!;
  assert.equal(v.active,false);assert.equal(daysLeft(day(-1),NOW),0);
  assert.equal(fr['account.trialEnded'],'Votre essai est terminé.');
- assert.equal(fr['account.upgrade'],'ProspectOS Bêta — 49 € HT/mois');
+ assert.equal(fr['account.upgrade'],'ProspectOS Solo — 49 € HT/mois');
  assert.match(fr['account.trialEndedNote'],/Vos données restent disponibles/);
  // The manual-activation message stays wherever self-service checkout is not available (Production today).
  assert.match(page,/\{entitlementPlan==='BETA'&&betaActive===false&&!\(billingOffers\?\.BETA\|\|billingOffers\?\.PRO\)&&<div className="account-field upgrade"><p><b>\{tr\('account\.upgrade'\)\}<\/b><\/p><p className="muted">\{tr\('account\.upgradeNote'\)\}<\/p><\/div>\}/);
@@ -278,6 +279,6 @@ test('K — beta full: a clean FR/EN sentence, the internal code is never shown 
  assert.equal(en['error.betaCapacityReached'],'The beta is currently full. Contact us to be notified when access reopens.');
  for(const locale of ['fr','en'] as const){const shown=localizeApiErrorMessage('La bêta est actuellement complète. Contactez-nous pour être informé de la prochaine ouverture.','BETA_CAPACITY_REACHED',locale);assert.doesNotMatch(shown,/BETA_CAPACITY_REACHED|CAPACITY/)}
  assert.match(route,/return json\(\{error:'La bêta est actuellement complète\. Contactez-nous pour être informé de la prochaine ouverture\.',code:'BETA_CAPACITY_REACHED'\},409\);/);
- assert.match(page,/code==='BETA_CAPACITY_REACHED'\)setNotice\(e\.message\)/,'the page shows the localized message, never the code');
+ assert.match(page,/code==='BETA_CAPACITY_REACHED'\)\{setNotice\(e\.message\);/,'the page shows the localized message, never the code');
  assert.match(migration,/^(?![\s\S]*beta_program)/,'capacity (10) is not touched by this migration');
 });

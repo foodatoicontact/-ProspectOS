@@ -23,12 +23,12 @@ test('demo banner: static, accessible, one button that only calls its handler',a
  assert.doesNotMatch(banner,/api\(|fetch\(|localStorage/);
  assert.match(banner,/<section className="demo-mode-banner" aria-labelledby="demo-mode-banner-title">/);
  assert.match(banner,/<h2 id="demo-mode-banner-title">\{tr\('demoBanner\.title'\)\}<\/h2>/);
- assert.match(banner,/<button type="button" className="primary" onClick=\{onTryReal\}>\{tr\('demoBanner\.cta'\)\}<\/button>/);
+ assert.match(banner,/<button type="button" className="primary" onClick=\{trialFull\?onSeeOffers:onTryReal\}>\{tr\(trialFull\?'demoBanner\.ctaOffers':'demoBanner\.cta'\)\}<\/button>/);
 });
 
 test('demo banner: shown first in demo only; its button opens “Créer mon compte” with NO paid offer chosen',async()=>{
  const page=await read('../app/page.tsx');
- assert.match(page,/\{mode==='demo'&&<DemoModeBanner locale=\{locale\} onTryReal=\{tryRealProspects\}\/>\}\{mode==='demo'&&<DemoMission /);
+ assert.match(page,/\{mode==='demo'&&<DemoModeBanner locale=\{locale\} trialFull=\{trialFull\} onTryReal=\{tryRealProspects\} onSeeOffers=\{\(\)=>setModal\('pricing'\)\}\/>\}\{mode==='demo'&&<DemoMission /);
  // The free 7-day trial is claimed by the first signed-in arrival (activate_trial), not by a plan intent: a BETA
  // intent would open the paid checkout after sign-up, contradicting “gratuitement”. Any earlier intent is dropped.
  const fn=/function tryRealProspects\(\)\{[^}]*\}/.exec(page)?.[0]??'';

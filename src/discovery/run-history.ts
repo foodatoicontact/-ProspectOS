@@ -24,7 +24,7 @@ export type RunNovelty = {results_total: number; new_results: number; seen_resul
 type RunRow = {id: string; query: string; location: string; categories: unknown; provider: string; filters_json?: unknown; status: string; started_at: string; completed_at: string | null; result_count: number;
  // Present when the row is already a summary (the panel re-reads the API's answer) or a raw run row.
  max_results?: number | null; accepted_count?: number; ignored_count?: number; novelty?: RunNovelty | null; metrics?: unknown;
- search_mode?: SearchMode; desired_new_results?: number | null; search?: RunSearch | null; partial?: RunPartial | null};
+ search_mode?: SearchMode; desired_new_results?: number | null; search?: RunSearch | null; partial?: RunPartial | null; employee_range?: {min: number; max: number} | null};
 const NOVELTY_KEYS = ['results_total', 'new_results', 'seen_results', 'already_added', 'ignored_results', 'duplicate_results'] as const;
 const nums = (v: unknown): number[] => Array.isArray(v) ? v.filter((x): x is number => typeof x === 'number') : [];
 function runSearch(r: RunRow): RunSearch | null {
@@ -64,7 +64,8 @@ export function runState(run: Pick<RunSummary, 'status' | 'started_at'>, now = n
 export function summarizeRuns(runs: RunRow[], decided?: DecidedRow[]): RunSummary[] {
  return runs.map((r): RunSummary => {
   const filters = r.filters_json as {max_results?: unknown; search_mode?: unknown; desired_new_results?: unknown; employee_range?: unknown} | null | undefined;
-  const range = filters?.employee_range as {min?: unknown; max?: unknown} | undefined;
+  // From the stored row, or from a summary already made by the API (the panel re-reads its answer).
+  const range = (filters?.employee_range ?? r.employee_range) as {min?: unknown; max?: unknown} | null | undefined;
   const max = filters?.max_results ?? r.max_results;
   const chosen = filters?.search_mode ?? r.search_mode;
   const desired = filters?.desired_new_results ?? r.desired_new_results;

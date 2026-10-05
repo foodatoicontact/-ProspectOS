@@ -251,3 +251,13 @@ test('partial — a group that failed is kept in the run metrics, then shown wit
  const panel=await readFile(new URL('../src/components/DiscoveryPanel.tsx',import.meta.url),'utf8');
  assert.match(panel,/current\?\.partial&&<p role="status" className="note discovery-partial"/,'shown next to the results, as a status');
 });
+
+test('replay — the headcount survives the panel re-reading the API’s summaries, so “Rejouer” keeps it',()=>{
+ const raw={id:'r',query:'industriel',location:'Auvergne-Rhône-Alpes',categories:['industriel','agroalimentaire'],provider:'registry',filters_json:{max_results:20,employee_range:{min:200,max:2000}},status:'completed',started_at:'2026-10-05T08:34:38Z',completed_at:null,result_count:20};
+ // the API summarizes the stored rows; the panel runs summarizeRuns again on that answer (DiscoveryPanel loadHistory)
+ const [again]=summarizeRuns(JSON.parse(JSON.stringify(summarizeRuns([raw]))));
+ assert.deepEqual(again!.employee_range,{min:200,max:2000});
+ assert.deepEqual(replayFields(again!,false,true).employeeRange,{min:200,max:2000});
+ const [none]=summarizeRuns(JSON.parse(JSON.stringify(summarizeRuns([{...raw,filters_json:{max_results:20}}]))));
+ assert.equal(none!.employee_range,undefined,'a run without headcount stays without one');
+});

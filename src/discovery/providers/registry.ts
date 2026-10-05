@@ -17,7 +17,9 @@ const MAX_PAGES_PER_GROUP=4;
 // One exception: a 429 (rate limit — seen on the first request from a shared server egress IP) is re-sent ONCE,
 // same URL, after the API's Retry-After (bounded by registryRetryDelay) and only within the run time budget.
 // The API allows 7 requests per second: requests of one search are sent one after another, spaced accordingly.
-export const MIN_REQUEST_INTERVAL_MS=Math.ceil(1000/7)+10;
+// 500 ms, not the 143 ms the limit would allow: the server's egress IP is shared with other API users (429s seen
+// on the Preview canary), and a search sends about ten requests at most, so this costs a few seconds only.
+export const MIN_REQUEST_INTERVAL_MS=500;
 // Bounds of one search, well inside the route's 60 s limit (app/api/v1/[...path]/route.ts): each request is aborted
 // after REGISTRY_REQUEST_TIMEOUT_MS, no request starts once REGISTRY_TIME_BUDGET_MS is spent (what was found is
 // kept), a response over MAX_RESPONSE_BYTES is refused unparsed, redirects are refused. No retry, except the single one after a 429.

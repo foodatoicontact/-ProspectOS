@@ -266,3 +266,14 @@ test('partial — a failed group is named as incomplete, never as “not searche
  assert.equal(fr['discovery.partialGroups'],'Incomplet :');assert.equal(en['discovery.partialGroups'],'Incomplete:');
  assert.doesNotMatch(fr['discovery.partialGroups']+en['discovery.partialGroups'],/interrog|searched/i);
 });
+
+test('pace — register requests are spaced 500 ms apart (well under the API’s 7/s, shared egress IPs) and a full search stays within budget',async()=>{
+ const mod=await import('../src/discovery/providers/registry.ts');
+ assert.equal(mod.MIN_REQUEST_INTERVAL_MS,500);
+ const waits:number[]=[];
+ const p=new RegistryProvider({wait:async ms=>{waits.push(ms)},fetch:(async(u:string|URL)=>Response.json(vigilPages(new URL(String(u))))) as unknown as typeof fetch});
+ await p.searchCompanies(DiscoveryInputSchema.parse(VIGIL));
+ assert.ok(waits.length>0&&waits.every(ms=>ms>=500),JSON.stringify(waits));
+ // worst case: 2 groups × 4 pages, each retried once after the longest delay — the spacing alone stays far below the budget
+ assert.ok(2*4*(mod.MIN_REQUEST_INTERVAL_MS+mod.REGISTRY_RETRY_MAX_MS)<mod.REGISTRY_TIME_BUDGET_MS);
+});

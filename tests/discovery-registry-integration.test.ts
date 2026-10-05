@@ -178,3 +178,76 @@ test('bounds — pagination stops at the run time budget, keeping what was found
  const {REGISTRY_TIME_BUDGET_MS,REGISTRY_REQUEST_TIMEOUT_MS}=await import('../src/discovery/providers/registry.ts');
  assert.ok(REGISTRY_TIME_BUDGET_MS+REGISTRY_REQUEST_TIMEOUT_MS<=45000&&REGISTRY_REQUEST_TIMEOUT_MS<=12000);
 });
+
+// ——— rate limit: one delayed retry after a 429, never more; a group that still fails is shown, never hidden ———
+const vigilPages=(url:URL)=>url.searchParams.get('section_activite_principale')==='C'?(Number(url.searchParams.get('page'))<=2?{...page(Number(url.searchParams.get('page'))),total_pages:2}:empty):empty;
+const limited=(headers:Record<string,string>={})=>new Response('',{status:429,headers});
+
+test('429 — the first refused request is retried ONCE after the API’s Retry-After; the group is kept',async()=>{
+ const waits:number[]=[];let refused=0;
+ const p=new RegistryProvider({wait:async ms=>{waits.push(ms)},fetch:(async(u:string|URL)=>{const url=new URL(String(u));
+  if(url.searchParams.get('section_activite_principale')==='C'&&url.searchParams.get('page')==='1'&&refused++===0)return limited({'retry-after':'1'});
+  return Response.json(vigilPages(url))}) as unknown as typeof fetch});
+ const out=await p.searchCompanies(DiscoveryInputSchema.parse(VIGIL));
+ assert.equal(out.length,19,'the industry group is no longer lost to a single 429');
+ assert.equal(p.lastSearch!.requests_retried,1);assert.equal(p.lastSearch!.requests_failed,0);assert.deepEqual(p.lastSearch!.failure_codes,[]);
+ assert.deepEqual(p.lastAdmission!.failed_groups,[]);assert.ok(waits.includes(1000),'waits what Retry-After asks');
+});
+
+test('429 — never more than one retry: a second 429 fails the group alone, with its code and its name',async()=>{
+ const sent:URL[]=[];
+ const p=new RegistryProvider({wait:async()=>{},fetch:(async(u:string|URL)=>{const url=new URL(String(u));sent.push(url);
+  return url.searchParams.get('section_activite_principale')==='C'?limited():Response.json(empty)}) as unknown as typeof fetch});
+ await p.searchCompanies(DiscoveryInputSchema.parse(VIGIL));
+ assert.equal(sent.filter(u=>u.searchParams.get('section_activite_principale')==='C').length,2,'one request, one retry, no third');
+ assert.deepEqual(p.lastSearch!.failure_codes,['HTTP_429']);assert.equal(p.lastSearch!.requests_retried,1);
+ assert.deepEqual(p.lastAdmission!.failed_groups,['industriel']);assert.deepEqual(p.lastSearch!.failed_groups,['industriel']);
+});
+
+test('429 — the retry delay is bounded: Retry-After capped at 2 s, 1 s by default, an HTTP date honoured',async()=>{
+ const delayFor=async(headers:Record<string,string>,now=0)=>{const waits:number[]=[];let n=0;
+  const p=new RegistryProvider({now:()=>now,wait:async ms=>{waits.push(ms)},fetch:(async()=>n++===0?limited(headers):Response.json(empty)) as unknown as typeof fetch});
+  await p.searchCompanies(DiscoveryInputSchema.parse({...VIGIL,categories:['industriel']}));return waits[0]};
+ assert.equal(await delayFor({'retry-after':'30'}),2000);
+ assert.equal(await delayFor({}),1000);
+ assert.equal(await delayFor({'retry-after':'nonsense'}),1000);
+ assert.equal(await delayFor({'retry-after':new Date(1500).toUTCString()},0),1000,'HTTP date: 1.5 s rounded down to the second');
+ assert.equal(await delayFor({'retry-after':'0'}),(await import('../src/discovery/providers/registry.ts')).MIN_REQUEST_INTERVAL_MS,'never faster than the API allows');
+});
+
+test('429 — no retry once it would overrun the run time budget; other errors are never retried',async()=>{
+ let clock=0;let sent=0;
+ const late=new RegistryProvider({timeBudgetMs:1000,now:()=>clock,wait:async()=>{},fetch:(async()=>{sent++;clock+=900;return limited({'retry-after':'1'})}) as unknown as typeof fetch});
+ await assert.rejects(late.searchCompanies(DiscoveryInputSchema.parse({...VIGIL,categories:['industriel']})),/REGISTRY_UNAVAILABLE/);
+ assert.equal(sent,1);assert.equal(late.lastSearch!.requests_retried??0,0);
+ for(const status of [400,500,503]){let calls=0;
+  const p=new RegistryProvider({wait:async()=>{},fetch:(async()=>{calls++;return new Response('',{status})}) as unknown as typeof fetch});
+  await assert.rejects(p.searchCompanies(DiscoveryInputSchema.parse({...VIGIL,categories:['industriel']})),/REGISTRY_UNAVAILABLE/);
+  assert.equal(calls,1,`HTTP ${status} is not retried`)}
+});
+
+test('429 — every group still refused after its retry: the run fails explicitly (REGISTRY_UNAVAILABLE)',async()=>{
+ const p=new RegistryProvider({wait:async()=>{},fetch:(async()=>limited()) as unknown as typeof fetch});
+ await assert.rejects(p.searchCompanies(DiscoveryInputSchema.parse(VIGIL)),/REGISTRY_UNAVAILABLE/);
+ assert.equal(p.lastSearch!.requests_sent,4);assert.deepEqual(p.lastSearch!.failure_codes,['HTTP_429','HTTP_429']);
+});
+
+test('partial — a group that failed is kept in the run metrics, then shown with the results (never hidden)',async()=>{
+ const repo=new Repo();
+ const p=new RegistryProvider({wait:async()=>{},fetch:(async(u:string|URL)=>{const url=new URL(String(u));
+  return url.searchParams.get('section_activite_principale')==='C'?limited():Response.json(empty)}) as unknown as typeof fetch});
+ await new DiscoveryService(repo,p,()=>{}).find_prospects(VIGIL);
+ const metrics=repo.finished[0]!.metrics;
+ assert.equal(metrics.search_failed_groups,'industriel');assert.equal(metrics.search_requests_retried,1);assert.equal(metrics.search_requests_failed,1);
+ const row={id:'r',query:'industriel',location:'Auvergne-Rhône-Alpes',categories:['industriel','agroalimentaire'],provider:'registry',status:'completed',started_at:'2026-10-05T10:34:00Z',completed_at:null,result_count:20};
+ const [run]=summarizeRuns([{...row,metrics}]);
+ assert.deepEqual(run!.partial,{requests_failed:1,requests_sent:metrics.search_requests,failure_codes:['HTTP_429'],failed_groups:['industriel']});
+ assert.deepEqual(summarizeRuns([run!])[0]!.partial,run!.partial,'the panel re-reading the API answer keeps it');
+ assert.equal(summarizeRuns([{...row,metrics:{search_requests:3,search_requests_failed:0}}])[0]!.partial,null,'a complete search is never flagged');
+ assert.equal(summarizeRuns([row])[0]!.partial,null,'runs without metrics read as before');
+ const {nafGroupLabel}=await import('../src/discovery/registry/naf.ts');
+ assert.equal(nafGroupLabel('industriel'),'Section C — Industrie manufacturière');assert.equal(nafGroupLabel('inconnu'),null);
+ for(const dict of [fr,en]){assert.ok(dict['discovery.partialSearch']);assert.ok(dict['discovery.partialGroups']);assert.ok(dict['discovery.partialRateLimited'])}
+ const panel=await readFile(new URL('../src/components/DiscoveryPanel.tsx',import.meta.url),'utf8');
+ assert.match(panel,/current\?\.partial&&<p role="status" className="note discovery-partial"/,'shown next to the results, as a status');
+});

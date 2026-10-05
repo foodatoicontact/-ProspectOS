@@ -54,10 +54,24 @@ test('account: a team membership is the active workspace; a team member never cl
  assert.match(page,/const invite=readPendingInvite\(\);if\(invite\)await acceptPendingInvite\(invite,t\);\s*const acc=await api\('account','GET',undefined,t\)/);
 });
 
-test('invite link: kept across sign-up and e-mail confirmation in this tab only, removed from the address bar',async()=>{
+test('invite link: kept 7 days in this browser — the e-mail confirmation tab finds it — and removed from the address bar',async()=>{
  const page=await read('../app/page.tsx');
- assert.match(page,/const invite=new URLSearchParams\(window\.location\.search\)\.get\('invite'\);if\(invite&&\/\^\[A-Za-z0-9_-\]\{43\}\$\/\.test\(invite\)\)\{try\{sessionStorage\.setItem\(INVITE_KEY,invite\)\}catch\{\}/);
+ const {savePendingInvite,readPendingInvite,clearPendingInvite,INVITE_TTL_MS}=await import('../src/domain/team-invite.ts');
+ const store=new Map<string,string>();const storage={getItem:(k:string)=>store.get(k)??null,setItem:(k:string,v:string)=>{store.set(k,v)},removeItem:(k:string)=>{store.delete(k)}};
+ const token='a'.repeat(43);
+ assert.equal(savePendingInvite(storage,token,1000),true);
+ assert.equal(readPendingInvite(storage,1000+INVITE_TTL_MS-1),token,'another tab of the same browser (the confirmation link) reads it');
+ assert.equal(readPendingInvite(storage,1000+INVITE_TTL_MS),null,'never kept beyond the invitation’s own 7 days');
+ assert.equal(store.size,0,'an expired invite is forgotten');
+ assert.equal(savePendingInvite(storage,'not-a-token',1000),false);storage.setItem('prospectos-team-invite-v1','{"token":"<script>","savedAt":1}');
+ assert.equal(readPendingInvite(storage,2),null,'anything malformed is ignored and removed');assert.equal(store.size,0);
+ savePendingInvite(storage,token,1);clearPendingInvite(storage);assert.equal(store.size,0);
+ assert.equal(INVITE_TTL_MS,7*24*3600*1000);
+ assert.equal(readPendingInvite(null,1),null,'no storage (private mode refusal): nothing, no crash');
+ assert.match(page,/const invite=new URLSearchParams\(window\.location\.search\)\.get\('invite'\);if\(invite&&savePendingInvite\(browserStorage\(\),invite\)\)setInvitePending\(true\);/);
  assert.match(page,/u\.searchParams\.delete\('invite'\)/);
+ assert.doesNotMatch(page,/sessionStorage/,'one store for the invite: the browser’s, shared by its tabs');
+ assert.doesNotMatch(fr['team.invitePending'],/rouvrez/,'no manual step left for the confirmation tab');
  assert.ok(fr['team.invitePending']&&en['team.invitePending']);
 });
 

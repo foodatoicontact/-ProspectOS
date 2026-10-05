@@ -56,7 +56,8 @@ test('O — the CTA announces the 7 free days, no card, and that the beta needs 
  assert.equal(fr['landing.trialCta'],'Démarrer mon essai gratuit — 7 jours');
  assert.equal(fr['landing.trialSub'],'Aucune carte bancaire requise pour commencer.');
  assert.equal(en['landing.trialCta'],'Start my free trial — 7 days');
- assert.equal(fr['pricing.betaAccess'],'Créez votre propre compte pour accéder à la bêta.');
+ // The 49 € offer is now named Solo: the sentence no longer speaks of "la bêta".
+ assert.equal(fr['pricing.betaAccess'],'Créez votre propre compte :');assert.equal(en['pricing.betaAccess'],'Create your own account:');
  assert.equal(fr['pricing.trialStart'],'Votre compte démarre avec 7 jours d’essai gratuit.');
  // While free-trial seats are open (or unknown) the sign-up promises the trial; once they are gone it offers the plans.
  assert.match(page,/onClick=\{\(\)=>login\(true\)\}>\{tr\(trialFull\?'landing\.createAccountCta':'landing\.trialCta'\)\}<\/button>\{trialFull\?<>[\s\S]*?<\/>:<><small className="muted">\{tr\('landing\.trialSub'\)\}<\/small><div className="pricing-offer">/);

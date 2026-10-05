@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import {Fragment,type ReactNode} from 'react';
-import {relatedPages,type SeoBlock,type SeoPage} from '../domain/seo';
+import {relatedPages,faqJsonLd,breadcrumbJsonLd,type SeoBlock,type SeoPage} from '../domain/seo';
 
 // Server component (no client directive): the whole article is in the prerendered HTML, readable without JS.
 
@@ -26,7 +26,10 @@ function Block({block}:{block:SeoBlock}){
 const updatedLabel=(iso:string)=>new Intl.DateTimeFormat('fr-FR',{day:'numeric',month:'long',year:'numeric',timeZone:'UTC'}).format(new Date(iso));
 
 export function PublicSeoPage({page}:{page:SeoPage}){
+  // The page's questions and its place in the site, for search engines and AI assistants (escaped like layout.tsx).
+  const jsonLd=JSON.stringify([faqJsonLd(page),breadcrumbJsonLd(page)]).replace(/</g,'\\u003c');
   return <main className="seo-public seo-article-page">
+    <script type="application/ld+json" dangerouslySetInnerHTML={{__html:jsonLd}}/>
     <header className="seo-public-nav">
       <Link href="/" className="seo-brand"><b className="logo">P</b> ProspectOS</Link>
       <Link href="/" className="text-button">Voir la démo</Link>

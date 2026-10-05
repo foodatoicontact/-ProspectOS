@@ -1,5 +1,7 @@
 import type {Metadata} from 'next';
 import {seoPages} from './seo-content.ts';
+import {OFFERS} from './offers.ts';
+import {EDITOR} from './legal.ts';
 export const SITE_URL=(process.env.NEXT_PUBLIC_SITE_URL??'https://prospectos-v0.vercel.app').replace(/\/$/,'');
 
 export const siteMetadata={
@@ -69,7 +71,40 @@ export const softwareApplicationJsonLd={
   url:SITE_URL,
   applicationCategory:'BusinessApplication',
   operatingSystem:'Web',
+  inLanguage:['fr-FR','en'],
   description:siteMetadata.description,
+  // What the product does, as it works today (src/domain/geo.ts tells the same in plain text).
+  featureList:[
+    'Découverte d’entreprises dans le registre public des entreprises françaises et sur le web',
+    'Observations sourcées (URL, extrait, date) pour chaque critère du profil client idéal',
+    'Vérification humaine : une observation ne devient une preuve qu’après confirmation',
+    'Score de 0 à 100 explicable critère par critère, calculé sur les seules preuves vérifiées',
+    'Approche commerciale préparée à partir des faits vérifiés, sans envoi automatique',
+    'Travail en équipe jusqu’à 5 comptes avec base de données et quotas partagés (offre Pro)',
+    'Export CSV et export complet des données du compte',
+  ],
+  // The real self-service prices (OFFERS ← CHECKOUT_PRICES), monthly, excluding VAT. Never a rating or a review.
+  offers:OFFERS.filter(o=>o.priceEurExclVatPerMonth!==null).map(o=>({
+    '@type':'Offer',
+    name:o.id==='PRO'?'ProspectOS Pro':'ProspectOS Solo',
+    price:String(o.priceEurExclVatPerMonth),
+    priceCurrency:'EUR',
+    url:`${SITE_URL}/tarifs`,
+    priceSpecification:{'@type':'UnitPriceSpecification',price:String(o.priceEurExclVatPerMonth),priceCurrency:'EUR',unitCode:'MON',valueAddedTaxIncluded:false},
+  })),
+  publisher:{'@type':'Organization',name:'ProspectOS',url:SITE_URL},
+};
+
+// The publisher as stated in the legal notice (src/domain/legal.ts EDITOR).
+export const organizationJsonLd={
+  '@context':'https://schema.org',
+  '@type':'Organization',
+  name:'ProspectOS',
+  url:SITE_URL,
+  logo:`${SITE_URL}/opengraph-image`,
+  email:EDITOR.legalEmail,
+  founder:{'@type':'Person',name:EDITOR.name},
+  address:{'@type':'PostalAddress',addressLocality:'Toulouse',addressCountry:'FR'},
 };
 
 export const webSiteJsonLd={
@@ -90,4 +125,16 @@ export function getSeoPage(slug:string){
 // "À découvrir" links: the page's own related list, never the current page, unknown slugs dropped.
 export function relatedPages(page:SeoPage):SeoPage[]{
   return page.related.filter(slug=>slug!==page.slug).flatMap(slug=>seoPages.filter(other=>other.slug===slug));
+}
+
+const plain=(text:string)=>text.replace(/\[([^\]]+)\]\((\/[^)]*)\)/g,'$1');
+export function faqJsonLd(page:SeoPage){
+  return {'@context':'https://schema.org','@type':'FAQPage',
+    mainEntity:page.faq.map(f=>({'@type':'Question',name:f.q,acceptedAnswer:{'@type':'Answer',text:plain(f.a)}}))};
+}
+export function breadcrumbJsonLd(page:SeoPage){
+  return {'@context':'https://schema.org','@type':'BreadcrumbList',itemListElement:[
+    {'@type':'ListItem',position:1,name:'ProspectOS',item:SITE_URL},
+    {'@type':'ListItem',position:2,name:page.navLabel,item:`${SITE_URL}/${page.slug}`},
+  ]};
 }

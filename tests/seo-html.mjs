@@ -3,7 +3,7 @@
 import {strict as assert} from 'node:assert';
 import {readFile} from 'node:fs/promises';
 
-const SLUGS=['prospection-b2b','prospection-ia','lead-scoring','prospection-restaurants','qualifier-un-prospect-b2b','prioriser-liste-prospects'];
+const SLUGS=['prospection-b2b','prospection-ia','lead-scoring','prospection-restaurants','qualifier-un-prospect-b2b','prioriser-liste-prospects','tarifs','logiciel-prospection-b2b','a-propos'];
 const results=[];
 const meta=(html,attr,name)=>[...html.matchAll(new RegExp(`<meta ${attr}="${name}" content="([^"]*)"`,'g'))].map(m=>m[1]);
 const text=s=>s.replace(/<[^>]+>/g,'').replace(/&#x27;|&#39;/g,'’').trim();

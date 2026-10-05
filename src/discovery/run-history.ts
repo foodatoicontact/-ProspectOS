@@ -16,7 +16,10 @@ export type RunSummary = {
  search: RunSearch | null;
  // A completed search where some requests got no answer (metrics jsonb): what was missed, shown with the results.
  partial: RunPartial | null;
+ // Results reused from a teammate's identical search (metrics, migration 022): who ran it and when.
+ reused: RunReused | null;
 };
+export type RunReused = {by_email: string | null; started_at: string};
 export type RunPartial = {requests_failed: number; requests_sent: number; failure_codes: string[]; failed_groups: string[]};
 export type RunSearch = {passes: number; provider_calls: number; stop_reason: StopReason; desired_new_results: number | null; new_results_found: number;
  pass_results: number[]; pass_new_results: number[]; pass_durations_ms: number[]};
@@ -24,7 +27,7 @@ export type RunNovelty = {results_total: number; new_results: number; seen_resul
 type RunRow = {id: string; query: string; location: string; categories: unknown; provider: string; filters_json?: unknown; status: string; started_at: string; completed_at: string | null; result_count: number;
  // Present when the row is already a summary (the panel re-reads the API's answer) or a raw run row.
  max_results?: number | null; accepted_count?: number; ignored_count?: number; novelty?: RunNovelty | null; metrics?: unknown;
- search_mode?: SearchMode; desired_new_results?: number | null; search?: RunSearch | null; partial?: RunPartial | null; employee_range?: {min: number; max: number} | null};
+ search_mode?: SearchMode; desired_new_results?: number | null; search?: RunSearch | null; partial?: RunPartial | null; reused?: RunReused | null; employee_range?: {min: number; max: number} | null};
 const NOVELTY_KEYS = ['results_total', 'new_results', 'seen_results', 'already_added', 'ignored_results', 'duplicate_results'] as const;
 const nums = (v: unknown): number[] => Array.isArray(v) ? v.filter((x): x is number => typeof x === 'number') : [];
 function runSearch(r: RunRow): RunSearch | null {
@@ -42,6 +45,12 @@ function runPartial(r: RunRow): RunPartial | null {
  if (r.status !== 'completed' || !m || typeof m.search_requests_failed !== 'number' || m.search_requests_failed < 1) return null;
  return {requests_failed: m.search_requests_failed, requests_sent: typeof m.search_requests === 'number' ? m.search_requests : m.search_requests_failed,
   failure_codes: codes(m.search_failure_codes), failed_groups: codes(m.search_failed_groups)};
+}
+function runReused(r: RunRow): RunReused | null {
+ if (r.reused !== undefined) return r.reused;
+ const m = r.metrics as Record<string, unknown> | null | undefined;
+ if (!m || typeof m.reused_from_run_id !== 'string' || typeof m.reused_from_started_at !== 'string') return null;
+ return {by_email: typeof m.reused_from_email === 'string' ? m.reused_from_email : null, started_at: m.reused_from_started_at};
 }
 function runNovelty(r: RunRow): RunNovelty | null {
  if (r.novelty !== undefined) return r.novelty;
@@ -85,6 +94,7 @@ export function summarizeRuns(runs: RunRow[], decided?: DecidedRow[]): RunSummar
    desired_new_results: typeof desired === 'number' ? desired : null,
    search: runSearch(r),
    partial: runPartial(r),
+   reused: runReused(r),
   };
  }).sort((a, b) => Date.parse(b.started_at) - Date.parse(a.started_at));
 }

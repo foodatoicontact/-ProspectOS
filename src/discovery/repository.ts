@@ -17,6 +17,21 @@ export const MEMORY_MAX_ROWS=10000;
 // criterion-less contextual observation instead (its claim already names the criterion by label) —
 // never silently dropped, never given a fabricated value, and never mistaken for "no information
 // found" (UNKNOWN, which always has an empty excerpt).
+// Reuse of a teammate's identical search (migration 022), read with the USER's client (membership checked by the
+// database). Best-effort: any failure means "nothing to reuse" and the search runs normally.
+const reuseArgs=(input:DiscoveryInput,provider:string)=>({p_project_id:input.project_id,p_query:input.query,p_location:input.location,p_categories:input.categories,p_provider:provider,p_max_results:input.max_results,p_filters:input.optional_filters});
+export async function findReusableDiscovery(db:SupabaseClient,input:DiscoveryInput,provider:string):Promise<{run_id:string;by_email:string|null;started_at:string}|null>{
+ try{const {data,error}=await db.rpc('find_reusable_discovery',reuseArgs(input,provider));if(error||!data||typeof data.run_id!=='string'||typeof data.started_at!=='string')return null;return {run_id:data.run_id,by_email:typeof data.by_email==='string'?data.by_email:null,started_at:data.started_at}}catch{return null}
+}
+// The stored results of the reused run (RLS: same organization), oldest first as they were saved.
+export async function loadReusedResults(db:SupabaseClient,runId:string):Promise<unknown[]>{
+ const rows=await checked(db.from('discovery_results').select('normalized_payload').eq('discovery_run_id',runId).order('created_at'));
+ return rows.map((r:{normalized_payload:unknown})=>r.normalized_payload);
+}
+// start_discovery for a reused search: the database re-checks the source and records the hourly log only.
+export async function startReusedDiscovery(db:SupabaseClient,input:DiscoveryInput,provider:string,sourceRunId:string):Promise<DiscoveryRun>{
+ return checked(db.rpc('start_reused_discovery',{...reuseArgs(input,provider),p_source_run_id:sourceRunId}));
+}
 export function toStorageSafeObservation(o:Observation):Observation{return o.status!=='UNKNOWN'&&o.criterion!==null&&o.value===null?{...o,criterion:null}:o}
 // Discovery results are written only through the server's privileged client (migration 014): the
 // `authenticated` role can no longer insert or update them, so a member can never forge a result or its

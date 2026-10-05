@@ -100,7 +100,7 @@ test('the intent is acted on once, after the authenticated account answer, and o
  assert.match(resume,/if\(decision\.action==='CHECKOUT'\)\{try\{await startCheckout\(decision\.plan,t\)\}catch\(e\)\{forgetPlanIntent\(\);/,'a refused checkout forgets the intent (no retry loop)');
  assert.match(page,/await loadAccount\(t\);\n setMode\('live'\);void resumePlanIntent\(t\)/,'after a sign-in, with the session token (React state is not updated yet in this closure)');
  assert.match(page,/setMode\('live'\);if\(AUTH_RETURN==='CONFIRMED'[^\n]*void resumePlanIntent\(t\)\}catch/,'after the confirmation link / reload');
- assert.match(page,/async function loadAccount\(t=token\)\{try\{\n const acc=await api\('account','GET',undefined,t\);lastAccount\.current=acc;/);
+ assert.match(page,/async function loadAccount\(t=token\)\{try\{\n const invite=readPendingInvite\(\);if\(invite\)await acceptPendingInvite\(invite,t\);\n const acc=await api\('account','GET',undefined,t\);lastAccount\.current=acc;/);
 });
 test('the intent is removed only once the hosted payment page URL was returned',()=>{
  assert.match(fn('async function startCheckout('),/^async function startCheckout\(plan:'BETA'\|'PRO',t=token\)\{const \{url\}=await api\('billing\/checkout','POST',\{plan\},t\);if\(typeof url==='string'\)\{clearPlanIntent\(browserStorage\(\)\);setPlanIntent\(null\);window\.location\.assign\(url\)\}\}$/);

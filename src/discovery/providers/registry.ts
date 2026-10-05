@@ -14,14 +14,24 @@ const PER_PAGE=25;// the API maximum
 const MAX_PAGES_PER_GROUP=4;
 // Each NAF group is queried and fails on its own: a group the API refuses (e.g. the agri-food code list) is
 // counted (failure code, failed_groups) and the other groups' companies are kept — never retried another way.
+// One exception: a 429 (rate limit — seen on the first request from a shared server egress IP) is re-sent ONCE,
+// same URL, after the API's Retry-After (bounded by registryRetryDelay) and only within the run time budget.
 // The API allows 7 requests per second: requests of one search are sent one after another, spaced accordingly.
 export const MIN_REQUEST_INTERVAL_MS=Math.ceil(1000/7)+10;
 // Bounds of one search, well inside the route's 60 s limit (app/api/v1/[...path]/route.ts): each request is aborted
 // after REGISTRY_REQUEST_TIMEOUT_MS, no request starts once REGISTRY_TIME_BUDGET_MS is spent (what was found is
-// kept), a response over MAX_RESPONSE_BYTES is refused unparsed, redirects are refused. No retry, ever.
+// kept), a response over MAX_RESPONSE_BYTES is refused unparsed, redirects are refused. No retry, except the single one after a 429.
 export const REGISTRY_REQUEST_TIMEOUT_MS=10000;
 export const REGISTRY_TIME_BUDGET_MS=30000;
 const MAX_RESPONSE_BYTES=2_000_000;
+export const REGISTRY_RETRY_DEFAULT_MS=1000;
+export const REGISTRY_RETRY_MAX_MS=2000;
+// Retry-After in seconds or as an HTTP date; missing or unreadable → 1 s; never above 2 s, never below the API's pace.
+export function registryRetryDelay(header:string|null,now:number):number{
+ const v=header?.trim()??'';let ms=REGISTRY_RETRY_DEFAULT_MS;
+ if(/^\d+$/.test(v))ms=Number(v)*1000;else if(v&&Number.isFinite(Date.parse(v)))ms=Math.floor((Date.parse(v)-now)/1000)*1000;
+ return Math.min(REGISTRY_RETRY_MAX_MS,Math.max(MIN_REQUEST_INTERVAL_MS,ms));
+}
 class RegistryRequestError extends Error{}
 async function readBounded(res:Response):Promise<unknown>{
  const reader=res.body?.getReader();if(!reader)throw new RegistryRequestError('INVALID_RESPONSE');
@@ -53,23 +63,28 @@ export class RegistryProvider implements DiscoveryProvider {
  async searchCompanies(input:DiscoveryInput):Promise<RegistryHit[]>{
   const report:ProviderSearchReport={queries_planned:0,requests_sent:0,requests_failed:0,failure_codes:[],country:'FR',country_reason:'registry_fr'};this.lastSearch=report;
   const {groups,unmapped}=proposeNafGroups([...input.categories,input.query]);
-  const admission:RegistryAdmissionReport={examined:0,admitted:0,rejected:{},duplicates:0,unmapped_terms:unmapped,failed_groups:[]};this.lastAdmission=admission;
+  const admission:RegistryAdmissionReport={examined:0,admitted:0,rejected:{},duplicates:0,unmapped_terms:unmapped,failed_groups:[]};this.lastAdmission=admission;report.failed_groups=admission.failed_groups;
   const zone=resolveRegistryZone(input.location);
   if(!zone){report.failure_codes.push('REGISTRY_ZONE_UNMAPPED');return []}
   if(!groups.length){report.failure_codes.push('REGISTRY_SECTOR_UNMAPPED');return []}
   report.queries_planned=groups.length;
   const range=input.optional_filters.employee_range;const tranches=range?employeeTranchesFor(range):[];
-  const perGroup:RegistryHit[][]=[];const started=this.now();let outOfTime=false;
+  const perGroup:RegistryHit[][]=[];const started=this.now();let outOfTime=false;let answered=0;
   for(const group of groups){
    const hits:RegistryHit[]=[];
    for(let page=1;page<=this.maxPages&&!outOfTime;page++){
     if(this.now()-started>=this.budgetMs){outOfTime=true;report.failure_codes.push('TIME_BUDGET_REACHED');break}
     if(report.requests_sent)await this.wait(MIN_REQUEST_INTERVAL_MS);
-    report.requests_sent++;
     let body:{results?:RegistryCompany[];total_pages?:number};
-    try{const res=await this.request(registryUrl(group,zone,tranches,page),{headers:{accept:'application/json'},signal:AbortSignal.timeout(this.timeoutMs),redirect:'error'});
+    try{let res:Response;
+     for(let attempt=0;;attempt++){report.requests_sent++;
+      res=await this.request(registryUrl(group,zone,tranches,page),{headers:{accept:'application/json'},signal:AbortSignal.timeout(this.timeoutMs),redirect:'error'});
+      if(res.status!==429||attempt>0)break;
+      const delay=registryRetryDelay(res.headers.get('retry-after'),this.now());
+      if(this.now()-started+delay>=this.budgetMs)break;
+      await res.body?.cancel().catch(()=>{});report.requests_retried=(report.requests_retried??0)+1;await this.wait(delay)}
      if(!res.ok){await res.body?.cancel().catch(()=>{});report.requests_failed++;report.failure_codes.push(`HTTP_${res.status}`);admission.failed_groups.push(group.key);break}
-     body=await readBounded(res) as typeof body}
+     body=await readBounded(res) as typeof body;answered++}
     catch(error){const name=(error as {name?:unknown})?.name;
      report.requests_failed++;report.failure_codes.push(error instanceof RegistryRequestError?error.message:name==='TimeoutError'||name==='AbortError'?'TIMEOUT':'NETWORK_ERROR');admission.failed_groups.push(group.key);break}
     const results=Array.isArray(body?.results)?body.results:[];
@@ -83,7 +98,8 @@ export class RegistryProvider implements DiscoveryProvider {
    }
    perGroup.push(hits);
   }
-  if(report.requests_sent&&report.requests_failed===report.requests_sent)throw Error('REGISTRY_UNAVAILABLE');
+  // No request answered at all (a 429 and its retry count as one failure): explicit failure, never an empty success.
+  if(report.requests_sent&&!answered)throw Error('REGISTRY_UNAVAILABLE');
   // Interleaved, so a smaller group (agri-food) is never pushed out by a larger one (industry); one SIREN, one company.
   const out:RegistryHit[]=[];const bySiren=new Map<string,RegistryHit>();
   for(let i=0;perGroup.some(g=>i<g.length);i++)for(const g of perGroup){const hit=g[i];if(!hit)continue;const known=bySiren.get(hit.siren);

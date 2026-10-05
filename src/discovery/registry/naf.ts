@@ -29,3 +29,5 @@ export function proposeNafGroups(terms:string[]):{groups:NafGroup[];unmapped:str
  }
  return {groups:GROUPS.map(g=>groups.find(x=>x.key===g.key)).filter((g):g is NafGroup=>!!g),unmapped};
 }
+// The label of a NAF group key kept in a run's metrics (search_failed_groups); an unknown key → null.
+export function nafGroupLabel(key:string):string|null{const g=GROUPS.find(x=>x.key===key);return g?g.build().label:null}

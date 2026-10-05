@@ -37,7 +37,9 @@ export const CandidateSchema=z.object({name:z.string().min(1).max(200),canonical
 export type Candidate=z.infer<typeof CandidateSchema>;
 // lastSearch: what the latest searchCompanies call actually did (billed requests sent, failures as codes,
 // market) — set by a live provider, absent for the fixture provider.
-export type ProviderSearchReport={queries_planned:number;requests_sent:number;requests_failed:number;failure_codes:string[];country:string;country_reason:string};
+export type ProviderSearchReport={queries_planned:number;requests_sent:number;requests_failed:number;failure_codes:string[];country:string;country_reason:string;
+ // Register only: requests re-sent once after a 429, and the NAF group keys that still got no answer.
+ requests_retried?:number;failed_groups?:string[]};
 export interface DiscoveryProvider {id:string;mode:'live'|'test';lastSearch?:ProviderSearchReport;searchCompanies(input:DiscoveryInput):Promise<unknown[]>;
  // One provider request for one Search-Until-New variant (optional: without it the mode falls back to a normal search).
  searchVariant?(input:DiscoveryInput,query:string):Promise<unknown[]>;fetchCompanyDetails(candidate:Candidate):Promise<Candidate>;normalizeResult(raw:unknown):Candidate}

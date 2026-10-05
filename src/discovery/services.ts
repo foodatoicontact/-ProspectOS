@@ -37,7 +37,8 @@ const noop:SafeLogger=()=>{};
 export type SearchMeter=(run:DiscoveryRun,requestCount:number)=>Promise<void>;
 // Run metrics describing the search step: counts, codes and the market only — never a query or a URL.
 function searchMetrics(report:ProviderSearchReport|undefined):Record<string,string|number|null>{
- return report?{search_queries_planned:report.queries_planned,search_requests:report.requests_sent,search_requests_failed:report.requests_failed,search_failure_codes:report.failure_codes.join(',')||null,search_country:report.country,search_country_reason:report.country_reason}:{};
+ return report?{search_queries_planned:report.queries_planned,search_requests:report.requests_sent,search_requests_failed:report.requests_failed,search_failure_codes:report.failure_codes.join(',')||null,search_country:report.country,search_country_reason:report.country_reason,
+  ...(report.requests_retried?{search_requests_retried:report.requests_retried}:{}),...(report.failed_groups?.length?{search_failed_groups:report.failed_groups.join(',')}:{})}:{};
 }
 // Search-Until-New run metrics: counts, durations and the stop reason only — never a query (like searchMetrics).
 // new_results_found: exploitable candidates finally kept and classified NEW (the run's own new_results);

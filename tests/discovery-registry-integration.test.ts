@@ -261,3 +261,8 @@ test('replay — the headcount survives the panel re-reading the API’s summari
  const [none]=summarizeRuns(JSON.parse(JSON.stringify(summarizeRuns([{...raw,filters_json:{max_results:20}}]))));
  assert.equal(none!.employee_range,undefined,'a run without headcount stays without one');
 });
+
+test('partial — a failed group is named as incomplete, never as “not searched” (it may have answered before failing)',()=>{
+ assert.equal(fr['discovery.partialGroups'],'Incomplet :');assert.equal(en['discovery.partialGroups'],'Incomplete:');
+ assert.doesNotMatch(fr['discovery.partialGroups']+en['discovery.partialGroups'],/interrog|searched/i);
+});

@@ -382,7 +382,7 @@ export const fr={
  'discovery.registryHeadcount':'Effectif (filtre du registre) :',
  'discovery.registryEmployees':'salariés',
  'discovery.partialSearch':'Recherche partielle : une partie des requêtes n’a pas reçu de réponse, les résultats ci-dessous sont incomplets.',
- 'discovery.partialGroups':'Non interrogé :',
+ 'discovery.partialGroups':'Incomplet :',
  'discovery.partialRateLimited':'La source publique a limité le nombre de requêtes ; relancez la recherche plus tard pour la compléter.',
  'discovery.prospectScore':'Score actuel du prospect (preuves vérifiées) :',
  'discovery.runSearch':'Lancer la recherche',

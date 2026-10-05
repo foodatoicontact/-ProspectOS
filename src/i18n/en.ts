@@ -382,7 +382,7 @@ export const en={
  'discovery.registryHeadcount':'Headcount (register filter):',
  'discovery.registryEmployees':'employees',
  'discovery.partialSearch':'Partial search: some requests got no answer, the results below are incomplete.',
- 'discovery.partialGroups':'Not searched:',
+ 'discovery.partialGroups':'Incomplete:',
  'discovery.partialRateLimited':'The public source limited the number of requests; run the search again later to complete it.',
  'discovery.prospectScore':'Current prospect score (verified evidence):',
  'discovery.runSearch':'Run search',

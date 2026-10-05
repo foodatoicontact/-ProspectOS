@@ -1,5 +1,5 @@
 // The demo says plainly what it is, at the top: a demo, synthetic search results, and the one way to real
-// prospects — create an account for the 7-day free trial. The button only leads to sign-up (BETA intent kept),
+// prospects — create an account for the 7-day free trial. The button only opens sign-up (no paid offer chosen),
 // it never activates anything by itself, and the claim matches the trial the database really grants.
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -26,11 +26,15 @@ test('demo banner: static, accessible, one button that only calls its handler',a
  assert.match(banner,/<button type="button" className="primary" onClick=\{onTryReal\}>\{tr\('demoBanner\.cta'\)\}<\/button>/);
 });
 
-test('demo banner: shown first in demo only, its button leads to sign-up with the free-trial (BETA) intent',async()=>{
+test('demo banner: shown first in demo only; its button opens “Créer mon compte” with NO paid offer chosen',async()=>{
  const page=await read('../app/page.tsx');
- assert.match(page,/\{mode==='demo'&&<DemoModeBanner locale=\{locale\} onTryReal=\{\(\)=>choosePlan\('BETA'\)\}\/>\}\{mode==='demo'&&<DemoMission /);
- // choosePlan in demo: keeps the BETA intent, leaves the demo, opens the welcome (sign-up) screen — no payment, no activation
- assert.match(page,/const saved=savePlanIntent\(browserStorage\(\),plan\);setPlanIntent\(saved\);intentHandled\.current=false;setModal\(''\);if\(mode==='demo'\)\{clearWorkspace\(\);setMode\('welcome'\)\}/);
+ assert.match(page,/\{mode==='demo'&&<DemoModeBanner locale=\{locale\} onTryReal=\{tryRealProspects\}\/>\}\{mode==='demo'&&<DemoMission /);
+ // The free 7-day trial is claimed by the first signed-in arrival (activate_trial), not by a plan intent: a BETA
+ // intent would open the paid checkout after sign-up, contradicting “gratuitement”. Any earlier intent is dropped.
+ const fn=/function tryRealProspects\(\)\{[^}]*\}/.exec(page)?.[0]??'';
+ assert.equal(fn,"function tryRealProspects(){clearPlanIntent(browserStorage());setPlanIntent(null);clearWorkspace();setAuthView('signup');setMode('welcome')}");
+ assert.doesNotMatch(fn,/savePlanIntent|choosePlan|checkout/i);
+ assert.match(page,/activate_trial/,'the trial is claimed on the first signed-in arrival');
 });
 
 test('demo banner: “7 jours” is the trial the database grants',async()=>{

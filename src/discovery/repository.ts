@@ -47,6 +47,8 @@ export class SupabaseDiscoveryRepository implements DiscoveryRepository {
  //    provider from the run itself; source_class is the value this server computed, validated here.
  return checked(this.writer.db.rpc('save_discovery_results',{p_user_id:this.writer.userId,p_run_id:run.id,p_rows:rows.map(({candidate:c,dedupe:d})=>({company_name:c.name,website:c.website,phone:c.phone,address:c.address,city:c.city,source_url:c.source_url,source_title:c.source_title,raw_payload:c.raw_metadata,normalized_payload:c,dedupe_key:c.deduplication_key,dedupe_status:d.status,duplicate_of:d.duplicate_of,reason:d.reason,source_class:trustedSourceClass(c.raw_metadata)}))}));
  }
+ // Server only: the privileged client calls release_failed_discovery (021), which acts on a failed run only.
+ async releaseFailedRun(id:string){if(!this.writer)return;await checked(this.writer.db.rpc('release_failed_discovery',{p_run_id:id}))}
  async finish(id:string,count:number,metrics:Record<string,unknown>,error?:string){await checked(this.db.from('discovery_runs').update({status:error?'failed':'completed',result_count:count,completed_at:new Date().toISOString(),metrics,error_message:error??null}).eq('id',id))}
  async prospect(id:string){return checked(this.db.from('prospects').select('id,website,organization_id,project_id').eq('id',id).single())}
  async projectCriteria(projectId:string){const project=await checked(this.db.from('projects').select('*,icps(*)').eq('id',projectId).single());return resolveProjectCriteria(project.icps)}

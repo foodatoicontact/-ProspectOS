@@ -100,6 +100,7 @@ export class RegistryProvider implements DiscoveryProvider {
    }
    perGroup.push(hits);
   }
+  report.requests_answered=answered;
   // No request answered at all (a 429 and its retry count as one failure): explicit failure, never an empty success.
   if(report.requests_sent&&!answered)throw Error('REGISTRY_UNAVAILABLE');
   // Interleaved, so a smaller group (agri-food) is never pushed out by a larger one (industry); one SIREN, one company.

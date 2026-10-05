@@ -12,6 +12,7 @@
     "test:seo-html": "node tests/seo-html.mjs",
     "test:db": "node tests/rls-runner.mjs",
     "test:discovery-db": "node tests/discovery-db.mjs",
+    "test:registry-db": "node tests/discovery-registry-db.mjs",
     "test:discovery-trust-db": "node tests/discovery-trust-boundary-db.mjs",
     "test:ai-quota-db": "node tests/ai-quota-db.mjs",
     "test:outreach-db": "node tests/outreach-pipeline-db.mjs",

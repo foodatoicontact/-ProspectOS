@@ -253,7 +253,8 @@ test('canary — Discovery already open → "+ Nouveau projet" → quick start �
  assert.match(page,/<DiscoveryPanel key=\{`\$\{mode\}:\$\{projectId\}:\$\{discoveryMount\}`\}/);
  assert.equal((page.match(/setDiscoveryMount\(/g)??[]).length,1,'only the quick start confirmation forces a new Discovery form');
  const confirm=page.slice(page.indexOf('confirm:async(id,p)=>'),page.indexOf('manual:async(id,p)=>'));
- assert.match(confirm,/setDiscoveryPrefill\(\{projectId:id,\.\.\.p\.discovery\}\);setDiscoveryMount\(n=>n\+1\);/);
+ // Since the register: the reviewed headcount range travels with the prefill (a structured filter, never a launch).
+ assert.match(confirm,/setDiscoveryPrefill\(\{projectId:id,\.\.\.p\.discovery,employeeRange:p\.employeeRange\}\);setDiscoveryMount\(n=>n\+1\);/);
  assert.doesNotMatch(confirm,/discovery'\s*,\s*'POST'|search\(/,'the confirmation never launches a search');
  // Foodatoi: the reviewed proposal is what the remounted form receives (query = validated target, zone, categories)
  const p=buildTargetingProposal({offerText:'Foodatoi permet aux restaurants de recevoir directement leurs commandes à emporter sans commission.',offerUrl:'',targetText:'Restaurants indépendants en Occitanie, avec commande à emporter.'});

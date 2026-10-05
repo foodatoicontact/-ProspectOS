@@ -72,7 +72,7 @@ export async function computeRunCostMetrics(db:SupabaseClient,runId:string):Prom
   cost_per_prospect_micros:totalCostMicros!==null?nullSafeDivide(totalCostMicros,acceptedProspectIds.length):null,
   cost_per_verified_evidence_micros:totalCostMicros!==null?nullSafeDivide(totalCostMicros,evidenceVerified):null,
   cost_per_qualified_prospect_micros:totalCostMicros!==null?nullSafeDivide(totalCostMicros,prospectsQualified):null,
-  cost_unavailable_reason:run.provider==='fixture'?'TEST : aucun coût réel, aucune mesure applicable.':anyUnpriced?'Tarif non configuré pour un ou plusieurs appels (prospectos_private.provider_pricing) : coût réel non calculable, jamais estimé.':null,
+  cost_unavailable_reason:run.provider==='fixture'?'TEST : aucun coût réel, aucune mesure applicable.':run.provider==='registry'?'Registre public des entreprises : aucun coût fournisseur (le lancement compte dans le quota Discovery).':anyUnpriced?'Tarif non configuré pour un ou plusieurs appels (prospectos_private.provider_pricing) : coût réel non calculable, jamais estimé.':null,
   note:'pages_fetched/pages_rejected/pages_failed non mesurés par run dans cette version. Coût LLM (analyse d’offre) suivi séparément au niveau du projet, jamais mélangé au coût d’un run pour éviter un double comptage.',
  };
 }

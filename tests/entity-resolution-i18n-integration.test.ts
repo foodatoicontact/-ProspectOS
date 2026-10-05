@@ -162,7 +162,11 @@ test('15 — discovery/api.ts quota and entitlement enforcement is untouched', a
  // Discovery Recall V3 changed the metering line on purpose: the real number of Brave requests sent
  // (1 to 3) is recorded instead of a constant 1. Quota and entitlement lines stay untouched.
  assert.match(source, /provider:'brave',operation:'search',requestCount\}/);
- const changed = execSync('git diff -U0 9206f670944008b980505b735759aaf4c68b789a -- src/discovery/api.ts', {cwd, encoding: 'utf8'}).split('\n').filter(l => /^[+-][^+-]/.test(l) && !/recordApiUsage|requests that were actually sent|their exact count once the search step|for the fixture\/TEST provider/.test(l));
+ // The register (019) moved the discovery-config payload to providers/index.ts: exactly these two lines are exempt.
+ const REGISTRY_CONFIG_LINES = new Set(["- if(resource==='discovery-config'&&method==='GET')return json({providers:[{id:'fixture',available:true,mode:'test',label:'TEST — entreprises synthétiques'},{id:'brave',available:!!process.env.BRAVE_SEARCH_API_KEY,mode:'live',label:'Brave Search API'}],website_policy:'Domaines autorisés par l’opérateur et robots.txt vérifié',max_results_transport:100});", "+ if(resource==='discovery-config'&&method==='GET')return json(discoveryProviderConfig(process.env));"]);
+ const changed = execSync('git diff -U0 9206f670944008b980505b735759aaf4c68b789a -- src/discovery/api.ts', {cwd, encoding: 'utf8'}).split('\n').filter(l => /^[+-][^+-]/.test(l) && !/recordApiUsage|requests that were actually sent|their exact count once the search step|for the fixture\/TEST provider/.test(l) && !REGISTRY_CONFIG_LINES.has(l));
+ // …whose payload is unchanged for fixture/Brave (max_results_transport: 100).
+ assert.match(await readFile(new URL('../src/discovery/providers/index.ts', import.meta.url), 'utf8'), /max_results_transport:100\}/);
  // ProspectOS Bêta commercial quotas (migration 016) add exactly two things to the error mapping line: the
  // PLAN_LIMIT_REACHED message and its 429 status. Such a line is accepted only if, without those two additions,
  // it is byte-for-byte a line it replaced — every other quota/entitlement change is still refused.

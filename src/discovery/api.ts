@@ -3,10 +3,10 @@ import {z} from 'zod';
 import type {SupabaseClient} from '@supabase/supabase-js';
 import {DiscoveryService,CompanyAnalysisService} from './services.ts';
 import {SupabaseDiscoveryRepository,checked} from './repository.ts';
-import {FixtureProvider,isFixtureUrl,createCompositePageFetcher} from './providers/fixture.ts';
-import {BraveProvider} from './providers/brave.ts';
+import {isFixtureUrl,createCompositePageFetcher} from './providers/fixture.ts';
 import {safeFetch} from './safe-fetch.ts';
 import {DiscoveryInputSchema} from './types.ts';
+import {createDiscoveryProvider,discoveryProviderConfig,isMeteredSearchProvider} from './providers/index.ts';
 import {requireActiveEntitlement} from '../server/entitlement.ts';
 import {recordApiUsage} from '../server/usage.ts';
 import {computeRunCostMetrics} from './cost-metrics.ts';
@@ -49,7 +49,7 @@ export async function handleDiscovery(request:Request,path:string[],body:unknown
  // website never are: an expired trial must never hide data the user already has.
  if((resource==='projects'&&action==='discovery'&&method==='POST')||(resource==='prospects'&&action==='analyze'&&method==='POST'))await requireActiveEntitlement(db,user.id);
  const repo=new SupabaseDiscoveryRepository(db);
- if(resource==='discovery-config'&&method==='GET')return json({providers:[{id:'fixture',available:true,mode:'test',label:'TEST — entreprises synthétiques'},{id:'brave',available:!!process.env.BRAVE_SEARCH_API_KEY,mode:'live',label:'Brave Search API'}],website_policy:'Domaines autorisés par l’opérateur et robots.txt vérifié',max_results_transport:100});
+ if(resource==='discovery-config'&&method==='GET')return json(discoveryProviderConfig(process.env));
  // History of the project's searches: reads only, through the caller's RLS-scoped client (runs and results
  // of the member's own organization). Never a provider call, never a write: nothing is consumed.
  if(resource==='projects'&&action==='discovery'&&method==='GET'){
@@ -65,14 +65,15 @@ export async function handleDiscovery(request:Request,path:string[],body:unknown
  return json(summarizeRuns(runs,decided));
  }
  if(resource==='projects'&&action==='discovery'&&method==='POST'){
- uuid.parse(id);const input=DiscoveryInputSchema.parse({...z.record(z.string(),z.unknown()).parse(body),project_id:id});const name=input.optional_filters.provider??'fixture';const provider=name==='brave'?new BraveProvider(process.env.BRAVE_SEARCH_API_KEY??''):new FixtureProvider();
+ uuid.parse(id);const input=DiscoveryInputSchema.parse({...z.record(z.string(),z.unknown()).parse(body),project_id:id});const name=input.optional_filters.provider??'fixture';const provider=createDiscoveryProvider(name,process.env);
  // Results are persisted only through the server's privileged client (migration 014). Obtained before
  // the run starts, so a server missing its configuration fails fast without spending a search.
  let writer;try{writer=createAdminClient()}catch{return json({error:'Discovery indisponible : configuration serveur incomplète.',code:'CONFIGURATION_REQUIRED'},503)}
  // Real Brave requests that were actually sent (1 to 3 per Discovery, see query-plan.ts), recorded with
  // their exact count once the search step is over — also when some or all of them failed. Never written
- // for the fixture/TEST provider: a synthetic run must never leave a real-looking cost trace.
- const meter=name==='brave'?async(run:{id:string},requestCount:number)=>{const r=run as unknown as {id:string;organization_id:string};await recordApiUsage({organizationId:r.organization_id,projectId:id,discoveryRunId:r.id,userId:user.id,provider:'brave',operation:'search',requestCount})}:undefined;
+ // for the fixture/TEST provider: a synthetic run must never leave a real-looking cost trace — nor for the free
+ // public register (its launch is still reserved and counted by start_discovery, migration 019).
+ const meter=isMeteredSearchProvider(name)?async(run:{id:string},requestCount:number)=>{const r=run as unknown as {id:string;organization_id:string};await recordApiUsage({organizationId:r.organization_id,projectId:id,discoveryRunId:r.id,userId:user.id,provider:'brave',operation:'search',requestCount})}:undefined;
  const result=await new DiscoveryService(new SupabaseDiscoveryRepository(db,{db:writer,userId:user.id}),provider,log,meter).find_prospects(input);
  return json(result,201);
  }

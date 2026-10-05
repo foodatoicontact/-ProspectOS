@@ -81,7 +81,9 @@ try {
   await db.exec(await readFile(new URL('../db/schema.sql', import.meta.url), 'utf8'));
   const migrations = (await readdir(new URL('../db/migrations/', import.meta.url))).filter(f => f.endsWith('.sql')).sort();
   // 017 is this bloc's migration; 018 (deleted accounts release their beta seat) only re-creates account/trial functions.
-  assert.deepEqual(migrations.slice(migrations.indexOf('017_stripe_billing.sql')), ['017_stripe_billing.sql', '018_deleted_accounts_release_beta_capacity.sql']);
+  // 019 (Discovery register provider) only widens the Discovery provider checks and start_discovery: no billing object.
+  assert.deepEqual(migrations.slice(migrations.indexOf('017_stripe_billing.sql')), ['017_stripe_billing.sql', '018_deleted_accounts_release_beta_capacity.sql', '019_discovery_registry_provider.sql']);
+  assert.doesNotMatch((await readFile(new URL('../db/migrations/019_discovery_registry_provider.sql', import.meta.url), 'utf8')).split('\n').filter(l => !l.startsWith('--')).join('\n'), /stripe|billing|subscription|entitlement|beta_program/i);
   for (const f of migrations) await db.exec(await readFile(new URL(`../db/migrations/${f}`, import.meta.url), 'utf8'));
   await sql('update prospectos_private.discovery_quota_settings set runs_per_hour=100000, analyses_per_hour=100000, analyses_per_user_per_hour=100000, ai_offer_per_hour=100000');
 

@@ -6,6 +6,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
+import {readFileSync} from 'node:fs';
 import {BETA_OFFER,usageView,daysLeft,isEmailRateLimitError} from '../src/domain/pricing.ts';
 import {createInFlight} from '../src/components/evidence-verification.ts';
 import {usageCounterLabel,usageResetLabel,trialEndsInLabel} from '../src/i18n/format.ts';
@@ -264,7 +265,11 @@ test('I — the refund is commercial only: the hourly log row stays, and both an
 test('J — a real Discovery is charged at launch whatever it finds; a fixture run is not charged to the plan',()=>{
  assert.match(migration,/perform prospectos_private\.consume_discovery_quota\(tenant,'discovery',p_provider<>'fixture'\);/);
  const services=discoveryApi; // the Discovery Engine itself is untouched: the provider id recorded is the one executed
- assert.match(services,/const provider=name==='brave'\?new BraveProvider\(process\.env\.BRAVE_SEARCH_API_KEY\?\?''\):new FixtureProvider\(\);/);
+ // Migration 019 added the register: the provider is built by the explicit factory (providers/index.ts), whose id
+ // is the one recorded by start_discovery — 'registry' is billed like 'brave' by the unchanged line above.
+ assert.match(services,/const provider=createDiscoveryProvider\(name,process\.env\);/);
+ const factory=readFileSync(new URL('../src/discovery/providers/index.ts',import.meta.url),'utf8');
+ assert.match(factory,/if\(id==='brave'\)return new BraveProvider\(env\.BRAVE_SEARCH_API_KEY\?\?''\);\n if\(id==='registry'\)return new RegistryProvider\(\);\n return new FixtureProvider\(\);/,'brave→Brave, registry→register, anything else→TEST fixture');
 });
 
 // ---------------------------------------------------------------- K: beta capacity message

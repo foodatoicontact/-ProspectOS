@@ -13,8 +13,11 @@ const STATUS_LABELS:Record<string,{fr:string;en:string}>={
  'À contacter':{fr:'À contacter',en:'To contact'},
  'Contacté':{fr:'Contacté',en:'Contacted'},
  'Réponse':{fr:'Réponse',en:'Replied'},
+ 'Intéressé':{fr:'Intéressé',en:'Interested'},
+ 'RDV':{fr:'RDV',en:'Meeting booked'},
  'Gagné':{fr:'Gagné',en:'Won'},
  'Perdu':{fr:'Perdu',en:'Lost'},
+ 'Ignoré':{fr:'Ignoré',en:'Ignored'},
 };
 export function statusLabel(status:string,locale:Locale):string{
  return STATUS_LABELS[status]?.[locale]??status;

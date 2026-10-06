@@ -394,8 +394,13 @@ Ordre de livraison conseillé : S1 → S2 → S5 (score testable sur des signaux
 | Bloc | État | Notes |
 |---|---|---|
 | S1, S2, S5 | En production (PR #24, migration 024) | Score INTENT vérifié + estimé |
-| S3 + S4 | Branche `feat/signal-engine-s3` | `src/signals/extract.ts` (lexiques FR/EN, dates, JSON-LD), providers `official_site`, `web_search`, saisie manuelle, routes API |
-| S6 | Branche `feat/signal-engine-s3` | Bloc « INTENT — pourquoi maintenant ? » sur la fiche (`SignalsPanel.tsx`) : recherche sur le site, saisie, revue, calcul visible, réglages INTENT du projet ; démo avec signaux TEST. Colonne INTENT de la liste reportée (demande une lecture groupée des signaux) |
+| S3 + S4 | En production (PR #25) | `src/signals/extract.ts` (lexiques FR/EN, dates, JSON-LD), providers `official_site`, `web_search`, saisie manuelle, routes API |
+| S6 | En production (PR #25) | Bloc « INTENT — pourquoi maintenant ? » sur la fiche (`SignalsPanel.tsx`) : recherche sur le site, saisie, revue, calcul visible, réglages INTENT du projet ; démo avec signaux TEST. Colonne INTENT de la liste reportée (demande une lecture groupée des signaux) |
+
+| S7 | Branche `feat/signal-engine-s7-s10` | `src/domain/why-now.ts` : gabarit déterministe, le signal vérifié le plus fort cité mot pour mot (domaine, date propre), inséré après la salutation ; `outreach.signal_ids`. Réécriture IA non faite (optionnelle dans le plan) |
+| S8 | Branche `feat/signal-engine-s7-s10`, migration 025 | Statut RDV, `contact_snapshots` (figé au contact, 1 par 7 jours), « Ce qui produit des réponses » par FIT / INTENT / type / source / âge, échantillon insuffisant sous 10 |
+| S9 | Branche `feat/signal-engine-s7-s10`, migration 026 | `monitored_prospects`, plafond par offre (essai 0, Solo 10, Pro 50, Équipe 50 × sièges, Entreprise 500 quotidien), réservation SKIP LOCKED + bail + 1 exécution / prospect / jour, pause sans utilisateur (30 j), cron Vercel quotidien `/api/cron/signals` protégé par `CRON_SECRET` (à créer par Kevin) |
+| S10 | Branche `feat/signal-engine-s7-s10` | BODACC par SIREN du registre, aucun homonyme possible, procédures collectives = avertissement (jamais un signal). Format de l'API à valider en Preview |
 
 Choix faits en S3 (révisables) :
 

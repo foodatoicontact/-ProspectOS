@@ -939,4 +939,11 @@ export const en={
  'signals.sourcesLabel':'Sources checked:',
  'signals.sourceSite':'official website',
  'signals.sourceBodacc':'BODACC legal notices (by SIREN)',
+ 'signals.monitorStart':'Monitor',
+ 'signals.monitorStop':'Stop monitoring',
+ 'signals.monitorWeekly':'Monitored: new search every week (next on {d}). Signals found stay to review.',
+ 'signals.monitorDaily':'Monitored: new search every day (next on {d}). Signals found stay to review.',
+ 'signals.monitorPaused.inactive':'Monitoring paused: no sign-in for 30 days. It resumes on its own at your next sign-in.',
+ 'signals.monitorPaused.member_left':'Monitoring paused: the person who started it is no longer in the team. Start it again to resume.',
+ 'error.monitoringLimitReached':'Your plan’s monitoring limit is reached. Stop monitoring another prospect or upgrade your plan.',
 } satisfies Record<keyof typeof fr,string>;

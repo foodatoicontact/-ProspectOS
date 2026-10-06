@@ -945,4 +945,11 @@ export const fr={
  'signals.sourcesLabel':'Sources consultées :',
  'signals.sourceSite':'site officiel',
  'signals.sourceBodacc':'annonces légales BODACC (par SIREN)',
+ 'signals.monitorStart':'Surveiller',
+ 'signals.monitorStop':'Arrêter la surveillance',
+ 'signals.monitorWeekly':'Sous surveillance : nouvelle recherche chaque semaine (prochaine le {d}). Les signaux trouvés restent à vérifier.',
+ 'signals.monitorDaily':'Sous surveillance : nouvelle recherche chaque jour (prochaine le {d}). Les signaux trouvés restent à vérifier.',
+ 'signals.monitorPaused.inactive':'Surveillance en pause : pas de connexion depuis 30 jours. Elle reprend d’elle-même à votre prochaine connexion.',
+ 'signals.monitorPaused.member_left':'Surveillance en pause : la personne qui l’a lancée n’est plus dans l’équipe. Relancez-la pour la reprendre.',
+ 'error.monitoringLimitReached':'Limite de surveillance de votre offre atteinte. Arrêtez la surveillance d’un autre prospect ou passez à l’offre supérieure.',
 } as const;

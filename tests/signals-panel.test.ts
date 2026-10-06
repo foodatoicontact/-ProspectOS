@@ -18,7 +18,7 @@ test('labels: every signal type, status and strength is translated in FR and EN'
 
 test('live calls: only the signal routes; review decisions are verify / reject / reset; the body never carries a status or a confidence',()=>{
  const calls=[...src.matchAll(/api\(`([^`]+)`/g)].map(m=>m[1]);
- assert.deepEqual([...new Set(calls)].sort(),['prospects/${prospect.id}/signal-scan','prospects/${prospect.id}/signals','projects/${projectId}/intent-profile','signals/${row.id}/review'].sort());
+ assert.deepEqual([...new Set(calls)].sort(),['prospects/${prospect.id}/monitor','prospects/${prospect.id}/signal-scan','prospects/${prospect.id}/signals','projects/${projectId}/intent-profile','signals/${row.id}/review'].sort());
  assert.match(src,/const body=\{signal_type:form\.signal_type,excerpt:[^}]*source_url:[^}]*\}/);
  assert.doesNotMatch(src.slice(src.indexOf('const body='),src.indexOf('if(mode===\'demo\'){',src.indexOf('const body='))),/status|confidence/);
 });

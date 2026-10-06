@@ -24,6 +24,7 @@ import type {AnalysisAudit} from '../discovery/website-analysis.ts';
 //                                       announcements (BODACC, by the SIREN read in the register; no plan unit)
 //  POST /signals/:id/review             verify | reject | reset
 //  GET|POST /projects/:id/intent-profile  the project's tracked types, weights and words
+//  POST /prospects/:id/monitor          {enabled} start or stop monitoring (S9, plan cap in the database)
 //  GET  /projects/:id/feedback          what produced answers (S8): rates by FIT, INTENT, signal type, source, age
 type Json=(value:unknown,status?:number)=>Response;
 export type SignalDeps={
@@ -82,7 +83,7 @@ function repoOf(db:SupabaseClient){
 
 export async function handleSignals(request:Request,path:string[],body:Record<string,unknown>,db:SupabaseClient,json:Json,deps:SignalDeps):Promise<Response|null>{
  const [resource,id,action]=path;const method=request.method;
- const applies=resource==='prospects'&&(action==='signals'||action==='signal-scan')||resource==='signals'&&action==='review'||resource==='projects'&&(action==='intent-profile'||action==='feedback');
+ const applies=resource==='prospects'&&(action==='signals'||action==='signal-scan'||action==='monitor')||resource==='signals'&&action==='review'||resource==='projects'&&(action==='intent-profile'||action==='feedback');
  if(!applies)return null;
  if(!uuid.safeParse(id).success)return json({error:'Identifiant invalide'},400);
  if(resource==='projects'&&action==='feedback'){
@@ -115,7 +116,8 @@ export async function handleSignals(request:Request,path:string[],body:Record<st
   // Which sources a scan can read for this prospect (the UI enables its button from this, never guesses).
   const accepted=await checked(db.from('discovery_results').select('provider,raw_payload').eq('prospect_id',id).eq('status','accepted'));
   const sources={official_site:!!prospect.website,bodacc:deps.bodaccEnabled&&!!sirenOf(accepted)};
-  return json({signals:rows,intent:scoreIntent(rows.map(toIntentSignal),profile,now),profile,sources});
+  const monitorRows=await checked(db.from('monitored_prospects').select('frequency_days,next_run_at,last_run_at,paused_reason').eq('prospect_id',id));
+  return json({signals:rows,intent:scoreIntent(rows.map(toIntentSignal),profile,now),profile,sources,monitor:monitorRows?.[0]??null});
  }
  if(action==='signals'&&method==='POST'){
   const parsed=ManualSchema.safeParse(body);if(!parsed.success)return json({error:'Signal invalide : type, extrait et URL HTTP(S) requis.'},400);
@@ -126,6 +128,14 @@ export async function handleSignals(request:Request,path:string[],body:Record<st
   if(!checkedItem.ok)return json({error:checkedItem.code==='FUTURE_DATE'?'Date future refusée.':'Signal invalide : type, extrait et URL HTTP(S) requis.',code:checkedItem.code},400);
   const r=await repoOf(db).saveSignals(id,null,[checkedItem.candidate]);
   return json({...r,duplicate:r.inserted===0},r.inserted?201:200);
+ }
+ if(action==='monitor'&&method==='POST'){
+  // S9: weekly (or daily on Enterprise) monitoring, capped by the plan in the database.
+  if(typeof body.enabled!=='boolean'||Object.keys(body).length!==1)return json({error:'Choix invalide'},400);
+  if(body.enabled)await deps.requireEntitlement();
+  const {data,error}=await db.rpc('set_prospect_monitoring',{p_prospect_id:id,p_enabled:body.enabled});
+  if(error){if(String(error.message).includes('monitoring_limit_reached'))return json({error:'Limite de surveillance de votre offre atteinte. Arrêtez la surveillance d’un autre prospect ou passez à l’offre supérieure.',code:'MONITORING_LIMIT_REACHED'},429);throw Error('DATABASE_REQUEST_FAILED')}
+  return json(data);
  }
  if(action==='signal-scan'&&method==='POST'){
   await deps.requireEntitlement();

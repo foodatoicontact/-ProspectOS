@@ -215,7 +215,7 @@ test('14 — no migration was added by this bloc: the RPCs, RLS and evidence_gua
  // neither evidence, observations nor RLS policies.
  // The later migrations are commercial quotas (016), Stripe billing (017) and deleted accounts' beta seat (018);
  // none touches evidence, observations nor RLS policies.
- assert.deepEqual(files.slice(files.indexOf('015_dynamic_safe_analysis.sql')),['015_dynamic_safe_analysis.sql','016_beta_commercial_quotas.sql','017_stripe_billing.sql','018_deleted_accounts_release_beta_capacity.sql','019_discovery_registry_provider.sql','020_public_trial_availability.sql','021_discovery_failed_run_not_billed.sql','022_team_pro.sql','023_team_offer.sql','024_signals.sql','025_pipeline_feedback.sql']);
+ assert.deepEqual(files.slice(files.indexOf('015_dynamic_safe_analysis.sql')),['015_dynamic_safe_analysis.sql','016_beta_commercial_quotas.sql','017_stripe_billing.sql','018_deleted_accounts_release_beta_capacity.sql','019_discovery_registry_provider.sql','020_public_trial_availability.sql','021_discovery_failed_run_not_billed.sql','022_team_pro.sql','023_team_offer.sql','024_signals.sql','025_pipeline_feedback.sql','026_signal_monitoring.sql']);
  // 019 (register provider) only widens the provider checks and start_discovery's provider list.
  // 020 (public trial availability) only adds a boolean read of the beta seats; 021 ties a Discovery unit to its run.
  for(const f of ['016_beta_commercial_quotas.sql','017_stripe_billing.sql','018_deleted_accounts_release_beta_capacity.sql','019_discovery_registry_provider.sql','020_public_trial_availability.sql','021_discovery_failed_run_not_billed.sql','022_team_pro.sql','023_team_offer.sql']){
@@ -231,6 +231,10 @@ test('14 — no migration was added by this bloc: the RPCs, RLS and evidence_gua
  const m025=(await readFile(new URL('../db/migrations/025_pipeline_feedback.sql',import.meta.url),'utf8')).split('\n').filter(l=>!l.trim().startsWith('--')).join('\n');
  assert.doesNotMatch(m025,/(insert into|update|delete from) public\.(evidence|prospect_observations)|alter policy|drop policy/i);
  assert.deepEqual(m025.match(/create policy \w+ on public\.\w+/g),['create policy contact_snapshots_read on public.contact_snapshots']);
+ // 026 (monitoring) touches neither evidence nor observations; its one policy reads its own table.
+ const m026=(await readFile(new URL('../db/migrations/026_signal_monitoring.sql',import.meta.url),'utf8')).split('\n').filter(l=>!l.trim().startsWith('--')).join('\n');
+ assert.doesNotMatch(m026,/public\.(evidence|prospect_observations)|alter policy|drop policy/i);
+ assert.deepEqual(m026.match(/create policy \w+ on public\.\w+/g),['create policy monitored_prospects_read on public.monitored_prospects']);
  const client=await readFile(new URL('../src/components/evidence-presentation.ts',import.meta.url),'utf8');
  assert.doesNotMatch(client,/service_role|SUPABASE_SERVICE|process\.env/);
 });

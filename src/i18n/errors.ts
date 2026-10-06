@@ -16,6 +16,7 @@ const CODE_KEYS={
  LAST_OWNER_BLOCKED:'error.lastOwnerBlocked',
  BETA_CAPACITY_REACHED:'error.betaCapacityReached',
  PLAN_LIMIT_REACHED:'error.planLimitReached',
+ MONITORING_LIMIT_REACHED:'error.monitoringLimitReached',
  OFFER_LIMIT_REACHED:'error.offerLimitReached',
  OFFER_ANALYSIS_IN_PROGRESS:'error.offerAnalysisInProgress',
  CANDIDATE_NOT_ACCEPTABLE:'error.candidateNotAcceptable',

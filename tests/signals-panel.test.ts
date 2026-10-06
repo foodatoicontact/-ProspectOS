@@ -18,7 +18,7 @@ test('labels: every signal type, status and strength is translated in FR and EN'
 
 test('live calls: only the signal routes; review decisions are verify / reject / reset; the body never carries a status or a confidence',()=>{
  const calls=[...src.matchAll(/api\(`([^`]+)`/g)].map(m=>m[1]);
- assert.deepEqual([...new Set(calls)].sort(),['prospects/${prospect.id}/signal-scan','prospects/${prospect.id}/signals','projects/${projectId}/intent-profile','signals/${row.id}/review'].sort());
+ assert.deepEqual([...new Set(calls)].sort(),['prospects/${prospect.id}/monitor','prospects/${prospect.id}/signal-scan','prospects/${prospect.id}/signals','projects/${projectId}/intent-profile','signals/${row.id}/review'].sort());
  assert.match(src,/const body=\{signal_type:form\.signal_type,excerpt:[^}]*source_url:[^}]*\}/);
  assert.doesNotMatch(src.slice(src.indexOf('const body='),src.indexOf('if(mode===\'demo\'){',src.indexOf('const body='))),/status|confidence/);
 });
@@ -44,9 +44,14 @@ test('page: the panel sits on the prospect card after the evidence review, laid 
  assert.match(css,/\.detail-layout \.signals-panel\{order:7\}/);
 });
 
-test('no official website (e.g. a register company): the site search is disabled and explained up front; adding a signal stays available',()=>{
- assert.match(src,/const noSite=mode==='live'&&!prospect\.website;/);
+test('no source (no official website, no SIREN from the register): the search is disabled and explained up front; adding a signal stays available',()=>{
+ assert.match(src,/const noSite=mode==='live'&&\(sources\?!sources\.official_site&&!sources\.bodacc:!prospect\.website\);/);
  assert.match(src,/disabled=\{busy\|\|disabled\|\|noSite\} onClick=\{scan\}/);
  assert.match(src,/\{noSite&&<p className="muted">\{tr\('signals\.noSite'\)\}<\/p>\}/);
  assert.match(src,/aria-expanded=\{adding\} onClick=\{\(\)=>setAdding/);
+});
+
+test('scan result: sources read, site skipped, collective proceedings warned — all translated',()=>{
+ for(const k of ['signals.readSite','signals.readBodacc','signals.siteSkipped','signals.collectiveWarning','signals.sourcesLabel','signals.sourceSite','signals.sourceBodacc'])assert.match(src,new RegExp(k.replace('.','\\.')));
+ assert.match(src,/if\(r\.warnings\?\.includes\('COLLECTIVE_PROCEDURE'\)\)parts\.push/);
 });

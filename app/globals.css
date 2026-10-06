@@ -469,3 +469,10 @@ button,.button{transition:background-color .18s ease,border-color .18s ease,colo
 .signals-panel .intent-weights label{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:12px;margin:0}
 .signals-panel .intent-weights input{width:72px;margin:0}
 @media(max-width:700px){.signals-panel .signal-actions button{flex:1 1 100%}}
+/* Signal Engine S8 — what produces replies (project level, under the prospect list). */
+.feedback-panel{margin-top:14px;border-top:1px solid var(--line);padding-top:10px;font-size:12px}
+.feedback-panel>summary{cursor:pointer;font-weight:700;min-height:44px;display:flex;align-items:center}
+.feedback-table{overflow-x:auto;margin:8px 0}
+.feedback-table h4{font-size:12px;margin:8px 0 4px}
+.feedback-table table{width:100%;border-collapse:collapse;font-size:11px}
+.feedback-table th,.feedback-table td{text-align:left;padding:4px 6px;border-bottom:1px solid #eef0e9;white-space:nowrap}

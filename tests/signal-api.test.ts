@@ -34,7 +34,8 @@ function deps(o:Partial<SignalDeps>={}){
  const d:SignalDeps={userId:'u1',now:()=>NOW,staticAllowlist:[],dynamicEnabled:true,
   audit:()=>({record:async(e:any)=>{log.push(['record',e.outcome,e.mode,e.userId]);return 'a1'},complete:async(_id:string,u:string,outcome:string,pages:any,failed:any)=>{log.push(['complete',outcome,pages,failed,u])}}),
   sitePageFetcher:()=>async(url:string)=>{log.push(['fetch',url]);throw Error('unexpected')},
-  requireEntitlement:async()=>{log.push(['entitlement'])},refundAnalysis:async()=>{log.push(['refund'])},...o};
+  requireEntitlement:async()=>{log.push(['entitlement'])},refundAnalysis:async()=>{log.push(['refund'])},
+  bodaccEnabled:false,bodaccProvider:()=>{throw Error('unexpected bodacc')},...o};
  return {d,log};
 }
 const req=(method:string)=>new Request('https://app.example/api/v1/x',{method});
@@ -142,4 +143,43 @@ test('wiring: the API route hands signals to handleSignals with the analysis aud
  assert.ok(route.indexOf('handleSignals(')<route.indexOf("if(resource==='projects'){"),'before the projects routes (GET /projects would answer first)');
  const api=await readFile(new URL('../src/signals/api.ts',import.meta.url),'utf8');
  assert.doesNotMatch(api,/WebSearchSignalProvider/,'web search is not wired before its quota and Brave terms are settled');
+});
+
+// S10 — legal announcements by the SIREN ProspectOS read in the register (never typed by a member).
+const REGISTRY=[{status:'accepted',provider:'registry',source_class:'COMPANY_CANDIDATE',website:null,source_url:'https://annuaire-entreprises.data.gouv.fr/entreprise/893196019',raw_payload:{siren:'893196019'}}];
+function fakeBodacc(items:any[],collective=0){const p:any={id:'bodacc',mode:'live',lastReport:{requests_sent:0,collective_procedures:collective},seen:null as any,
+ supports:(t:any)=>!!t.siren,takeRejections:()=>({}),searchSignals:async({target}:any)=>{p.seen=target.siren;p.lastReport.requests_sent++;return items}};return p}
+const ANNOUNCE={signal_type:'leadership_change',title:'Modifications diverses — KERLAN',excerpt:'Modifications diverses — Modification survenue sur l’administration : nomination du président.',
+ source_url:'https://www.bodacc.fr/pages/annonces-commerciales-detail/?q.id=id:B20260001',source_type:'legal_announcement',published_at:'2026-09-30T00:00:00.000Z',event_date:null,metadata:{}};
+
+test('BODACC: a register prospect without website is searched by its SIREN, no plan unit, no site fetch, nothing audited',async()=>{
+ const {db,rpc}=fakeDb({prospect:{...PROSPECT,website:null},accepted:REGISTRY});const b=fakeBodacc([ANNOUNCE]);
+ const {d,log}=deps({bodaccEnabled:true,bodaccProvider:()=>b});
+ const r=await handleSignals(req('POST'),['prospects',P,'signal-scan'],{},db,json,d);const body=await r!.json();
+ assert.equal(r!.status,200);assert.equal(b.seen,'893196019');assert.equal(body.report.inserted,1);
+ assert.deepEqual(body.sources,{official_site:false,bodacc:true});assert.deepEqual(body.warnings,[]);
+ assert.deepEqual(rpc.map(x=>x[0]),['save_signals'],'no consume_analysis_quota');
+ assert.equal(rpc[0][1].p_signals[0].provider,'bodacc');assert.equal(rpc[0][1].p_signals[0].source_type,'legal_announcement');
+ assert.deepEqual(log,[['entitlement']]);
+});
+test('BODACC: a collective proceeding is reported as a warning, never saved; switched off → back to "no source"',async()=>{
+ const {db,rpc}=fakeDb({prospect:{...PROSPECT,website:null},accepted:REGISTRY});
+ const r=await (await handleSignals(req('POST'),['prospects',P,'signal-scan'],{},db,json,deps({bodaccEnabled:true,bodaccProvider:()=>fakeBodacc([],1)}).d))!.json();
+ assert.deepEqual(r.warnings,['COLLECTIVE_PROCEDURE']);assert.equal(rpc.length,0);
+ const off=await handleSignals(req('POST'),['prospects',P,'signal-scan'],{},fakeDb({prospect:{...PROSPECT,website:null},accepted:REGISTRY}).db,json,deps().d);
+ assert.equal((await off!.json()).code,'NO_OFFICIAL_WEBSITE');
+});
+test('BODACC: a SIREN never comes from a member-written or non-register row; site refused but SIREN known → BODACC alone, refusal reported',async()=>{
+ const fake=[{status:'accepted',provider:'brave',source_class:'COMPANY_CANDIDATE',website:'https://x.example',source_url:'https://x.example',raw_payload:{siren:'123456789'}}];
+ const r1=await handleSignals(req('POST'),['prospects',P,'signal-scan'],{},fakeDb({prospect:{...PROSPECT,website:null},accepted:fake}).db,json,deps({bodaccEnabled:true,bodaccProvider:()=>fakeBodacc([])}).d);
+ assert.equal((await r1!.json()).code,'NO_OFFICIAL_WEBSITE','a SIREN in a web result is not the register’s');
+ const {db,rpc}=fakeDb({prospect:PROSPECT,accepted:REGISTRY});const {d,log}=deps({bodaccEnabled:true,bodaccProvider:()=>fakeBodacc([ANNOUNCE])});
+ const r2=await (await handleSignals(req('POST'),['prospects',P,'signal-scan'],{},db,json,d))!.json();
+ assert.equal(r2.site_refusal,'DISCOVERY_CAPABILITY_INVALID');assert.deepEqual(r2.sources,{official_site:false,bodacc:true});assert.equal(r2.report.inserted,1);
+ assert.deepEqual(rpc.map(x=>x[0]),['save_signals']);assert.deepEqual(log,[['entitlement'],['record','DISCOVERY_CAPABILITY_INVALID',null,'u1']]);
+});
+test('GET signals tells the UI which sources a scan can read',async()=>{
+ const {db}=fakeDb({prospect:{...PROSPECT,website:null},accepted:REGISTRY});
+ assert.deepEqual((await (await handleSignals(req('GET'),['prospects',P,'signals'],{},db,json,deps({bodaccEnabled:true}).d))!.json()).sources,{official_site:false,bodacc:true});
+ assert.deepEqual((await (await handleSignals(req('GET'),['prospects',P,'signals'],{},db,json,deps().d))!.json()).sources,{official_site:false,bodacc:false});
 });

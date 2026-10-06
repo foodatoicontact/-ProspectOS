@@ -18,7 +18,7 @@ const domainOf=(url:string)=>{try{return new URL(url).hostname.replace(/^www\./,
 
 export function SignalsPanel({prospect,mode,api,locale,disabled,onBusyChange}:{prospect:Prospect;mode:'demo'|'live';api:Api;locale:Locale;disabled:boolean;onBusyChange:(active:boolean)=>void}){
  const tr=(key:TKey)=>translate(locale,key);
- const [rows,setRows]=useState<Row[]>([]),[profile,setProfile]=useState<Profile|null>(null),[intent,setIntent]=useState<IntentScore|null>(null);
+ const [rows,setRows]=useState<Row[]>([]),[profile,setProfile]=useState<Profile|null>(null),[sources,setSources]=useState<{official_site:boolean;bodacc:boolean}|null>(null),[monitor,setMonitor]=useState<{frequency_days:number;next_run_at:string;paused_reason:string|null}|null>(null),[intent,setIntent]=useState<IntentScore|null>(null);
  const [busy,setBusy]=useState(false),[error,setError]=useState(''),[note,setNote]=useState(''),[adding,setAdding]=useState(false);
  const [form,setForm]=useState({signal_type:'hiring_role' as SignalType,excerpt:'',source_url:'',event_date:''});
  const generation=useRef(0);
@@ -28,7 +28,7 @@ export function SignalsPanel({prospect,mode,api,locale,disabled,onBusyChange}:{p
   const g=++generation.current;
   if(mode==='demo'){let list:Row[]=[];try{list=JSON.parse(localStorage.getItem(demoKey(prospect.id))??'[]')}catch{/* empty */}recompute(list,null);return}
   const r=await api(`prospects/${prospect.id}/signals`);if(g!==generation.current)return;
-  setProfile(r.profile??null);setRows(r.signals);setIntent(r.intent);
+  setProfile(r.profile??null);setRows(r.signals);setIntent(r.intent);setSources(r.sources??null);setMonitor(r.monitor??null);
  }
  useEffect(()=>{setRows([]);setIntent(null);setError('');setNote('');setAdding(false);load().catch(()=>setError(tr('signals.unavailable')));return()=>{generation.current++}},[prospect.id,mode]);
  const persistDemo=(list:Row[])=>{try{localStorage.setItem(demoKey(prospect.id),JSON.stringify(list))}catch{/* private mode */}recompute(list,null)};
@@ -44,13 +44,19 @@ export function SignalsPanel({prospect,mode,api,locale,disabled,onBusyChange}:{p
    persistDemo([...fresh,...rows]);setNote(tr('signals.scanFound').replace('{n}',String(fresh.length)).replace('{p}','1'));return;
   }
   const r=await api(`prospects/${prospect.id}/signal-scan`,'POST',{});
-  setNote(r.report.inserted?tr('signals.scanFound').replace('{n}',String(r.report.inserted)).replace('{p}',String(r.pages||1)):tr('signals.scanNone').replace('{p}',String(r.pages||1)));
+  const parts=[r.report.inserted?tr('signals.scanFoundAny').replace('{n}',String(r.report.inserted)):tr('signals.scanNoneAny')];
+  if(r.sources?.official_site)parts.push(tr('signals.readSite').replace('{p}',String(r.pages||1)));
+  if(r.sources?.bodacc)parts.push(tr('signals.readBodacc'));
+  if(r.site_refusal&&r.sources?.bodacc)parts.push(tr('signals.siteSkipped'));
+  if(r.warnings?.includes('COLLECTIVE_PROCEDURE'))parts.push(tr('signals.collectiveWarning'));
+  setNote(parts.join(' '));
   await load();
  });
  const review=(row:Row,decision:'verify'|'reject'|'reset')=>execute(async()=>{
   if(mode==='demo'){const status:SignalStatus=decision==='verify'?'VERIFIED':decision==='reject'?'REJECTED':'PENDING_REVIEW';persistDemo(rows.map(r=>r.id===row.id?{...r,status}:r));return}
   await api(`signals/${row.id}/review`,'POST',{decision});await load();
  });
+ const toggleMonitor=()=>execute(async()=>{await api(`prospects/${prospect.id}/monitor`,'POST',{enabled:!monitor});await load()});
  const add=()=>execute(async()=>{
   const body={signal_type:form.signal_type,excerpt:form.excerpt.trim(),source_url:form.source_url.trim(),...(form.event_date?{event_date:form.event_date}:{})};
   if(mode==='demo'){
@@ -80,9 +86,9 @@ export function SignalsPanel({prospect,mode,api,locale,disabled,onBusyChange}:{p
    {r.status!=='PENDING_REVIEW'&&<button className="text-button" disabled={busy||disabled} onClick={()=>review(r,'reset')}>{tr('signals.reset')}</button>}
   </div>
  </article>};
- // No official website known (e.g. a company found in the public register): the site search cannot apply, said up
- // front instead of after a click. Adding a signal by hand stays available.
- const noSite=mode==='live'&&!prospect.website;
+ // No source the scan can read (no official website, no SIREN from the register): said up front instead of after a
+ // click. Adding a signal by hand stays available.
+ const noSite=mode==='live'&&(sources?!sources.official_site&&!sources.bodacc:!prospect.website);
  const verifiedScore=intent?.score??0,estimatedScore=intent?.estimated.score??0;
  return <section className="signals-panel observations">
   <div className="section-title"><h3>{tr('signals.title')}</h3>
@@ -91,8 +97,11 @@ export function SignalsPanel({prospect,mode,api,locale,disabled,onBusyChange}:{p
   <div className="actions signal-actions">
    <button disabled={busy||disabled||noSite} onClick={scan}>{tr('signals.scan')}</button>
    <button className="text-button" disabled={busy||disabled} aria-expanded={adding} onClick={()=>setAdding(a=>!a)}>{tr('signals.add')}</button>
+   {mode==='live'&&!noSite&&<button className="text-button" disabled={busy||disabled} aria-pressed={!!monitor} onClick={toggleMonitor}>{monitor?tr('signals.monitorStop'):tr('signals.monitorStart')}</button>}
   </div>
   {noSite&&<p className="muted">{tr('signals.noSite')}</p>}
+  {mode==='live'&&sources&&(sources.official_site||sources.bodacc)&&<p className="muted signal-sources">{tr('signals.sourcesLabel')} {[sources.official_site&&tr('signals.sourceSite'),sources.bodacc&&tr('signals.sourceBodacc')].filter(Boolean).join(' · ')}</p>}
+  {mode==='live'&&monitor&&<p className="muted signal-monitor">{monitor.paused_reason?tr(`signals.monitorPaused.${monitor.paused_reason}` as TKey):tr(monitor.frequency_days===1?'signals.monitorDaily':'signals.monitorWeekly').replace('{d}',new Date(monitor.next_run_at).toLocaleDateString(locale==='fr'?'fr-FR':'en-GB'))}</p>}
   {mode==='demo'&&<p className="muted">{tr('signals.demoNote')}</p>}
   {adding&&<form className="signal-form" onSubmit={e=>{e.preventDefault();add()}}>
    <label>{tr('signals.form.type')}<select value={form.signal_type} onChange={e=>setForm({...form,signal_type:e.target.value as SignalType})}>{SIGNAL_TYPES.map(t=><option key={t} value={t}>{typeLabel(t)}</option>)}</select></label>

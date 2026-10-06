@@ -395,6 +395,7 @@ Ordre de livraison conseillé : S1 → S2 → S5 (score testable sur des signaux
 |---|---|---|
 | S1, S2, S5 | En production (PR #24, migration 024) | Score INTENT vérifié + estimé |
 | S3 + S4 | Branche `feat/signal-engine-s3` | `src/signals/extract.ts` (lexiques FR/EN, dates, JSON-LD), providers `official_site`, `web_search`, saisie manuelle, routes API |
+| S6 | Branche `feat/signal-engine-s3` | Bloc « INTENT — pourquoi maintenant ? » sur la fiche (`SignalsPanel.tsx`) : recherche sur le site, saisie, revue, calcul visible, réglages INTENT du projet ; démo avec signaux TEST. Colonne INTENT de la liste reportée (demande une lecture groupée des signaux) |
 
 Choix faits en S3 (révisables) :
 

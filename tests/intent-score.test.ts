@@ -83,3 +83,21 @@ test('purity: no model, no network, no clock read, no FIT input — and FIT neve
  const core=await readFile(new URL('../src/domain/core.ts',import.meta.url),'utf8');
  assert.doesNotMatch(core,/intent/i);
 });
+
+// INTENT estimé (2026-10-06, same principle as FIT estimé): signals still to review count in an ESTIMATE, weighted by
+// their source's confidence like verified ones; the verified INTENT stays the score of verified signals only.
+test('estimate: pending signals count in the estimated INTENT, never in the verified one; rejected ones never',()=>{
+ const list=[s({id:'v'}),s({id:'p',status:'PENDING_REVIEW',signal_type:'funding',matched_terms:[],published_at:daysAgo(5)}),s({id:'x',status:'REJECTED',signal_type:'leadership_change'})];
+ const r=scoreIntent(list,PROFILE,NOW);
+ const verifiedOnly=scoreIntent([s({id:'v'})],PROFILE,NOW);
+ assert.equal(r.score,verifiedOnly.score,'the verified INTENT is unchanged by pending signals');
+ assert.ok(r.estimated.score>r.score);
+ assert.deepEqual(r.estimated.lines.map(l=>[l.signal_id,l.verified]).sort(),[['p',false],['v',true]]);
+ assert.equal(r.estimated.to_verify,1);
+});
+test('estimate: same caps and diminishing returns; equals the verified INTENT when nothing is pending',()=>{
+ const ten=Array.from({length:10},(_,i)=>s({id:`j${i}`,status:'PENDING_REVIEW',published_at:daysAgo(0),confidence:0.6}));
+ const r=scoreIntent(ten,PROFILE,NOW);
+ assert.equal(r.score,0);assert.ok(r.estimated.score<=25);assert.equal(r.estimated.lines.filter(l=>l.points>0).length,3);
+ const v=scoreIntent([s()],PROFILE,NOW);assert.equal(v.estimated.score,v.score);assert.equal(v.estimated.to_verify,0);
+});

@@ -6,6 +6,8 @@ import {SIGNAL_TYPES} from '../signals/types.ts';
 //   points = weight(type) × confidence(source) × recency(age, type) × relevance(profile)
 // Only VERIFIED signals count. Per type, diminishing returns (1, ½, ¼, then 0) and a cap at the type's weight, so ten job
 // ads never weigh like ten different reasons. Total capped at 100. No model, no randomness: `now` is a parameter.
+// INTENT estimé (2026-10-06, like FIT estimé): signals still to review also count, in an ESTIMATE shown next to the
+// verified INTENT, with the same rules (their source's confidence, caps, diminishing returns). Rejected never count.
 
 // Half-life and maximum age per type, in days: urgent facts fade fast, budget facts last months.
 export const DECAY:Record<SignalType,{halfLifeDays:number;maxAgeDays:number}>={
@@ -38,8 +40,9 @@ export type IntentProfileInput={types:Partial<Record<SignalType,number>>;terms:s
 export type Strength='strong'|'medium'|'weak'|'archive';
 export type IntentLine={signal_id:string;signal_type:SignalType;title:string;source_url:string;source_domain:string|null;
  date_basis:'event'|'published'|'observed_only';age_days:number;weight:number;confidence:number;recency:number;relevance:number;
- multiplier:number;points:number;strength:Strength};
-export type IntentScore={score:number;lines:IntentLine[];archived:IntentLine[];pending:{count:number;potential:number}};
+ multiplier:number;points:number;strength:Strength;verified:boolean};
+export type IntentScore={score:number;lines:IntentLine[];archived:IntentLine[];pending:{count:number;potential:number};
+ estimated:{score:number;lines:IntentLine[];to_verify:number}};
 
 export function recency(ageDays:number,type:SignalType):number{
  const {halfLifeDays,maxAgeDays}=DECAY[type];
@@ -67,30 +70,38 @@ function line(s:IntentSignal,profile:IntentProfileInput,now:Date):IntentLine{
  const {basis,age}=dated(s,now);const r=recency(age,s.signal_type);
  const weight=weightOf(s.signal_type,profile),relevance=relevanceOf(s,profile);
  return {signal_id:s.id,signal_type:s.signal_type,title:s.title,source_url:s.source_url,source_domain:s.source_domain,date_basis:basis,age_days:age,
-  weight,confidence:s.confidence,recency:Math.round(r*1000)/1000,relevance,multiplier:1,points:weight*s.confidence*r*relevance,strength:strengthOf(r)};
+  weight,confidence:s.confidence,recency:Math.round(r*1000)/1000,relevance,multiplier:1,points:weight*s.confidence*r*relevance,strength:strengthOf(r),verified:s.status==='VERIFIED'};
 }
 
-export function scoreIntent(signals:IntentSignal[],profile:IntentProfileInput,now:Date):IntentScore{
- const known=signals.filter(s=>(SIGNAL_TYPES as readonly string[]).includes(s.signal_type));
- // Stable order whatever the input order: raw points, then id.
- const order=(a:IntentLine,b:IntentLine)=>b.points-a.points||a.signal_id.localeCompare(b.signal_id);
- const verified=known.filter(s=>s.status==='VERIFIED').map(s=>line(s,profile,now));
- const archived=verified.filter(l=>l.recency===0&&l.weight>0).sort(order).map(l=>({...l,points:0}));
+// Stable order whatever the input order: raw points, then id.
+const order=(a:IntentLine,b:IntentLine)=>b.points-a.points||a.signal_id.localeCompare(b.signal_id);
+// Per type: diminishing returns (1, ½, ¼, then 0), capped at the type's weight.
+function capped(all:IntentLine[]):IntentLine[]{
  const lines:IntentLine[]=[];
  for(const type of SIGNAL_TYPES){
-  const ofType=verified.filter(l=>l.signal_type===type&&l.points>0).sort(order);
   let total=0;
-  ofType.forEach((l,i)=>{
+  all.filter(l=>l.signal_type===type&&l.points>0).sort(order).forEach((l,i)=>{
    const multiplier=MULTIPLIERS[i]??0;
    const points=Math.max(0,Math.min(l.points*multiplier,l.weight-total));
    total+=points;lines.push({...l,multiplier,points:round1(points)});
   });
  }
- lines.sort(order);
- const pendingLines=known.filter(s=>s.status==='PENDING_REVIEW').map(s=>line(s,profile,now)).filter(l=>l.points>0);
+ return lines.sort(order);
+}
+const total=(lines:IntentLine[])=>Math.min(100,Math.round(lines.reduce((t,l)=>t+l.points,0)));
+
+export function scoreIntent(signals:IntentSignal[],profile:IntentProfileInput,now:Date):IntentScore{
+ const known=signals.filter(s=>(SIGNAL_TYPES as readonly string[]).includes(s.signal_type));
+ const verified=known.filter(s=>s.status==='VERIFIED').map(s=>line(s,profile,now));
+ const pendingRaw=known.filter(s=>s.status==='PENDING_REVIEW').map(s=>line(s,profile,now));
+ const archived=verified.filter(l=>l.recency===0&&l.weight>0).sort(order).map(l=>({...l,points:0}));
+ const lines=capped(verified);
+ const estimatedLines=capped([...verified,...pendingRaw]);
+ const pendingLines=pendingRaw.filter(l=>l.points>0);
  return {
-  score:Math.min(100,Math.round(lines.reduce((t,l)=>t+l.points,0))),
+  score:total(lines),
   lines,archived,
   pending:{count:pendingLines.length,potential:round1(pendingLines.reduce((t,l)=>t+l.points,0))},
+  estimated:{score:total(estimatedLines),lines:estimatedLines,to_verify:estimatedLines.filter(l=>!l.verified&&l.points>0).length},
  };
 }

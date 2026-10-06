@@ -946,4 +946,6 @@ export const en={
  'signals.monitorPaused.inactive':'Monitoring paused: no sign-in for 30 days. It resumes on its own at your next sign-in.',
  'signals.monitorPaused.member_left':'Monitoring paused: the person who started it is no longer in the team. Start it again to resume.',
  'error.monitoringLimitReached':'Your plan’s monitoring limit is reached. Stop monitoring another prospect or upgrade your plan.',
+ 'evidence.titleOutOfContext':'Match set aside (out of context)',
+ 'evidence.outOfContextNote':'The term appears, but in a context that does not describe the organization (sector, clients, menu, legal notice…). Criterion to confirm.',
 } satisfies Record<keyof typeof fr,string>;

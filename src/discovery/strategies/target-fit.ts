@@ -1,6 +1,7 @@
 import type {Criterion,TargetFitRules} from '../../domain/core.ts';
 import type {ObservationContext} from './restaurant.ts';
-import {findLiteralMatch,isMeaningfulTerm} from './text-match.ts';
+import {isMeaningfulTerm} from './text-match.ts';
+import {bestMatch,type RejectCode} from './match-context.ts';
 // Closed, explainable key vocabulary — mirrors contact-channel.ts / commercial-signal.ts. Recognizing
 // the *concept* by key is deliberately not enough on its own: the criterion must ALSO carry a valid,
 // user-authored `rules.type==='target_fit'`. An ICP using one of these keys without ever configuring
@@ -14,7 +15,8 @@ export function findTargetFitCriterion(criteria:Criterion[]):Criterion|null{
 type Dimension='categories'|'locations'|'org_types';
 export const TARGET_FIT_DIMENSION_LABELS:Record<Dimension,string>={categories:'catégorie',locations:'localisation',org_types:'type d’organisation'};
 export type TargetFitMatch={dimension:Dimension; matchedValue:string; line:string};
-export type TargetFitEvaluation={satisfied:boolean; matches:TargetFitMatch[]};
+export type TargetFitRejection={dimension:Dimension; value:string; line:string; code:RejectCode};
+export type TargetFitEvaluation={satisfied:boolean; matches:TargetFitMatch[]; rejected:TargetFitRejection[]};
 function isStringArray(value:unknown):value is string[]{return Array.isArray(value)&&value.every(v=>typeof v==='string')}
 // icps.criteria is a schema-less jsonb column, writable outside this application's own Zod validation
 // (e.g. directly via PostgREST) — so a criterion's declared `TargetFitRules` TypeScript type is never
@@ -35,19 +37,21 @@ function isValidTargetFitConfig(config:unknown):config is TargetFitRules{
 // never a hardcoded per-sector list, never a guess. A dimension only counts as "defined" when the
 // user actually populated it (an absent or empty dimension is simply not part of the rule).
 export function evaluateTargetFit(ctx:Pick<ObservationContext,'lines'>,rules:unknown):TargetFitEvaluation{
- if(!isValidTargetFitConfig(rules))return {satisfied:false,matches:[]};
+ if(!isValidTargetFitConfig(rules))return {satisfied:false,matches:[],rejected:[]};
  const dimensions:[Dimension,string[]|undefined][]=[['categories',rules.categories],['locations',rules.locations],['org_types',rules.org_types]];
  // A grammatical word ("des") or a discourse marker is never a rule value: it would match every page. A
  // dimension holding only such values is not defined.
  const defined=dimensions.map(([d,v]):[Dimension,string[]|undefined]=>[d,v?.filter(isMeaningfulTerm)]).filter((entry):entry is [Dimension,string[]]=>!!entry[1]&&entry[1].length>0);
- const matches:TargetFitMatch[]=[];
+ // Per dimension, the BEST supporting sentence of the page (match-context.ts): the user's own values in their
+ // compound or inflected forms, judged in context — a menu, legal text, a sentence about the sector or about the
+ // organization's clients never counts. What was refused is kept to explain why the criterion stays to confirm.
+ const matches:TargetFitMatch[]=[];const rejected:TargetFitRejection[]=[];
  for(const [dimension,values] of defined){
-  for(const value of values){
-   const found=findLiteralMatch(ctx.lines,value);
-   if(found){matches.push({dimension,matchedValue:value,line:found.line});break}
-  }
+  const {best,rejected:refused}=bestMatch(ctx.lines,values,dimension);
+  if(best)matches.push({dimension,matchedValue:best.match.value,line:best.match.line});
+  else for(const r of refused)rejected.push({dimension,value:r.match.value,line:r.match.line,code:r.code});
  }
  const matchedDimensions=new Set(matches.map(m=>m.dimension));
  const satisfied=defined.length>0&&(rules.match==='all_defined'?defined.every(([dimension])=>matchedDimensions.has(dimension)):matchedDimensions.size>0);
- return {satisfied,matches};
+ return {satisfied,matches,rejected};
 }

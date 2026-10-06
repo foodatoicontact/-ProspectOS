@@ -107,6 +107,9 @@ export function presentObservation(o:StoredObservation,criteria:Criterion[],loca
  if(reviewable&&criterion){title=criterion.label;subtitle=isPhone?t(locale,'evidence.titlePhone'):null}
  else if(isPhone){title=t(locale,'evidence.titlePhone');note=t(locale,'evidence.contextNote')}
  else if(isKeyword){title=t(locale,'evidence.titleKeyword');subtitle=criterion?`${t(locale,'evidence.possibleCriterion')} ${criterion.label}`:null;note=t(locale,'evidence.keywordNote')}
+ // A match refused for its context (match-context.ts): the reason is the note, so the reviewer sees why the
+ // criterion stays to confirm. The stored reason is French; the English interface shows its own sentence.
+ else if(/_OUT_OF_CONTEXT$/.test(o.observation_type)){title=t(locale,'evidence.titleOutOfContext');subtitle=criterion?`${t(locale,'evidence.possibleCriterion')} ${criterion.label}`:null;note=locale==='fr'?o.claim:t(locale,'evidence.outOfContextNote')}
  else if(o.status==='UNKNOWN'){title=t(locale,'evidence.titleUnknown')}
  else {title=t(locale,'evidence.titleGeneric');if(!o.evidence_id)note=t(locale,'evidence.contextNote')}
  const source=sourceOf(o,locale);

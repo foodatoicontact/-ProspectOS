@@ -952,4 +952,6 @@ export const fr={
  'signals.monitorPaused.inactive':'Surveillance en pause : pas de connexion depuis 30 jours. Elle reprend d’elle-même à votre prochaine connexion.',
  'signals.monitorPaused.member_left':'Surveillance en pause : la personne qui l’a lancée n’est plus dans l’équipe. Relancez-la pour la reprendre.',
  'error.monitoringLimitReached':'Limite de surveillance de votre offre atteinte. Arrêtez la surveillance d’un autre prospect ou passez à l’offre supérieure.',
+ 'evidence.titleOutOfContext':'Correspondance écartée (hors contexte)',
+ 'evidence.outOfContextNote':'Le terme apparaît, mais dans un contexte qui ne décrit pas l’organisation (secteur, clients, menu, mentions légales…). Critère à confirmer.',
 } as const;

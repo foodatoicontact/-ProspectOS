@@ -14,6 +14,9 @@ export async function buildAccountExportZip(db:SupabaseClient,user:{id:string;em
  const channels=await select(db,'channels','*');
  const outreach=await select(db,'outreach','*');
  const events=await select(db,'events','*');
+ // Signal Engine (migration 024). Best-effort only until that migration exists: an export never fails because of it.
+ const signals=await selectOptional(db,'signals','*');
+ const intentProfiles=await selectOptional(db,'intent_profiles','*');
  const entitlement=await db.from('account_entitlements').select('plan,status,starts_at,expires_at').eq('user_id',user.id).maybeSingle();
 
  const zip=new JSZip();
@@ -31,6 +34,8 @@ export async function buildAccountExportZip(db:SupabaseClient,user:{id:string;em
  zip.file('channels.json',JSON.stringify(channels,null,1));
  zip.file('outreach.json',JSON.stringify(outreach,null,1));
  zip.file('history.json',JSON.stringify(events,null,1));
+ zip.file('signals.json',JSON.stringify(signals,null,1));
+ zip.file('intent_profiles.json',JSON.stringify(intentProfiles,null,1));
  // Explicit, honest scope statement — never silently decide that shared organizational data is
  // "yours" or hide that it's included. No secret (password hash, JWT, service key) is ever queried
  // here in the first place, so none can leak into the archive.
@@ -40,7 +45,7 @@ Généré le : ${new Date().toISOString()}
 
 account.json : votre email, vos memberships (organisation + rôle) et votre accès (bêta ou non).
 organizations.json, projects.json, icps.json, prospects.json, evidence.json, channels.json,
-outreach.json, history.json : les données de la ou des organisations dont vous êtes membre,
+outreach.json, history.json, signals.json, intent_profiles.json : les données de la ou des organisations dont vous êtes membre,
 telles que votre compte peut légitimement les consulter aujourd'hui (limité par les mêmes règles
 d'accès que l'application elle-même — jamais les données d'une autre organisation).
 
@@ -51,6 +56,10 @@ Aucun mot de passe, jeton d'authentification ou clé technique Supabase n'est ja
 cet export.
 `);
  return zip.generateAsync({type:'uint8array',compression:'DEFLATE'});
+}
+async function selectOptional(db:SupabaseClient,table:string,columns:string){
+ const {data,error}=await db.from(table).select(columns);
+ return error?[]:data;
 }
 async function select(db:SupabaseClient,table:string,columns:string){
  const {data,error}=await db.from(table).select(columns);

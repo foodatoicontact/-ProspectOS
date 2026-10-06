@@ -908,4 +908,5 @@ export const fr={
  'signals.type.headcount_growth':'Hausse des effectifs',
  'signals.type.incident_cyber':'Incident cyber',
  'signals.type.event':'Événement',
+ 'signals.noSite':'Aucun site officiel identifié : ajoutez-le dans « Site officiel vérifié » ci-dessus pour chercher des signaux sur le site, ou ajoutez un signal que vous avez lu.',
 } as const;

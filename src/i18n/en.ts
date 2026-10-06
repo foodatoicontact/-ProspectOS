@@ -902,4 +902,5 @@ export const en={
  'signals.type.headcount_growth':'Headcount growth',
  'signals.type.incident_cyber':'Cyber incident',
  'signals.type.event':'Event',
+ 'signals.noSite':'No official website identified: add it in “Verified official website” above to search the site for signals, or add a signal you read.',
 } satisfies Record<keyof typeof fr,string>;

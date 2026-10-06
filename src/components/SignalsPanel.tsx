@@ -80,15 +80,19 @@ export function SignalsPanel({prospect,mode,api,locale,disabled,onBusyChange}:{p
    {r.status!=='PENDING_REVIEW'&&<button className="text-button" disabled={busy||disabled} onClick={()=>review(r,'reset')}>{tr('signals.reset')}</button>}
   </div>
  </article>};
+ // No official website known (e.g. a company found in the public register): the site search cannot apply, said up
+ // front instead of after a click. Adding a signal by hand stays available.
+ const noSite=mode==='live'&&!prospect.website;
  const verifiedScore=intent?.score??0,estimatedScore=intent?.estimated.score??0;
  return <section className="signals-panel observations">
   <div className="section-title"><h3>{tr('signals.title')}</h3>
    <span className={`pill intent-pill${estimatedScore>verifiedScore?' estimated':''}`} title={tr('signals.scoreHint')}>INTENT {verifiedScore}/100{estimatedScore>verifiedScore&&<> · ≈ {estimatedScore} {tr('score.estimated')}</>}</span></div>
   <p className="muted">{tr('signals.intro')}</p>
   <div className="actions signal-actions">
-   <button disabled={busy||disabled} onClick={scan}>{tr('signals.scan')}</button>
+   <button disabled={busy||disabled||noSite} onClick={scan}>{tr('signals.scan')}</button>
    <button className="text-button" disabled={busy||disabled} aria-expanded={adding} onClick={()=>setAdding(a=>!a)}>{tr('signals.add')}</button>
   </div>
+  {noSite&&<p className="muted">{tr('signals.noSite')}</p>}
   {mode==='demo'&&<p className="muted">{tr('signals.demoNote')}</p>}
   {adding&&<form className="signal-form" onSubmit={e=>{e.preventDefault();add()}}>
    <label>{tr('signals.form.type')}<select value={form.signal_type} onChange={e=>setForm({...form,signal_type:e.target.value as SignalType})}>{SIGNAL_TYPES.map(t=><option key={t} value={t}>{typeLabel(t)}</option>)}</select></label>

@@ -43,3 +43,10 @@ test('page: the panel sits on the prospect card after the evidence review, laid 
  const css=await readFile(new URL('../app/globals.css',import.meta.url),'utf8');
  assert.match(css,/\.detail-layout \.signals-panel\{order:7\}/);
 });
+
+test('no official website (e.g. a register company): the site search is disabled and explained up front; adding a signal stays available',()=>{
+ assert.match(src,/const noSite=mode==='live'&&!prospect\.website;/);
+ assert.match(src,/disabled=\{busy\|\|disabled\|\|noSite\} onClick=\{scan\}/);
+ assert.match(src,/\{noSite&&<p className="muted">\{tr\('signals\.noSite'\)\}<\/p>\}/);
+ assert.match(src,/aria-expanded=\{adding\} onClick=\{\(\)=>setAdding/);
+});

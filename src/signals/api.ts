@@ -7,6 +7,8 @@ import type {SignalProvider,SignalTarget} from './provider.ts';
 import {FixtureSignalProvider} from './providers/fixture.ts';
 import {OfficialSiteSignalProvider,type SiteFetcher} from './providers/site.ts';
 import {scoreIntent,type IntentSignal} from '../domain/intent.ts';
+import {feedbackReport} from '../domain/feedback.ts';
+import {intentProfileOf} from './context.ts';
 import {resolveAnalysisAuthorization,type AcceptedDiscoveryResult,type AnalysisAuthorization} from '../discovery/analysis-authorization.ts';
 import {analysisFailureCode} from '../discovery/services.ts';
 import type {AnalysisAudit} from '../discovery/website-analysis.ts';
@@ -20,6 +22,7 @@ import type {AnalysisAudit} from '../discovery/website-analysis.ts';
 //                                       plan unit as "Analyser le site"; the unit is given back when nothing was read)
 //  POST /signals/:id/review             verify | reject | reset
 //  GET|POST /projects/:id/intent-profile  the project's tracked types, weights and words
+//  GET  /projects/:id/feedback          what produced answers (S8): rates by FIT, INTENT, signal type, source, age
 type Json=(value:unknown,status?:number)=>Response;
 export type SignalDeps={
  userId:string;now:()=>Date;
@@ -65,10 +68,7 @@ const SIGNAL_COLUMNS='id,prospect_id,signal_type,status,title,excerpt,source_url
 const toIntentSignal=(r:Record<string,any>):IntentSignal=>({id:r.id,signal_type:r.signal_type,status:r.status,title:r.title,excerpt:r.excerpt,source_url:r.source_url,source_domain:r.source_domain??null,
  confidence:Number(r.confidence),event_date:r.event_date??null,published_at:r.published_at??null,observed_at:r.observed_at,matched_terms:r.matched_terms??[]});
 
-async function profileOf(db:SupabaseClient,projectId:string){
- const rows=await checked(db.from('intent_profiles').select('profile').eq('project_id',projectId));
- const parsed=IntentProfileSchema.safeParse(rows?.[0]?.profile);return parsed.success?parsed.data:null;
-}
+const profileOf=intentProfileOf;
 function repoOf(db:SupabaseClient){
  return {saveSignals:async(prospectId:string,runId:string|null,list:SignalCandidate[])=>{
   const r=await checked(db.rpc('save_signals',{p_prospect_id:prospectId,p_run_id:runId,p_signals:list}));
@@ -78,9 +78,18 @@ function repoOf(db:SupabaseClient){
 
 export async function handleSignals(request:Request,path:string[],body:Record<string,unknown>,db:SupabaseClient,json:Json,deps:SignalDeps):Promise<Response|null>{
  const [resource,id,action]=path;const method=request.method;
- const applies=resource==='prospects'&&(action==='signals'||action==='signal-scan')||resource==='signals'&&action==='review'||resource==='projects'&&action==='intent-profile';
+ const applies=resource==='prospects'&&(action==='signals'||action==='signal-scan')||resource==='signals'&&action==='review'||resource==='projects'&&(action==='intent-profile'||action==='feedback');
  if(!applies)return null;
  if(!uuid.safeParse(id).success)return json({error:'Identifiant invalide'},400);
+ if(resource==='projects'&&action==='feedback'){
+  if(method!=='GET')return null;
+  // S8: what produced answers, from the contact snapshots and each prospect's current status only.
+  const snapshots=await checked(db.from('contact_snapshots').select('prospect_id,fit_score,intent_score,signals,contacted_at').eq('project_id',id).order('contacted_at').limit(5000));
+  const ids=[...new Set((snapshots??[]).map((r:{prospect_id:string})=>r.prospect_id))];
+  const statusOf:Record<string,string>={};
+  for(let i=0;i<ids.length;i+=200){for(const r of await checked(db.from('prospects').select('id,status').in('id',ids.slice(i,i+200))))statusOf[r.id]=r.status}
+  return json(feedbackReport(snapshots??[],statusOf));
+ }
  if(resource==='projects'){
   if(method==='GET')return json({profile:await profileOf(db,id)});
   if(method==='POST'){

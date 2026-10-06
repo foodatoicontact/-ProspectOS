@@ -15,6 +15,8 @@ import {newInviteToken,inviteTokenHash,isInviteToken,inviteLink,teamError,TEAM_E
 import {createAdminClient} from '../../../../src/server/admin-client';
 import {createHash} from 'node:crypto';
 import {handleSignals} from '../../../../src/signals/api';
+import {intentProfileOf,verifiedSignalsOf,recordContactSnapshot} from '../../../../src/signals/context';
+import {whyNow,withWhyNow} from '../../../../src/domain/why-now';
 import {createSupabaseAnalysisAudit} from '../../../../src/discovery/analysis-audit';
 import {createPolicyFetcher} from '../../../../src/discovery/website-analysis';
 import {dynamicAnalysisEnabled} from '../../../../src/discovery/analysis-authorization';
@@ -23,7 +25,8 @@ import {startCheckout,openPortal} from '../../../../src/server/billing/checkout'
 import {billingDeps,appOrigin} from '../../../../src/server/billing';
 import {billingConfig,checkoutAvailability} from '../../../../src/server/billing/config';
 import {saveProviderCredential,listProviderCredentials,deleteProviderCredential,resolveProviderCredential} from '../../../../src/server/byok';
-import {DEFAULT_CRITERIA,STATUSES,OUTREACH_STATUSES,validateCriteria,generateOutreach,scoreProspect,csv,safeLink} from '../../../../src/domain/core';
+import {DEFAULT_CRITERIA,OUTREACH_STATUSES,validateCriteria,generateOutreach,scoreProspect,csv,safeLink} from '../../../../src/domain/core';
+import {STATUSES} from '../../../../src/domain/statuses';
 export const runtime='nodejs';
 export const maxDuration=60;
 export const dynamic='force-dynamic';
@@ -96,7 +99,10 @@ async function handler(request:Request,context:{params:Promise<{path:string[]}>}
  const project=await checked(db.from('projects').select('*').eq('id',body.project_id).single());
  return json(await checked(db.from('prospects').insert({project_id:project.id,organization_id:project.organization_id,name:body.name.trim(),website:body.website,city:String(body.city??'').slice(0,120),status:'À analyser'}).select().single()),201);
  }
- if(request.method==='PATCH'&&id){if(!STATUSES.includes(body.status))return json({error:'Statut invalide'},400);return json(await checked(db.from('prospects').update({status:body.status}).eq('id',id).select().single()))}
+ if(request.method==='PATCH'&&id){if(!STATUSES.includes(body.status))return json({error:'Statut invalide'},400);const updated=await checked(db.from('prospects').update({status:body.status}).eq('id',id).select().single());
+ // Signal Engine S8: moving a prospect to "Contacté" freezes why it was contacted (best-effort, never blocks the change).
+ if(body.status==='Contacté')await recordContactSnapshot(db,id,null,'status_contacted');
+ return json(updated)}
  }
  if(resource==='evidence'&&request.method==='POST'){
  if(typeof body.criterion!=='string'||typeof body.value!=='boolean'||!safeLink(String(body.source_url??''))||typeof body.excerpt!=='string'||!body.excerpt.trim()||body.excerpt.length>1500||!['VERIFIED','NOT_VERIFIED','CONTRADICTED','INFERRED_UNCONFIRMED'].includes(body.status))return json({error:'Preuve invalide'},400);
@@ -119,14 +125,19 @@ async function handler(request:Request,context:{params:Promise<{path:string[]}>}
  // Case-insensitive by design ("EN"/"En" from a non-standard caller must not silently fall back to
  // French) and safe against non-string input (String() never throws, even on an object/array/null).
  const draftLocale=String(body.locale).toLowerCase()==='en'?'en':'fr';
- const draft=generateOutreach(p.name,project.offer,projectCriteria(project.icps),p.evidence,undefined,draftLocale);
+ const base=generateOutreach(p.name,project.offer,projectCriteria(project.icps),p.evidence,undefined,draftLocale);
+ // Signal Engine S7: "why now" — the strongest VERIFIED signal, quoted verbatim with its source and date, right after
+ // the greeting (deterministic template, src/domain/why-now.ts). Best-effort: no signal, or signals unreadable, leaves
+ // the factual template exactly as it was.
+ let why=null;try{why=whyNow(await verifiedSignalsOf(db,p.id),await intentProfileOf(db,p.project_id),new Date(),draftLocale)}catch{why=null}
+ const draft={...base,text:withWhyNow(base.text,p.name,why,draftLocale),signal_ids:why?.signal_ids??[],why_now:why?.sentence??null};
  // At most one live DRAFT per prospect: a regeneration supersedes the previous one instead of
  // leaving an ambiguous pile of undecided drafts. Already-decided rows (APPROVED/USED/DISCARDED)
  // are historical record and are never touched here. The invariant itself is enforced by a partial
  // unique index (migration 007), not by this discard-then-insert sequence alone: two concurrent
  // generations can still both reach the insert below, but only one can ever succeed.
  await checked(db.from('outreach').update({status:'DISCARDED'}).eq('prospect_id',p.id).eq('organization_id',p.organization_id).eq('status','DRAFT'));
- const {data:row,error:insertError}=await db.from('outreach').insert({organization_id:p.organization_id,prospect_id:p.id,content:draft.text,evidence_ids:draft.evidence_ids,provider:'rule_based_v1'}).select('id,status,created_at').single();
+ const {data:row,error:insertError}=await db.from('outreach').insert({organization_id:p.organization_id,prospect_id:p.id,content:draft.text,evidence_ids:draft.evidence_ids,signal_ids:draft.signal_ids,provider:'rule_based_v1'}).select('id,status,created_at').single();
  if(insertError){
  // 23505 = unique_violation: a concurrent generation for the same prospect won the race and its
  // DRAFT is now the live one. This is expected under concurrency, never a raw DB exception — the
@@ -152,7 +163,10 @@ async function handler(request:Request,context:{params:Promise<{path:string[]}>}
  // that has already moved past that point matches nothing here (0 rows -> the same generic error as
  // any other not-found/wrong-tenant case below) — enforced again, independently, by the
  // outreach_guard DB trigger (migration 007), so this never depends on the API check alone.
- return json(await checked(db.from('outreach').update(patch).eq('id',id).in('status',['DRAFT','APPROVED']).select().single()));
+ const changed=await checked(db.from('outreach').update(patch).eq('id',id).in('status',['DRAFT','APPROVED']).select().single());
+ // Signal Engine S8: a message marked used freezes why the prospect was contacted (best-effort).
+ if(body.status==='USED'&&changed?.prospect_id)await recordContactSnapshot(db,changed.prospect_id,changed.id,'outreach_used');
+ return json(changed);
  }
  if(resource==='events'&&request.method==='GET'){const pid=new URL(request.url).searchParams.get('prospect_id');return json(await checked(db.from('events').select('*').eq('prospect_id',pid??'').order('created_at',{ascending:false}).limit(100)))}
  if(resource==='analyze-company'&&request.method==='POST'){

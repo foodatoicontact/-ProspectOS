@@ -1,7 +1,8 @@
 import {CHECKOUT_PRICES} from '../../domain/plans.ts';
 import {planForPrice,type BillingConfig} from './config.ts';
+import {teamTiersMatch} from './checkout.ts';
 import {verifyStripeSignature} from './signature.ts';
-import type {StripeApi,StripeSubscription} from './stripe-client.ts';
+import type {StripeApi,StripePrice,StripeSubscription} from './stripe-client.ts';
 import type {BillingStore,SubscriptionState} from './store.ts';
 import type {BillingResult} from './checkout.ts';
 // Stripe webhook. The only path by which a paid plan is granted, extended or ended.
@@ -25,19 +26,25 @@ export function subscriptionIdOf(event:{type:string;data:{object:any}}):string|n
  return null;
 }
 // The subscription as ProspectOS understands it. A subscription with several items, an unknown price, or a
-// price whose amount/currency/interval is not the offer's grants no plan (the event is still recorded).
-export function subscriptionState(sub:StripeSubscription,config:Pick<BillingConfig,'prices'>,event:{id:string;type:string}):SubscriptionState{
+// price whose amount/currency/interval (TEAM: tiers) is not the offer's grants no plan (the event is still
+// recorded). For TEAM the item quantity is the number of paid accounts; its range is enforced by the database.
+// teamPrice: the Équipe price re-read WITH its tiers (handleStripeWebhook does it only for that price).
+export function subscriptionState(sub:StripeSubscription,config:Pick<BillingConfig,'prices'>,event:{id:string;type:string},teamPrice?:StripePrice|null):SubscriptionState{
  const items=sub.items?.data??[];const item=items[0];
  const priceId=str(item?.price?.id);
  let plan=items.length===1?planForPrice(config,priceId):null;
- const price=item?.price as unknown as {unit_amount?:number;currency?:string;recurring?:{interval?:string}}|undefined;
- if(plan){
+ const price=item?.price;
+ if(plan==='TEAM'){
+  const p=teamPrice&&teamPrice.id===priceId?teamPrice:null;
+  if(!p||p.currency!=='eur'||p.recurring?.interval!=='month'||!teamTiersMatch(p))plan=null;
+ }else if(plan){
   const expected=CHECKOUT_PRICES[plan==='PAID'?'BETA':'PRO'];
   if(price?.unit_amount!==undefined&&(price.unit_amount!==expected.unitAmount||price.currency!==expected.currency||price.recurring?.interval!==expected.interval))plan=null;
  }
+ const seats=plan==='TEAM'&&typeof item?.quantity==='number'&&Number.isInteger(item.quantity)?item.quantity:null;
  const invoice=sub.latest_invoice&&typeof sub.latest_invoice==='object'?sub.latest_invoice:null;
  return {
-  eventId:event.id,eventType:event.type,customerId:String(sub.customer),subscriptionId:sub.id,priceId,plan,status:sub.status,
+  eventId:event.id,eventType:event.type,customerId:String(sub.customer),subscriptionId:sub.id,priceId,plan,seats,status:sub.status,
   periodStart:iso(item?.current_period_start??sub.current_period_start),periodEnd:iso(item?.current_period_end??sub.current_period_end),
   cancelAtPeriodEnd:sub.cancel_at_period_end===true,paid:invoice?.status==='paid',
  };
@@ -58,7 +65,10 @@ export async function handleStripeWebhook(rawBody:string,signature:string|null,d
  // A Stripe failure here returns 5xx on purpose: Stripe retries, and nothing was recorded yet.
  const sub=await deps.stripe.retrieveSubscription(subscriptionId);
  if(sub.livemode!==(config.mode==='live'))return {status:400,body:{error:'Livemode mismatch'}};
- const state=subscriptionState(sub,config,event);
+ // Only the Équipe price is re-read, with its tiers: Solo and Pro keep exactly the calls they always had.
+ const items=sub.items?.data??[];
+ const teamPrice=items.length===1&&config.prices.TEAM&&items[0]?.price?.id===config.prices.TEAM?await deps.stripe.retrievePrice(config.prices.TEAM,true):null;
+ const state=subscriptionState(sub,config,event,teamPrice);
  const result=await deps.store.applyState(state);
  if(['unknown_customer','unknown_price','stale_subscription'].includes(result.outcome))deps.log?.(`billing webhook ${event.id} (${event.type}): ${result.outcome}`);
  return ok({outcome:result.outcome});

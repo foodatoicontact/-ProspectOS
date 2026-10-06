@@ -1,4 +1,4 @@
-// Migration 022 — ProspectOS Pro team: up to 5 accounts on one shared workspace, one pooled quota, and a search a
+// Migration 022 — team (since 023 the team plan is ProspectOS Équipe, 'TEAM', here with 5 paid seats): up to 5 accounts on one shared workspace, one pooled quota, and a search a
 // teammate already ran (same source and criteria, < 7 days) reused without any external call or quota.
 // Checked on real PostgreSQL (PGlite) with the full migration chain, as PostgREST would call it.
 import {strict as assert} from 'node:assert';
@@ -21,14 +21,14 @@ try{
  const files=(await readdir(new URL('../db/migrations/',import.meta.url))).filter(f=>f.endsWith('.sql')).sort();
  assert.ok(files.includes('022_team_pro.sql'));
  for(const f of files)await db.exec(await readFile(new URL(`../db/migrations/${f}`,import.meta.url),'utf8'));
- await sql('update prospectos_private.discovery_quota_settings set runs_per_hour=1000, analyses_per_hour=1000, analyses_per_user_per_hour=1000, ai_offer_per_hour=1000, pro_discovery_limit=3');
+ await sql('update prospectos_private.discovery_quota_settings set runs_per_hour=1000, analyses_per_hour=1000, analyses_per_user_per_hour=1000, ai_offer_per_hour=1000, pro_discovery_limit=1');
  const U=n=>`00000000-0000-4000-8000-${String(n).padStart(12,'0')}`;
  const O=U(1),M=[U(2),U(3),U(4),U(5),U(6)],X=U(9),P=U(10),UNCONF=U(11);
  const users=[[O,'owner@t'],...M.map((u,i)=>[u,`m${i+1}@t`]),[X,'x@t'],[P,'paid@t']];
  for(const [u,e] of users)await sql(`insert into auth.users(id,email,email_confirmed_at) values($1::uuid,$2,now())`,[u,e]);
  await sql(`insert into auth.users(id,email,email_confirmed_at) values($1::uuid,'unconfirmed@t',null)`,[UNCONF]);
- const ent=(u,plan,days=30)=>sql(`insert into public.account_entitlements(user_id,plan,status,starts_at,expires_at) values($1,$2,'ACTIVE',now()-interval '1 day',now()+($3||' days')::interval) on conflict(user_id) do update set plan=excluded.plan,status='ACTIVE',starts_at=excluded.starts_at,expires_at=excluded.expires_at`,[u,plan,String(days)]);
- await ent(O,'PRO');await ent(P,'PAID');
+ const ent=(u,plan,days=30)=>sql(`insert into public.account_entitlements(user_id,plan,status,starts_at,expires_at,seats) values($1,$2,'ACTIVE',now()-interval '1 day',now()+($3||' days')::interval,case when $2='TEAM' then 5 end) on conflict(user_id) do update set plan=excluded.plan,status='ACTIVE',starts_at=excluded.starts_at,expires_at=excluded.expires_at,seats=excluded.seats`,[u,plan,String(days)]);
+ await ent(O,'TEAM');await ent(P,'PAID');
  const org=async u=>(await as(u,`select public.create_organization('Org') id`)).rows[0].id;
  const project=async(u,o)=>(await as(u,`insert into public.projects(organization_id,name) values($1,'P') returning id`,[o])).rows[0].id;
  const team=await org(O);const p1=await project(O,team);
@@ -37,11 +37,11 @@ try{
  const accept=(u,token)=>as(u,'select public.accept_team_invitation($1) r',[hash(token)]).then(r=>r.rows[0].r);
  const start=(u,proj,provider='registry',filters='{}')=>as(u,`select public.start_discovery($1,'Industriel','Auvergne-Rhône-Alpes','["industriel","agroalimentaire"]',$2,20,$3::jsonb) run`,[proj,provider,filters]).then(r=>r.rows[0].run);
 
- await check('PLAN: only an active Pro (or Entreprise/Internal) owner can invite',async()=>{
+ await check('PLAN: only an active Équipe (or Entreprise/Internal) owner can invite',async()=>{
   const po=(await as(P,`select organization_id from public.memberships`)).rows[0].organization_id;
   await refused(()=>invite(P,'someone@t','tok-paid'),/team_plan_required/,'a Solo owner inviting');
  });
- await check('INVITE: the Pro owner invites by e-mail; only a token hash is stored, nobody can read it',async()=>{
+ await check('INVITE: the Équipe owner invites by e-mail; only a token hash is stored, nobody can read it',async()=>{
   const r=await invite(O,'M1@T','tok-m1');assert.equal(r.email,'m1@t');assert.ok(r.expires_at);
   await refused(()=>as(O,'select token_hash from prospectos_private.team_invitations'),/permission|denied/i,'reading invitations directly');
  });
@@ -70,19 +70,19 @@ try{
   await refused(()=>as(M[0],'select public.remove_team_member($1)',[M[1]]),/team_owner_required/,'a member removing');
   await refused(()=>as(M[0],`insert into public.memberships(organization_id,user_id,role) values($1,$2,'owner')`,[team,X]),/permission|denied|policy/i,'a direct membership insert');
  });
- await check('POOL: one Pro quota for the whole team, under a lock (never above the limit)',async()=>{
-  await start(O,p1);await start(M[0],p1);await start(M[1],p1);
-  await refused(()=>start(M[2],p1),/plan_limit_reached/,'a 4th search on a pool of 3');
+ await check('POOL: one quota for the whole team (Pro volumes × 5 paid seats), under a lock (never above the limit)',async()=>{
+  for(const u of [O,M[0],M[1],O,M[0]])await start(u,p1);
+  await refused(()=>start(M[2],p1),/plan_limit_reached/,'a 6th search on a pool of 1 × 5 seats');
   await refused(()=>start(O,p1),/plan_limit_reached/,'the owner over the pool too');
   const usage=(await as(M[0],'select public.get_commercial_usage() u')).rows[0].u;
-  assert.equal(usage.team,true);assert.equal(usage.plan,'PRO');assert.equal(usage.discovery_used,3);assert.equal(usage.discovery_limit,3);
+  assert.equal(usage.team,true);assert.equal(usage.plan,'TEAM');assert.equal(usage.discovery_used,5);assert.equal(usage.discovery_limit,5);
  });
- await check('READ-ONLY when the owner’s Pro ends: no search counted on the team, data still readable',async()=>{
+ await check('READ-ONLY when the owner’s Équipe plan ends: no search counted on the team, data still readable',async()=>{
   await sql('update prospectos_private.discovery_quota_settings set pro_discovery_limit=300');
   await sql(`update public.account_entitlements set expires_at=now()-interval '1 minute' where user_id=$1`,[O]);
-  await refused(()=>start(M[0],p1),/plan_limit_reached/,'a member searching after the Pro ended');
+  await refused(()=>start(M[0],p1),/plan_limit_reached/,'a member searching after the plan ended');
   assert.equal((await as(M[0],'select count(*)::int n from public.projects where id=$1',[p1])).rows[0].n,1);
-  await ent(O,'PRO');
+  await ent(O,'TEAM');
  });
  await check('TEAM VIEW: members listed for everyone in the team; invitations for the owner only',async()=>{
   const t=(await as(M[0],'select public.list_team() t')).rows[0].t;

@@ -6,7 +6,7 @@ import {analyzeOffer,AnalyzeOfferError} from '../../../../src/server/ai';
 import {analyzeCompanyGuarded} from '../../../../src/server/ai-guard';
 import {checked as checkedRpc} from '../../../../src/discovery/repository';
 import {CriterionContextSchema} from '../../../../src/discovery/types';
-import {requireActiveEntitlement} from '../../../../src/server/entitlement';
+import {requireActiveEntitlement,effectiveEntitlement} from '../../../../src/server/entitlement';
 import {buildAccountExportZip,anonymizeAuthUser} from '../../../../src/server/account';
 import {recordApiUsage} from '../../../../src/server/usage';
 import {releaseCommercialUse} from '../../../../src/server/commercial-usage';
@@ -232,7 +232,8 @@ async function handler(request:Request,context:{params:Promise<{path:string[]}>}
  // A team membership (role 'member', migration 022) is the account's workspace; otherwise its own organization.
  const membership=memberships.find((m:any)=>m.role==='member')??memberships[0]??null;
  const organization=membership?await checked(db.from('organizations').select('name').eq('id',membership.organization_id).single()):null;
- const entitlement=await checked(db.from('account_entitlements').select('plan,status,expires_at').eq('user_id',user.id).maybeSingle());
+ // The effective access (023): a team member sees and uses its owner's team plan.
+ const entitlement=await effectiveEntitlement(db,user.id).then(r=>{if(r.error)throw Error('DATABASE_REQUEST_FAILED');return r.data});
  // Commercial counters (migration 016). Best-effort and read-only: until that migration is applied the
  // function does not exist and the account answer simply carries usage:null, exactly as before.
  const usageAnswer=await db.rpc('get_commercial_usage');

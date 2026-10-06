@@ -1,11 +1,12 @@
 import {z} from 'zod';
-import {CHECKOUT_PRICES,type CheckoutPlan} from '../../domain/plans.ts';
+import {CHECKOUT_PRICES,TEAM_PRICING,type CheckoutPlan} from '../../domain/plans.ts';
 import type {BillingConfig} from './config.ts';
 import type {StripeApi,StripePrice} from './stripe-client.ts';
 import type {BillingStore} from './store.ts';
 // Self-service subscription (Stripe Checkout, hosted by Stripe — no card form in ProspectOS) and the Stripe
-// Customer Portal. The browser only ever says WHICH offer (BETA or PRO); the server decides the price id,
-// checks that this price really is 49 € / 99 € per month in EUR, and uses the customer it linked itself.
+// Customer Portal. The browser only ever says WHICH offer (BETA, PRO or TEAM); the server decides the price id,
+// checks that this price really is 49 € / 99 € per month, or the Équipe tiers, in EUR, and uses the customer it
+// linked itself. For TEAM the number of accounts is chosen on the Stripe page, within 2–5 set by the server.
 // Paying on the Stripe page grants nothing by itself: the plan is granted by the webhook (webhook.ts).
 export type BillingResult={status:number;body:Record<string,unknown>};
 export type BillingDeps={config:BillingConfig|null;stripe:StripeApi;store:BillingStore;log?:(message:string)=>void};
@@ -16,10 +17,19 @@ const PortalBody=z.object({}).strict();
 const BLOCKING=new Set(['active','trialing','past_due','unpaid','paused']);
 const fail=(status:number,code:string,error:string):BillingResult=>({status,body:{error,code}});
 
+// ProspectOS Équipe: exactly two graduated tiers — up to `includedSeats` for the flat base amount, then
+// `extraSeatAmount` per account. Any other shape (volume tiers, another amount or bound) is not the offer.
+export function teamTiersMatch(price:Pick<StripePrice,'billing_scheme'|'tiers_mode'|'tiers'>):boolean{
+ const t=price.tiers;
+ return price.billing_scheme==='tiered'&&price.tiers_mode==='graduated'&&Array.isArray(t)&&t.length===2
+  &&t[0].up_to===TEAM_PRICING.includedSeats&&t[0].flat_amount===TEAM_PRICING.baseAmount&&!t[0].unit_amount
+  &&t[1].up_to===null&&!t[1].flat_amount&&t[1].unit_amount===TEAM_PRICING.extraSeatAmount;
+}
 export function priceMatches(price:StripePrice,plan:CheckoutPlan,mode:BillingConfig['mode']):boolean{
+ const recurring=price.active===true&&price.type==='recurring'&&price.recurring?.interval==='month'&&price.recurring.interval_count===1&&price.livemode===(mode==='live');
+ if(plan==='TEAM')return recurring&&price.currency===TEAM_PRICING.currency&&teamTiersMatch(price);
  const expected=CHECKOUT_PRICES[plan];
- return price.active===true&&price.type==='recurring'&&price.currency===expected.currency&&price.unit_amount===expected.unitAmount
-  &&price.recurring?.interval===expected.interval&&price.recurring.interval_count===1&&price.livemode===(mode==='live');
+ return recurring&&price.billing_scheme!=='tiered'&&price.currency===expected.currency&&price.unit_amount===expected.unitAmount;
 }
 
 export async function startCheckout(input:{userId:string;email:string|null;body:unknown;origin:string;now?:number},deps:BillingDeps):Promise<BillingResult>{
@@ -27,13 +37,13 @@ export async function startCheckout(input:{userId:string;email:string|null;body:
  if(!parsed.success)return fail(400,'INVALID_CHECKOUT_REQUEST','Offre invalide.');
  const plan=parsed.data.plan;
  if(plan==='ENTERPRISE')return fail(400,'ENTERPRISE_QUOTE_ONLY','L’offre Entreprise / White Label est sur devis. Contactez-nous.');
- if(plan!=='BETA'&&plan!=='PRO')return fail(400,'INVALID_CHECKOUT_REQUEST','Offre invalide.');
+ if(plan!=='BETA'&&plan!=='PRO'&&plan!=='TEAM')return fail(400,'INVALID_CHECKOUT_REQUEST','Offre invalide.');
  const {config,stripe,store}=deps;
  if(!config||!config.checkoutEnabled)return fail(503,'BILLING_UNAVAILABLE','Le paiement en ligne n’est pas disponible pour le moment.');
  if(plan==='BETA'&&!config.betaCheckoutOpen)return fail(409,'BETA_OFFER_CLOSED','L’offre ProspectOS Bêta n’est plus proposée aux nouveaux abonnés.');
  const priceId=config.prices[plan];
  if(!priceId)return fail(503,'BILLING_UNAVAILABLE','Le paiement en ligne n’est pas disponible pour le moment.');
- const price=await stripe.retrievePrice(priceId);
+ const price=await stripe.retrievePrice(priceId,plan==='TEAM');
  if(!priceMatches(price,plan,config.mode)){deps.log?.(`billing: configured ${plan} price does not match the offer`);return fail(503,'BILLING_UNAVAILABLE','Le paiement en ligne n’est pas disponible pour le moment.')}
  const account=await store.getAccount(input.userId);
  if(account?.subscription_status&&BLOCKING.has(account.subscription_status))return fail(409,'SUBSCRIPTION_EXISTS','Vous avez déjà un abonnement. Gérez-le depuis « Gérer mon abonnement ».');
@@ -45,7 +55,9 @@ export async function startCheckout(input:{userId:string;email:string|null;body:
  const bucket=Math.floor((input.now??Date.now())/300000);
  const session=await stripe.createCheckoutSession({
   mode:'subscription',customer:customerId,client_reference_id:input.userId,
-  line_items:[{price:priceId,quantity:1}],
+  line_items:[plan==='TEAM'
+   ?{price:priceId,quantity:TEAM_PRICING.minSeats,adjustable_quantity:{enabled:true,minimum:TEAM_PRICING.minSeats,maximum:TEAM_PRICING.maxSeats}}
+   :{price:priceId,quantity:1}],
   success_url:`${input.origin}/?billing=success`,cancel_url:`${input.origin}/?billing=cancel`,
   metadata,subscription_data:{metadata},
   // B2B invoicing data collected by Stripe: company name, billing address, VAT number.

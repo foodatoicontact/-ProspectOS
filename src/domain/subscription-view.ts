@@ -6,7 +6,8 @@ import {hasCurrentSubscription,type BillingAvailability,type BillingSummary} fro
 //                           an explicit message, never a button that cannot work.
 // A subscription is never offered a second checkout: `current` hides the pricing cards in BillingSection.
 export type SubscriptionView={
- offer:'BETA'|'PRO'|null;
+ offer:'BETA'|'PRO'|'TEAM'|null;
+ seats:number|null;
  status:string;
  current:boolean;
  cancelScheduled:boolean;
@@ -19,7 +20,8 @@ export function subscriptionView(status:BillingSummary|null|undefined,offers:Bil
  const cancelScheduled=current&&status.cancel_at_period_end===true;
  const end=status.current_period_end&&Number.isFinite(new Date(status.current_period_end).getTime())?status.current_period_end:null;
  return {
-  offer:status.plan==='PAID'?'BETA':status.plan==='PRO'?'PRO':null,
+  offer:status.plan==='PAID'?'BETA':status.plan==='PRO'?'PRO':status.plan==='TEAM'?'TEAM':null,
+  seats:status.plan==='TEAM'&&typeof status.seats==='number'?status.seats:null,
   status:status.status,current,cancelScheduled,
   date:current&&end?{kind:cancelScheduled?'ends':'renews',iso:end}:null,
   manage:offers?.portal===true?'portal':'unavailable',

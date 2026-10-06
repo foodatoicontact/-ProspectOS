@@ -1,4 +1,4 @@
-import {CHECKOUT_TO_DB,type CheckoutPlan} from '../../domain/plans.ts';
+import {CHECKOUT_TO_DB,type CheckoutPlan,type PaidDbPlan} from '../../domain/plans.ts';
 // Billing configuration, read on the server only. No value read here is ever returned to the browser.
 //
 // Locks, all fail-closed:
@@ -33,22 +33,22 @@ export function billingConfig(env:BillingEnv=process.env):BillingConfig|null{
  const webhookSecret=env.STRIPE_WEBHOOK_SECRET&&/^whsec_[A-Za-z0-9]+$/.test(env.STRIPE_WEBHOOK_SECRET)?env.STRIPE_WEBHOOK_SECRET:null;
  return {
   secretKey,mode,webhookSecret,
-  prices:{BETA:price(env.STRIPE_PRICE_BETA),PRO:price(env.STRIPE_PRICE_PRO)},
+  prices:{BETA:price(env.STRIPE_PRICE_BETA),PRO:price(env.STRIPE_PRICE_PRO),TEAM:price(env.STRIPE_PRICE_TEAM)},
   checkoutEnabled:env.BILLING_ENABLED==='true',
   betaCheckoutOpen:env.BILLING_BETA_CHECKOUT_OPEN!=='false',
   automaticTax:env.STRIPE_AUTOMATIC_TAX==='true',
   portalConfiguration:env.STRIPE_PORTAL_CONFIGURATION&&/^bpc_[A-Za-z0-9]+$/.test(env.STRIPE_PORTAL_CONFIGURATION)?env.STRIPE_PORTAL_CONFIGURATION:null,
  };
 }
-// Stripe price id → internal database plan. Only the two configured prices map to anything; every other price
+// Stripe price id → internal database plan. Only the configured prices map to anything; every other price
 // (a typo, a price created by hand in the dashboard, a LIVE id in TEST) grants nothing.
-export function planForPrice(config:Pick<BillingConfig,'prices'>,priceId:string|null|undefined):'PAID'|'PRO'|null{
+export function planForPrice(config:Pick<BillingConfig,'prices'>,priceId:string|null|undefined):PaidDbPlan|null{
  if(!priceId)return null;
- for(const plan of ['BETA','PRO'] as const)if(config.prices[plan]===priceId)return CHECKOUT_TO_DB[plan];
+ for(const plan of ['BETA','PRO','TEAM'] as const)if(config.prices[plan]===priceId)return CHECKOUT_TO_DB[plan];
  return null;
 }
 // What the account page may know: which offers can be bought here. Booleans only.
 export function checkoutAvailability(config:BillingConfig|null){
  const ready=!!config&&config.checkoutEnabled;
- return {BETA:ready&&!!config!.prices.BETA&&config!.betaCheckoutOpen,PRO:ready&&!!config!.prices.PRO,portal:!!config};
+ return {BETA:ready&&!!config!.prices.BETA&&config!.betaCheckoutOpen,PRO:ready&&!!config!.prices.PRO,TEAM:ready&&!!config!.prices.TEAM,portal:!!config};
 }

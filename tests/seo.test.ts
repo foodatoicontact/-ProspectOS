@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {CHECKOUT_PRICES} from '../src/domain/plans.ts';
+import {CHECKOUT_PRICES,TEAM_PRICING} from '../src/domain/plans.ts';
 import {SITE_URL,siteMetadata,seoPages,robotsPolicy,sitemapEntries,softwareApplicationJsonLd} from '../src/domain/seo.ts';
 
 test('site metadata targets generic B2B prospecting rather than only Foodatoi',()=>{
@@ -46,5 +46,6 @@ test('structured data identifies ProspectOS as a SoftwareApplication',()=>{
 // data may state exactly those amounts, monthly and excluding VAT, and nothing else.
 test('structured data advertises only the prices the server validates',()=>{
   const offers=(softwareApplicationJsonLd as unknown as {offers:{price:string;priceCurrency:string}[]}).offers;
-  assert.deepEqual(offers.map(o=>[o.price,o.priceCurrency]),Object.values(CHECKOUT_PRICES).map(p=>[String(p.unitAmount/100),'EUR']));
+  // Équipe (023): its validated base price (the graduated tiers are checked by the server the same way).
+  assert.deepEqual(offers.map(o=>[o.price,o.priceCurrency]),[...Object.values(CHECKOUT_PRICES).map(p=>p.unitAmount),TEAM_PRICING.baseAmount].map(a=>[String(a/100),'EUR']));
 });

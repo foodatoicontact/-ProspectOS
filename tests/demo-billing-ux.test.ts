@@ -103,7 +103,7 @@ test('the intent is acted on once, after the authenticated account answer, and o
  assert.match(page,/async function loadAccount\(t=token\)\{try\{\n const invite=readPendingInvite\(\);if\(invite\)await acceptPendingInvite\(invite,t\);\n const acc=await api\('account','GET',undefined,t\);lastAccount\.current=acc;/);
 });
 test('the intent is removed only once the hosted payment page URL was returned',()=>{
- assert.match(fn('async function startCheckout('),/^async function startCheckout\(plan:'BETA'\|'PRO',t=token\)\{const \{url\}=await api\('billing\/checkout','POST',\{plan\},t\);if\(typeof url==='string'\)\{clearPlanIntent\(browserStorage\(\)\);setPlanIntent\(null\);window\.location\.assign\(url\)\}\}$/);
+ assert.match(fn('async function startCheckout('),/^async function startCheckout\(plan:PlanName,t=token\)\{const \{url\}=await api\('billing\/checkout','POST',\{plan\},t\);if\(typeof url==='string'\)\{clearPlanIntent\(browserStorage\(\)\);setPlanIntent\(null\);window\.location\.assign\(url\)\}\}$/);
 });
 test('back from the payment page: a notice only — no checkout, no access granted by the browser, no intent read',()=>{
  const ret=page.slice(page.indexOf("new URLSearchParams(window.location.search).get('billing')")-40,page.indexOf("new URLSearchParams(window.location.search).get('billing')")+420);
@@ -118,11 +118,11 @@ test('demo reset and logout never touch the auth session nor the stored intent',
 
 // ---------------------------------------------------------------- pricing source of truth + component
 test('offers derive from the server-checked prices and the database quotas (no second copy)',()=>{
- assert.deepEqual(OFFERS.map(o=>o.id),['BETA','PRO','ENTERPRISE']);
+ assert.deepEqual(OFFERS.map(o=>o.id),['BETA','PRO','TEAM','ENTERPRISE']);
  assert.equal(offerFor('BETA').priceEurExclVatPerMonth,CHECKOUT_PRICES.BETA.unitAmount/100);
  assert.equal(offerFor('PRO').priceEurExclVatPerMonth,99);assert.equal(offerFor('BETA').priceEurExclVatPerMonth,49);
  assert.deepEqual(offerFor('BETA').quotas,PLAN_QUOTAS.BETA);assert.deepEqual(offerFor('PRO').quotas,{discovery:300,analysis:750,aiOffer:75});
- assert.equal(OFFERS[2].checkoutPlan,null,'ENTERPRISE is never buyable online');assert.equal(OFFERS[2].priceEurExclVatPerMonth,null);
+ const ent=OFFERS.find(o=>o.id==='ENTERPRISE')!;assert.equal(ent.checkoutPlan,null,'ENTERPRISE is never buyable online');assert.equal(ent.priceEurExclVatPerMonth,null);
  assert.equal(offerForDbPlan('PAID')?.id,'BETA');assert.equal(offerForDbPlan('PRO')?.id,'PRO');assert.equal(offerForDbPlan('BETA'),null,'the trial is not a subscription');
  // Remaining public copy that still spells the BETA numbers matches the same source.
  assert.match(fr['pricing.price'],/^49 € HT/);assert.match(fr['pricing.paidLimits'],/100 Discovery · 250 analyses prospects · 25 analyses d’offre IA/);
@@ -137,7 +137,7 @@ test('the pricing component renders amounts and quotas from OFFERS only, with th
  assert.match(pricing,/available=plan\?\(context==='public'\|\|availability\?\.\[plan\]===true\):false/);
 });
 test('the account billing block: subscriber → summary + portal, no pricing cards; manual plans see no cards',()=>{
- assert.match(billingSection,/const showPlans=!view\?\.current&&entitlementPlan!=='INTERNAL'&&entitlementPlan!=='ENTERPRISE';/);
+ assert.match(billingSection,/const showPlans=!teamMember&&!view\?\.current&&entitlementPlan!=='INTERNAL'&&entitlementPlan!=='ENTERPRISE';/);
  assert.match(billingSection,/view\.manage==='portal'/,'manage button driven by the server availability (see the subscription management tests)');
  assert.match(billingSection,/<PricingPlans locale=\{locale\} context="account" availability=\{offers\}/,'same component as the demo');
  assert.match(page,/<PricingPlans locale=\{locale\} context=\{mode==='live'\?'account':'public'\} availability=\{mode==='live'\?billingOffers:null\}/);
@@ -184,7 +184,7 @@ test('account: a current subscription is ONE block; Accès / Utilisation are kep
  assert.match(page,/\{!subscribed&&<div className="account-field plan-identity"><span className="muted">\{tr\('account\.access'\)\}<\/span><p className="plan-identity-name">/);
  assert.match(page,/\{!subscribed&&usage&&<div className="account-field usage"><span className="muted">\{tr\('account\.usage'\)\}<\/span>/);
  assert.match(page,/<BillingSection locale=\{locale\} offers=\{billingOffers\} status=\{billingStatus\} busy=\{busy\} usage=\{usage\}[^\n]*?onPortal=\{openBillingPortal\}\/>/);
- assert.match(billingSection,/<p className="subscription-offer">\{tr\(view\.offer==='BETA'\?'account\.usagePaid':'account\.usagePro'\)\}<\/p>/,'offer named once, inside the block');
+ assert.match(billingSection,/<p className="subscription-offer">\{view\.offer==='TEAM'\?tr\('account\.usageTeamPlan'\)\.replace\('\{n\}',String\(view\.seats\?\?'—'\)\):tr\(view\.offer==='BETA'\?'account\.usagePaid':'account\.usagePro'\)\}<\/p>/,'offer named once, inside the block');
  assert.equal(fr['billing.currentTitle'],'Votre abonnement');
 });
 test('demo help: the 7 steps stay visible; the score note and the 4 live limitations stay present, folded',()=>{
@@ -198,7 +198,7 @@ import {subscriptionView} from '../src/domain/subscription-view.ts';
 const END='2026-10-28T10:00:00Z';
 test('PAID active subscription → "Gérer mon abonnement" through the portal',()=>{
  const v=subscriptionView({has_customer:true,plan:'PAID',status:'active',cancel_at_period_end:false,current_period_end:END},OPEN)!;
- assert.deepEqual(v,{offer:'BETA',status:'active',current:true,cancelScheduled:false,date:{kind:'renews',iso:END},manage:'portal'});
+ assert.deepEqual(v,{offer:'BETA',seats:null,status:'active',current:true,cancelScheduled:false,date:{kind:'renews',iso:END},manage:'portal'});
 });
 test('cancel_at_period_end → button still there, access kept until current_period_end',()=>{
  const v=subscriptionView({has_customer:true,plan:'PAID',status:'active',cancel_at_period_end:true,current_period_end:END},OPEN)!;
@@ -226,7 +226,7 @@ test('click → existing portal route; the URL comes from the server, never buil
  for(const src of [page,billingSection,await read('../src/domain/subscription-view.ts')])assert.doesNotMatch(src,/billing\.stripe\.com|checkout\.stripe\.com|https:\/\/[a-z.]*stripe/i);
 });
 test('subscribed → no second checkout: pricing cards hidden, intent decision SUBSCRIBED',()=>{
- assert.match(billingSection,/const showPlans=!view\?\.current&&entitlementPlan!=='INTERNAL'&&entitlementPlan!=='ENTERPRISE';/);
+ assert.match(billingSection,/const showPlans=!teamMember&&!view\?\.current&&entitlementPlan!=='INTERNAL'&&entitlementPlan!=='ENTERPRISE';/);
  assert.equal(subscriptionView({has_customer:true,plan:'PAID',status:'active',cancel_at_period_end:true,current_period_end:END},OPEN)!.current,true);
  assert.deepEqual(decidePlanIntent('PRO',OPEN,{has_customer:true,plan:'PAID',status:'active',cancel_at_period_end:true}),{action:'SUBSCRIBED'});
  assert.equal(subscriptionView({has_customer:true,plan:'PAID',status:'canceled'},OPEN)!.current,false,'an ended subscription may subscribe again');

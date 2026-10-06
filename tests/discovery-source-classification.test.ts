@@ -214,10 +214,15 @@ test('FixtureProvider is unchanged in behavior: its curated TEST companies stay 
   assert.equal((c.raw_metadata as Record<string, unknown>).source_class, 'COMPANY_CANDIDATE');
  }
 });
-test('scoring invariant: src/domain/core.ts (scoreProspect) and the entitlement gate are byte-identical to main; no existing migration was modified', async () => {
+test('scoring invariant: src/domain/core.ts (scoreProspect) is byte-identical to main, the entitlement gate stays fail-closed; no existing migration was modified', async () => {
  const {execSync} = await import('node:child_process');
  const cwd = new URL('..', import.meta.url);
- assert.equal(execSync('git diff --name-only daf49e39848f79f4459b6dc426ec8580b4cb69ff -- src/domain/core.ts src/server/entitlement.ts', {cwd, encoding: 'utf8'}).trim(), '');
+ assert.equal(execSync('git diff --name-only daf49e39848f79f4459b6dc426ec8580b4cb69ff -- src/domain/core.ts', {cwd, encoding: 'utf8'}).trim(), '');
+ // The gate reads the EFFECTIVE entitlement since 023 (a team member works on its owner's team plan); its decisions
+ // are unchanged and still fail-closed: no row → ENTITLEMENT_REQUIRED, not ACTIVE or expired → BETA_ACCESS_EXPIRED.
+ const gate = (await import('node:fs')).readFileSync(new URL('../src/server/entitlement.ts', import.meta.url), 'utf8');
+ for (const line of ["if(!data)throw Error('ENTITLEMENT_REQUIRED');", "if(data.status!=='ACTIVE')throw Error('BETA_ACCESS_EXPIRED');", "if(new Date(data.expires_at).getTime()<=Date.now())throw Error('BETA_ACCESS_EXPIRED');"])
+  assert.ok(gate.includes(line), line);
  // New migrations are allowed (the trust boundary adds 014); rewriting an already-applied one never is.
  const migrations = execSync('git diff --name-status daf49e39848f79f4459b6dc426ec8580b4cb69ff -- db/migrations', {cwd, encoding: 'utf8'}).trim().split('\n').filter(Boolean);
  for (const line of migrations) assert.match(line, /^A\s/, `an existing migration was changed: ${line}`);

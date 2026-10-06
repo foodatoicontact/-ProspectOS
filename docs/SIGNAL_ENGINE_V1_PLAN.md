@@ -37,17 +37,19 @@ Vérification du 6 octobre 2026. Le réseau de cet environnement bloque lidmeo.c
 | Brique | Statut | Ce que disent les résultats | Source citée |
 |---|---|---|---|
 | Positionnement | CONFIRMÉ | « Lidmeo Signal — Prospection LinkedIn par signaux d'intention » ; de la détection au rendez-vous en 5 étapes | lidmeo.com |
-| Signaux | CONFIRMÉ (partiel) | Likes et commentaires sur les publications du secteur ; surveillance des pages LinkedIn du secteur ; fenêtre d'ouverture annoncée de 5 à 10 jours | lidmeo.com |
-| Suivi de sujets / comptes | NON CONFIRMÉ | Aucun résultat ne le mentionne | — |
+| Signaux | CONFIRMÉ | Likes et commentaires sur les publications du secteur ; surveillance des pages LinkedIn du secteur ; fenêtre d'ouverture annoncée de 5 à 10 jours ; le CTO ajoute les abonnements (« suivent »), lus « tous les jours » | lidmeo.com ; post de Dorian Lasne |
+| Suivi de sujets / comptes | DÉCLARÉ par le CTO | « En lisant ce que tes prospects likent, commentent et suivent, tous les jours » | Post LinkedIn de Dorian Lasne, 6 oct. 2026 (capture fournie par Kevin) |
 | Qualification | CONFIRMÉ | « L'IA croise chaque signal avec votre ICP : poste, taille, secteur, zone » ; mécanisme non décrit | lidmeo.com |
-| Déduction de l'offre et de l'ICP depuis le site | NON CONFIRMÉ | Les résultats décrivent un **onboarding de 30 minutes** où l'utilisateur définit ses clients idéaux (secteur, poste, taille) ; « apprend votre activité » reste vague | lidmeo.com/prospection-linkedin-automatique |
+| Déduction de l'offre et de l'ICP depuis le site | DÉCLARÉ par le CTO | « Tu donnes l'URL de ton site. L'IA comprend ton offre, ta cible, et te sort les profils qui montrent un vrai intérêt pour ton marché. » Les pages du site décrivent aussi un onboarding de 30 minutes où l'utilisateur définit ses clients idéaux : les deux coexistent sans doute | Post de Dorian Lasne ; lidmeo.com/prospection-linkedin-automatique |
 | Autres canaux | CONFIRMÉ | LinkedIn **et Google Maps** (absent du brief) | lidmeo.com, theorg.com |
 | Messages / envoi | CONFIRMÉ | Messages personnalisés envoyés en votre nom ; offre Pro « 100 % automatique, aucune validation quotidienne » (l'offre Essential implique donc une validation quotidienne) ; réponses dans la messagerie LinkedIn | lidmeo.com |
 | Enrichissement | CONFIRMÉ | E-mail professionnel et téléphone direct ; 50 à 100 crédits d'enrichissement par mois selon l'offre | lidmeo.com |
-| Stack : Unipile (envoi LinkedIn), Claude via MCP (personnalisation), orchestration 24/7, Supabase (stockage des interactions) | RAPPORTÉ, source primaire non identifiée | Un seul résumé de recherche l'affirme, sans désigner la page ; une recherche ciblée sur ces quatre mots n'a rien trouvé | indéterminé |
+| Modèle d'IA | DÉCLARÉ par le CTO | « Claude Opus 5.5 vient de remplacer Sales Navigator. […] On l'a branché sur LinkedIn » (formule marketing ; le mode de connexion n'est pas décrit) | Post de Dorian Lasne |
+| Stack : Unipile (envoi LinkedIn), Claude via MCP (personnalisation), orchestration 24/7, Supabase (stockage des interactions) | RAPPORTÉ, source primaire non identifiée | Un seul résumé de recherche l'affirme, sans désigner la page ; une recherche ciblée sur ces quatre mots n'a rien trouvé. Claude est désormais déclaré par le CTO ; Unipile, MCP, l'orchestration et Supabase restent non vérifiés | indéterminé |
 | CRM intégré (contacté, répondu, RDV, gagné, perdu) | NON CONFIRMÉ | Seuls un « tableau de bord en temps réel » et le suivi des réponses sont mentionnés | — |
-| Fondateurs | CONFIRMÉ (partiel) | Antoine Ageon et Lilian (nom de famille non trouvé) ; un profil « Dorian Lasne - Lidmeo » existe, rôle inconnu | profils LinkedIn, résultats de recherche |
+| Fondateurs | CONFIRMÉ (partiel) | Antoine Ageon et Lilian (nom non trouvé) d'après les résultats de recherche ; **Dorian Lasne, « Co-fondateur & CTO de Lidmeo »** (titre de son profil) | Profils LinkedIn, post du 6 oct. 2026 |
 | Tarifs | CONFIRMÉ | Essential 59 € HT/mois, Pro 99 € HT/mois, Team à partir de 179 € HT/mois (2 comptes LinkedIn, puis 60 € par compte) ; jusqu'à 15 prospects par jour ; essai de 7 jours, sans engagement | lidmeo.com |
+| Essai | DÉCLARÉ par le CTO | Test gratuit : « l'analyse de ton site et de ta cible », « tes premiers prospects qualifiés », « les signaux d'intention détectés » | Post de Dorian Lasne |
 | Résultats annoncés | DÉCLARATIF | Taux de réponse « environ 3 fois » supérieur (avis d'utilisateurs) ; premiers rendez-vous en 2 à 3 semaines | lidmeo.com, trustpilot |
 | RGPD / conditions LinkedIn | NON TROUVÉ | Aucun résultat | — |
 
@@ -57,7 +59,7 @@ Comparaison utile : leur Pro est au même prix que ProspectOS Pro (99 € HT), m
 
 ## 3. UNKNOWN_LIDMEO_COMPONENTS
 
-Framework frontend : UNKNOWN. Framework backend : UNKNOWN. Workers / files / planificateur : UNKNOWN (une « orchestration 24/7 » est seulement rapportée). Hébergement / cloud : UNKNOWN. Modèle de scoring : UNKNOWN (« l'IA croise avec l'ICP », sans détail). Fournisseur d'enrichissement : UNKNOWN. Fréquence de surveillance : UNKNOWN. RGPD (base légale, information des personnes, rétention) : UNKNOWN. Conformité aux conditions LinkedIn : UNKNOWN. Multi-tenant / isolation : UNKNOWN. Existence d'un CRM intégré : NON CONFIRMÉ. Usage réel d'Unipile, de Claude via MCP et de Supabase : rapporté, non vérifié sur une source primaire.
+Framework frontend : UNKNOWN. Framework backend : UNKNOWN. Workers / files / planificateur : UNKNOWN (une « orchestration 24/7 » est seulement rapportée). Hébergement / cloud : UNKNOWN. Modèle de scoring : UNKNOWN (« l'IA croise avec l'ICP », sans détail). Fournisseur d'enrichissement : UNKNOWN. Fréquence de surveillance : UNKNOWN. RGPD (base légale, information des personnes, rétention) : UNKNOWN. Conformité aux conditions LinkedIn : UNKNOWN. Multi-tenant / isolation : UNKNOWN. Existence d'un CRM intégré : NON CONFIRMÉ. Usage de Claude (Opus 5.5) : déclaré par le CTO. Usage d'Unipile, de MCP et de Supabase : rapporté, non vérifié sur une source primaire. Manière dont l'activité LinkedIn (likes, commentaires, abonnements) est lue tous les jours : UNKNOWN.
 
 ## 4. GAP_ANALYSIS
 
@@ -81,7 +83,7 @@ Framework frontend : UNKNOWN. Framework backend : UNKNOWN. Workers / files / pla
 | Dépendance fournisseur | Forte (LinkedIn via Unipile) | Brave, API publique | Faible : chaque provider est remplaçable |
 | Avantage défendable | Ciblage personne en temps réel | Preuves vérifiées | Preuve + temporalité + registre + feedback par utilisateur |
 
-**A. À copier conceptuellement :** l'onboarding guidé (ProspectOS propose déjà l'ICP depuis l'offre) ; l'idée de signal d'intention ; le score de priorité « maintenant » ; la boucle CRM → apprentissage ; un flux continu de nouveautés.
+**A. À copier conceptuellement :** l'entrée par une simple URL de site, qui donne offre, cible et premiers résultats dans l'essai (ProspectOS propose déjà l'ICP depuis la **description** de l'offre ; partir de l'**URL** serait une amélioration d'onboarding peu coûteuse, avec `safeFetch` et l'analyse d'offre existants) ; l'idée de signal d'intention ; le score de priorité « maintenant » ; la boucle CRM → apprentissage ; un flux continu de nouveautés.
 
 **B. À éviter :** dépendre de LinkedIn ; automatiser les invitations et messages ; scorer des personnes sur de l'engagement social, qui est un signal faible, volatil et sensible au RGPD ; un score sans détail.
 

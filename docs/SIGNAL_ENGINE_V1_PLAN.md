@@ -1,7 +1,7 @@
 # Signal Engine V1 / Intent Engine — audit et plan
 
 Statut : **proposition, rien n'est codé**. Base : `main` à 65003f8 (6 octobre 2026).
-Toute affirmation sur Lidmeo vient du brief de Kevin (informations publiques citées par lui), non revérifiée ici ; ce qui n'est pas public est marqué **UNKNOWN**.
+Les affirmations sur Lidmeo ont été vérifiées le 6 octobre 2026 par recherche web (voir §2 pour le niveau de preuve) ; ce qui n'est pas public est marqué **UNKNOWN**.
 
 ---
 
@@ -32,30 +32,38 @@ Constats utiles pour le Signal Engine :
 
 ## 2. LIDMEO_PUBLIC_ARCHITECTURE
 
-D'après le brief (déclarations publiques et propos du fondateur) :
+Vérification du 6 octobre 2026. Le réseau de cet environnement bloque lidmeo.com, theorg.com et trustpilot.com : aucune page n'a pu être lue directement. Les éléments ci-dessous viennent des **résumés de résultats de recherche** pointant vers ces pages. Niveau de preuve : **indirect**. À relire sur les pages elles-mêmes avant toute communication publique.
 
-| Brique | Information |
-|---|---|
-| Entrée | Site / offre de l'utilisateur → déduction de l'offre, du marché, de l'ICP, des profils cibles |
-| Signaux | Activité LinkedIn : likes, commentaires, réactions, abonnements à des sujets ou comptes |
-| Connectivité LinkedIn / messagerie | Unipile |
-| IA | Claude (Anthropic) ; personnalisation via MCP évoquée publiquement |
-| Données | Supabase |
-| Orchestration | Couche propriétaire, workflow en continu |
-| Actions | Invitations et messages LinkedIn, suivi des réponses |
-| CRM | Intégré récemment : contacté, répondu, RDV, gagné, perdu |
-| Enrichissement | Oui (sources non précisées) |
-| Unité d'analyse | La **personne** |
+| Brique | Statut | Ce que disent les résultats | Source citée |
+|---|---|---|---|
+| Positionnement | CONFIRMÉ | « Lidmeo Signal — Prospection LinkedIn par signaux d'intention » ; de la détection au rendez-vous en 5 étapes | lidmeo.com |
+| Signaux | CONFIRMÉ (partiel) | Likes et commentaires sur les publications du secteur ; surveillance des pages LinkedIn du secteur ; fenêtre d'ouverture annoncée de 5 à 10 jours | lidmeo.com |
+| Suivi de sujets / comptes | NON CONFIRMÉ | Aucun résultat ne le mentionne | — |
+| Qualification | CONFIRMÉ | « L'IA croise chaque signal avec votre ICP : poste, taille, secteur, zone » ; mécanisme non décrit | lidmeo.com |
+| Déduction de l'offre et de l'ICP depuis le site | NON CONFIRMÉ | Les résultats décrivent un **onboarding de 30 minutes** où l'utilisateur définit ses clients idéaux (secteur, poste, taille) ; « apprend votre activité » reste vague | lidmeo.com/prospection-linkedin-automatique |
+| Autres canaux | CONFIRMÉ | LinkedIn **et Google Maps** (absent du brief) | lidmeo.com, theorg.com |
+| Messages / envoi | CONFIRMÉ | Messages personnalisés envoyés en votre nom ; offre Pro « 100 % automatique, aucune validation quotidienne » (l'offre Essential implique donc une validation quotidienne) ; réponses dans la messagerie LinkedIn | lidmeo.com |
+| Enrichissement | CONFIRMÉ | E-mail professionnel et téléphone direct ; 50 à 100 crédits d'enrichissement par mois selon l'offre | lidmeo.com |
+| Stack : Unipile (envoi LinkedIn), Claude via MCP (personnalisation), orchestration 24/7, Supabase (stockage des interactions) | RAPPORTÉ, source primaire non identifiée | Un seul résumé de recherche l'affirme, sans désigner la page ; une recherche ciblée sur ces quatre mots n'a rien trouvé | indéterminé |
+| CRM intégré (contacté, répondu, RDV, gagné, perdu) | NON CONFIRMÉ | Seuls un « tableau de bord en temps réel » et le suivi des réponses sont mentionnés | — |
+| Fondateurs | CONFIRMÉ (partiel) | Antoine Ageon et Lilian (nom de famille non trouvé) ; un profil « Dorian Lasne - Lidmeo » existe, rôle inconnu | profils LinkedIn, résultats de recherche |
+| Tarifs | CONFIRMÉ | Essential 59 € HT/mois, Pro 99 € HT/mois, Team à partir de 179 € HT/mois (2 comptes LinkedIn, puis 60 € par compte) ; jusqu'à 15 prospects par jour ; essai de 7 jours, sans engagement | lidmeo.com |
+| Résultats annoncés | DÉCLARATIF | Taux de réponse « environ 3 fois » supérieur (avis d'utilisateurs) ; premiers rendez-vous en 2 à 3 semaines | lidmeo.com, trustpilot |
+| RGPD / conditions LinkedIn | NON TROUVÉ | Aucun résultat | — |
+
+Unité d'analyse : la **personne** (profil LinkedIn qui interagit).
+
+Comparaison utile : leur Pro est au même prix que ProspectOS Pro (99 € HT), mais pour **1** compte LinkedIn, alors que ProspectOS Pro couvre jusqu'à 5 comptes.
 
 ## 3. UNKNOWN_LIDMEO_COMPONENTS
 
-Framework frontend : UNKNOWN. Framework backend : UNKNOWN. Workers / files / planificateur : UNKNOWN. Hébergement / cloud : UNKNOWN. Modèle de scoring (règles, LLM, ML) : UNKNOWN. Sources d'enrichissement : UNKNOWN. Fréquence de surveillance : UNKNOWN. Gestion RGPD (base légale, information des personnes, rétention) : UNKNOWN. Volumes, quotas, prix de revient : UNKNOWN. Multi-tenant / isolation : UNKNOWN. Détail des conditions d'usage LinkedIn via Unipile : UNKNOWN.
+Framework frontend : UNKNOWN. Framework backend : UNKNOWN. Workers / files / planificateur : UNKNOWN (une « orchestration 24/7 » est seulement rapportée). Hébergement / cloud : UNKNOWN. Modèle de scoring : UNKNOWN (« l'IA croise avec l'ICP », sans détail). Fournisseur d'enrichissement : UNKNOWN. Fréquence de surveillance : UNKNOWN. RGPD (base légale, information des personnes, rétention) : UNKNOWN. Conformité aux conditions LinkedIn : UNKNOWN. Multi-tenant / isolation : UNKNOWN. Existence d'un CRM intégré : NON CONFIRMÉ. Usage réel d'Unipile, de Claude via MCP et de Supabase : rapporté, non vérifié sur une source primaire.
 
 ## 4. GAP_ANALYSIS
 
 | Axe | Lidmeo (brief) | ProspectOS actuel | ProspectOS cible |
 |---|---|---|---|
-| Source de prospects | Activité LinkedIn | Registre officiel + web + site officiel | Inchangé, + signaux multi-sources |
+| Source de prospects | Activité LinkedIn + Google Maps | Registre officiel + web + site officiel | Inchangé, + signaux multi-sources |
 | Unité d'analyse | Personne | Entreprise | Entreprise d'abord, rôles ensuite, personnes en V2 encadré |
 | Signaux | Engagement LinkedIn | Aucun objet signal (critère `commercial_signal` dans le FIT) | Objet `signal` daté, sourcé, revu |
 | Scoring | UNKNOWN | FIT déterministe sur preuves vérifiées | FIT inchangé + INTENT déterministe séparé |
@@ -64,7 +72,7 @@ Framework frontend : UNKNOWN. Framework backend : UNKNOWN. Workers / files / pla
 | LinkedIn | Central (Unipile) | Aucune automatisation | URL fournie à la main ; connecteur autorisé plus tard, jamais central |
 | Messages | Générés + envoyés | Gabarit factuel, pas d'envoi | + phrase « pourquoi maintenant » citant les signaux |
 | Automatisation | Workflow continu | Aucune | Surveillance bornée (quotas, fréquence), pas d'envoi |
-| CRM | Intégré | Pipeline 9 statuts | + statut RDV, instantané FIT / INTENT au contact |
+| CRM | Tableau de bord + suivi des réponses (CRM intégré non confirmé) | Pipeline 9 statuts | + statut RDV, instantané FIT / INTENT au contact |
 | Feedback | UNKNOWN | Journal d'événements brut | Analytics explicables (taux de réponse par FIT, INTENT, type de signal) |
 | Multi-source | Non (LinkedIn) | Oui | Oui, renforcé (site, presse, emploi, BODACC, marchés publics) |
 | Registre officiel | UNKNOWN | Oui | Oui + annonces légales (BODACC) comme signaux datés |
@@ -73,7 +81,7 @@ Framework frontend : UNKNOWN. Framework backend : UNKNOWN. Workers / files / pla
 | Dépendance fournisseur | Forte (LinkedIn via Unipile) | Brave, API publique | Faible : chaque provider est remplaçable |
 | Avantage défendable | Ciblage personne en temps réel | Preuves vérifiées | Preuve + temporalité + registre + feedback par utilisateur |
 
-**A. À copier conceptuellement :** partir de l'offre pour proposer l'ICP (déjà fait) ; l'idée de signal d'intention ; le score de priorité « maintenant » ; la boucle CRM → apprentissage ; un flux continu de nouveautés.
+**A. À copier conceptuellement :** l'onboarding guidé (ProspectOS propose déjà l'ICP depuis l'offre) ; l'idée de signal d'intention ; le score de priorité « maintenant » ; la boucle CRM → apprentissage ; un flux continu de nouveautés.
 
 **B. À éviter :** dépendre de LinkedIn ; automatiser les invitations et messages ; scorer des personnes sur de l'engagement social, qui est un signal faible, volatil et sensible au RGPD ; un score sans détail.
 

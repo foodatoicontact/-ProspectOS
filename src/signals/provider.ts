@@ -15,4 +15,7 @@ export interface SignalProvider{
  supports(target:SignalTarget):boolean;
  // One provider call for one company: counted as one request of the scan budget.
  searchSignals(input:SignalSearchInput):Promise<RawSignal[]>;
+ // Items the provider itself refused (homonym risk, no recognizable event…), by reason code; read and reset by the
+ // service after each call. Codes only, never a URL or a text.
+ takeRejections?():Record<string,number>;
 }

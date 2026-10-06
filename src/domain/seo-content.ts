@@ -18,7 +18,7 @@ export const seoPages:SeoPage[]=[
   {
     slug:'prospection-b2b',
     navLabel:'Prospection B2B : la méthode',
-    updated:'2026-10-03',
+    updated:'2026-10-06',
     keywords:{primary:'prospection B2B',secondary:['méthode de prospection B2B','qualification commerciale','ICP B2B']},
     title:'Prospection B2B : qualifier avant de contacter | ProspectOS',
     description:'Méthode de prospection B2B en sept étapes : ICP, découverte, signaux, preuves, qualification, priorisation et approche commerciale préparée à partir de faits.',
@@ -55,7 +55,7 @@ export const seoPages:SeoPage[]=[
         ]},
       ]},
       {h2:'Où intervient ProspectOS',blocks:[
-        {type:'callout',title:'Prospection autonome, action humaine',text:'ProspectOS aide à découvrir des candidats, à rattacher chaque observation à sa source et à calculer un score lisible à partir des seules preuves vérifiées. La vérification des preuves, la décision de contacter et l’envoi restent des actions humaines. Pour la place exacte de l’IA dans ce processus, voir la page [prospection B2B assistée par IA](/prospection-ia).'},
+        {type:'callout',title:'Prospection autonome, action humaine',text:'ProspectOS aide à découvrir des candidats, à rattacher chaque observation à sa source et à calculer automatiquement un score estimé, pondéré par la fiabilité de chaque source, puis un score vérifié à partir des seules preuves confirmées. La vérification des preuves, la décision de contacter et l’envoi restent des actions humaines. Pour la place exacte de l’IA dans ce processus, voir la page [prospection B2B assistée par IA](/prospection-ia).'},
       ]},
     ],
     faq:[
@@ -68,7 +68,7 @@ export const seoPages:SeoPage[]=[
   {
     slug:'prospection-ia',
     navLabel:'Prospection B2B assistée par IA',
-    updated:'2026-10-03',
+    updated:'2026-10-06',
     keywords:{primary:'prospection IA',secondary:['IA prospection B2B','IA sans hallucination','validation humaine']},
     title:'Prospection IA : l’IA sans supposition présentée comme fait | ProspectOS',
     description:'Prospection B2B et IA : ce que l’IA peut préparer, ce qu’elle ne doit pas prétendre savoir, et pourquoi chaque information doit être observée, sourcée et validée.',
@@ -110,7 +110,7 @@ export const seoPages:SeoPage[]=[
         {type:'ol',items:[
           'Lire l’extrait proposé dans son contexte, en ouvrant la source.',
           'Confirmer, contredire ou laisser non vérifié.',
-          'Constater l’effet sur le score : seule une preuve confirmée fait monter un critère.',
+          'Constater l’effet sur le score : une preuve confirmée fait passer un critère d’estimé à vérifié.',
           'Décider de contacter ou non, puis relire le message préparé avant de l’envoyer soi-même.',
         ]},
         {type:'p',text:'Cette étape prend quelques secondes par preuve. C’est elle qui permet de [qualifier un prospect B2B](/qualifier-un-prospect-b2b) sans dépendre d’une déduction automatique.'},
@@ -126,7 +126,7 @@ export const seoPages:SeoPage[]=[
   {
     slug:'lead-scoring',
     navLabel:'Lead scoring explicable',
-    updated:'2026-10-03',
+    updated:'2026-10-06',
     keywords:{primary:'lead scoring explicable',secondary:['lead scoring B2B','scoring prospects avec preuves','score de priorité']},
     title:'Lead scoring explicable : un score de priorité sourcé | ProspectOS',
     description:'Lead scoring explicable : critères pondérés, preuves vérifiées, couverture, informations inconnues et contradictions. Un score de priorité, pas une probabilité de vente.',
@@ -135,7 +135,7 @@ export const seoPages:SeoPage[]=[
     intro:'Un score de prospect n’est utile que si l’on peut dire d’où vient chaque point. Un chiffre opaque, même précis en apparence, ne permet ni de décider ni de corriger. Cette page décrit un lead scoring explicable : des critères pondérés, des points accordés uniquement sur preuve vérifiée, et une distinction nette entre ce qui est faux et ce qui est simplement inconnu.',
     sections:[
       {h2:'Ce que mesure un lead scoring explicable',blocks:[
-        {type:'p',text:'Le score mesure à quel point un prospect correspond à votre ICP d’après ce qui a été vérifié. Il ne mesure pas l’intention d’achat, ni une probabilité de signer. Deux usages en découlent : ordonner le travail commercial, et repérer ce qui manque pour décider.'},
+        {type:'p',text:'Le score mesure à quel point un prospect correspond à votre ICP. ProspectOS en affiche deux lectures : un score estimé, calculé automatiquement à partir des sources trouvées et pondéré par leur fiabilité, et un score vérifié, qui ne compte que ce qu’une personne a confirmé. Il ne mesure pas l’intention d’achat, ni une probabilité de signer. Deux usages en découlent : ordonner le travail commercial, et repérer ce qui manque pour décider.'},
       ]},
       {h2:'Des critères pondérés sur 100',blocks:[
         {type:'p',text:'Chaque projet définit ses critères et leurs poids, dont la somme vaut 100. Les critères proposés par défaut dans ProspectOS sont :'},
@@ -166,14 +166,14 @@ export const seoPages:SeoPage[]=[
       ]},
       {h2:'Score et couverture : deux chiffres à lire ensemble',blocks:[
         {type:'p',text:'La couverture indique la part des poids documentés, que le critère soit satisfait ou non. Un score bas avec une couverture élevée signifie « bien connu et peu adapté ». Un score bas avec une couverture faible signifie « pas encore documenté ». Ce sont deux situations très différentes, et les confondre conduit à écarter de bons prospects.'},
-        {type:'callout',title:'Exemple chiffré (entreprise TEST, critères par défaut)',text:'Cible : preuve vérifiée et satisfaite, +25. Besoin : observation trouvée mais pas encore vérifiée, 0 (à confirmer). Signal commercial : preuve vérifiée et satisfaite, +25. Canal de contact : vérifié, aucun canal professionnel trouvé, 0 (non satisfait). Résultat : score 50/100, couverture 70/100 (25 + 25 + 20). La prochaine action utile est claire : vérifier l’observation sur le besoin.'},
+        {type:'callout',title:'Exemple chiffré (entreprise TEST, critères par défaut)',text:'Cible : preuve vérifiée et satisfaite, +25. Besoin : observation trouvée mais pas encore vérifiée, 0 dans le score vérifié (à confirmer), comptée dans le score estimé selon la fiabilité de sa source. Signal commercial : preuve vérifiée et satisfaite, +25. Canal de contact : vérifié, aucun canal professionnel trouvé, 0 (non satisfait). Résultat : score 50/100, couverture 70/100 (25 + 25 + 20). La prochaine action utile est claire : vérifier l’observation sur le besoin.'},
       ]},
       {h2:'Ce que le score ne dit pas',blocks:[
         {type:'p',text:'Il ne dit pas si le prospect achètera, ni quand. Il n’est pas comparable entre deux projets dont les critères diffèrent. Il n’intègre pas le contexte commercial que vous seul connaissez : un échange récent, une recommandation, une contrainte de calendrier. Pour combiner le score avec ces éléments, voir comment [prioriser une liste de prospects](/prioriser-liste-prospects) et comment [qualifier un prospect B2B](/qualifier-un-prospect-b2b) étape par étape.'},
       ]},
     ],
     faq:[
-      {q:'Pourquoi ne pas compter une observation probable ?',a:'Parce qu’un score gonflé par des suppositions ordonne mal le travail et que personne ne peut l’expliquer. La vérification prend quelques secondes et rend chaque point défendable.'},
+      {q:'Comment une observation non vérifiée est-elle comptée ?',a:'Dans le score estimé seulement, pondérée par la fiabilité de sa source : site officiel 90 %, annuaire 80 %, extrait de recherche 60 %, simple déduction 30 %. Le score vérifié ne compte que les preuves confirmées : c’est lui qui rend chaque point défendable, et la vérification prend quelques secondes.'},
       {q:'Pourquoi une limite de 90 jours ?',a:'Une information publique change : horaires, offre, organisation. Au-delà de 90 jours, une observation doit être revérifiée avant de compter à nouveau.'},
     ],
     cta:{title:'Voir un score expliqué critère par critère',text:'Dans la démonstration publique, chaque point du score renvoie à sa preuve et à sa source.'},
@@ -182,7 +182,7 @@ export const seoPages:SeoPage[]=[
   {
     slug:'prospection-restaurants',
     navLabel:'Prospecter des restaurants',
-    updated:'2026-10-03',
+    updated:'2026-10-06',
     keywords:{primary:'prospection restaurants',secondary:['prospecter des restaurants','fournisseur restauration B2B','qualifier des restaurants']},
     title:'Prospecter des restaurants : signaux publics et qualification | ProspectOS',
     description:'Fournisseurs B2B de la restauration : chercher des restaurants, observer leurs signaux publics, documenter leurs modes de commande et préparer une approche sourcée.',
@@ -222,7 +222,7 @@ export const seoPages:SeoPage[]=[
     ],
     faq:[
       {q:'Cette méthode ne fonctionne-t-elle que pour la restauration ?',a:'Non. Les critères sont propres à chaque projet. La restauration est un bon exemple car beaucoup de signaux utiles (modes de commande, livraison) sont visibles publiquement.'},
-      {q:'Peut-on se fier à une information trouvée sur une plateforme ?',a:'Seulement après vérification et tant qu’elle est récente. Une observation de plus de 90 jours ne compte plus dans le score.'},
+      {q:'Peut-on se fier à une information trouvée sur une plateforme ?',a:'Elle compte dans le score estimé selon la fiabilité de la plateforme, mais dans le score vérifié seulement après vérification, et tant qu’elle est récente. Une observation de plus de 90 jours ne compte plus dans aucun des deux.'},
     ],
     cta:{title:'Explorer la démonstration restauration',text:'Des établissements, leurs sources publiques et un score expliqué, accessibles sans compte.'},
     related:['qualifier-un-prospect-b2b','lead-scoring','prospection-b2b'],
@@ -387,20 +387,20 @@ export const seoPages:SeoPage[]=[
   {
     slug:'logiciel-prospection-b2b',
     navLabel:'Logiciel de prospection B2B',
-    updated:'2026-10-05',
+    updated:'2026-10-06',
     keywords:{primary:'logiciel de prospection B2B',secondary:['outil de prospection commerciale','logiciel prospection IA','trouver des prospects B2B']},
     title:'ProspectOS, logiciel de prospection B2B fondé sur des preuves',
     description:'ProspectOS, logiciel français de prospection B2B : découverte dans le registre public des entreprises, preuves sourcées, score explicable et approche préparée.',
     eyebrow:'LOGICIEL · PROSPECTION B2B',
     h1:'ProspectOS, un logiciel de prospection B2B fondé sur des preuves',
-    intro:'ProspectOS est un logiciel de prospection B2B assisté par IA, conçu en France. Il trouve des entreprises qui pourraient correspondre à votre offre, rattache chaque information à sa source, ne calcule un score qu’à partir des preuves que vous avez vérifiées, puis prépare une approche personnalisée. Il n’envoie jamais de message à votre place. Cette page décrit ce que fait le logiciel, pour qui il est conçu et ce qu’il ne fait pas.',
+    intro:'ProspectOS est un logiciel de prospection B2B assisté par IA, conçu en France. Il trouve des entreprises qui pourraient correspondre à votre offre, rattache chaque information à sa source, estime automatiquement un score selon la fiabilité de chaque source, le confirme avec les preuves que vous avez vérifiées, puis prépare une approche personnalisée. Il n’envoie jamais de message à votre place. Cette page décrit ce que fait le logiciel, pour qui il est conçu et ce qu’il ne fait pas.',
     sections:[
       {h2:'Ce que fait ProspectOS, étape par étape',blocks:[
         {type:'ol',items:[
           'Vous décrivez votre offre ; l’analyse d’offre IA propose un profil client idéal (ICP) en critères pondérés, que vous corrigez et validez.',
           'Vous lancez une recherche : secteur, zone, tranche d’effectif. Les entreprises françaises sont trouvées dans le registre public des entreprises ; le web complète pour les autres cas.',
           'Pour chaque entreprise retenue, l’analyse de prospect lit son site officiel et propose des observations : une affirmation, l’URL, l’extrait exact et la date.',
-          'Vous vérifiez chaque observation. Seules les observations confirmées deviennent des preuves et comptent dans le score.',
+          'Le score est estimé automatiquement, chaque source pondérée par sa fiabilité. Vous vérifiez les observations : seules celles que vous confirmez deviennent des preuves et comptent dans le score vérifié.',
           'Le score de 0 à 100 s’explique critère par critère et sert à ordonner votre liste.',
           'ProspectOS prépare une approche à partir du fait vérifié le plus important ; vous la relisez et l’envoyez depuis votre propre messagerie.',
         ]},
@@ -410,7 +410,7 @@ export const seoPages:SeoPage[]=[
         {type:'p',text:'Les données du registre aident à trouver des candidats, mais elles ne sont jamais traitées comme une preuve et ne modifient jamais le score. Une preuve vient toujours d’une observation vérifiée par une personne. La lecture des sites respecte leur fichier robots.txt.'},
       ]},
       {h2:'Un score explicable plutôt qu’une prédiction',blocks:[
-        {type:'p',text:'Beaucoup d’outils affichent une note sans dire d’où elle vient. Dans ProspectOS, chaque point du score correspond à un critère de votre ICP et à une preuve que vous avez confirmée. Un critère non documenté reste « à confirmer » au lieu d’être supposé. Le score est un ordre de priorité, pas une probabilité de vente : la page sur le [lead scoring explicable](/lead-scoring) détaille ce choix, et celle sur la façon de [qualifier un prospect B2B](/qualifier-un-prospect-b2b) décrit la lecture des statuts.'},
+        {type:'p',text:'Beaucoup d’outils affichent une note sans dire d’où elle vient. Dans ProspectOS, chaque point du score vérifié correspond à un critère de votre ICP et à une preuve que vous avez confirmée ; le score estimé montre en plus ce que les sources restant à vérifier pourraient confirmer. Un critère non documenté reste « à confirmer » au lieu d’être supposé. Le score est un ordre de priorité, pas une probabilité de vente : la page sur le [lead scoring explicable](/lead-scoring) détaille ce choix, et celle sur la façon de [qualifier un prospect B2B](/qualifier-un-prospect-b2b) décrit la lecture des statuts.'},
       ]},
       {h2:'Pour qui ProspectOS est conçu',blocks:[
         {type:'ul',items:[
@@ -435,7 +435,7 @@ export const seoPages:SeoPage[]=[
   {
     slug:'a-propos',
     navLabel:'À propos de ProspectOS',
-    updated:'2026-10-05',
+    updated:'2026-10-06',
     keywords:{primary:'ProspectOS',secondary:['éditeur ProspectOS','logiciel de prospection français','ProspectOS avis']},
     title:'À propos de ProspectOS : éditeur, principes et sources',
     description:'Qui édite ProspectOS, logiciel français de prospection B2B : un entrepreneur individuel basé à Toulouse, des principes clairs et des sources publiques citées.',
@@ -451,7 +451,7 @@ export const seoPages:SeoPage[]=[
         {type:'ol',items:[
           'Prospection autonome, action humaine : le logiciel cherche, lit et prépare ; une personne vérifie, décide et envoie.',
           'Aucune preuve inventée : chaque observation garde son URL, son extrait exact et sa date d’observation.',
-          'Un score explicable : chaque point se rattache à un critère de l’ICP et à une preuve confirmée, jamais à une supposition.',
+          'Un score explicable : chaque point se rattache à un critère de l’ICP et à une source citée ; le score vérifié ne compte que les preuves confirmées, jamais une supposition.',
           'Aucun envoi automatique : ProspectOS ne contacte personne à votre place.',
           'Aucune déduction depuis des connaissances externes : une information non trouvée dans une source reste inconnue.',
         ]},

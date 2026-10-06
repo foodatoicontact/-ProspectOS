@@ -126,8 +126,9 @@ test('9 — navigation: the open run is kept per project and restored; back retu
 });
 // Beta quality: "no verified evidence" is shown as "Non scoré", never as a 0/100 (score-display.ts); a settled score
 // (coverage > 0) is still the existing engine's number.
-test('7 — an added candidate shows its prospect\'s current score from the existing engine; others are "not scored", never 0/100', () => {
- assert.match(panel, /if\(r\.status!=='accepted'\|\|!r\.prospect_id\)return null;const p=existing\.find\(x=>x\.id===r\.prospect_id\);if\(!p\)return null;try\{return scoreProspect\(criteria,p\.evidence\)\}/);
- assert.match(panel, /<b>\{scoreState\(score\)==='SCORED'\?`\$\{score\.score\}\/100`:tr\('score\.notScored'\)\}<\/b>/);
+// Since 2026-10-06 (FIT estimé): the prospect's estimate (automatic, labelled "estimé"), or its verified score.
+test('7 — an added candidate shows its prospect\'s current score (estimated or verified); others are "not scored", never 0/100', () => {
+ assert.match(panel, /if\(r\.status!=='accepted'\|\|!r\.prospect_id\)return null;const p=existing\.find\(x=>x\.id===r\.prospect_id\);if\(!p\)return null;try\{return fitDisplay\(estimateFit\(criteria,p\.evidence,new Date\(\)\)\)\}/);
+ assert.match(panel, /<b>\{score\.kind==='none'\?tr\('score\.notScored'\):`\$\{score\.main\}\/100\$\{score\.kind==='estimated'\?` \(\$\{tr\('score\.estimated'\)\}\)`:''\}`\}<\/b>/);
  assert.match(panel, /\{tr\('discovery\.currentScore'\)\} <b>\{tr\('score\.notScored'\)\}<\/b>/);
 });

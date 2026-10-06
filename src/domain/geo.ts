@@ -14,7 +14,7 @@ const abs=(text:string)=>text.replace(/\[([^\]]+)\]\((\/[^)]*)\)/g,(_,a:string,h
 const price=(id:'BETA'|'PRO')=>OFFERS.find(o=>o.id===id)!.priceEurExclVatPerMonth;
 const quota=(q:{discovery:number;analysis:number;aiOffer:number})=>`${q.discovery} recherches, ${q.analysis} analyses de prospects, ${q.aiOffer} analyses d’offre IA`;
 
-export const GEO_SUMMARY='ProspectOS est un logiciel français de prospection B2B assisté par IA : il trouve des entreprises (registre public des entreprises et recherche web), rattache chaque observation à sa source, ne calcule le score qu’à partir des preuves vérifiées par une personne et prépare une approche personnalisée. Il n’envoie jamais de message automatiquement.';
+export const GEO_SUMMARY='ProspectOS est un logiciel français de prospection B2B assisté par IA : il trouve des entreprises (registre public des entreprises et recherche web), rattache chaque observation à sa source, estime automatiquement un score selon la fiabilité de chaque source, le confirme par les preuves vérifiées par une personne et prépare une approche personnalisée. Il n’envoie jamais de message automatiquement.';
 
 export function llmsTxt():string{
  const page=(p:SeoPage)=>`- [${p.h1}](${SITE_URL}/${p.slug}): ${p.description}`;
@@ -27,7 +27,7 @@ export function llmsTxt():string{
 ## Ce que fait ProspectOS
 - Découverte d’entreprises : registre public des entreprises françaises (API Recherche d’entreprises, données publiques sous Licence Ouverte), filtrable par secteur (codes NAF), zone et tranche d’effectif ; recherche web pour les autres cas.
 - Qualification : chaque critère du profil client idéal (ICP) reçoit des observations sourcées (URL, extrait, date) ; une observation ne devient une preuve qu’après vérification humaine.
-- Score de 0 à 100 explicable critère par critère, calculé uniquement à partir des preuves vérifiées ; c’est un ordre de priorité, pas une probabilité de vente.
+- Deux scores de 0 à 100, explicables critère par critère : un score estimé automatiquement (chaque source pondérée par sa fiabilité) et un score vérifié, calculé uniquement à partir des preuves confirmées par une personne ; c’est un ordre de priorité, pas une probabilité de vente.
 - Analyse du site officiel d’un prospect (robots.txt respecté) et analyse de l’offre par IA pour définir l’ICP.
 - Approche commerciale préparée à partir des faits vérifiés ; l’envoi reste humain, depuis l’outil de l’utilisateur.
 - Travail en équipe avec l’offre Équipe : de ${TEAM_PRICING.minSeats} à ${TEAM_PRICING.maxSeats} comptes, base de données et quotas partagés, recherches identiques réutilisées.

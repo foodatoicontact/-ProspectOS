@@ -82,7 +82,9 @@ try {
   const migrations = (await readdir(new URL('../db/migrations/', import.meta.url))).filter(f => f.endsWith('.sql')).sort();
   // 017 is this bloc's migration; 018 (deleted accounts release their beta seat) only re-creates account/trial functions.
   // 019 (Discovery register provider) only widens the Discovery provider checks and start_discovery: no billing object.
-  assert.deepEqual(migrations.slice(migrations.indexOf('017_stripe_billing.sql')), ['017_stripe_billing.sql', '018_deleted_accounts_release_beta_capacity.sql', '019_discovery_registry_provider.sql', '020_public_trial_availability.sql', '021_discovery_failed_run_not_billed.sql', '022_team_pro.sql', '023_team_offer.sql']);
+  assert.deepEqual(migrations.slice(migrations.indexOf('017_stripe_billing.sql')), ['017_stripe_billing.sql', '018_deleted_accounts_release_beta_capacity.sql', '019_discovery_registry_provider.sql', '020_public_trial_availability.sql', '021_discovery_failed_run_not_billed.sql', '022_team_pro.sql', '023_team_offer.sql', '024_signals.sql']);
+  // 024 (Signal Engine) has no billing object: no entitlement, no Stripe state.
+  assert.doesNotMatch((await readFile(new URL('../db/migrations/024_signals.sql', import.meta.url), 'utf8')).split('\n').filter(l => !l.trim().startsWith('--')).join('\n'), /stripe|billing|entitlement/i);
   // 023 (Équipe offer) extends this bloc's own billing functions with the TEAM plan and its seats: tests/team-offer-db.mjs.
   assert.doesNotMatch((await readFile(new URL('../db/migrations/019_discovery_registry_provider.sql', import.meta.url), 'utf8')).split('\n').filter(l => !l.startsWith('--')).join('\n'), /stripe|billing|subscription|entitlement|beta_program/i);
   // 022 (Pro team) reads entitlements to bill a team on its owner's plan; it never writes an entitlement nor a billing object.

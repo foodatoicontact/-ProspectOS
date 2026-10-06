@@ -127,7 +127,8 @@ export async function handleSignals(request:Request,path:string[],body:Record<st
   if(!auth.ok){if(audit){try{await audit.record({userId:deps.userId,prospectId:id,host:null,mode:null,outcome:auth.code})}catch{/* best-effort */}}return refusal(json,auth.code)}
   // No audit writer, no fetch.
   if(!audit)return refusal(json,'CONFIGURATION_REQUIRED');
-  const auditId=await audit.record({userId:deps.userId,prospectId:id,host:auth.host,mode:auth.mode,outcome:'STARTED'});
+  // Same rule as the analysis audit: only a plain host name is ever written (never an address or an odd string).
+  const auditId=await audit.record({userId:deps.userId,prospectId:id,host:/^[a-z0-9.-]{1,253}$/.test(auth.host)?auth.host:null,mode:auth.mode,outcome:'STARTED'});
   const close=async(outcome:'ANALYZED'|'ANALYSIS_FAILED'|'ROBOTS_DENIED'|'QUOTA_EXCEEDED',pages:number|null,failed:number|null)=>{try{await audit.complete(auditId,deps.userId,outcome,pages,failed)}catch{/* best-effort */}};
   try{await consume()}catch(error){await close('QUOTA_EXCEEDED',null,null);throw error}
   const site=new OfficialSiteSignalProvider(deps.sitePageFetcher(auth.fetchPolicy),auth.url);

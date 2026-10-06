@@ -119,7 +119,8 @@ test('account UI: a team section — owner invites/revokes/removes, member sees 
  assert.match(page,/<TeamSection locale=\{locale\}/);
 });
 
-test('offers: Pro says what the team gives — up to 5 accounts, one shared base and quota',()=>{
- assert.equal(fr['offers.proPoint2'],'Jusqu’à 5 comptes : base de données et quotas partagés');
- assert.equal(en['offers.proPoint2'],'Up to 5 accounts: shared database and quotas');
+// Since 2026-10-06 (023) the team belongs to the Équipe offer; Pro is a single account (tests/team-offer.test.ts).
+test('offers: Équipe says what the team gives — 2 to 5 accounts, one shared base and quota',()=>{
+ assert.equal(fr['offers.teamPoint1'],'De 2 à 5 comptes : base de données et quotas partagés');
+ assert.equal(en['offers.teamPoint1'],'2 to 5 accounts: shared database and quotas');
 });

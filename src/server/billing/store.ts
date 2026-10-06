@@ -1,12 +1,13 @@
 import type {SupabaseClient} from '@supabase/supabase-js';
+import type {PaidDbPlan} from '../../domain/plans.ts';
 // Billing persistence, through the SERVER-ONLY functions of migration 017 (granted to service_role only).
 // The billing tables live in the private schema: no browser session can read or write them.
 export type BillingAccount={
- user_id:string;stripe_customer_id:string;stripe_subscription_id:string|null;stripe_price_id:string|null;plan:'PAID'|'PRO'|null;
+ user_id:string;stripe_customer_id:string;stripe_subscription_id:string|null;stripe_price_id:string|null;plan:PaidDbPlan|null;
  subscription_status:string|null;current_period_start:string|null;current_period_end:string|null;cancel_at_period_end:boolean;
 };
 export type SubscriptionState={
- eventId:string;eventType:string;customerId:string;subscriptionId:string;priceId:string|null;plan:'PAID'|'PRO'|null;
+ eventId:string;eventType:string;customerId:string;subscriptionId:string;priceId:string|null;plan:PaidDbPlan|null;seats:number|null;
  status:string;periodStart:string|null;periodEnd:string|null;cancelAtPeriodEnd:boolean;paid:boolean;
 };
 export interface BillingStore{
@@ -21,7 +22,7 @@ export function supabaseBillingStore(admin:SupabaseClient):BillingStore{
   linkCustomer:async(userId,customerId)=>String(await rpc('link_stripe_customer',{p_user_id:userId,p_customer_id:customerId})),
   applyState:async s=>rpc('apply_stripe_subscription_state',{
    p_event_id:s.eventId,p_event_type:s.eventType,p_customer_id:s.customerId,p_subscription_id:s.subscriptionId,p_price_id:s.priceId,
-   p_plan:s.plan,p_status:s.status,p_period_start:s.periodStart,p_period_end:s.periodEnd,p_cancel_at_period_end:s.cancelAtPeriodEnd,p_paid:s.paid,
+   p_plan:s.plan,p_status:s.status,p_period_start:s.periodStart,p_period_end:s.periodEnd,p_cancel_at_period_end:s.cancelAtPeriodEnd,p_paid:s.paid,p_seats:s.seats,
   }),
  };
 }

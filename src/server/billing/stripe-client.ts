@@ -5,16 +5,19 @@
 export const STRIPE_API_VERSION='2025-03-31.basil';
 const STRIPE_API='https://api.stripe.com/v1';
 
-export type StripePrice={id:string;active:boolean;currency:string;unit_amount:number|null;livemode:boolean;recurring:{interval:string;interval_count:number}|null;type:string};
+export type StripePriceTier={up_to:number|null;flat_amount:number|null;unit_amount:number|null};
+// tiers are only present when expanded: retrievePrice(id,true), used for the Équipe price only.
+export type StripePrice={id:string;active:boolean;currency:string;unit_amount:number|null;livemode:boolean;recurring:{interval:string;interval_count:number}|null;type:string;
+ billing_scheme?:string;tiers_mode?:string|null;tiers?:StripePriceTier[]};
 export type StripeInvoice={id:string;status:string|null;paid?:boolean};
 export type StripeSubscription={
  id:string;customer:string;status:string;cancel_at_period_end:boolean;livemode:boolean;
  current_period_start?:number;current_period_end?:number;
- items:{data:{price:{id:string};current_period_start?:number;current_period_end?:number}[]};
+ items:{data:{price:{id:string}&Partial<StripePrice>;quantity?:number;current_period_start?:number;current_period_end?:number}[]};
  latest_invoice:string|StripeInvoice|null;metadata?:Record<string,string>;
 };
 export interface StripeApi{
- retrievePrice(id:string):Promise<StripePrice>;
+ retrievePrice(id:string,withTiers?:boolean):Promise<StripePrice>;
  createCustomer(params:{email:string|null;userId:string},idempotencyKey:string):Promise<{id:string}>;
  createCheckoutSession(params:Record<string,unknown>,idempotencyKey:string):Promise<{id:string;url:string|null}>;
  createPortalSession(params:Record<string,unknown>):Promise<{url:string}>;
@@ -53,7 +56,7 @@ export function createStripeClient(secretKey:string,fetchImpl:typeof fetch=fetch
  }
  const id=(v:string,prefix:string)=>{if(!new RegExp(`^${prefix}_[A-Za-z0-9]+$`).test(v))throw Error('INVALID_STRIPE_ID');return v};
  return {
-  retrievePrice:async priceId=>call('GET',`/prices/${id(priceId,'price')}`),
+  retrievePrice:async(priceId,withTiers)=>call('GET',`/prices/${id(priceId,'price')}`,withTiers?{expand:['tiers']}:undefined),
   createCustomer:({email,userId},key)=>call('POST','/customers',{...(email?{email}:{}),metadata:{prospectos_user_id:userId}},key),
   createCheckoutSession:(params,key)=>call('POST','/checkout/sessions',params,key),
   createPortalSession:params=>call('POST','/billing_portal/sessions',params),

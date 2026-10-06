@@ -128,7 +128,7 @@ test('M — trial ended: data kept, clear message, upgrade offer, no deletion pa
  assert.equal(fr['account.upgrade'],'ProspectOS Solo — 49 € HT/mois');
  assert.match(fr['account.trialEndedNote'],/Vos données restent disponibles/);
  // The manual-activation message stays wherever self-service checkout is not available (Production today).
- assert.match(page,/\{entitlementPlan==='BETA'&&betaActive===false&&!\(billingOffers\?\.BETA\|\|billingOffers\?\.PRO\)&&<div className="account-field upgrade"><p><b>\{tr\('account\.upgrade'\)\}<\/b><\/p><p className="muted">\{tr\('account\.upgradeNote'\)\}<\/p><\/div>\}/);
+ assert.match(page,/\{entitlementPlan==='BETA'&&betaActive===false&&!\(billingOffers\?\.BETA\|\|billingOffers\?\.PRO\|\|billingOffers\?\.TEAM\)&&<div className="account-field upgrade"><p><b>\{tr\('account\.upgrade'\)\}<\/b><\/p><p className="muted">\{tr\('account\.upgradeNote'\)\}<\/p><\/div>\}/);
  assert.equal(fr['account.upgradeNote'],'Pendant la bêta, l’activation de l’abonnement se fait manuellement. Contactez-nous pour continuer.');
  assert.equal(en['account.upgradeNote'],'During the beta, subscriptions are activated manually. Contact us to continue.');
  // The public pricing no longer claims a manual activation unconditionally (false wherever online payment is
@@ -145,7 +145,7 @@ test('M — trial ended: data kept, clear message, upgrade offer, no deletion pa
  // intent decision constant or the server route: no other entry to the payment page.
  assert.ok((page.match(/checkout/gi)?.length??0)>=3);
  assert.equal(page.replace(/startCheckout|onCheckout=|action==='CHECKOUT'|'billing\/checkout'/g,'').match(/checkout/gi),null,'only startCheckout and the server route');
- assert.match(page,/async function startCheckout\(plan:'BETA'\|'PRO',t=token\)\{const \{url\}=await api\('billing\/checkout','POST',\{plan\},t\);/);
+ assert.match(page,/async function startCheckout\(plan:PlanName,t=token\)\{const \{url\}=await api\('billing\/checkout','POST',\{plan\},t\);/);
  assert.match(page,/<BillingSection locale=\{locale\} offers=\{billingOffers\}/);
 });
 test('Plan limit — the refusal is its own code (429), localized, distinct from the hourly quota',async()=>{

@@ -5,9 +5,10 @@ import {PricingPlans} from './PricingPlans';
 import {type BillingAvailability,type BillingSummary} from '../domain/plan-intent';
 import {subscriptionView} from '../domain/subscription-view';
 import type {UsageView} from '../domain/pricing';
+import type {CheckoutPlan} from '../domain/plans';
 // Account page billing block. Display only: the offers shown as buyable, the subscription status and every
 // button come from the server's answer (billing_offers / billing); the browser only sends the offer NAME
-// ('BETA' or 'PRO') to /api/v1/billing/checkout, or asks POST /api/v1/billing/portal for the Customer Portal,
+// ('BETA', 'PRO' or 'TEAM') to /api/v1/billing/checkout, or asks POST /api/v1/billing/portal for the Customer Portal,
 // and follows the URL the server returns — it never builds a payment-provider URL itself.
 // A current subscription is managed in the portal: no second checkout is ever offered next to it.
 export type BillingOffers=BillingAvailability;
@@ -16,7 +17,7 @@ export type BillingStatus=BillingSummary;
 const STATUS_KEYS=['active','trialing','past_due','unpaid','paused','canceled','incomplete'] as const;
 const statusKey=(s:string|null|undefined):TKey=>(STATUS_KEYS as readonly string[]).includes(s??'')?`billing.status.${s}` as TKey:'billing.status.unknown';
 
-export function BillingSection({locale,offers,status,usage,busy,entitlementPlan,onCheckout,onPortal}:{locale:Locale;offers:BillingOffers|null;status:BillingStatus|null;usage?:UsageView|null;busy:boolean;entitlementPlan?:string|null;onCheckout:(plan:'BETA'|'PRO')=>void;onPortal:()=>Promise<void>}){
+export function BillingSection({locale,offers,status,usage,busy,entitlementPlan,onCheckout,onPortal}:{locale:Locale;offers:BillingOffers|null;status:BillingStatus|null;usage?:UsageView|null;busy:boolean;entitlementPlan?:string|null;onCheckout:(plan:CheckoutPlan)=>void;onPortal:()=>Promise<void>}){
  const tr=(k:TKey)=>translate(locale,k);
  const [opening,setOpening]=useState(false);const [portalError,setPortalError]=useState('');
  const view=subscriptionView(status,offers);
@@ -28,7 +29,7 @@ export function BillingSection({locale,offers,status,usage,busy,entitlementPlan,
  return <div className="account-field billing">
   {view&&<section className="subscription-card" aria-labelledby="subscription-title">
    <div className="subscription-head"><span id="subscription-title" className="muted">{tr('billing.currentTitle')}</span><span className={`status-pill tone-${view.current?'verified':'neutral'}`}>{tr(statusKey(view.status))}</span></div>
-   {view.current&&view.offer&&<p className="subscription-offer">{tr(view.offer==='BETA'?'account.usagePaid':'account.usagePro')}</p>}
+   {view.current&&view.offer&&<p className="subscription-offer">{view.offer==='TEAM'?tr('account.usageTeamPlan').replace('{n}',String(view.seats??'—')):tr(view.offer==='BETA'?'account.usagePaid':'account.usagePro')}</p>}
    {view.status==='past_due'&&<p className="reached" role="alert">{tr('billing.pastDue')}</p>}
    {view.date&&<p className="subscription-date">{view.date.kind==='ends'?`${tr('billing.cancelScheduled')} ${date(view.date.iso)}`:`${tr('billing.renewsOn')} ${date(view.date.iso)}`}</p>}
    {view.status==='canceled'&&<p className="muted">{tr('billing.ended')}</p>}

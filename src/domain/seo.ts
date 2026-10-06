@@ -80,17 +80,18 @@ export const softwareApplicationJsonLd={
     'Vérification humaine : une observation ne devient une preuve qu’après confirmation',
     'Score de 0 à 100 explicable critère par critère, calculé sur les seules preuves vérifiées',
     'Approche commerciale préparée à partir des faits vérifiés, sans envoi automatique',
-    'Travail en équipe jusqu’à 5 comptes avec base de données et quotas partagés (offre Pro)',
+    'Travail en équipe de 2 à 5 comptes avec base de données et quotas partagés (offre Équipe)',
     'Export CSV et export complet des données du compte',
   ],
-  // The real self-service prices (OFFERS ← CHECKOUT_PRICES), monthly, excluding VAT. Never a rating or a review.
+  // The real self-service prices (OFFERS ← CHECKOUT_PRICES / TEAM_PRICING), monthly, excluding VAT. Never a rating or a review.
   offers:OFFERS.filter(o=>o.priceEurExclVatPerMonth!==null).map(o=>({
     '@type':'Offer',
-    name:o.id==='PRO'?'ProspectOS Pro':'ProspectOS Solo',
+    name:o.id==='PRO'?'ProspectOS Pro':o.id==='TEAM'?'ProspectOS Équipe':'ProspectOS Solo',
     price:String(o.priceEurExclVatPerMonth),
     priceCurrency:'EUR',
     url:`${SITE_URL}/tarifs`,
     priceSpecification:{'@type':'UnitPriceSpecification',price:String(o.priceEurExclVatPerMonth),priceCurrency:'EUR',unitCode:'MON',valueAddedTaxIncluded:false},
+    ...(o.team?{description:`${o.priceEurExclVatPerMonth} € HT par mois pour ${o.team.includedSeats} comptes, + ${o.team.extraSeatEur} € HT par compte supplémentaire, jusqu’à ${o.team.maxSeats} comptes`}:{}),
   })),
   publisher:{'@type':'Organization',name:'ProspectOS',url:SITE_URL},
 };

@@ -19,7 +19,9 @@ test('llms.txt: the llmstxt.org shape — title, summary, sections of absolute l
  for(const h of ['## Ce que fait ProspectOS','## Offres et tarifs','## Principes','## Pages','## Contact'])assert.ok(t.includes(h),h);
  const solo=OFFERS.find(o=>o.id==='BETA')!,pro=OFFERS.find(o=>o.id==='PRO')!;
  assert.match(t,new RegExp(`ProspectOS Solo[^\\n]*${solo.priceEurExclVatPerMonth} € HT/mois`));
- assert.match(t,new RegExp(`ProspectOS Pro[^\\n]*${pro.priceEurExclVatPerMonth} € HT/mois[^\\n]*jusqu’à 5 comptes`));
+ // Pro is one account since 2026-10-06; teams buy ProspectOS Équipe (tests/team-offer.test.ts).
+ assert.match(t,new RegExp(`ProspectOS Pro[^\\n]*${pro.priceEurExclVatPerMonth} € HT/mois, 1 compte`));
+ assert.match(t,/ProspectOS Équipe[^\n]*jusqu’à 5 comptes/);
  assert.match(t,/Entreprise[^\n]*sur devis/);
  for(const [plan,q] of [['Solo',PLAN_QUOTAS.BETA],['Pro',PLAN_QUOTAS.PRO]] as const)assert.ok(t.includes(`${q.discovery} recherches`)&&t.includes(`${q.analysis} analyses de prospects`),plan);
  assert.ok(t.includes(`essai gratuit de 7 jours`)&&t.includes(`${PLAN_QUOTAS.TRIAL.discovery} recherches`),'trial');

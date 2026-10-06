@@ -32,9 +32,9 @@ insert into public.organizations(id,name,owner_id) values('$T','Team','$(U 1)');
 insert into public.memberships(organization_id,user_id,role) values('$T','$(U 1)','owner'),('$T','$(U 2)','member'),('$T','$(U 3)','member'),('$T','$(U 4)','member'),('$T','$(U 5)','member');
 insert into public.projects(id,organization_id,name) values('$P','$T','P');
 insert into prospectos_private.team_invitations(organization_id,email,token_hash,invited_by,accepted_at,accepted_by) select '$T','u'||i||'@t',lpad(md5(i::text),64,'0'),'$(U 1)',now(),('00000000-0000-4000-8000-'||lpad(i::text,12,'0'))::uuid from generate_series(2,5) i;
-insert into public.account_entitlements(user_id,plan,status,starts_at,expires_at) values('$(U 1)','PRO','ACTIVE',now()-interval '1 minute',now()+interval '30 days');
-update prospectos_private.discovery_quota_settings set runs_per_hour=1000, analyses_per_hour=1000, analyses_per_user_per_hour=1000, ai_offer_per_hour=1000;
-insert into prospectos_private.discovery_quota_usage(organization_id,action,user_id) select '$T','discovery',('00000000-0000-4000-8000-'||lpad((1+i%5)::text,12,'0'))::uuid from generate_series(1,298) i;
+insert into public.account_entitlements(user_id,plan,status,starts_at,expires_at,seats) values('$(U 1)','TEAM','ACTIVE',now()-interval '1 minute',now()+interval '30 days',5);
+update prospectos_private.discovery_quota_settings set runs_per_hour=100000, analyses_per_hour=1000, analyses_per_user_per_hour=1000, ai_offer_per_hour=1000;
+insert into prospectos_private.discovery_quota_usage(organization_id,action,user_id) select '$T','discovery',('00000000-0000-4000-8000-'||lpad((1+i%5)::text,12,'0'))::uuid from generate_series(1,1498) i;
 SQL
 count(){ "${PSQL[@]}" -tAc "select count(*) from prospectos_private.discovery_quota_usage where action='discovery' and organization_id='$T' and billable"; }
 at=$("${PSQL[@]}" -tAc "select (clock_timestamp()+interval '1.5 seconds')::text")
@@ -43,4 +43,4 @@ for i in $(seq 1 12); do
  ( "${PSQL[@]}" -tAc "set role authenticated; select set_config('request.jwt.claim.sub','$who',false); select pg_sleep(greatest(0,extract(epoch from ('$at'::timestamptz - clock_timestamp())))); select public.start_discovery('$P','studios','Lyon','[]','registry',20,'{}'::jsonb);" >/dev/null 2>&1 && echo ok || echo refused ) >> "$WORK/race" &
 done; wait
 ok=$(grep -c ok "$WORK/race" || true)
-if [ "$(count)" = 300 ] && [ "$ok" = 2 ]; then echo "PASS TEAM_POOL_PARALLEL (12 simultaneous launches from 5 accounts at 298/300 → $(count)/300, $ok accepted)"; echo "PASS: the Pro team pool holds under real parallel sessions"; else echo "FAIL TEAM_POOL_PARALLEL (recorded $(count), accepted $ok)"; exit 1; fi
+if [ "$(count)" = 1500 ] && [ "$ok" = 2 ]; then echo "PASS TEAM_POOL_PARALLEL (12 simultaneous launches from 5 accounts at 1498/1500 (Équipe, 5 seats) → $(count)/1500, $ok accepted)"; echo "PASS: the Équipe team pool holds under real parallel sessions"; else echo "FAIL TEAM_POOL_PARALLEL (recorded $(count), accepted $ok)"; exit 1; fi

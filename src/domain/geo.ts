@@ -1,5 +1,5 @@
 import {OFFERS} from './offers.ts';
-import {PLAN_QUOTAS} from './plans.ts';
+import {PLAN_QUOTAS,TEAM_PRICING} from './plans.ts';
 import {EDITOR} from './legal.ts';
 import {SITE_URL,seoPages,type SeoPage,type SeoBlock} from './seo.ts';
 // Being proposed by AI assistants is earned with facts they can read and cite. /llms.txt follows llmstxt.org (a
@@ -30,13 +30,14 @@ export function llmsTxt():string{
 - Score de 0 à 100 explicable critère par critère, calculé uniquement à partir des preuves vérifiées ; c’est un ordre de priorité, pas une probabilité de vente.
 - Analyse du site officiel d’un prospect (robots.txt respecté) et analyse de l’offre par IA pour définir l’ICP.
 - Approche commerciale préparée à partir des faits vérifiés ; l’envoi reste humain, depuis l’outil de l’utilisateur.
-- Travail en équipe avec l’offre Pro : jusqu’à 5 comptes, base de données et quotas partagés, recherches identiques réutilisées.
+- Travail en équipe avec l’offre Équipe : de ${TEAM_PRICING.minSeats} à ${TEAM_PRICING.maxSeats} comptes, base de données et quotas partagés, recherches identiques réutilisées.
 - Export CSV, export complet des données du compte, suppression du compte en libre-service.
 
 ## Offres et tarifs
 - Essai gratuit de 7 jours, sans carte bancaire (dans la limite des places ouvertes) : ${quota(PLAN_QUOTAS.TRIAL)}.
 - ProspectOS Solo — ${price('BETA')} € HT/mois, 1 compte : ${quota(PLAN_QUOTAS.BETA)} par mois.
-- ProspectOS Pro — ${price('PRO')} € HT/mois, jusqu’à 5 comptes : ${quota(PLAN_QUOTAS.PRO)} par mois pour toute l’équipe ; une recherche identique faite par un coéquipier depuis moins de 7 jours est reprise sans être décomptée.
+- ProspectOS Pro — ${price('PRO')} € HT/mois, 1 compte : ${quota(PLAN_QUOTAS.PRO)} par mois.
+- ProspectOS Équipe — ${TEAM_PRICING.baseAmount/100} € HT/mois pour ${TEAM_PRICING.includedSeats} comptes, + ${TEAM_PRICING.extraSeatAmount/100} € HT par compte supplémentaire, jusqu’à ${TEAM_PRICING.maxSeats} comptes : par compte, ${quota(PLAN_QUOTAS.PRO)} par mois, en pot commun ; une recherche identique faite par un coéquipier depuis moins de 7 jours est reprise sans être décomptée.
 - Entreprise / White Label — sur devis.
 - Sans engagement, résiliable à tout moment. Une recherche dont la source n’a répondu à aucune requête n’est pas décomptée. Détail : [Tarifs](${SITE_URL}/tarifs)
 

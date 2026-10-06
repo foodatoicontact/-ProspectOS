@@ -82,7 +82,8 @@ try {
   const migrations = (await readdir(new URL('../db/migrations/', import.meta.url))).filter(f => f.endsWith('.sql')).sort();
   // 017 is this bloc's migration; 018 (deleted accounts release their beta seat) only re-creates account/trial functions.
   // 019 (Discovery register provider) only widens the Discovery provider checks and start_discovery: no billing object.
-  assert.deepEqual(migrations.slice(migrations.indexOf('017_stripe_billing.sql')), ['017_stripe_billing.sql', '018_deleted_accounts_release_beta_capacity.sql', '019_discovery_registry_provider.sql', '020_public_trial_availability.sql', '021_discovery_failed_run_not_billed.sql', '022_team_pro.sql']);
+  assert.deepEqual(migrations.slice(migrations.indexOf('017_stripe_billing.sql')), ['017_stripe_billing.sql', '018_deleted_accounts_release_beta_capacity.sql', '019_discovery_registry_provider.sql', '020_public_trial_availability.sql', '021_discovery_failed_run_not_billed.sql', '022_team_pro.sql', '023_team_offer.sql']);
+  // 023 (Équipe offer) extends this bloc's own billing functions with the TEAM plan and its seats: tests/team-offer-db.mjs.
   assert.doesNotMatch((await readFile(new URL('../db/migrations/019_discovery_registry_provider.sql', import.meta.url), 'utf8')).split('\n').filter(l => !l.startsWith('--')).join('\n'), /stripe|billing|subscription|entitlement|beta_program/i);
   // 022 (Pro team) reads entitlements to bill a team on its owner's plan; it never writes an entitlement nor a billing object.
   const m022 = (await readFile(new URL('../db/migrations/022_team_pro.sql', import.meta.url), 'utf8')).split('\n').filter(l => !l.startsWith('--')).join('\n');
@@ -134,7 +135,8 @@ try {
     await refused(() => as(users.trial, `update public.account_entitlements set plan='PRO' where user_id=$1`, [users.trial]), /permission denied/, 'writing one\'s own plan');
     await refused(() => as(undefined, 'select public.get_billing_status()'), /permission denied|Authentication required/, 'anon status');
     const b = await billing(users.trial);
-    assert.deepEqual(Object.keys(b).sort(), ['cancel_at_period_end', 'current_period_end', 'has_customer', 'plan', 'status']);
+    // 023 adds the paid seats of an Équipe subscription (null otherwise): still no Stripe identifier.
+    assert.deepEqual(Object.keys(b).sort(), ['cancel_at_period_end', 'current_period_end', 'has_customer', 'plan', 'seats', 'status']);
     assert.doesNotMatch(JSON.stringify(b), /cus_|sub_|price_/, 'no Stripe identifier reaches the browser');
     assert.deepEqual(await billing(users.legacy), { has_customer: false });
   });

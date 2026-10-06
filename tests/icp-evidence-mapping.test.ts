@@ -215,10 +215,10 @@ test('14 — no migration was added by this bloc: the RPCs, RLS and evidence_gua
  // neither evidence, observations nor RLS policies.
  // The later migrations are commercial quotas (016), Stripe billing (017) and deleted accounts' beta seat (018);
  // none touches evidence, observations nor RLS policies.
- assert.deepEqual(files.slice(files.indexOf('015_dynamic_safe_analysis.sql')),['015_dynamic_safe_analysis.sql','016_beta_commercial_quotas.sql','017_stripe_billing.sql','018_deleted_accounts_release_beta_capacity.sql','019_discovery_registry_provider.sql','020_public_trial_availability.sql','021_discovery_failed_run_not_billed.sql','022_team_pro.sql']);
+ assert.deepEqual(files.slice(files.indexOf('015_dynamic_safe_analysis.sql')),['015_dynamic_safe_analysis.sql','016_beta_commercial_quotas.sql','017_stripe_billing.sql','018_deleted_accounts_release_beta_capacity.sql','019_discovery_registry_provider.sql','020_public_trial_availability.sql','021_discovery_failed_run_not_billed.sql','022_team_pro.sql','023_team_offer.sql']);
  // 019 (register provider) only widens the provider checks and start_discovery's provider list.
  // 020 (public trial availability) only adds a boolean read of the beta seats; 021 ties a Discovery unit to its run.
- for(const f of ['016_beta_commercial_quotas.sql','017_stripe_billing.sql','018_deleted_accounts_release_beta_capacity.sql','019_discovery_registry_provider.sql','020_public_trial_availability.sql','021_discovery_failed_run_not_billed.sql','022_team_pro.sql']){
+ for(const f of ['016_beta_commercial_quotas.sql','017_stripe_billing.sql','018_deleted_accounts_release_beta_capacity.sql','019_discovery_registry_provider.sql','020_public_trial_availability.sql','021_discovery_failed_run_not_billed.sql','022_team_pro.sql','023_team_offer.sql']){
   const later=(await readFile(new URL(`../db/migrations/${f}`,import.meta.url),'utf8')).split('\n').filter(l=>!l.startsWith('--')).join('\n');
   assert.doesNotMatch(later,/evidence|observation|create policy|alter policy|drop policy|row level security/i,f);
  }

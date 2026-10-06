@@ -147,7 +147,7 @@ test('AA — BETA grandfathering: closing the 49 € offer stops NEW checkouts o
  assert.equal(r.status,409);assert.equal(r.body.code,'BETA_OFFER_CLOSED');
  assert.equal((await checkout({plan:'PRO'},{cfg:closed})).r.status,200);
  assert.equal(planForPrice(closed,'price_beta49'),'PAID','existing subscribers keep their plan');
- assert.deepEqual(checkoutAvailability(closed),{BETA:false,PRO:true,portal:true});
+ assert.deepEqual(checkoutAvailability(closed),{BETA:false,PRO:true,TEAM:false,portal:true});
  const src=await read('../src/server/billing/webhook.ts');assert.doesNotMatch(src,/betaCheckoutOpen/,'the webhook never looks at the offer being open');
 });
 
@@ -204,7 +204,7 @@ test('I — checkout.session.completed with a payment not confirmed yet: the sub
 });
 test('J, K, L — invoice.paid → paid state with the plan of the Stripe price: BETA price → PAID (BETA), PRO price → PRO',async()=>{
  const beta=await deliver(evt('invoice.paid',{subscription:'sub_1'}),{sub_1:sub()});
- assert.deepEqual({...beta.store.applied[0]},{eventId:'evt_1',eventType:'invoice.paid',customerId:'cus_1',subscriptionId:'sub_1',priceId:'price_beta49',plan:'PAID',status:'active',periodStart:'2026-10-12T00:00:00.000Z',periodEnd:'2026-11-12T00:00:00.000Z',cancelAtPeriodEnd:false,paid:true});
+ assert.deepEqual({...beta.store.applied[0]},{eventId:'evt_1',eventType:'invoice.paid',customerId:'cus_1',subscriptionId:'sub_1',priceId:'price_beta49',plan:'PAID',seats:null,status:'active',periodStart:'2026-10-12T00:00:00.000Z',periodEnd:'2026-11-12T00:00:00.000Z',cancelAtPeriodEnd:false,paid:true});
  const pro=await deliver(evt('invoice.paid',{parent:{subscription_details:{subscription:'sub_1'}}}),{sub_1:sub({},'price_pro99',9900)});
  assert.equal(pro.store.applied[0].plan,'PRO','the 2025+ invoice shape (parent.subscription_details) is read too');
  assert.equal(commercialPlan('PAID'),'BETA');assert.equal(commercialPlan('PRO'),'PRO');
@@ -239,8 +239,8 @@ test('Configuration — TEST key never on Production, LIVE key only on Productio
  assert.equal(billingConfig({...ENV,STRIPE_SECRET_KEY:LIVE_KEY,VERCEL_ENV:'production'}),null,'no LIVE without BILLING_ALLOW_LIVE');
  assert.equal(billingConfig({...ENV,STRIPE_SECRET_KEY:LIVE_KEY,VERCEL_ENV:'production',BILLING_ALLOW_LIVE:'true'})?.mode,'live');
  assert.equal(billingConfig({...ENV,STRIPE_PRICE_BETA:'49'})!.prices.BETA,null);
- assert.deepEqual(checkoutAvailability(null),{BETA:false,PRO:false,portal:false});
- assert.deepEqual(checkoutAvailability(billingConfig({...ENV,BILLING_ENABLED:undefined})),{BETA:false,PRO:false,portal:true});
+ assert.deepEqual(checkoutAvailability(null),{BETA:false,PRO:false,TEAM:false,portal:false});
+ assert.deepEqual(checkoutAvailability(billingConfig({...ENV,BILLING_ENABLED:undefined})),{BETA:false,PRO:false,TEAM:false,portal:true});
 });
 test('Stripe client — form encoding, pinned API version, secret only in the Authorization header, Stripe messages not echoed',async()=>{
  assert.equal(formEncode({line_items:[{price:'price_1',quantity:1}],metadata:{a:'b c'},expand:['latest_invoice']}),'line_items%5B0%5D%5Bprice%5D=price_1&line_items%5B0%5D%5Bquantity%5D=1&metadata%5Ba%5D=b%20c&expand%5B0%5D=latest_invoice');
@@ -265,7 +265,7 @@ test('V, W, X, Y — TRIAL 20/50/5 (ProspectOS, no Stripe), BETA 100/250/25, PRO
  for(const f of ['config.ts','checkout.ts','webhook.ts'])assert.doesNotMatch(await read(`../src/server/billing/${f}`),/trial_period_days|trial_end/,'no Stripe trial');
 });
 test('AB — existing accounts keep their database plan values; every one maps to a commercial plan',()=>{
- assert.deepEqual(DB_TO_COMMERCIAL,{BETA:'TRIAL',PAID:'BETA',PRO:'PRO',ENTERPRISE:'ENTERPRISE',INTERNAL:'INTERNAL'});
+ assert.deepEqual(DB_TO_COMMERCIAL,{BETA:'TRIAL',PAID:'BETA',PRO:'PRO',TEAM:'TEAM',ENTERPRISE:'ENTERPRISE',INTERNAL:'INTERNAL'});
  const NOW=Date.parse('2026-10-20T00:00:00Z');
  const legacyPaid={plan:'PAID',status:'ACTIVE',period_start:'2026-10-12T00:00:00Z',period_end:'2026-11-12T00:00:00Z',active:true,discovery_used:1,discovery_limit:100,analysis_used:2,analysis_limit:250,ai_offer_used:0,ai_offer_limit:25};
  assert.equal(usageView(legacyPaid,NOW)!.kind,'paid');

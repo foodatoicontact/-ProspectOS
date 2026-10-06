@@ -15,6 +15,7 @@ import {newInviteToken,inviteTokenHash,isInviteToken,inviteLink,teamError,TEAM_E
 import {createAdminClient} from '../../../../src/server/admin-client';
 import {createHash} from 'node:crypto';
 import {handleSignals} from '../../../../src/signals/api';
+import {BodaccSignalProvider,bodaccEnabled} from '../../../../src/signals/providers/bodacc';
 import {intentProfileOf,verifiedSignalsOf,recordContactSnapshot} from '../../../../src/signals/context';
 import {whyNow,withWhyNow} from '../../../../src/domain/why-now';
 import {createSupabaseAnalysisAudit} from '../../../../src/discovery/analysis-audit';
@@ -68,6 +69,7 @@ async function handler(request:Request,context:{params:Promise<{path:string[]}>}
   staticAllowlist:(process.env.DISCOVERY_ALLOWED_HOSTS??'').split(',').map(s=>s.trim().toLowerCase()).filter(Boolean),
   dynamicEnabled:dynamicAnalysisEnabled(process.env.DISCOVERY_DYNAMIC_ANALYSIS_ENABLED),
   requireEntitlement:()=>requireActiveEntitlement(db,user.id),
+  bodaccEnabled:bodaccEnabled(process.env),bodaccProvider:()=>new BodaccSignalProvider(),
   refundAnalysis:()=>releaseCommercialUse(createAdminClient(),user.id,'analysis'),
  });if(signalsResponse)return signalsResponse;
  const checked=async(query:PromiseLike<any>)=>{const {data,error}=await query;if(error)throw Error('DATABASE_REQUEST_FAILED');return data};

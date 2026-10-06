@@ -6,6 +6,7 @@ import {runSignalScan,toCandidate,type ScanReport} from './service.ts';
 import type {SignalProvider,SignalTarget} from './provider.ts';
 import {FixtureSignalProvider} from './providers/fixture.ts';
 import {OfficialSiteSignalProvider,type SiteFetcher} from './providers/site.ts';
+import {BodaccSignalProvider,sirenOf} from './providers/bodacc.ts';
 import {scoreIntent,type IntentSignal} from '../domain/intent.ts';
 import {feedbackReport} from '../domain/feedback.ts';
 import {intentProfileOf} from './context.ts';
@@ -18,8 +19,9 @@ import type {AnalysisAudit} from '../discovery/website-analysis.ts';
 //
 //  GET  /prospects/:id/signals          the prospect's signals and its INTENT (verified + estimated), recomputed now
 //  POST /prospects/:id/signals          a signal the user found themself (URL + exact excerpt; nothing is fetched)
-//  POST /prospects/:id/signal-scan      read the company's own website for signals (same authorization, audit and
-//                                       plan unit as "Analyser le site"; the unit is given back when nothing was read)
+//  POST /prospects/:id/signal-scan      read the company's own website (same authorization, audit and plan unit as
+//                                       "Analyser le site"; unit given back when nothing was read) and its legal
+//                                       announcements (BODACC, by the SIREN read in the register; no plan unit)
 //  POST /signals/:id/review             verify | reject | reset
 //  GET|POST /projects/:id/intent-profile  the project's tracked types, weights and words
 //  GET  /projects/:id/feedback          what produced answers (S8): rates by FIT, INTENT, signal type, source, age
@@ -31,6 +33,8 @@ export type SignalDeps={
  sitePageFetcher:(policy:Extract<AnalysisAuthorization,{ok:true}>['fetchPolicy'])=>SiteFetcher;
  staticAllowlist:string[];dynamicEnabled:boolean;
  requireEntitlement:()=>Promise<void>;
+ // S10: legal announcements by SIREN (public data, no key); off when SIGNALS_BODACC_ENABLED is "false".
+ bodaccEnabled:boolean;bodaccProvider:()=>BodaccSignalProvider;
  refundAnalysis:()=>Promise<void>;
 };
 const uuid=z.string().uuid();
@@ -108,7 +112,10 @@ export async function handleSignals(request:Request,path:string[],body:Record<st
  if(action==='signals'&&method==='GET'){
   const rows=await checked(db.from('signals').select(SIGNAL_COLUMNS).eq('prospect_id',id).order('observed_at',{ascending:false}).limit(200));
   const profile=await profileOf(db,prospect.project_id);
-  return json({signals:rows,intent:scoreIntent(rows.map(toIntentSignal),profile,now),profile});
+  // Which sources a scan can read for this prospect (the UI enables its button from this, never guesses).
+  const accepted=await checked(db.from('discovery_results').select('provider,raw_payload').eq('prospect_id',id).eq('status','accepted'));
+  const sources={official_site:!!prospect.website,bodacc:deps.bodaccEnabled&&!!sirenOf(accepted)};
+  return json({signals:rows,intent:scoreIntent(rows.map(toIntentSignal),profile,now),profile,sources});
  }
  if(action==='signals'&&method==='POST'){
   const parsed=ManualSchema.safeParse(body);if(!parsed.success)return json({error:'Signal invalide : type, extrait et URL HTTP(S) requis.'},400);
@@ -122,37 +129,54 @@ export async function handleSignals(request:Request,path:string[],body:Record<st
  }
  if(action==='signal-scan'&&method==='POST'){
   await deps.requireEntitlement();
-  if(!prospect.website)return refusal(json,'NO_OFFICIAL_WEBSITE');
-  const profile=await profileOf(db,prospect.project_id);
-  const target:SignalTarget={prospect_id:prospect.id,name:prospect.name,website:prospect.website,siren:null,city:prospect.city||null};
   const accepted:AcceptedDiscoveryResult[]=await checked(db.from('discovery_results').select('status,provider,source_class,website,source_url,raw_payload').eq('prospect_id',id).eq('status','accepted'));
+  // S10: the SIREN ProspectOS read in the public register when the prospect was accepted (never typed by a member).
+  const siren=deps.bodaccEnabled?sirenOf(accepted):null;
+  if(!prospect.website&&!siren)return refusal(json,'NO_OFFICIAL_WEBSITE');
+  const profile=await profileOf(db,prospect.project_id);
+  const target:SignalTarget={prospect_id:prospect.id,name:prospect.name,website:prospect.website||null,siren,city:prospect.city||null};
   const fixture=accepted.length>0&&accepted.every(r=>r.provider==='fixture');
   const consume=async()=>{await checked(db.rpc('consume_analysis_quota',{p_prospect_id:id}))};
-  const scan=(providers:SignalProvider[])=>runSignalScan({targets:[target],providers,profile,budget:{maxRequests:1,deadlineMs:45000},now,runId:null,repo:repoOf(db)});
+  const scan=(providers:SignalProvider[])=>runSignalScan({targets:[target],providers,profile,budget:{maxRequests:providers.length,deadlineMs:45000},now,runId:null,repo:repoOf(db)});
   // A fixture prospect never touches the network: TEST signals, clearly marked.
-  if(fixture){await consume();const {report}=await scan([new FixtureSignalProvider()]);return json({report,pages:0})}
-  const auth=resolveAnalysisAuthorization({prospectWebsite:prospect.website,acceptedResults:accepted,staticAllowlist:deps.staticAllowlist,dynamicEnabled:deps.dynamicEnabled});
-  const audit=deps.audit();
-  if(!auth.ok){if(audit){try{await audit.record({userId:deps.userId,prospectId:id,host:null,mode:null,outcome:auth.code})}catch{/* best-effort */}}return refusal(json,auth.code)}
-  // No audit writer, no fetch.
-  if(!audit)return refusal(json,'CONFIGURATION_REQUIRED');
-  // Same rule as the analysis audit: only a plain host name is ever written (never an address or an odd string).
-  const auditId=await audit.record({userId:deps.userId,prospectId:id,host:/^[a-z0-9.-]{1,253}$/.test(auth.host)?auth.host:null,mode:auth.mode,outcome:'STARTED'});
-  const close=async(outcome:'ANALYZED'|'ANALYSIS_FAILED'|'ROBOTS_DENIED'|'QUOTA_EXCEEDED',pages:number|null,failed:number|null)=>{try{await audit.complete(auditId,deps.userId,outcome,pages,failed)}catch{/* best-effort */}};
-  try{await consume()}catch(error){await close('QUOTA_EXCEEDED',null,null);throw error}
-  const site=new OfficialSiteSignalProvider(deps.sitePageFetcher(auth.fetchPolicy),auth.url);
-  let report:ScanReport;
-  try{({report}=await scan([site]))}catch(error){await close('ANALYSIS_FAILED',null,null);try{await deps.refundAnalysis()}catch{/* best-effort */}throw error}
-  if(site.lastError){
-   // The home page could not be read: nothing was learned, the plan unit is given back.
-   const cause=site.lastError instanceof Error?site.lastError.message:String(site.lastError);
-   const code=analysisFailureCode(cause);
-   await close(code==='ROBOTS_DENIED'?'ROBOTS_DENIED':'ANALYSIS_FAILED',0,null);
-   try{await deps.refundAnalysis()}catch{/* best-effort */}
-   return refusal(json,code);
+  if(fixture){await consume();const {report}=await scan([new FixtureSignalProvider()]);return json({report,pages:0,sources:{official_site:false,bodacc:false},warnings:[]})}
+  const bodacc=siren?deps.bodaccProvider():null;
+  // The official website: same authorization, audit and plan unit as "Analyser le site". When it cannot be read
+  // but the legal announcements can, the scan goes on with them alone (the refusal is still audited).
+  let site:OfficialSiteSignalProvider|null=null;let close:((o:'ANALYZED'|'ANALYSIS_FAILED'|'ROBOTS_DENIED'|'QUOTA_EXCEEDED',pages:number|null,failed:number|null)=>Promise<void>)|null=null;
+  let siteRefusal:string|null=null;
+  if(prospect.website){
+   const auth=resolveAnalysisAuthorization({prospectWebsite:prospect.website,acceptedResults:accepted,staticAllowlist:deps.staticAllowlist,dynamicEnabled:deps.dynamicEnabled});
+   const audit=deps.audit();
+   if(!auth.ok){if(audit){try{await audit.record({userId:deps.userId,prospectId:id,host:null,mode:null,outcome:auth.code})}catch{/* best-effort */}}siteRefusal=auth.code}
+   // No audit writer, no fetch.
+   else if(!audit)siteRefusal='CONFIGURATION_REQUIRED';
+   else{
+    // Same rule as the analysis audit: only a plain host name is ever written (never an address or an odd string).
+    const auditId=await audit.record({userId:deps.userId,prospectId:id,host:/^[a-z0-9.-]{1,253}$/.test(auth.host)?auth.host:null,mode:auth.mode,outcome:'STARTED'});
+    close=async(outcome,pages,failed)=>{try{await audit.complete(auditId,deps.userId,outcome,pages,failed)}catch{/* best-effort */}};
+    try{await consume()}catch(error){await close('QUOTA_EXCEEDED',null,null);throw error}
+    site=new OfficialSiteSignalProvider(deps.sitePageFetcher(auth.fetchPolicy),auth.url);
+   }
   }
-  await close('ANALYZED',site.lastReport.pages,site.lastReport.failed_pages);
-  return json({report,pages:site.lastReport.pages});
+  if(!site&&!bodacc)return refusal(json,siteRefusal??'NO_OFFICIAL_WEBSITE');
+  const providers:SignalProvider[]=[...(site?[site]:[]),...(bodacc?[bodacc]:[])];
+  let report:ScanReport;
+  try{({report}=await scan(providers))}catch(error){if(close){await close('ANALYSIS_FAILED',null,null);try{await deps.refundAnalysis()}catch{/* best-effort */}}throw error}
+  let siteError:string|null=null;
+  if(site&&close){
+   if(site.lastError){
+    // The home page could not be read: nothing was learned from the site, its plan unit is given back.
+    const cause=site.lastError instanceof Error?site.lastError.message:String(site.lastError);
+    siteError=analysisFailureCode(cause);
+    await close(siteError==='ROBOTS_DENIED'?'ROBOTS_DENIED':'ANALYSIS_FAILED',0,null);
+    try{await deps.refundAnalysis()}catch{/* best-effort */}
+    if(!bodacc)return refusal(json,siteError);
+   }else await close('ANALYZED',site.lastReport.pages,site.lastReport.failed_pages);
+  }
+  // A collective proceeding is never a reason to call: it is not saved as a signal, and the user is told.
+  const warnings=bodacc&&bodacc.lastReport.collective_procedures>0?['COLLECTIVE_PROCEDURE']:[];
+  return json({report,pages:site&&!site.lastError?site.lastReport.pages:0,sources:{official_site:!!site&&!site.lastError,bodacc:!!bodacc},site_refusal:siteRefusal??siteError,warnings});
  }
  return null;
 }

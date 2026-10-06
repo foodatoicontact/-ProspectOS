@@ -82,8 +82,15 @@ try {
   const migrations = (await readdir(new URL('../db/migrations/', import.meta.url))).filter(f => f.endsWith('.sql')).sort();
   // 017 is this bloc's migration; 018 (deleted accounts release their beta seat) only re-creates account/trial functions.
   // 019 (Discovery register provider) only widens the Discovery provider checks and start_discovery: no billing object.
-  assert.deepEqual(migrations.slice(migrations.indexOf('017_stripe_billing.sql')), ['017_stripe_billing.sql', '018_deleted_accounts_release_beta_capacity.sql', '019_discovery_registry_provider.sql']);
+  assert.deepEqual(migrations.slice(migrations.indexOf('017_stripe_billing.sql')), ['017_stripe_billing.sql', '018_deleted_accounts_release_beta_capacity.sql', '019_discovery_registry_provider.sql', '020_public_trial_availability.sql', '021_discovery_failed_run_not_billed.sql', '022_team_pro.sql']);
   assert.doesNotMatch((await readFile(new URL('../db/migrations/019_discovery_registry_provider.sql', import.meta.url), 'utf8')).split('\n').filter(l => !l.startsWith('--')).join('\n'), /stripe|billing|subscription|entitlement|beta_program/i);
+  // 022 (Pro team) reads entitlements to bill a team on its owner's plan; it never writes an entitlement nor a billing object.
+  const m022 = (await readFile(new URL('../db/migrations/022_team_pro.sql', import.meta.url), 'utf8')).split('\n').filter(l => !l.startsWith('--')).join('\n');
+  assert.doesNotMatch(m022, /stripe|billing_|subscription|(insert into|update|delete from) public\.account_entitlements/i);
+  // 021 (failed run not billed) touches Discovery units only: no billing object, no entitlement.
+  assert.doesNotMatch((await readFile(new URL('../db/migrations/021_discovery_failed_run_not_billed.sql', import.meta.url), 'utf8')).split('\n').filter(l => !l.startsWith('--')).join('\n'), /stripe|billing|subscription|entitlement/i);
+  // 020 (public trial availability) only READS the beta seats: no billing object, no write anywhere.
+  assert.doesNotMatch((await readFile(new URL('../db/migrations/020_public_trial_availability.sql', import.meta.url), 'utf8')).split('\n').filter(l => !l.startsWith('--')).join('\n'), /stripe|billing|subscription|insert |update |delete |alter |drop table/i);
   for (const f of migrations) await db.exec(await readFile(new URL(`../db/migrations/${f}`, import.meta.url), 'utf8'));
   await sql('update prospectos_private.discovery_quota_settings set runs_per_hour=100000, analyses_per_hour=100000, analyses_per_user_per_hour=100000, ai_offer_per_hour=100000');
 

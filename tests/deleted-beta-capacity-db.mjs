@@ -46,8 +46,19 @@ try {
   await db.exec(await readFile(new URL('../db/schema.sql', import.meta.url), 'utf8'));
   const migrations = (await readdir(new URL('../db/migrations/', import.meta.url))).filter(f => f.endsWith('.sql')).sort();
   // Later migrations must not touch accounts or beta capacity: 019 (Discovery register provider) only widens Discovery providers.
-  assert.deepEqual(migrations.slice(migrations.indexOf('018_deleted_accounts_release_beta_capacity.sql')), ['018_deleted_accounts_release_beta_capacity.sql', '019_discovery_registry_provider.sql']);
+  assert.deepEqual(migrations.slice(migrations.indexOf('018_deleted_accounts_release_beta_capacity.sql')), ['018_deleted_accounts_release_beta_capacity.sql', '019_discovery_registry_provider.sql', '020_public_trial_availability.sql', '021_discovery_failed_run_not_billed.sql', '022_team_pro.sql']);
   assert.doesNotMatch((await readFile(new URL('../db/migrations/019_discovery_registry_provider.sql', import.meta.url), 'utf8')).split('\n').filter(l => !l.startsWith('--')).join('\n'), /account_entitlements|beta_program|delete_own_account|memberships/i);
+  // 022 (Pro team) adds and removes TEAM memberships only (role 'member'): it never writes entitlements or the beta
+  // capacity, never changes delete_own_account, and joining a team creates no entitlement (no free-trial seat).
+  const m022 = (await readFile(new URL('../db/migrations/022_team_pro.sql', import.meta.url), 'utf8')).split('\n').filter(l => !l.startsWith('--')).join('\n');
+  assert.doesNotMatch(m022, /(insert into|update|delete from) public\.account_entitlements|beta_program|delete_own_account/i);
+  for (const w of m022.match(/(insert into|delete from) public\.memberships[^;]*/gi) ?? []) assert.match(w, /'member'|role='member'/, w);
+  // 021 (failed run not billed) never touches accounts, capacity or memberships.
+  assert.doesNotMatch((await readFile(new URL('../db/migrations/021_discovery_failed_run_not_billed.sql', import.meta.url), 'utf8')).split('\n').filter(l => !l.startsWith('--')).join('\n'), /account_entitlements|beta_program|delete_own_account|memberships/i);
+  // 020 reads the seat count through beta_seats_used() (same REVOKED rule) and never writes accounts or capacity.
+  const m020 = (await readFile(new URL('../db/migrations/020_public_trial_availability.sql', import.meta.url), 'utf8')).split('\n').filter(l => !l.startsWith('--')).join('\n');
+  assert.match(m020, /prospectos_private\.beta_seats_used\(\)/);
+  assert.doesNotMatch(m020, /insert |update |delete |alter |delete_own_account|memberships/i);
   for (const f of migrations) await db.exec(await readFile(new URL(`../db/migrations/${f}`, import.meta.url), 'utf8'));
   await sql('update prospectos_private.beta_program set capacity=3');
 

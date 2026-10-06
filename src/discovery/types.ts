@@ -39,7 +39,11 @@ export type Candidate=z.infer<typeof CandidateSchema>;
 // market) — set by a live provider, absent for the fixture provider.
 export type ProviderSearchReport={queries_planned:number;requests_sent:number;requests_failed:number;failure_codes:string[];country:string;country_reason:string;
  // Register only: requests re-sent once after a 429, and the NAF group keys that still got no answer.
- requests_retried?:number;failed_groups?:string[]};
+ requests_retried?:number;failed_groups?:string[];
+ // Requests that got a usable answer, when the provider counts it itself (register: retries make sent ≠ answered + failed).
+ requests_answered?:number;
+ // A teammate's identical search reused (migration 022): its run, who ran it and when — no request was sent.
+ reused_from?:{run_id:string;by_email:string|null;started_at:string}};
 export interface DiscoveryProvider {id:string;mode:'live'|'test';lastSearch?:ProviderSearchReport;searchCompanies(input:DiscoveryInput):Promise<unknown[]>;
  // One provider request for one Search-Until-New variant (optional: without it the mode falls back to a normal search).
  searchVariant?(input:DiscoveryInput,query:string):Promise<unknown[]>;fetchCompanyDetails(candidate:Candidate):Promise<Candidate>;normalizeResult(raw:unknown):Candidate}

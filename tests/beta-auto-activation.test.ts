@@ -23,9 +23,10 @@ test('a session that arrives without login() — confirmation link, restored ses
 
 test('loadAccount claims only when there is no entitlement, and sends no identity at all', () => {
  const fn=page.slice(page.indexOf('async function loadAccount('),page.indexOf('// BYOK Anthropic'));
- assert.match(fn,/if\(!entitlement\)\{try\{const activated=await api\('account\/activate-trial','POST',\{\},t\)/);
+ // A team member (migration 022) works on the owner's plan: they never claim a free trial.
+ assert.match(fn,/if\(!entitlement&&acc\.role!=='member'\)\{try\{const activated=await api\('account\/activate-trial','POST',\{\},t\)/);
  assert.doesNotMatch(fn,/grant_beta_access|user_id|userEmail|email/,'no user id or email ever travels with the claim');
- assert.match(fn,/code==='BETA_CAPACITY_REACHED'\)setNotice\(e\.message\)/,'capacity full: the normal gate state, no crash');
+ assert.match(fn,/code==='BETA_CAPACITY_REACHED'\)\{setNotice\(e\.message\);setTrialAvailable\(false\);setModal\('pricing'\)\}/,'capacity full: the normal gate state, no crash — the offers are shown');
 });
 
 test('a sign-up awaiting email confirmation never claims a slot (no session yet)', () => {

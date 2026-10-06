@@ -34,6 +34,16 @@ const CODE_KEYS={
  BILLING_PROVIDER_ERROR:'error.billingProviderError',
  NO_BILLING_ACCOUNT:'error.noBillingAccount',
  ENTERPRISE_QUOTE_ONLY:'error.enterpriseQuoteOnly',
+ TEAM_PLAN_REQUIRED:'error.team.planRequired',
+ TEAM_OWNER_REQUIRED:'error.team.ownerRequired',
+ TEAM_FULL:'error.team.full',
+ TEAM_ALREADY_MEMBER:'error.team.alreadyMember',
+ TEAM_ALREADY_IN_TEAM:'error.team.alreadyInTeam',
+ TEAM_INVITATION_INVALID:'error.team.invitationInvalid',
+ TEAM_INVITATION_EMAIL_MISMATCH:'error.team.emailMismatch',
+ TEAM_EMAIL_NOT_CONFIRMED:'error.team.emailNotConfirmed',
+ TEAM_UNAVAILABLE:'error.team.unavailable',
+ TEAM_MEMBER_REQUIRED:'error.team.memberRequired',
 } as const;
 export function localizeApiErrorMessage(message:string,code:string|undefined,locale:Locale):string{
  const key=code?CODE_KEYS[code as keyof typeof CODE_KEYS]:undefined;

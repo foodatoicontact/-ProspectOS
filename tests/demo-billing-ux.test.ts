@@ -91,7 +91,7 @@ test('demo/visitor click records the intent and leaves the demo; it never calls 
 test('the welcome screen shows the chosen offer during sign-up, confirmation and sign-in',()=>{
  const welcome=page.match(/if\(mode==='welcome'\)return <main className="welcome">[\s\S]*?<\/main>;/)![0];
  assert.match(welcome,/<section className="login card">\{planIntent&&<div className="plan-intent" role="status"><p>\{tr\('offers\.selected'\)\} <b>\{tr\(planIntent==='BETA'\?'billing\.betaName':'billing\.proName'\)\}<\/b>/,'shown above the sign-up form, the check-email screen and the sign-in form alike');
- assert.equal(fr['offers.selected'],'Offre choisie :');assert.equal(fr['billing.betaName'],'ProspectOS Bêta');assert.equal(fr['billing.proName'],'ProspectOS Pro B2B');
+ assert.equal(fr['offers.selected'],'Offre choisie :');assert.equal(fr['billing.betaName'],'ProspectOS Solo');assert.equal(fr['billing.proName'],'ProspectOS Pro B2B');
 });
 test('the intent is acted on once, after the authenticated account answer, and only through startCheckout',()=>{
  const resume=fn('async function resumePlanIntent(');
@@ -100,7 +100,7 @@ test('the intent is acted on once, after the authenticated account answer, and o
  assert.match(resume,/if\(decision\.action==='CHECKOUT'\)\{try\{await startCheckout\(decision\.plan,t\)\}catch\(e\)\{forgetPlanIntent\(\);/,'a refused checkout forgets the intent (no retry loop)');
  assert.match(page,/await loadAccount\(t\);\n setMode\('live'\);void resumePlanIntent\(t\)/,'after a sign-in, with the session token (React state is not updated yet in this closure)');
  assert.match(page,/setMode\('live'\);if\(AUTH_RETURN==='CONFIRMED'[^\n]*void resumePlanIntent\(t\)\}catch/,'after the confirmation link / reload');
- assert.match(page,/async function loadAccount\(t=token\)\{try\{\n const acc=await api\('account','GET',undefined,t\);lastAccount\.current=acc;/);
+ assert.match(page,/async function loadAccount\(t=token\)\{try\{\n const invite=readPendingInvite\(\);if\(invite\)await acceptPendingInvite\(invite,t\);\n const acc=await api\('account','GET',undefined,t\);lastAccount\.current=acc;/);
 });
 test('the intent is removed only once the hosted payment page URL was returned',()=>{
  assert.match(fn('async function startCheckout('),/^async function startCheckout\(plan:'BETA'\|'PRO',t=token\)\{const \{url\}=await api\('billing\/checkout','POST',\{plan\},t\);if\(typeof url==='string'\)\{clearPlanIntent\(browserStorage\(\)\);setPlanIntent\(null\);window\.location\.assign\(url\)\}\}$/);
@@ -130,7 +130,7 @@ test('offers derive from the server-checked prices and the database quotas (no s
 test('the pricing component renders amounts and quotas from OFFERS only, with the agreed CTAs and no ranking claim',()=>{
  assert.match(pricing,/OFFERS\.map\(/);
  assert.doesNotMatch(pricing,/\b(49|99|100|250|300|750)\b/,'no amount or quota typed in the component');
- for(const [k,v] of [['offers.chooseBeta','Choisir Bêta'],['offers.choosePro','Choisir Pro'],['offers.contact','Nous contacter'],['offers.badgeEarly','Premiers utilisateurs'],['offers.perMonth','HT / mois'],['offers.onQuote','Sur devis']])assert.equal(fr[k as keyof typeof fr],v);
+ for(const [k,v] of [['offers.chooseBeta','Choisir Solo'],['offers.choosePro','Choisir Pro'],['offers.contact','Nous contacter'],['offers.badgeEarly','Premiers utilisateurs'],['offers.perMonth','HT / mois'],['offers.onQuote','Sur devis']])assert.equal(fr[k as keyof typeof fr],v);
  for(const v of [...Object.values(fr),...Object.values(en)])assert.doesNotMatch(v,/meilleur choix|le plus populaire|most popular|best choice|best value/i);
  assert.match(pricing,/onClick=\{\(\)=>onChoose\(plan\)\}/,'a click hands back the offer name only');
  assert.match(pricing,/disabled=\{busy\|\|!available\}/,'account context: not buyable on this deployment → disabled');

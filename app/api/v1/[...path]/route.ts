@@ -10,6 +10,7 @@ import {requireActiveEntitlement} from '../../../../src/server/entitlement';
 import {buildAccountExportZip,anonymizeAuthUser} from '../../../../src/server/account';
 import {recordApiUsage} from '../../../../src/server/usage';
 import {releaseCommercialUse} from '../../../../src/server/commercial-usage';
+import {newInviteToken,inviteTokenHash,isInviteToken,inviteLink,teamError,TEAM_ERRORS} from '../../../../src/server/team';
 import {createAdminClient} from '../../../../src/server/admin-client';
 import {createHash} from 'node:crypto';
 import {startCheckout,openPortal} from '../../../../src/server/billing/checkout';
@@ -228,7 +229,8 @@ async function handler(request:Request,context:{params:Promise<{path:string[]}>}
  // V0's own single-org-per-user assumption (same one createProject already makes): role/organization
  // are read from this user's own membership row(s), never from anything the client asserts.
  const memberships=await checked(db.from('memberships').select('organization_id,role'));
- const membership=memberships[0]??null;
+ // A team membership (role 'member', migration 022) is the account's workspace; otherwise its own organization.
+ const membership=memberships.find((m:any)=>m.role==='member')??memberships[0]??null;
  const organization=membership?await checked(db.from('organizations').select('name').eq('id',membership.organization_id).single()):null;
  const entitlement=await checked(db.from('account_entitlements').select('plan,status,expires_at').eq('user_id',user.id).maybeSingle());
  // Commercial counters (migration 016). Best-effort and read-only: until that migration is applied the
@@ -252,6 +254,18 @@ async function handler(request:Request,context:{params:Promise<{path:string[]}>}
  const zip=await buildAccountExportZip(db,user);
  try{await db.rpc('log_account_export')}catch{/* best-effort audit only — never blocks the export itself */}
  return new Response(zip as BodyInit,{headers:{'content-type':'application/zip','content-disposition':`attachment; filename="prospectos-export-${new Date().toISOString().slice(0,10)}.zip"`,'Cache-Control':'no-store'}});
+ }
+ // ProspectOS Pro team (migration 022). Every rule is the database's (owner, active team plan, 5 seats, confirmed
+ // matching e-mail, single use, 7 days); these routes run as the user and only map refusals to stable codes.
+ if(id==='team'){
+ const op=path[2]??'';
+ const refused=(rpcError:unknown)=>{const t=teamError(rpcError);if(t)return json({error:t.error,code:t.code},t.status);if(/Invalid email/.test(String((rpcError as {message?:unknown})?.message)))return json({error:'Adresse e-mail invalide'},400);throw Error('DATABASE_REQUEST_FAILED')};
+ if(request.method==='GET'&&!op){const {data,error:rpcError}=await db.rpc('list_team');if(rpcError)return refused(rpcError);let invitations=null;if(data?.is_owner){const r=await db.rpc('list_team_invitations');if(!r.error)invitations=r.data}return json({team:data??null,invitations})}
+ if(request.method==='POST'&&op==='invite'){const token=newInviteToken();const {data,error:rpcError}=await db.rpc('create_team_invitation',{p_email:String(body.email??'').slice(0,254),p_token_hash:inviteTokenHash(token)});if(rpcError)return refused(rpcError);return json({invitation:data,link:inviteLink(request,token)},201)}
+ if(request.method==='POST'&&op==='accept'){if(!isInviteToken(body.token))return json({error:TEAM_ERRORS.invitation_invalid[1],code:TEAM_ERRORS.invitation_invalid[0]},400);const {data,error:rpcError}=await db.rpc('accept_team_invitation',{p_token_hash:inviteTokenHash(body.token)});if(rpcError)return refused(rpcError);return json(data)}
+ if(request.method==='POST'&&op==='revoke'){if(!z.string().uuid().safeParse(body.id).success)return json({error:'Invitation requise'},400);const {data,error:rpcError}=await db.rpc('revoke_team_invitation',{p_id:body.id});if(rpcError)return refused(rpcError);return json({revoked:data===true})}
+ if(request.method==='POST'&&op==='remove'){if(!z.string().uuid().safeParse(body.user_id).success)return json({error:'Membre requis'},400);const {error:rpcError}=await db.rpc('remove_team_member',{p_user_id:body.user_id});if(rpcError)return refused(rpcError);return json({removed:true})}
+ if(request.method==='POST'&&op==='leave'){const {error:rpcError}=await db.rpc('leave_team');if(rpcError)return refused(rpcError);return json({left:true})}
  }
  if(id==='activate-trial'&&request.method==='POST'){
  // Never takes a target from the client: activate_trial() derives auth.uid() itself. Idempotent by

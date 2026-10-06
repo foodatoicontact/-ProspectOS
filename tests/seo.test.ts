@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import {CHECKOUT_PRICES} from '../src/domain/plans.ts';
 import {SITE_URL,siteMetadata,seoPages,robotsPolicy,sitemapEntries,softwareApplicationJsonLd} from '../src/domain/seo.ts';
 
 test('site metadata targets generic B2B prospecting rather than only Foodatoi',()=>{
@@ -9,9 +10,9 @@ test('site metadata targets generic B2B prospecting rather than only Foodatoi',(
   assert.equal(siteMetadata.canonical,SITE_URL);
 });
 
-test('SEO landing pages cover the six approved search intents',()=>{
+test('SEO landing pages cover the approved search intents and the factual pages (tarifs, logiciel, à propos)',()=>{
   assert.deepEqual(seoPages.map(p=>p.slug).sort(),[
-    'lead-scoring','prioriser-liste-prospects','prospection-b2b','prospection-ia','prospection-restaurants','qualifier-un-prospect-b2b'
+    'a-propos','lead-scoring','logiciel-prospection-b2b','prioriser-liste-prospects','prospection-b2b','prospection-ia','prospection-restaurants','qualifier-un-prospect-b2b','tarifs'
   ]);
   for(const page of seoPages){
     assert.ok(page.title.length>20);
@@ -41,6 +42,9 @@ test('structured data identifies ProspectOS as a SoftwareApplication',()=>{
 });
 
 
-test('structured data does not advertise an unvalidated price',()=>{
-  assert.equal('offers' in softwareApplicationJsonLd,false);
+// Prices are advertised only since the server checks them before any checkout (CHECKOUT_PRICES): the structured
+// data may state exactly those amounts, monthly and excluding VAT, and nothing else.
+test('structured data advertises only the prices the server validates',()=>{
+  const offers=(softwareApplicationJsonLd as unknown as {offers:{price:string;priceCurrency:string}[]}).offers;
+  assert.deepEqual(offers.map(o=>[o.price,o.priceCurrency]),Object.values(CHECKOUT_PRICES).map(p=>[String(p.unitAmount/100),'EUR']));
 });

@@ -1,4 +1,9 @@
 import type {SeoPage} from './seo.ts';
+import {PLAN_QUOTAS,CHECKOUT_PRICES} from './plans.ts';
+
+// Prices and quotas quoted on the factual pages come from plans.ts, never typed a second time.
+const {TRIAL,BETA:SOLO,PRO}=PLAN_QUOTAS;
+const SOLO_EUR=CHECKOUT_PRICES.BETA.unitAmount/100,PRO_EUR=CHECKOUT_PRICES.PRO.unitAmount/100;
 
 // Editorial content of the public SEO pages. Plain typed data, no CMS.
 // Inline links use the `[anchor](/path)` form and must point to an existing public route (checked by
@@ -325,5 +330,154 @@ export const seoPages:SeoPage[]=[
     ],
     cta:{title:'Voir une liste de prospects priorisée',text:'Dans la démonstration publique, chaque prospect affiche son score, sa couverture et les critères à confirmer.'},
     related:['lead-scoring','qualifier-un-prospect-b2b','prospection-b2b'],
+  },
+  {
+    slug:'tarifs',
+    navLabel:'Tarifs et offres',
+    updated:'2026-10-05',
+    keywords:{primary:'tarif logiciel de prospection B2B',secondary:['prix ProspectOS','abonnement prospection','essai gratuit prospection']},
+    title:'Tarifs ProspectOS : essai gratuit, Solo, Pro et Entreprise',
+    description:`ProspectOS Solo à ${SOLO_EUR} € HT par mois, Pro à ${PRO_EUR} € HT par mois pour une équipe jusqu’à 5 comptes, essai gratuit de 7 jours. Quotas et règles de décompte.`,
+    eyebrow:'TARIFS · OFFRES',
+    h1:'Tarifs de ProspectOS : ce que comprend chaque offre',
+    intro:'ProspectOS propose un essai gratuit de 7 jours, deux abonnements mensuels en libre-service, Solo et Pro, et une offre Entreprise sur devis. Les principes du produit sont identiques dans chaque offre : sources visibles, vérification humaine des preuves, aucun envoi automatique de message. Seuls les volumes mensuels et le travail en équipe changent. Cette page détaille les prix, les quotas et la façon dont chaque action est décomptée.',
+    sections:[
+      {h2:'Les offres et leurs prix mensuels',blocks:[
+        {type:'ul',items:[
+          `Essai gratuit — 7 jours, sans carte bancaire, dans la limite des places ouvertes : ${TRIAL.discovery} recherches, ${TRIAL.analysis} analyses de prospects et ${TRIAL.aiOffer} analyses d’offre IA pour toute la durée de l’essai.`,
+          `ProspectOS Solo — ${SOLO_EUR} € HT par mois, 1 compte : ${SOLO.discovery} recherches, ${SOLO.analysis} analyses de prospects et ${SOLO.aiOffer} analyses d’offre IA par mois.`,
+          `ProspectOS Pro — ${PRO_EUR} € HT par mois, jusqu’à 5 comptes : ${PRO.discovery} recherches, ${PRO.analysis} analyses de prospects et ${PRO.aiOffer} analyses d’offre IA par mois, partagés par toute l’équipe.`,
+          'Entreprise / White Label — sur devis : configuration et conditions organisationnelles adaptées.',
+        ]},
+        {type:'p',text:'Les abonnements Solo et Pro sont sans engagement et résiliables à tout moment depuis le compte. Le passage à une offre payante se fait après la création du compte, sur la page de notre prestataire de paiement ; l’accès payant n’est ouvert qu’une fois le paiement confirmé par notre serveur.'},
+      ]},
+      {h2:'Ce que mesure chaque quota',blocks:[
+        {type:'p',text:'Trois actions sont comptées, parce que ce sont elles qui sollicitent des sources externes ou un modèle d’IA. Le reste (consulter ses prospects, vérifier une preuve, modifier son ICP, exporter) n’est pas décompté des quotas.'},
+        {type:'h3',text:'Une recherche'},
+        {type:'p',text:'Une recherche est un lancement de découverte : ProspectOS interroge le registre public des entreprises ou le web pour trouver des entreprises candidates correspondant à votre requête, votre zone et vos filtres. La méthode est décrite dans la page sur la [prospection B2B](/prospection-b2b).'},
+        {type:'h3',text:'Une analyse de prospect'},
+        {type:'p',text:'Une analyse de prospect lit le site officiel d’une entreprise (en respectant son fichier robots.txt) et propose des observations sourcées pour chaque critère de votre ICP. Ces observations restent à vérifier par vous avant de compter dans le score, comme l’explique la page sur le [lead scoring explicable](/lead-scoring).'},
+        {type:'h3',text:'Une analyse d’offre IA'},
+        {type:'p',text:'Une analyse d’offre IA aide à formuler votre profil client idéal à partir de la description de votre offre. Vous relisez et modifiez les critères proposés avant de les enregistrer.'},
+      ]},
+      {h2:'Les règles de décompte qui protègent votre quota',blocks:[
+        {type:'ol',items:[
+          'Une recherche dont la source n’a répondu à aucune requête n’est pas décomptée : votre quota est rendu automatiquement.',
+          'Avec l’offre Pro, une recherche identique lancée par un coéquipier depuis moins de 7 jours est reprise depuis la base partagée, sans nouvelle requête et sans être décomptée.',
+          'Les quotas de l’offre Pro forment un pot commun : les 5 comptes de l’équipe puisent dans les mêmes volumes mensuels.',
+          'Les quotas sont appliqués par notre serveur, jamais par le navigateur : le compteur affiché dans votre compte est celui qui fait foi.',
+        ]},
+      ]},
+      {h2:'Choisir entre Solo et Pro',blocks:[
+        {type:'p',text:'L’offre Solo convient à une personne qui prospecte seule : dirigeant, indépendant ou commercial unique. L’offre Pro sert aux équipes de 2 à 5 comptes qui prospectent les mêmes marchés : chacun voit les recherches des autres, les prospects sont partagés, et une même requête n’est pas payée deux fois.'},
+        {type:'callout',title:'Comment fonctionne l’équipe Pro',text:'Le titulaire de l’abonnement Pro invite ses coéquipiers par un lien personnel, valable 7 jours et utilisable une seule fois. L’invitation n’est acceptée que par le compte dont l’adresse e-mail confirmée correspond à celle invitée. Si l’abonnement Pro prend fin, les membres gardent l’accès en lecture aux données de l’équipe.'},
+        {type:'p',text:'Avant de choisir, la démonstration publique permet de parcourir des prospects de test, leurs sources et un score expliqué, sans créer de compte. Pour comprendre la place exacte de l’IA dans le produit, voir la page sur la [prospection assistée par IA](/prospection-ia).'},
+      ]},
+    ],
+    faq:[
+      {q:'Combien coûte ProspectOS ?',a:`ProspectOS Solo coûte ${SOLO_EUR} € HT par mois pour 1 compte, ProspectOS Pro ${PRO_EUR} € HT par mois pour une équipe jusqu’à 5 comptes. L’offre Entreprise / White Label est sur devis. Un essai gratuit de 7 jours, sans carte bancaire, est proposé dans la limite des places ouvertes.`},
+      {q:'Que se passe-t-il quand un quota est atteint ?',a:'L’action concernée est refusée jusqu’au renouvellement mensuel ou jusqu’au passage à une offre supérieure. Vos prospects, vos preuves et vos exports restent accessibles.'},
+      {q:'Puis-je exporter mes données ?',a:'Oui, dans toutes les offres : export CSV des prospects et export complet des données du compte. La suppression du compte se fait aussi en libre-service.'},
+    ],
+    cta:{title:'Voir le produit avant de choisir',text:'La démonstration publique fonctionne sans compte, avec des données de test.'},
+    related:['logiciel-prospection-b2b','prospection-ia','a-propos'],
+  },
+  {
+    slug:'logiciel-prospection-b2b',
+    navLabel:'Logiciel de prospection B2B',
+    updated:'2026-10-05',
+    keywords:{primary:'logiciel de prospection B2B',secondary:['outil de prospection commerciale','logiciel prospection IA','trouver des prospects B2B']},
+    title:'ProspectOS, logiciel de prospection B2B fondé sur des preuves',
+    description:'ProspectOS, logiciel français de prospection B2B : découverte dans le registre public des entreprises, preuves sourcées, score explicable et approche préparée.',
+    eyebrow:'LOGICIEL · PROSPECTION B2B',
+    h1:'ProspectOS, un logiciel de prospection B2B fondé sur des preuves',
+    intro:'ProspectOS est un logiciel de prospection B2B assisté par IA, conçu en France. Il trouve des entreprises qui pourraient correspondre à votre offre, rattache chaque information à sa source, ne calcule un score qu’à partir des preuves que vous avez vérifiées, puis prépare une approche personnalisée. Il n’envoie jamais de message à votre place. Cette page décrit ce que fait le logiciel, pour qui il est conçu et ce qu’il ne fait pas.',
+    sections:[
+      {h2:'Ce que fait ProspectOS, étape par étape',blocks:[
+        {type:'ol',items:[
+          'Vous décrivez votre offre ; l’analyse d’offre IA propose un profil client idéal (ICP) en critères pondérés, que vous corrigez et validez.',
+          'Vous lancez une recherche : secteur, zone, tranche d’effectif. Les entreprises françaises sont trouvées dans le registre public des entreprises ; le web complète pour les autres cas.',
+          'Pour chaque entreprise retenue, l’analyse de prospect lit son site officiel et propose des observations : une affirmation, l’URL, l’extrait exact et la date.',
+          'Vous vérifiez chaque observation. Seules les observations confirmées deviennent des preuves et comptent dans le score.',
+          'Le score de 0 à 100 s’explique critère par critère et sert à ordonner votre liste.',
+          'ProspectOS prépare une approche à partir du fait vérifié le plus important ; vous la relisez et l’envoyez depuis votre propre messagerie.',
+        ]},
+      ]},
+      {h2:'Des sources publiques, citées à chaque fois',blocks:[
+        {type:'p',text:'Pour la France, la découverte s’appuie sur l’API Recherche d’entreprises, qui publie les données du registre public des entreprises sous Licence Ouverte. Vos mots métier sont traduits en activités de la nomenclature NAF, avec une explication que vous confirmez avant l’envoi ; un mot qui ne correspond à aucune activité connue est signalé, jamais deviné.'},
+        {type:'p',text:'Les données du registre aident à trouver des candidats, mais elles ne sont jamais traitées comme une preuve et ne modifient jamais le score. Une preuve vient toujours d’une observation vérifiée par une personne. La lecture des sites respecte leur fichier robots.txt.'},
+      ]},
+      {h2:'Un score explicable plutôt qu’une prédiction',blocks:[
+        {type:'p',text:'Beaucoup d’outils affichent une note sans dire d’où elle vient. Dans ProspectOS, chaque point du score correspond à un critère de votre ICP et à une preuve que vous avez confirmée. Un critère non documenté reste « à confirmer » au lieu d’être supposé. Le score est un ordre de priorité, pas une probabilité de vente : la page sur le [lead scoring explicable](/lead-scoring) détaille ce choix, et celle sur la façon de [qualifier un prospect B2B](/qualifier-un-prospect-b2b) décrit la lecture des statuts.'},
+      ]},
+      {h2:'Pour qui ProspectOS est conçu',blocks:[
+        {type:'ul',items:[
+          'Les dirigeants et indépendants qui prospectent eux-mêmes et veulent savoir pourquoi contacter une entreprise plutôt qu’une autre.',
+          'Les équipes commerciales de 2 à 5 personnes qui partagent un marché et ne veulent pas payer deux fois la même recherche (offre Pro).',
+          'Les entreprises qui vendent à d’autres entreprises en France et ont besoin de cibler par secteur d’activité, zone et effectif.',
+        ]},
+        {type:'callout',title:'Ce que ProspectOS ne fait pas',text:'Il n’envoie aucun message automatiquement, ne vend pas de fichier de contacts, ne déduit pas d’information personnelle à partir de connaissances externes et ne transforme pas une supposition en preuve. Les décisions de contact restent humaines.'},
+      ]},
+      {h2:'Offres et premiers pas',blocks:[
+        {type:'p',text:`L’essai gratuit dure 7 jours, sans carte bancaire, dans la limite des places ouvertes. Ensuite, ProspectOS Solo coûte ${SOLO_EUR} € HT par mois et ProspectOS Pro ${PRO_EUR} € HT par mois pour une équipe jusqu’à 5 comptes. Les quotas et les règles de décompte sont détaillés sur la page des [tarifs](/tarifs). Une démonstration publique avec des données de test est accessible sans compte.`},
+      ]},
+    ],
+    faq:[
+      {q:'ProspectOS est-il un fichier de prospects ?',a:'Non. ProspectOS ne vend pas de base de contacts : il trouve des entreprises dans des sources publiques au moment de votre recherche et vous aide à documenter pourquoi chacune correspond, ou non, à votre offre.'},
+      {q:'ProspectOS envoie-t-il des e-mails de prospection ?',a:'Non. Il prépare une approche personnalisée à partir des faits vérifiés ; l’envoi reste une action humaine, depuis votre propre outil.'},
+      {q:'Quelles entreprises peut-on trouver ?',a:'Les entreprises françaises inscrites au registre public, filtrables par activité NAF, zone et tranche d’effectif, ainsi que des entreprises trouvées par recherche web.'},
+    ],
+    cta:{title:'Explorer ProspectOS sans compte',text:'La démonstration publique montre des prospects de test, leurs sources et un score expliqué.'},
+    related:['tarifs','prospection-b2b','lead-scoring','a-propos'],
+  },
+  {
+    slug:'a-propos',
+    navLabel:'À propos de ProspectOS',
+    updated:'2026-10-05',
+    keywords:{primary:'ProspectOS',secondary:['éditeur ProspectOS','logiciel de prospection français','ProspectOS avis']},
+    title:'À propos de ProspectOS : éditeur, principes et sources',
+    description:'Qui édite ProspectOS, logiciel français de prospection B2B : un entrepreneur individuel basé à Toulouse, des principes clairs et des sources publiques citées.',
+    eyebrow:'À PROPOS',
+    h1:'À propos de ProspectOS : qui l’édite et comment il fonctionne',
+    intro:'ProspectOS est un logiciel de prospection B2B assisté par IA, édité en France par Kevin Cardia, entrepreneur individuel basé à Toulouse. Il est né d’un constat simple : une liste de prospects vaut ce que valent les raisons de contacter chaque entreprise. Le produit est donc construit autour d’une règle unique, appliquée partout : l’IA propose, l’utilisateur vérifie et décide.',
+    sections:[
+      {h2:'L’éditeur de ProspectOS',blocks:[
+        {type:'p',text:'ProspectOS est édité par Kevin Cardia, entrepreneur individuel (régime de la micro-entreprise) établi à Toulouse, en France. Les informations légales complètes figurent dans les [mentions légales](/mentions-legales), et le traitement des données personnelles est décrit dans la [politique de confidentialité](/confidentialite).'},
+        {type:'p',text:'Le contact se fait par e-mail à prospectos.contact@gmail.com. ProspectOS est une application web, utilisable en français et en anglais, sans installation.'},
+      ]},
+      {h2:'Les principes qui guident le produit',blocks:[
+        {type:'ol',items:[
+          'Prospection autonome, action humaine : le logiciel cherche, lit et prépare ; une personne vérifie, décide et envoie.',
+          'Aucune preuve inventée : chaque observation garde son URL, son extrait exact et sa date d’observation.',
+          'Un score explicable : chaque point se rattache à un critère de l’ICP et à une preuve confirmée, jamais à une supposition.',
+          'Aucun envoi automatique : ProspectOS ne contacte personne à votre place.',
+          'Aucune déduction depuis des connaissances externes : une information non trouvée dans une source reste inconnue.',
+        ]},
+      ]},
+      {h2:'Les sources de données utilisées',blocks:[
+        {type:'p',text:'Pour trouver des entreprises françaises, ProspectOS interroge l’API Recherche d’entreprises, qui diffuse les données du registre public des entreprises sous Licence Ouverte. Ces données servent à découvrir des candidats ; elles ne deviennent jamais une preuve et ne modifient jamais un score.'},
+        {type:'p',text:'Pour qualifier un prospect, ProspectOS lit le site officiel de l’entreprise en respectant son fichier robots.txt, et une recherche web peut compléter la découverte. La façon dont ces observations deviennent des preuves est détaillée dans la page sur la [prospection assistée par IA](/prospection-ia).'},
+      ]},
+      {h2:'Données, sécurité et contrôle du compte',blocks:[
+        {type:'ul',items:[
+          'Chaque compte n’accède qu’aux données de son organisation, contrôlées côté base de données.',
+          'Les quotas et les droits sont appliqués par le serveur, jamais par le navigateur.',
+          'L’export complet des données du compte et sa suppression se font en libre-service.',
+          'Une clé API Anthropic personnelle peut être enregistrée pour vos propres analyses ; elle n’est jamais réaffichée.',
+        ]},
+        {type:'callout',title:'Ce que ProspectOS ne publie pas',text:'Aucun client, aucun avis, aucune note et aucun résultat chiffré ne sont annoncés sur ce site tant qu’ils ne sont pas vérifiables. Les exemples de la démonstration publique sont des données de test, présentées comme telles.'},
+      ]},
+      {h2:'Essayer ProspectOS et choisir une offre',blocks:[
+        {type:'p',text:`La démonstration publique se parcourt sans compte : elle montre une mission de prospection, des prospects de test avec leurs sources, les statuts de chaque critère et un score expliqué. Pour lancer de vraies recherches, l’essai gratuit dure 7 jours, sans carte bancaire, dans la limite des places ouvertes.`},
+        {type:'p',text:`Ensuite, ProspectOS Solo coûte ${SOLO_EUR} € HT par mois pour une personne, et ProspectOS Pro ${PRO_EUR} € HT par mois pour une équipe jusqu’à 5 comptes qui partage sa base de prospects et ses quotas. Le détail des volumes et des règles de décompte figure sur la page des [tarifs](/tarifs).`},
+      ]},
+    ],
+    faq:[
+      {q:'Qui édite ProspectOS ?',a:'Kevin Cardia, entrepreneur individuel basé à Toulouse. Les informations légales complètes sont dans les [mentions légales](/mentions-legales).'},
+      {q:'Comment contacter ProspectOS ?',a:'Par e-mail à prospectos.contact@gmail.com, y compris pour l’offre Entreprise / White Label.'},
+      {q:'Où sont décrits les prix ?',a:'Sur la page des [tarifs](/tarifs) : essai gratuit de 7 jours, offres Solo et Pro, offre Entreprise sur devis.'},
+    ],
+    cta:{title:'Découvrir ProspectOS',text:'La démonstration publique est accessible sans compte, avec des données de test.'},
+    related:['logiciel-prospection-b2b','tarifs','prospection-b2b'],
   },
 ];

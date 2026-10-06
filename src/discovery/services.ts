@@ -27,6 +27,9 @@ export interface DiscoveryRepository {
  // Fills the prospect's city ONLY while it is empty (never overwrites what a member wrote), from the address the
  // organization publishes on its own analyzed site. Optional: without it the address stays an observation only.
  fillProspectCity?(id:string,city:string):Promise<void>;
+ // Gives back the Discovery unit of a FAILED run whose source answered nothing (migration 021, server-only RPC).
+ // Optional: without it a failed run stays billed, as before.
+ releaseFailedRun?(runId:string):Promise<void>;
 }
 export type PageFetcher=(url:string)=>Promise<{url:string;html:string}>;
 export type SafeLogger=(event:Record<string,string|number|null>)=>void;
@@ -35,10 +38,18 @@ const noop:SafeLogger=()=>{};
 // soon as the search step is over, whether it succeeded, partly failed or failed: a request that was
 // sent is never left unmetered, and N requests are never recorded as one.
 export type SearchMeter=(run:DiscoveryRun,requestCount:number)=>Promise<void>;
+// True when the source delivered nothing at all: no request sent, or none answered (a 429 and its retry are one
+// failed request — the provider's explicit answered count wins when it has one). Such a failed run is not billed.
+export function nothingAnswered(report:ProviderSearchReport|undefined):boolean{
+ if(!report||report.requests_sent===0)return true;
+ if(typeof report.requests_answered==='number')return report.requests_answered===0;
+ return report.requests_failed>=report.requests_sent;
+}
 // Run metrics describing the search step: counts, codes and the market only — never a query or a URL.
 function searchMetrics(report:ProviderSearchReport|undefined):Record<string,string|number|null>{
  return report?{search_queries_planned:report.queries_planned,search_requests:report.requests_sent,search_requests_failed:report.requests_failed,search_failure_codes:report.failure_codes.join(',')||null,search_country:report.country,search_country_reason:report.country_reason,
-  ...(report.requests_retried?{search_requests_retried:report.requests_retried}:{}),...(report.failed_groups?.length?{search_failed_groups:report.failed_groups.join(',')}:{})}:{};
+  ...(report.requests_retried?{search_requests_retried:report.requests_retried}:{}),...(report.failed_groups?.length?{search_failed_groups:report.failed_groups.join(',')}:{}),
+  ...(report.reused_from?{reused_from_run_id:report.reused_from.run_id,reused_from_email:report.reused_from.by_email,reused_from_started_at:report.reused_from.started_at}:{})}:{};
 }
 // Search-Until-New run metrics: counts, durations and the stop reason only — never a query (like searchMetrics).
 // new_results_found: exploitable candidates finally kept and classified NEW (the run's own new_results);
@@ -111,7 +122,10 @@ export class DiscoveryService {
  stage='save';const results=await this.repo.saveResults(run,candidates);const counts=novelty?eligibleNoveltyCounts(candidates,c=>c.candidate.raw_metadata.source_class,c=>c.candidate.raw_metadata.novelty as Novelty,entitiesMerged+deepMerged):null;const metrics={provider:this.provider.id,duration_ms:Date.now()-start,...searchMetrics(search),results:results.length,normalization_rejected:normalizationRejected,entities_merged:entitiesMerged+deepMerged,ai_tokens:0,ai_cost_estimate:0,search_mode:mode,...(fallback?{search_mode_fallback:fallback}:{}),...(deep?{...deepSearchMetrics(deep,desired,uniqueTotal,counts?.new_results??0),
   // Every request sent, split by purpose: PRIMARY_SEARCH passes and the SECONDARY_RESOLUTION request (≤ 3 in all).
   provider_calls:deep.providerCalls+(secondary.secondary_requests??0),primary_calls:deep.providerCalls,secondary_resolution_calls:secondary.secondary_requests??0,...(deep.lastCallReserved?{secondary_call_reserved:1}:{})}:{}),...secondary,...(counts?{...counts,...noveltyRates(counts)}:{novelty_unavailable:1}),...(memoryTruncated?{novelty_memory_truncated:1}:{})};stage='finish';await this.repo.finish(run.id,results.length,metrics);this.log(Object.fromEntries(Object.entries(metrics).map(([k,v])=>[k,Array.isArray(v)?v.join(','):v])) as Record<string,string|number|null>);return {...run,status:'completed',provider_mode:this.provider.mode,results,result_count:results.length};
- }catch(error){await meterSearch();await this.repo.finish(run.id,0,{duration_ms:Date.now()-start,...searchMetrics(this.lastSearch())},'DISCOVERY_FAILED');this.log({provider:this.provider.id,duration_ms:Date.now()-start,error:'DISCOVERY_FAILED',...searchMetrics(this.lastSearch()),...diagnoseDiscoveryFailure(stage,error)});throw Error('DISCOVERY_FAILED')}
+ }catch(error){await meterSearch();await this.repo.finish(run.id,0,{duration_ms:Date.now()-start,...searchMetrics(this.lastSearch())},'DISCOVERY_FAILED');this.log({provider:this.provider.id,duration_ms:Date.now()-start,error:'DISCOVERY_FAILED',...searchMetrics(this.lastSearch()),...diagnoseDiscoveryFailure(stage,error)});
+  // The source answered nothing: this launch is not billed. Best-effort — a failed refund never hides the run's error.
+  if(this.repo.releaseFailedRun&&nothingAnswered(this.lastSearch())){try{await this.repo.releaseFailedRun(run.id);this.log({provider:this.provider.id,event:'discovery_unit_released'})}catch{this.log({provider:this.provider.id,event:'discovery_unit_release_failed'})}}
+  throw Error('DISCOVERY_FAILED')}
  }
 }
 // Secondary sources (secondary-sources.ts): names cited by the directories, rankings and articles of this run are

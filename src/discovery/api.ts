@@ -2,10 +2,11 @@ import {summarizeRuns,HISTORY_MAX} from './run-history.ts';
 import {z} from 'zod';
 import type {SupabaseClient} from '@supabase/supabase-js';
 import {DiscoveryService,CompanyAnalysisService} from './services.ts';
-import {SupabaseDiscoveryRepository,checked} from './repository.ts';
+import {SupabaseDiscoveryRepository,checked,findReusableDiscovery,loadReusedResults,startReusedDiscovery} from './repository.ts';
+import {ReusedResultsProvider} from './providers/reused.ts';
 import {isFixtureUrl,createCompositePageFetcher} from './providers/fixture.ts';
 import {safeFetch} from './safe-fetch.ts';
-import {DiscoveryInputSchema} from './types.ts';
+import {DiscoveryInputSchema,type DiscoveryInput} from './types.ts';
 import {createDiscoveryProvider,discoveryProviderConfig,isMeteredSearchProvider} from './providers/index.ts';
 import {requireActiveEntitlement} from '../server/entitlement.ts';
 import {recordApiUsage} from '../server/usage.ts';
@@ -74,7 +75,15 @@ export async function handleDiscovery(request:Request,path:string[],body:unknown
  // for the fixture/TEST provider: a synthetic run must never leave a real-looking cost trace — nor for the free
  // public register (its launch is still reserved and counted by start_discovery, migration 019).
  const meter=isMeteredSearchProvider(name)?async(run:{id:string},requestCount:number)=>{const r=run as unknown as {id:string;organization_id:string};await recordApiUsage({organizationId:r.organization_id,projectId:id,discoveryRunId:r.id,userId:user.id,provider:'brave',operation:'search',requestCount})}:undefined;
- const result=await new DiscoveryService(new SupabaseDiscoveryRepository(db,{db:writer,userId:user.id}),provider,log,meter).find_prospects(input);
+ const repo=new SupabaseDiscoveryRepository(db,{db:writer,userId:user.id});
+ // A teammate's identical search of the last 7 days (migration 022): its results go through the same pipeline,
+ // with no external request and nothing charged. Never for the TEST source, never for "search new" (it must search).
+ const reusable=name!=='fixture'&&input.optional_filters.search_mode!=='search_new'?await findReusableDiscovery(db,input,name):null;
+ if(reusable){
+  const reusedRepo=Object.assign(Object.create(repo) as SupabaseDiscoveryRepository,{start:(i:DiscoveryInput,p:string)=>startReusedDiscovery(db,i,p,reusable.run_id)});
+  return json(await new DiscoveryService(reusedRepo,new ReusedResultsProvider(name,await loadReusedResults(db,reusable.run_id),reusable),log).find_prospects(input),201);
+ }
+ const result=await new DiscoveryService(repo,provider,log,meter).find_prospects(input);
  return json(result,201);
  }
  if(resource==='discovery-runs'&&method==='GET'){

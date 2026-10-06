@@ -4,7 +4,8 @@ import type {ObservationContext} from './restaurant.ts';
 import {findContactChannelCriterion} from './contact-channel.ts';
 import {findCommercialSignalCriterion,matchCommercialSignal} from './commercial-signal.ts';
 import {findTargetFitCriterion,evaluateTargetFit,TARGET_FIT_DIMENSION_LABELS} from './target-fit.ts';
-import {findNeedFitCriterion,matchNeedFitSignal} from './need-fit.ts';
+import {findNeedFitCriterion,matchNeedFitSignal,evaluateNeedFit} from './need-fit.ts';
+import {lineKind,rejectionReason} from './match-context.ts';
 import {extractIcpConceptProposals} from './icp-concepts.ts';
 import {extractIntentObservation,intentLayerUnderstands} from './icp-intents.ts';
 import {officialAddressIn} from './address.ts';
@@ -61,6 +62,12 @@ export function extractGenericObservations(ctx:ObservationContext,criteria:Crite
   const claim=targetFitEvaluation.matches.map(m=>`${TARGET_FIT_DIMENSION_LABELS[m.dimension]} correspond à « ${m.matchedValue} »`).join(' ; ');
   out.push(make(attachTargetFitTo.key,'TARGET_FIT_RULE_MATCH',targetFitEvaluation.matches[0].line,true,'OBSERVED',`Correspondance proposée avec la règle ICP : ${claim} — extrait à vérifier`,.85));
  }
+ // Matches refused for their context (a sentence about the sector or the clients, a menu, legal text…): one note
+ // with the reason, value null — never a proposal, never a score; the criterion stays to confirm.
+ const contextNote=(key:string,type:string,value:string,line:string,code:Parameters<typeof rejectionReason>[1])=>
+  out.push(make(key,type,line,null,'INFERRED',rejectionReason(value,code),.2));
+ const targetRefusal=targetFitCriterion&&!attachTargetFitTo?targetFitEvaluation?.rejected[0]:undefined;
+ if(targetFitCriterion&&targetRefusal)contextNote(targetFitCriterion.key,'TARGET_FIT_OUT_OF_CONTEXT',targetRefusal.value,targetRefusal.line,targetRefusal.code);
  // need_fit: same discipline — the vocabulary is exclusively the user's own rules.config.signals.
  const needFitCriterion=findNeedFitCriterion(criteria);
  const needFitRules=needFitCriterion&&!covered.has(needFitCriterion.key)&&needFitCriterion.rules?.type==='need_fit'?needFitCriterion.rules.config.signals:null;
@@ -71,10 +78,13 @@ export function extractGenericObservations(ctx:ObservationContext,criteria:Crite
  const attachNeedFitTo=needFitMatch?needFitCriterion:null;
  if(attachNeedFitTo&&needFitMatch)out.push(make(attachNeedFitTo.key,'NEED_FIT_SIGNAL_MATCH',needFitMatch.line,true,'OBSERVED',`Signal de besoin potentiel détecté : « ${needFitMatch.signal} » (${eventDateLabel(eventDateIn(needFitMatch.line))}) — extrait à vérifier`,.8));
  const pastNeed=needFitCriterion&&needFitRules&&!needFitMatch?matchNeedFitSignal(ctx,needFitRules):null;
+ const needRefusal=needFitCriterion&&needFitRules&&!needFitMatch&&!pastNeed?evaluateNeedFit({lines:current},needFitRules).rejected[0]:undefined;
+ if(needFitCriterion&&needRefusal)contextNote(needFitCriterion.key,'NEED_FIT_OUT_OF_CONTEXT',needRefusal.signal,needRefusal.line,needRefusal.code);
  if(needFitCriterion&&pastNeed)pastNote(needFitCriterion.key,'NEED_FIT_SIGNAL_MATCH',pastNeed.line,`Signal de besoin « ${pastNeed.signal} »`,negatedBefore(pastNeed.line,pastNeed.signal));
  // A criterion whose only match is historical or resolved is not handed to the weaker matchers below: they
  // would re-propose the same sentence without its date.
- const pastOnly=new Set([...(pastSignal&&signalCriterion?[signalCriterion.key]:[]),...(pastNeed&&needFitCriterion?[needFitCriterion.key]:[])]);
+ const pastOnly=new Set([...(pastSignal&&signalCriterion?[signalCriterion.key]:[]),...(pastNeed&&needFitCriterion?[needFitCriterion.key]:[]),
+  ...(targetRefusal&&targetFitCriterion?[targetFitCriterion.key]:[]),...(needRefusal&&needFitCriterion?[needFitCriterion.key]:[])]);
  for(const criterion of criteria){
   if(covered.has(criterion.key))continue; // already handled by a specialized preset for this ICP
   if(attachPhoneTo&&criterion.key===attachPhoneTo.key)continue; // already given a stronger, deterministic signal above — no redundant/weaker guess
@@ -97,7 +107,10 @@ export function extractGenericObservations(ctx:ObservationContext,criteria:Crite
   // rather than receiving a lexical guess from one of its words ("physique" of "Lieu physique"…).
   if(intentLayerUnderstands(criterion,criteria))continue;
   const words=significantWords(criterion.label);if(!words.length)continue;
-  const line=lines.find(l=>{const normalized=' '+l.normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase()+' ';return words.some(w=>normalized.includes(' '+w))});
+  // A hint needs real content (never a menu, a heading, legal or cookie text) and, for a label of several words, at
+ // least two of them in the same sentence: one shared word out of context is not even worth showing.
+ const needed=Math.min(2,words.length);
+ const line=lines.find(l=>{if(lineKind(l)!=='CONTENT'||l.split(/\s+/).length<=3)return false;const normalized=' '+l.normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase()+' ';return words.filter(w=>normalized.includes(' '+w)).length>=needed});
   // A bare keyword overlap is a candidate excerpt, never a determination: no deterministic rule
   // established that the criterion is actually satisfied, so this can never resolve to TRUE/FALSE
   // on its own — status INFERRED with value null keeps it out of EvidenceProposalService until a

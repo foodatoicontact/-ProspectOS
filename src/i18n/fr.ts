@@ -909,4 +909,6 @@ export const fr={
  'signals.type.incident_cyber':'Incident cyber',
  'signals.type.event':'Événement',
  'signals.noSite':'Aucun site officiel identifié : ajoutez-le dans « Site officiel vérifié » ci-dessus pour chercher des signaux sur le site, ou ajoutez un signal que vous avez lu.',
+ 'evidence.titleOutOfContext':'Correspondance écartée (hors contexte)',
+ 'evidence.outOfContextNote':'Le terme apparaît, mais dans un contexte qui ne décrit pas l’organisation (secteur, clients, menu, mentions légales…). Critère à confirmer.',
 } as const;

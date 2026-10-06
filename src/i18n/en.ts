@@ -903,4 +903,6 @@ export const en={
  'signals.type.incident_cyber':'Cyber incident',
  'signals.type.event':'Event',
  'signals.noSite':'No official website identified: add it in “Verified official website” above to search the site for signals, or add a signal you read.',
+ 'evidence.titleOutOfContext':'Match set aside (out of context)',
+ 'evidence.outOfContextNote':'The term appears, but in a context that does not describe the organization (sector, clients, menu, legal notice…). Criterion to confirm.',
 } satisfies Record<keyof typeof fr,string>;

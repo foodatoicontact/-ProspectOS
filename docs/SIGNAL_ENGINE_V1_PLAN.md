@@ -388,3 +388,19 @@ Ordre de livraison conseillé : S1 → S2 → S5 (score testable sur des signaux
 4. Ordre des blocs : socle manuel d'abord (S1, S2, S5), surveillance en dernier.
 5. BODACC en V1.5 ou dès le socle.
 6. Suppression du workflow d'import encodé (bloc séparé).
+
+## État de livraison
+
+| Bloc | État | Notes |
+|---|---|---|
+| S1, S2, S5 | En production (PR #24, migration 024) | Score INTENT vérifié + estimé |
+| S3 + S4 | Branche `feat/signal-engine-s3` | `src/signals/extract.ts` (lexiques FR/EN, dates, JSON-LD), providers `official_site`, `web_search`, saisie manuelle, routes API |
+
+Choix faits en S3 (révisables) :
+
+- **Site officiel** : même autorisation, même audit (`website_analysis_audit`) et même unité de plan que « Analyser le site » (`consume_analysis_quota`), unité rendue si la page d'accueil n'a pas pu être lue. Pas de nouvelle migration. Le quota dédié `signal_scan` arrivera avec la surveillance (S9).
+- **Recherche web (Brave)** : codée et testée, mais **non branchée** et désactivée par défaut (`SIGNALS_WEB_SEARCH_ENABLED` exactement `true` + clé). Conditions Brave sur le stockage des résultats : **UNKNOWN** (pages inaccessibles depuis l'environnement de développement), à vérifier par l'opérateur avant activation. Seuls l'URL, le titre et l'extrait sont conservés ; la page tierce n'est jamais lue.
+- **Homonymes** : un résultat web n'est rattaché que s'il nomme l'entreprise en mots entiers **et** qu'il est sur son domaine, cite son domaine ou nomme sa ville. Le nom seul ne suffit jamais.
+- **Saisie manuelle** : URL + extrait exact ; un lien LinkedIn est accepté comme source de l'utilisateur, jamais lu.
+- **Corpus S4** : 48 cas FR/EN rédigés avec des entreprises fictives (précision 100 %). La validation sur des cas réels se fera en Preview.
+- `discovery_recycled` reporté (bloc S8, avec le hook Discovery).

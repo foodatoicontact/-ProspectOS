@@ -14,6 +14,11 @@ import {releaseCommercialUse} from '../../../../src/server/commercial-usage';
 import {newInviteToken,inviteTokenHash,isInviteToken,inviteLink,teamError,TEAM_ERRORS} from '../../../../src/server/team';
 import {createAdminClient} from '../../../../src/server/admin-client';
 import {createHash} from 'node:crypto';
+import {handleSignals} from '../../../../src/signals/api';
+import {createSupabaseAnalysisAudit} from '../../../../src/discovery/analysis-audit';
+import {createPolicyFetcher} from '../../../../src/discovery/website-analysis';
+import {dynamicAnalysisEnabled} from '../../../../src/discovery/analysis-authorization';
+import {safeFetch} from '../../../../src/discovery/safe-fetch';
 import {startCheckout,openPortal} from '../../../../src/server/billing/checkout';
 import {billingDeps,appOrigin} from '../../../../src/server/billing';
 import {billingConfig,checkoutAvailability} from '../../../../src/server/billing/config';
@@ -51,6 +56,17 @@ async function handler(request:Request,context:{params:Promise<{path:string[]}>}
  let body:Record<string,any>={};
  if(!['GET','HEAD'].includes(request.method)){const raw=await request.text();if(raw.length>20000)return json({error:'Corps trop volumineux'},413);try{body=JSON.parse(raw||'{}')}catch{return json({error:'JSON invalide'},400)}if(!body||Array.isArray(body))return json({error:'Objet requis'},400)}
  const discoveryResponse=await handleDiscovery(request,path,body,db,user);if(discoveryResponse)return discoveryResponse;
+ // Signal Engine (src/signals/api.ts): signals, review, site scan and intent profile. The site scan shares the
+ // authorization, audit and plan unit of "Analyser le site"; its audit writer is the server's privileged client.
+ const signalsResponse=await handleSignals(request,path,body,db,json,{
+  userId:user.id,now:()=>new Date(),
+  audit:()=>{try{return createSupabaseAnalysisAudit(createAdminClient(),user.id)}catch{return null}},
+  sitePageFetcher:policy=>{const fetchPage=createPolicyFetcher(safeFetch);return url=>fetchPage(url,policy)},
+  staticAllowlist:(process.env.DISCOVERY_ALLOWED_HOSTS??'').split(',').map(s=>s.trim().toLowerCase()).filter(Boolean),
+  dynamicEnabled:dynamicAnalysisEnabled(process.env.DISCOVERY_DYNAMIC_ANALYSIS_ENABLED),
+  requireEntitlement:()=>requireActiveEntitlement(db,user.id),
+  refundAnalysis:()=>releaseCommercialUse(createAdminClient(),user.id,'analysis'),
+ });if(signalsResponse)return signalsResponse;
  const checked=async(query:PromiseLike<any>)=>{const {data,error}=await query;if(error)throw Error('DATABASE_REQUEST_FAILED');return data};
  if(resource==='organizations'){
  if(request.method==='GET')return json(await checked(db.from('organizations').select('*')));

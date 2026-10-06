@@ -861,7 +861,7 @@ export const fr={
  'signals.form.cancel':'Annuler',
  'signals.unavailable':'Signaux momentanément indisponibles.',
  'signals.scanFound':'{n} nouveau(x) signal(aux) trouvé(s) sur {p} page(s). À vérifier à la source.',
- 'signals.scanNone':'Aucun nouveau signal daté trouvé sur le site officiel.',
+ 'signals.scanNone':'Aucun nouveau signal daté sur les {p} page(s) lue(s) du site officiel (accueil, carrières, actualités). Vous pouvez ajouter un signal lu ailleurs.',
  'signals.duplicate':'Ce signal est déjà enregistré pour cette entreprise.',
  'signals.today':'aujourd’hui',
  'signals.daysAgo':'il y a {n} j',

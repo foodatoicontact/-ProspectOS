@@ -855,7 +855,7 @@ export const en={
  'signals.form.cancel':'Cancel',
  'signals.unavailable':'Signals temporarily unavailable.',
  'signals.scanFound':'{n} new signal(s) found on {p} page(s). Check them at the source.',
- 'signals.scanNone':'No new dated signal found on the official website.',
+ 'signals.scanNone':'No new dated signal on the {p} page(s) read on the official website (home, careers, news). You can add a signal you read elsewhere.',
  'signals.duplicate':'This signal is already saved for this company.',
  'signals.today':'today',
  'signals.daysAgo':'{n} d ago',

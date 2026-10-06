@@ -44,7 +44,7 @@ export function SignalsPanel({prospect,mode,api,locale,disabled,onBusyChange}:{p
    persistDemo([...fresh,...rows]);setNote(tr('signals.scanFound').replace('{n}',String(fresh.length)).replace('{p}','1'));return;
   }
   const r=await api(`prospects/${prospect.id}/signal-scan`,'POST',{});
-  setNote(r.report.inserted?tr('signals.scanFound').replace('{n}',String(r.report.inserted)).replace('{p}',String(r.pages||1)):tr('signals.scanNone'));
+  setNote(r.report.inserted?tr('signals.scanFound').replace('{n}',String(r.report.inserted)).replace('{p}',String(r.pages||1)):tr('signals.scanNone').replace('{p}',String(r.pages||1)));
   await load();
  });
  const review=(row:Row,decision:'verify'|'reject'|'reset')=>execute(async()=>{
@@ -108,7 +108,7 @@ export function SignalsPanel({prospect,mode,api,locale,disabled,onBusyChange}:{p
   {pending.length>0&&<div><h4 className="evidence-group-title">{tr('signals.toReview')} ({pending.length}){intent&&intent.pending.potential>0?` · ${tr('signals.upTo').replace('{n}',String(Math.round(intent.pending.potential)))}`:''}</h4>{pending.map(card)}</div>}
   {verified.length>0&&<details className="evidence-others" open={pending.length===0}><summary>{tr('signals.verifiedList')} ({verified.length})</summary>{verified.map(card)}</details>}
   {rejected.length>0&&<details className="evidence-others"><summary>{tr('signals.rejectedList')} ({rejected.length})</summary>{rejected.map(card)}</details>}
-  {rows.length===0&&!error&&<p className="muted">{tr('signals.empty')}</p>}
+  {rows.length===0&&!error&&!note&&<p className="muted">{tr('signals.empty')}</p>}
   {mode==='live'&&<IntentProfileEditor projectId={prospect.project_id} profile={profile} api={api} locale={locale} disabled={busy||disabled} onSaved={async()=>{await load()}}/>}
  </section>;
 }

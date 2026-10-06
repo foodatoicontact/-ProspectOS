@@ -128,10 +128,12 @@ test('20/21/22 — a real 0 (verified FALSE) is SCORED 0/100; verified TRUE scor
  const none=scoreProspect(ICP,[ev('a',true,'INFERRED_UNCONFIRMED')]);assert.equal(none.score,0,'the engine is unchanged');assert.equal(scoreState(none),'NOT_SCORED');
  assert.equal(fr['score.notScored'],'Non scoré');assert.ok(en['score.notScored']);
 });
-test('23 — UI: a candidate reads "to qualify"; detail and list show "Non scoré" instead of 0/100 when nothing is verified',async()=>{
+// Since 2026-10-06 (FIT estimé) the badge shows the automatic estimate, labelled "estimé", as soon as sources were found;
+// "Non scoré" when nothing was found at all — still never a fake 0/100 (tests/fit-estimate.test.ts covers fitDisplay).
+test('23 — UI: a candidate reads "to qualify"; detail and list show "Non scoré" when nothing was found, the estimate labelled otherwise',async()=>{
  const page=await readFile(new URL('../app/page.tsx',import.meta.url),'utf8');
- assert.match(page,/<b>\{scoreState\(scored\)==='SCORED'\?scored\.score:'—'\}<\/b><small>\{scoreState\(scored\)==='SCORED'\?'\/100':tr\('score\.notScored'\)\}<\/small>/);
- assert.match(page,/<b>\{scoreState\(s\)==='SCORED'\?s\.score:'—'\}<\/b>/);
+ assert.match(page,/<b>\{fit!\.main\?\?'—'\}<\/b><small>\{fit!\.kind==='none'\?tr\('score\.notScored'\):fit!\.kind==='estimated'\?`\/100 · \$\{tr\('score\.estimated'\)\}`:'\/100'\}<\/small>/);
+ assert.match(page,/<b>\{f\.main\?\?'—'\}<\/b><small>\{f\.kind==='none'\?tr\('score\.notScored'\)/);
  assert.match(en['discovery.class.companyCandidate'],/to qualify/);
 });
 

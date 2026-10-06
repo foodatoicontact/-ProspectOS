@@ -7,6 +7,7 @@ import {analyzeCompanyGuarded} from '../../../../src/server/ai-guard';
 import {checked as checkedRpc} from '../../../../src/discovery/repository';
 import {CriterionContextSchema} from '../../../../src/discovery/types';
 import {requireActiveEntitlement,effectiveEntitlement} from '../../../../src/server/entitlement';
+import {attachEvidenceSources} from '../../../../src/server/evidence-sources';
 import {buildAccountExportZip,anonymizeAuthUser} from '../../../../src/server/account';
 import {recordApiUsage} from '../../../../src/server/usage';
 import {releaseCommercialUse} from '../../../../src/server/commercial-usage';
@@ -73,7 +74,7 @@ async function handler(request:Request,context:{params:Promise<{path:string[]}>}
  return json(await checked(db.from('icps').upsert({project_id:project.id,organization_id:project.organization_id,criteria},{onConflict:'project_id'}).select().single()));
  }
  if(resource==='prospects'){
- if(request.method==='GET'){const pid=new URL(request.url).searchParams.get('project_id');if(!pid)return json({error:'Projet requis'},400);return json(await checked(db.from('prospects').select('*,evidence(*),channels(*)').eq('project_id',pid).order('created_at',{ascending:false})))}
+ if(request.method==='GET'){const pid=new URL(request.url).searchParams.get('project_id');if(!pid)return json({error:'Projet requis'},400);return json(await attachEvidenceSources(db,await checked(db.from('prospects').select('*,evidence(*),channels(*)').eq('project_id',pid).order('created_at',{ascending:false}))))}
  if(request.method==='POST'){
  if(typeof body.name!=='string'||!body.name.trim()||body.name.length>160||!safeLink(String(body.website??'')))return json({error:'Nom et URL HTTP(S) requis'},400);
  const project=await checked(db.from('projects').select('*').eq('id',body.project_id).single());

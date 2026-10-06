@@ -78,7 +78,7 @@ export const softwareApplicationJsonLd={
     'Découverte d’entreprises dans le registre public des entreprises françaises et sur le web',
     'Observations sourcées (URL, extrait, date) pour chaque critère du profil client idéal',
     'Vérification humaine : une observation ne devient une preuve qu’après confirmation',
-    'Score de 0 à 100 explicable critère par critère, calculé sur les seules preuves vérifiées',
+    'Score de 0 à 100 explicable critère par critère : estimé automatiquement selon la fiabilité des sources, puis vérifié par une personne',
     'Approche commerciale préparée à partir des faits vérifiés, sans envoi automatique',
     'Travail en équipe de 2 à 5 comptes avec base de données et quotas partagés (offre Équipe)',
     'Export CSV et export complet des données du compte',

@@ -27,7 +27,7 @@ export const DEMO_ONBOARDING_STEPS:string[]=[
  'Il collecte des observations depuis des sources publiques.',
  'Les observations ne deviennent pas automatiquement des preuves.',
  'L’humain vérifie.',
- 'Seules les preuves vérifiées alimentent le score.',
+ 'Le score est estimé automatiquement, puis confirmé par les preuves vérifiées.',
  'ProspectOS prépare ensuite l’approche.',
  'L’envoi reste humain.',
 ];
@@ -38,7 +38,7 @@ export const DEMO_ONBOARDING_STEPS_EN:string[]=[
  'It collects observations from public sources.',
  'Observations don’t automatically become evidence.',
  'A human verifies.',
- 'Only verified evidence feeds the score.',
+ 'The score is estimated automatically, then confirmed by verified evidence.',
  'ProspectOS then prepares the outreach.',
  'Sending stays human.',
 ];

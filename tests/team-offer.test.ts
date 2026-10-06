@@ -151,3 +151,27 @@ test('account page: team features belong to TEAM / Entreprise / Internal, never 
  assert.match(page,/teamPlan=\{entitlementPlan==='TEAM'\|\|entitlementPlan==='ENTERPRISE'\|\|entitlementPlan==='INTERNAL'\}/);
  assert.match(page,/entitlementPlan==='TEAM'\?/);
 });
+
+test('access gate: a team member is checked against the EFFECTIVE entitlement (owner’s team plan); fallback to its own row',async()=>{
+ const {requireActiveEntitlement}=await import('../src/server/entitlement.ts');
+ const day=86400000;
+ const db=(rpc:any,own:any)=>({rpc:async(name:string)=>{assert.equal(name,'get_effective_entitlement');return rpc},from:()=>({select:()=>({eq:()=>({maybeSingle:async()=>own})})})}) as any;
+ // A member without any row of its own works on the owner's active TEAM plan.
+ await assert.doesNotReject(requireActiveEntitlement(db({data:{plan:'TEAM',status:'ACTIVE',expires_at:new Date(Date.now()+day).toISOString(),via_team:true},error:null},{data:null,error:null}),'m'));
+ // The owner's team ended: read-only.
+ await assert.rejects(requireActiveEntitlement(db({data:{plan:'TEAM',status:'EXPIRED',expires_at:new Date(Date.now()+day).toISOString(),via_team:true},error:null},{data:null,error:null}),'m'),/BETA_ACCESS_EXPIRED/);
+ // No entitlement anywhere: still fail-closed.
+ await assert.rejects(requireActiveEntitlement(db({data:null,error:null},{data:null,error:null}),'x'),/ENTITLEMENT_REQUIRED/);
+ // The function is not deployed yet (code shipped before migration 023): the caller's own row, exactly as before.
+ await assert.doesNotReject(requireActiveEntitlement(db({data:null,error:{code:'PGRST202'}},{data:{plan:'PAID',status:'ACTIVE',expires_at:new Date(Date.now()+day).toISOString()},error:null}),'u'));
+ await assert.rejects(requireActiveEntitlement(db({data:null,error:{code:'PGRST202'}},{data:null,error:null}),'u'),/ENTITLEMENT_REQUIRED/);
+});
+
+test('account: the access shown is the effective one; a team member is never offered a subscription of its own',async()=>{
+ const route=await read('../app/api/v1/[...path]/route.ts');
+ assert.match(route,/const entitlement=await effectiveEntitlement\(db,user\.id\)/);
+ const page=await read('../app/page.tsx');
+ assert.match(page,/<BillingSection [^\n]*teamMember=\{role==='member'\}/);
+ const billing=await read('../src/components/BillingSection.tsx');
+ assert.match(billing,/const showPlans=!teamMember&&!view\?\.current/);
+});

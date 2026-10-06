@@ -137,7 +137,7 @@ test('the pricing component renders amounts and quotas from OFFERS only, with th
  assert.match(pricing,/available=plan\?\(context==='public'\|\|availability\?\.\[plan\]===true\):false/);
 });
 test('the account billing block: subscriber → summary + portal, no pricing cards; manual plans see no cards',()=>{
- assert.match(billingSection,/const showPlans=!view\?\.current&&entitlementPlan!=='INTERNAL'&&entitlementPlan!=='ENTERPRISE';/);
+ assert.match(billingSection,/const showPlans=!teamMember&&!view\?\.current&&entitlementPlan!=='INTERNAL'&&entitlementPlan!=='ENTERPRISE';/);
  assert.match(billingSection,/view\.manage==='portal'/,'manage button driven by the server availability (see the subscription management tests)');
  assert.match(billingSection,/<PricingPlans locale=\{locale\} context="account" availability=\{offers\}/,'same component as the demo');
  assert.match(page,/<PricingPlans locale=\{locale\} context=\{mode==='live'\?'account':'public'\} availability=\{mode==='live'\?billingOffers:null\}/);
@@ -226,7 +226,7 @@ test('click → existing portal route; the URL comes from the server, never buil
  for(const src of [page,billingSection,await read('../src/domain/subscription-view.ts')])assert.doesNotMatch(src,/billing\.stripe\.com|checkout\.stripe\.com|https:\/\/[a-z.]*stripe/i);
 });
 test('subscribed → no second checkout: pricing cards hidden, intent decision SUBSCRIBED',()=>{
- assert.match(billingSection,/const showPlans=!view\?\.current&&entitlementPlan!=='INTERNAL'&&entitlementPlan!=='ENTERPRISE';/);
+ assert.match(billingSection,/const showPlans=!teamMember&&!view\?\.current&&entitlementPlan!=='INTERNAL'&&entitlementPlan!=='ENTERPRISE';/);
  assert.equal(subscriptionView({has_customer:true,plan:'PAID',status:'active',cancel_at_period_end:true,current_period_end:END},OPEN)!.current,true);
  assert.deepEqual(decidePlanIntent('PRO',OPEN,{has_customer:true,plan:'PAID',status:'active',cancel_at_period_end:true}),{action:'SUBSCRIBED'});
  assert.equal(subscriptionView({has_customer:true,plan:'PAID',status:'canceled'},OPEN)!.current,false,'an ended subscription may subscribe again');

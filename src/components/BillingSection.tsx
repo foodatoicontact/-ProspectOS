@@ -17,13 +17,14 @@ export type BillingStatus=BillingSummary;
 const STATUS_KEYS=['active','trialing','past_due','unpaid','paused','canceled','incomplete'] as const;
 const statusKey=(s:string|null|undefined):TKey=>(STATUS_KEYS as readonly string[]).includes(s??'')?`billing.status.${s}` as TKey:'billing.status.unknown';
 
-export function BillingSection({locale,offers,status,usage,busy,entitlementPlan,onCheckout,onPortal}:{locale:Locale;offers:BillingOffers|null;status:BillingStatus|null;usage?:UsageView|null;busy:boolean;entitlementPlan?:string|null;onCheckout:(plan:CheckoutPlan)=>void;onPortal:()=>Promise<void>}){
+export function BillingSection({locale,offers,status,usage,busy,entitlementPlan,teamMember=false,onCheckout,onPortal}:{locale:Locale;offers:BillingOffers|null;status:BillingStatus|null;usage?:UsageView|null;busy:boolean;entitlementPlan?:string|null;teamMember?:boolean;onCheckout:(plan:CheckoutPlan)=>void;onPortal:()=>Promise<void>}){
  const tr=(k:TKey)=>translate(locale,k);
  const [opening,setOpening]=useState(false);const [portalError,setPortalError]=useState('');
  const view=subscriptionView(status,offers);
  const date=(iso:string)=>new Date(iso).toLocaleDateString(locale==='fr'?'fr-FR':'en-US');
- // Manual plans (INTERNAL, ENTERPRISE) are outside self-service: no pricing cards for them.
- const showPlans=!view?.current&&entitlementPlan!=='INTERNAL'&&entitlementPlan!=='ENTERPRISE';
+ // Manual plans (INTERNAL, ENTERPRISE) are outside self-service: no pricing cards for them. A team member works on
+ // its owner's plan: the subscription is the owner's to manage, never a second one of its own.
+ const showPlans=!teamMember&&!view?.current&&entitlementPlan!=='INTERNAL'&&entitlementPlan!=='ENTERPRISE';
  // The error is shown here, inside the account dialog, not in the page notice hidden behind it.
  async function manage(){setOpening(true);setPortalError('');try{await onPortal()}catch(e){setPortalError(e instanceof Error?e.message:tr('error.generic'))}finally{setOpening(false)}}
  return <div className="account-field billing">

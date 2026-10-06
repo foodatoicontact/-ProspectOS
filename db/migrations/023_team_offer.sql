@@ -11,11 +11,15 @@
 --    quantity is outside [team_min_seats, team_max_seats] grants nothing ('invalid_seats'). The billing account
 --    and get_billing_status carry the seats.
 --
+-- 5. Effective access: get_effective_entitlement() — what the server's access gate (src/server/entitlement.ts) and the
+--    account page read. A team member has no entitlement of its own: it works on its owner's plan while that is an
+--    active team plan (TEAM / ENTERPRISE / INTERNAL), and is read-only otherwise. Anyone else: its own row, unchanged.
+--
 -- No production row is rewritten: no PRO subscription exists in production on 2026-10-06 (verified, read-only).
 --
 -- Rollback: re-create from 022 enforce_plan_limit, get_commercial_usage, team_plan_active, create_team_invitation,
 -- accept_team_invitation, list_team; from 017 apply_stripe_subscription_state (11 arguments) and get_billing_status;
--- drop prospectos_private.team_seat_cap(uuid); once no TEAM row exists, restore both plan checks and drop the
+-- drop prospectos_private.team_seat_cap(uuid) and public.get_effective_entitlement(); once no TEAM row exists, restore both plan checks and drop the
 -- `seats` columns and team_min_seats.
 begin;
 
@@ -185,6 +189,24 @@ begin
 end $$;
 revoke all on function public.list_team() from public,anon;
 grant execute on function public.list_team() to authenticated;
+
+-- The entitlement a protected action is checked against. Never another user's row for a non-member; for a team member
+-- only the fields the gate needs (plan, status, expiry, seats), never any billing identifier.
+create or replace function public.get_effective_entitlement() returns jsonb
+language plpgsql stable security definer set search_path='' as $$
+declare actor uuid := auth.uid(); subj uuid; tm uuid; e public.account_entitlements;
+begin
+ if actor is null then raise exception 'Authentication required' using errcode='42501'; end if;
+ select p.subject,p.team into subj,tm from prospectos_private.plan_subject(actor) p;
+ select * into e from public.account_entitlements where user_id=subj;
+ if not found then return null; end if;
+ if subj<>actor and e.plan not in ('TEAM','ENTERPRISE','INTERNAL') then
+  return jsonb_build_object('plan',e.plan,'status','EXPIRED','expires_at',e.expires_at,'seats',e.seats,'via_team',true);
+ end if;
+ return jsonb_build_object('plan',e.plan,'status',e.status,'expires_at',e.expires_at,'seats',e.seats,'via_team',subj<>actor);
+end $$;
+revoke all on function public.get_effective_entitlement() from public,anon;
+grant execute on function public.get_effective_entitlement() to authenticated;
 
 -- 017's webhook state, with the subscription quantity (p_seats, defaulted so a caller without it keeps working).
 drop function if exists public.apply_stripe_subscription_state(text,text,text,text,text,text,text,timestamptz,timestamptz,boolean,boolean);

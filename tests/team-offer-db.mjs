@@ -106,6 +106,22 @@ try{
   await refused(()=>start(PRO,pp),/plan_limit_reached/,'a 3rd search on a Pro limit of 2');
   const u=(await as(PRO,'select public.get_commercial_usage() u')).rows[0].u;assert.equal(u.plan,'PRO');assert.equal(u.seats,undefined);assert.equal(u.team,undefined);
  });
+ await check('EFFECTIVE ACCESS: a team member is checked against its owner’s plan; a lone account against its own',async()=>{
+  const eff=u=>as(u,'select public.get_effective_entitlement() e').then(r=>r.rows[0].e);
+  // The team (T) is EXPIRED at this point (cancelled above): its members are read-only.
+  assert.deepEqual((({plan,status,via_team})=>({plan,status,via_team}))(await eff(M[0])),{plan:'TEAM',status:'EXPIRED',via_team:true});
+  assert.equal((await apply('cus_team','TEAM',3,{sub:'sub_t2'})).outcome,'granted');
+  const m=await eff(M[0]);assert.equal(m.plan,'TEAM');assert.equal(m.status,'ACTIVE');assert.equal(m.via_team,true);assert.equal(m.seats,3);
+  const own=await eff(PRO);assert.equal(own.plan,'PRO');assert.equal(own.via_team,false);
+  assert.equal(await eff(PM),null,'no entitlement at all → null');
+  await refused(()=>as(undefined,'select public.get_effective_entitlement()'),/permission denied|Authentication required/,'anon');
+ });
+ await check('EFFECTIVE ACCESS: a member of a team whose owner is no longer on a team plan is read-only',async()=>{
+  await sql(`update public.account_entitlements set plan='PRO',seats=null where user_id=$1`,[T]);
+  const m=(await as(M[0],'select public.get_effective_entitlement() e')).rows[0].e;
+  assert.equal(m.status,'EXPIRED');assert.equal(m.via_team,true);
+  await sql(`update public.account_entitlements set plan='TEAM',seats=3 where user_id=$1`,[T]);
+ });
  await check('PRIVATE: members cannot call the webhook function nor the seat helper',async()=>{
   await refused(()=>as(T,`select public.apply_stripe_subscription_state('evt_z','x','cus_team','sub_t','price_team','TEAM','active',now(),now()+interval '30 days',false,true,5)`),/permission denied/,'granting oneself TEAM');
   await refused(()=>as(T,'select prospectos_private.team_seat_cap($1)',[T]),/permission denied/,'the private seat helper');

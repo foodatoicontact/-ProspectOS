@@ -37,7 +37,7 @@ export function BillingSection({locale,offers,status,usage,busy,entitlementPlan,
    {view.current&&usage&&<div className="subscription-usage">
     <p className={usage.discovery.reached?'reached':''}>{usageCounterLabel(locale,'discovery',usage.discovery.used,usage.discovery.limit)}</p>
     <p className={usage.analysis.reached?'reached':''}>{usageCounterLabel(locale,'analysis',usage.analysis.used,usage.analysis.limit)}</p>
-    <p className={usage.aiOffer.reached?'reached':''}>{usageCounterLabel(locale,'ai_offer',usage.aiOffer.used,usage.aiOffer.limit)}</p>
+    <p className={usage.aiOffer.reached?'reached':''}>{usageCounterLabel(locale,'ai_offer',usage.aiOffer.used,usage.aiOffer.limit)}</p>{usage.aiOutreach&&<p className={usage.aiOutreach.reached?'reached':''}>{usageCounterLabel(locale,'ai_outreach',usage.aiOutreach.used,usage.aiOutreach.limit)}</p>}
     {usage.active&&usage.kind==='paid'&&!view.cancelScheduled&&<p className="muted">{usageResetLabel(locale,usage.periodEnd)}</p>}
    </div>}
    {view.manage==='portal'

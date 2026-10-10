@@ -12,9 +12,11 @@ export const BETA_OFFER={
 export type CommercialUsage={
  plan:'BETA'|'PAID'|'PRO'|'TEAM'|'ENTERPRISE'|'INTERNAL'|null;seats?:number;status?:string;period_start?:string;period_end?:string;active?:boolean;
  discovery_used?:number;discovery_limit?:number;analysis_used?:number;analysis_limit?:number;ai_offer_used?:number;ai_offer_limit?:number;
+ // AI outreach (migration 028): present only when the plan has a configured limit.
+ ai_outreach_used?:number;ai_outreach_limit?:number;
 };
 export type Counter={used:number;limit:number;reached:boolean};
-export type UsageView={kind:'trial'|'paid';seats:number|null;active:boolean;periodEnd:string;daysLeft:number;discovery:Counter;analysis:Counter;aiOffer:Counter};
+export type UsageView={kind:'trial'|'paid';seats:number|null;active:boolean;periodEnd:string;daysLeft:number;discovery:Counter;analysis:Counter;aiOffer:Counter;aiOutreach:Counter|null};
 
 const DAY=86400000;
 const count=(v:unknown)=>typeof v==='number'&&Number.isInteger(v)&&v>=0?v:null;
@@ -31,9 +33,11 @@ export function usageView(raw:unknown,now=Date.now()):UsageView|null{
  const du=count(u.discovery_used),dl=count(u.discovery_limit),au=count(u.analysis_used),al=count(u.analysis_limit),ou=count(u.ai_offer_used),ol=count(u.ai_offer_limit);
  if(du===null||dl===null||au===null||al===null||ou===null||ol===null||typeof u.period_end!=='string'||!Number.isFinite(new Date(u.period_end).getTime()))return null;
  const active=u.active===true&&new Date(u.period_end).getTime()>now;
+ // Its own counter, never mixed with the others; an answer without it (older server) still shows the rest.
+ const ru=count(u.ai_outreach_used),rl=count(u.ai_outreach_limit);
  return {
   kind:u.plan==='BETA'?'trial':'paid',seats:u.plan==='TEAM'&&count(u.seats)!==null?count(u.seats):null,active,periodEnd:u.period_end,daysLeft:daysLeft(u.period_end,now),
-  discovery:{used:du,limit:dl,reached:du>=dl},analysis:{used:au,limit:al,reached:au>=al},aiOffer:{used:ou,limit:ol,reached:ou>=ol},
+  discovery:{used:du,limit:dl,reached:du>=dl},analysis:{used:au,limit:al,reached:au>=al},aiOffer:{used:ou,limit:ol,reached:ou>=ol},aiOutreach:ru!==null&&rl!==null?{used:ru,limit:rl,reached:ru>=rl}:null,
  };
 }
 // Supabase Auth refuses a new confirmation e-mail sent too soon (per-address cooldown, or the project's

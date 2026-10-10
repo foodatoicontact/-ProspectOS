@@ -38,6 +38,8 @@ try{
   const m=files.find(f=>f.startsWith('028_'));assert.ok(m,'a 028_* migration exists');
   await db.exec(await readFile(new URL(`../db/migrations/${m}`,import.meta.url),'utf8'));
  });
+ // The mechanism without limits: the seeded rows are removed here, then one is set by hand.
+ await sql('delete from prospectos_private.ai_outreach_limits');
  await check('NOT CONFIGURED: no plan limit for AI outreach → no unit, explicit refusal (the rule-based message stays available)',async()=>{
   await refused(()=>reserve(A,prA),/ai_outreach_not_configured/,'an AI attempt without a configured limit');
   assert.equal((await sql('select count(*)::int n from prospectos_private.ai_outreach_usage')).rows[0].n,0);

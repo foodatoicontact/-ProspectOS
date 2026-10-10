@@ -57,6 +57,10 @@ test('purity and wiring: no model; the outreach route adds why-now, stores signa
  const src=await readFile(new URL('../src/domain/why-now.ts',import.meta.url),'utf8');
  assert.doesNotMatch(src,/fetch\(|anthropic|openai|Math\.random|Date\.now\(\)/);
  const route=await readFile(new URL('../app/api/v1/[...path]/route.ts',import.meta.url),'utf8');
- assert.match(route,/why=whyNow\(await verifiedSignalsOf\(db,p\.id\),await intentProfileOf\(db,p\.project_id\),new Date\(\),draftLocale\)/);
- assert.match(route,/evidence_ids:draft\.evidence_ids,signal_ids:draft\.signal_ids,provider:'rule_based_v1'/);
+ // O2: the route reads the verified signals and the intent profile, the composer (src/outreach/compose.ts) picks the angle
+ // and adds why-now when the angle is a signal; the row stores the signal ids it quoted.
+ assert.match(route,/signals=await verifiedSignalsOf\(db,p\.id\);intentProfile=await intentProfileOf\(db,p\.project_id\)/);
+ assert.match(route,/signal_ids:composed\.signal_ids,evidence_ids:composed\.evidence_ids/);
+ const compose=await readFile(new URL('../src/outreach/compose.ts',import.meta.url),'utf8');
+ assert.match(compose,/const why=whyNow\(input\.signals,input\.profile,input\.now,input\.locale\);if\(why\)\{text=withWhyNow\(text,input\.name,why,input\.locale\)/);
 });

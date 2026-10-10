@@ -17,7 +17,6 @@ import {createHash} from 'node:crypto';
 import {handleSignals} from '../../../../src/signals/api';
 import {BodaccSignalProvider,bodaccEnabled} from '../../../../src/signals/providers/bodacc';
 import {intentProfileOf,verifiedSignalsOf,recordContactSnapshot} from '../../../../src/signals/context';
-import {whyNow,withWhyNow} from '../../../../src/domain/why-now';
 import {createSupabaseAnalysisAudit} from '../../../../src/discovery/analysis-audit';
 import {createPolicyFetcher} from '../../../../src/discovery/website-analysis';
 import {dynamicAnalysisEnabled} from '../../../../src/discovery/analysis-authorization';
@@ -28,6 +27,10 @@ import {billingConfig,checkoutAvailability} from '../../../../src/server/billing
 import {saveProviderCredential,listProviderCredentials,deleteProviderCredential,resolveProviderCredential} from '../../../../src/server/byok';
 import {DEFAULT_CRITERIA,OUTREACH_STATUSES,validateCriteria,generateOutreach,scoreProspect,csv,safeLink} from '../../../../src/domain/core';
 import {STATUSES} from '../../../../src/domain/statuses';
+import {handleOutreachIntelligence,PUBLIC_CONTENT_COLUMNS} from '../../../../src/outreach/api';
+import {composeRuleBased} from '../../../../src/outreach/compose';
+import {styleOf} from '../../../../src/outreach/style';
+import {OUTREACH_TRANSITIONS,isOutreachAction,allowedFrom,carriesContent} from '../../../../src/outreach/workflow';
 export const runtime='nodejs';
 export const maxDuration=60;
 export const dynamic='force-dynamic';
@@ -72,6 +75,8 @@ async function handler(request:Request,context:{params:Promise<{path:string[]}>}
   bodaccEnabled:bodaccEnabled(process.env),bodaccProvider:()=>new BodaccSignalProvider(),
   refundAnalysis:()=>releaseCommercialUse(createAdminClient(),user.id,'analysis'),
  });if(signalsResponse)return signalsResponse;
+ // O1/O2 (src/outreach/api.ts): the caller's own style profile, and public content (pasted by a person, reviewed by a person).
+ const outreachResponse=await handleOutreachIntelligence(request,path,body,db,json,{requireEntitlement:()=>requireActiveEntitlement(db,user.id)});if(outreachResponse)return outreachResponse;
  const checked=async(query:PromiseLike<any>)=>{const {data,error}=await query;if(error)throw Error('DATABASE_REQUEST_FAILED');return data};
  if(resource==='organizations'){
  if(request.method==='GET')return json(await checked(db.from('organizations').select('*')));
@@ -127,19 +132,24 @@ async function handler(request:Request,context:{params:Promise<{path:string[]}>}
  // Case-insensitive by design ("EN"/"En" from a non-standard caller must not silently fall back to
  // French) and safe against non-string input (String() never throws, even on an object/array/null).
  const draftLocale=String(body.locale).toLowerCase()==='en'?'en':'fr';
- const base=generateOutreach(p.name,project.offer,projectCriteria(project.icps),p.evidence,undefined,draftLocale);
- // Signal Engine S7: "why now" — the strongest VERIFIED signal, quoted verbatim with its source and date, right after
- // the greeting (deterministic template, src/domain/why-now.ts). Best-effort: no signal, or signals unreadable, leaves
- // the factual template exactly as it was.
- let why=null;try{why=whyNow(await verifiedSignalsOf(db,p.id),await intentProfileOf(db,p.project_id),new Date(),draftLocale)}catch{why=null}
- const draft={...base,text:withWhyNow(base.text,p.name,why,draftLocale),signal_ids:why?.signal_ids??[],why_now:why?.sentence??null};
+ // O2: the angle — pinned verified public content > strongest verified signal (the S7 "why now") > recent verified public
+ // content > the verified evidence the factual template quotes > generic — chosen deterministically (src/outreach/angle.ts),
+ // quoted verbatim right after the greeting. Signals, public content and the user's own style profile are best-effort:
+ // unreadable means "none", and the factual template stays exactly as it was.
+ let signals:Awaited<ReturnType<typeof verifiedSignalsOf>>=[];let intentProfile=null;
+ try{signals=await verifiedSignalsOf(db,p.id);intentProfile=await intentProfileOf(db,p.project_id)}catch{signals=[]}
+ const publicContent=await db.from('prospect_public_content').select(PUBLIC_CONTENT_COLUMNS).eq('prospect_id',p.id).eq('status','VERIFIED').limit(50).then(r=>r.error?[]:r.data??[],()=>[]);
+ const styleRow=await db.from('outreach_style_profiles').select('*').eq('organization_id',p.organization_id).limit(1).then(r=>r.error?null:(r.data??[])[0]??null,()=>null);
+ const styleProfileId:string|null=styleRow?.id??null;
+ const composed=composeRuleBased({name:p.name,offer:project.offer,criteria:projectCriteria(project.icps),evidence:p.evidence,signals,profile:intentProfile,publicContent,now:new Date(),locale:draftLocale,style:styleOf(styleRow)});
  // At most one live DRAFT per prospect: a regeneration supersedes the previous one instead of
  // leaving an ambiguous pile of undecided drafts. Already-decided rows (APPROVED/USED/DISCARDED)
  // are historical record and are never touched here. The invariant itself is enforced by a partial
  // unique index (migration 007), not by this discard-then-insert sequence alone: two concurrent
  // generations can still both reach the insert below, but only one can ever succeed.
  await checked(db.from('outreach').update({status:'DISCARDED'}).eq('prospect_id',p.id).eq('organization_id',p.organization_id).eq('status','DRAFT'));
- const {data:row,error:insertError}=await db.from('outreach').insert({organization_id:p.organization_id,prospect_id:p.id,content:draft.text,evidence_ids:draft.evidence_ids,signal_ids:draft.signal_ids,provider:'rule_based_v1'}).select('id,status,created_at').single();
+ // generated_content keeps the generated text for good (database: immutable); content is the copy a person edits.
+ const {data:row,error:insertError}=await db.from('outreach').insert({organization_id:p.organization_id,prospect_id:p.id,generated_content:composed.text,content:composed.text,angle:composed.angle,public_content_ids:composed.public_content_ids,signal_ids:composed.signal_ids,evidence_ids:composed.evidence_ids,style_profile_id:styleProfileId,provider:composed.provider}).select('id,status,created_at').single();
  if(insertError){
  // 23505 = unique_violation: a concurrent generation for the same prospect won the race and its
  // DRAFT is now the live one. This is expected under concurrency, never a raw DB exception — the
@@ -148,26 +158,33 @@ async function handler(request:Request,context:{params:Promise<{path:string[]}>}
  if(insertError.code==='23505')return json({error:'Une autre génération est en cours pour ce prospect. Réessayez.'},409);
  throw Error('DATABASE_REQUEST_FAILED');
  }
- return json({...draft,id:row.id,status:row.status,created_at:row.created_at},201);
+ return json({...composed,mode:draftLocale==='en'?'Factual template':'Modèle factuel',generated_at:new Date().toISOString(),id:row.id,status:row.status,created_at:row.created_at},201);
+ }
+ if(resource==='outreach'&&request.method==='GET'&&!id){
+ // The prospect's live message (DRAFT or APPROVED), with both texts and the frozen angle — so it survives a reload.
+ const pid=new URL(request.url).searchParams.get('prospect_id');if(!z.string().uuid().safeParse(pid).success)return json({error:'Identifiant invalide'},400);
+ const rows=await checked(db.from('outreach').select('id,status,content,generated_content,angle,evidence_ids,signal_ids,public_content_ids,style_profile_id,provider,created_at,last_edited_at').eq('prospect_id',pid).in('status',['DRAFT','APPROVED']).order('created_at',{ascending:false}).limit(1));
+ return json((rows??[])[0]??null);
  }
  if(resource==='outreach'&&request.method==='PATCH'&&id){
- // Draft lifecycle only — never re-enters DRAFT via this route, and never touches the prospect's
- // own business status (see prospects PATCH above): copying or approving a message is never, on
- // its own, proof that it was actually sent or that the prospect was contacted.
- if(!OUTREACH_STATUSES.includes(body.status))return json({error:'Statut de brouillon invalide'},400);
- if(body.status==='DRAFT')return json({error:'Statut de brouillon invalide'},400);
- const patch:Record<string,unknown>={status:body.status};
+ // O1 workflow (src/outreach/workflow.ts, OUTREACH_TRANSITIONS): SAVE (no status) and APPROVED apply to a DRAFT only;
+ // USED (Copy) to an APPROVED message only; DISCARDED to a DRAFT or APPROVED one. Only SAVE and APPROVED carry a text.
+ // The generated original is never sent: the database keeps it immutable (migration 027). Never re-enters
+ // DRAFT, and never touches the prospect's own business status: copying a message is not proof it was sent.
+ const action=body.status===undefined?'SAVE':body.status;
+ if(!isOutreachAction(action))return json({error:'Statut de brouillon invalide'},400);
+ const patch:Record<string,unknown>=action==='SAVE'?{}:{status:action};
  if(body.content!==undefined){
+ if(!carriesContent(action))return json({error:'Ce statut ne modifie pas le texte'},400);
  if(typeof body.content!=='string'||!body.content.trim()||body.content.length>4000)return json({error:'Contenu de brouillon invalide'},400);
  patch.content=body.content;
  }
- // USED/DISCARDED are terminal: only a row currently DRAFT or APPROVED can still be patched. A row
- // that has already moved past that point matches nothing here (0 rows -> the same generic error as
- // any other not-found/wrong-tenant case below) — enforced again, independently, by the
- // outreach_guard DB trigger (migration 007), so this never depends on the API check alone.
- const changed=await checked(db.from('outreach').update(patch).eq('id',id).in('status',['DRAFT','APPROVED']).select().single());
+ if(action==='SAVE'&&patch.content===undefined)return json({error:'Contenu de brouillon invalide'},400);
+ // A message not in an allowed status matches nothing (0 rows -> the same generic error as any not-found/wrong-tenant
+ // case); USED/DISCARDED terminality and the APPROVED text lock are enforced again by the database (migrations 007, 027).
+ const changed=await checked(db.from('outreach').update(patch).eq('id',id).in('status',allowedFrom(action)).select().single());
  // Signal Engine S8: a message marked used freezes why the prospect was contacted (best-effort).
- if(body.status==='USED'&&changed?.prospect_id)await recordContactSnapshot(db,changed.prospect_id,changed.id,'outreach_used');
+ if(action==='USED'&&changed?.prospect_id)await recordContactSnapshot(db,changed.prospect_id,changed.id,'outreach_used');
  return json(changed);
  }
  if(resource==='events'&&request.method==='GET'){const pid=new URL(request.url).searchParams.get('prospect_id');return json(await checked(db.from('events').select('*').eq('prospect_id',pid??'').order('created_at',{ascending:false}).limit(100)))}

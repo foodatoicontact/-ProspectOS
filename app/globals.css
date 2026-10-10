@@ -476,3 +476,11 @@ button,.button{transition:background-color .18s ease,border-color .18s ease,colo
 .feedback-table h4{font-size:12px;margin:8px 0 4px}
 .feedback-table table{width:100%;border-collapse:collapse;font-size:11px}
 .feedback-table th,.feedback-table td{text-align:left;padding:4px 6px;border-bottom:1px solid #eef0e9;white-space:nowrap}
+/* O1/O2 — angle, style, public content: collapsed by default (progressive disclosure). */
+.detail-layout .public-content-panel{order:7}
+.public-content-panel,.outreach-style,.outreach-angle{margin-top:14px;font-size:11px}
+.public-content-panel>summary,.outreach-style>summary,.outreach-angle>summary{cursor:pointer;font-weight:600}
+.public-content-item{border-bottom:1px solid var(--line);padding:8px 0}
+.public-content-item blockquote{margin:6px 0;padding-left:10px;border-left:3px solid #dfe7d4;white-space:pre-wrap;overflow-wrap:anywhere}
+.public-content-item .pill{margin-right:6px}
+.style-form label,.public-content-form label{margin:10px 0}

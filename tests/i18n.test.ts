@@ -236,7 +236,8 @@ test('16 — src/server/entitlement.ts (the sole access gate) is byte-for-byte u
 });
 test('16 — the outreach route still calls requireActiveEntitlement before generating a draft, and only additionally reads body.locale for template selection',async()=>{
  const source=await readFile(new URL('../app/api/v1/[...path]/route.ts',import.meta.url),'utf8');
- const outreachBlock=source.match(/if\(resource==='outreach'&&request\.method==='POST'\)\{[\s\S]*?generateOutreach\(p\.name,project\.offer,projectCriteria\(project\.icps\),p\.evidence,undefined,draftLocale\);/);
+ // O1/O2: the template is now reached through composeRuleBased (src/outreach/compose.ts → generateOutreach), same locale.
+ const outreachBlock=source.match(/if\(resource==='outreach'&&request\.method==='POST'\)\{[\s\S]*?composeRuleBased\(\{name:p\.name,offer:project\.offer,criteria:projectCriteria\(project\.icps\),evidence:p\.evidence,[^\n]*locale:draftLocale,/);
  assert.ok(outreachBlock,'outreach POST block not found');
  assert.match(outreachBlock[0],/requireActiveEntitlement\(db,user\.id\);/);
  // Updated for round-2 patch C: the comparison is now case-insensitive/crash-safe (see tests C/6/7),
@@ -371,9 +372,11 @@ test('9 — a locale that isn\'t exactly \'en\' (defaulting via the route.ts nor
 });
 test('10 — the outreach lifecycle literals (DRAFT/USED/status PATCH body) are untouched by the round-2 patch — route.ts diff for this bloc never touches anything beyond the draftLocale line',async()=>{
  const source=await readFile(new URL('../app/api/v1/[...path]/route.ts',import.meta.url),'utf8');
- const outreachBlock=source.match(/if\(resource==='outreach'&&request\.method==='POST'\)\{[\s\S]*?generateOutreach\(p\.name,project\.offer,projectCriteria\(project\.icps\),p\.evidence,undefined,draftLocale\);[\s\S]*?\n \}/);
+ const outreachBlock=source.match(/if\(resource==='outreach'&&request\.method==='POST'\)\{[\s\S]*?composeRuleBased\(\{name:p\.name,[\s\S]*?\n \}/);
  assert.ok(outreachBlock,'outreach POST block not found');
  assert.match(outreachBlock[0],/status:'DISCARDED'/);
- assert.match(outreachBlock[0],/provider:'rule_based_v1'/);
+ // O1/O2: the provider is the composer's own, always 'rule_based_v1' for the rule-based composer.
+ assert.match(outreachBlock[0],/provider:composed\.provider/);
+ assert.match(await readFile(new URL('../src/outreach/compose.ts',import.meta.url),'utf8'),/provider:'rule_based_v1'/);
  assert.match(outreachBlock[0],/insertError\.code==='23505'/);
 });

@@ -55,7 +55,7 @@ test('statuses: RDV between Intéressé and Gagné; scoring core untouched; rout
  assert.match(m,/check \(status in \('À analyser','Qualifié','À contacter','Contacté','Réponse','Intéressé','RDV','Gagné','Perdu','Ignoré'\)\)/);
  const route=await readFile(new URL('../app/api/v1/[...path]/route.ts',import.meta.url),'utf8');
  assert.match(route,/if\(body\.status==='Contacté'\)await recordContactSnapshot\(db,id,null,'status_contacted'\)/);
- assert.match(route,/if\(body\.status==='USED'&&changed\?\.prospect_id\)await recordContactSnapshot\(db,changed\.prospect_id,changed\.id,'outreach_used'\)/);
+ assert.match(route,/if\(action==='USED'&&changed\?\.prospect_id\)await recordContactSnapshot\(db,changed\.prospect_id,changed\.id,'outreach_used'\)/);
  const ctx=await readFile(new URL('../src/signals/context.ts',import.meta.url),'utf8');
  assert.match(ctx,/\}catch\{return false\}/,'a snapshot failure never blocks the action');
  const page=await readFile(new URL('../app/page.tsx',import.meta.url),'utf8');

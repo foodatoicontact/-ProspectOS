@@ -23,7 +23,7 @@ import {en} from '../src/i18n/en.ts';
 type Raw=Record<string,any>;
 const AURA=resolveRegistryZone('Auvergne-Rhône-Alpes')!;
 const page=(n:number):Raw=>JSON.parse(readFileSync(new URL(`./fixtures/registry/vigil-section-c-aura-200-1999-page-${n}.json`,import.meta.url),'utf8'));
-const VIGIL={project_id:'p',query:'industriel',location:'Auvergne-Rhône-Alpes',categories:['industriel','agroalimentaire'],max_results:20,optional_filters:{provider:'registry' as const,employee_range:{min:200,max:2000}}};
+const VIGIL={project_id:'p',query:'industriel',location:'Auvergne-Rhône-Alpes',categories:['industriel'],max_results:20,optional_filters:{provider:'registry' as const,employee_range:{min:200,max:2000}}};
 const empty={results:[],total_results:0,page:1,per_page:25,total_pages:0};
 
 test('API — the register is a provider of its own: explicit id, never a fallback to or from Brave',()=>{
@@ -96,10 +96,12 @@ test('F — a register entry that is not publicly diffusible is never a candidat
 test('J/K — a failing register: total failure is explicit (REGISTRY_UNAVAILABLE), partial failure keeps what was obtained',async()=>{
  assert.equal(diagnoseDiscoveryFailure('provider_search',Error('REGISTRY_UNAVAILABLE')).cause,'REGISTRY_UNAVAILABLE');
  const replay=(url:URL)=>url.searchParams.get('section_activite_principale')==='C'?(Number(url.searchParams.get('page'))<=2?{...page(Number(url.searchParams.get('page'))),total_pages:2}:empty):empty;
- // the agri-food group fails on its own (e.g. a parameter the API refuses): the industry group is kept
- const p=new RegistryProvider({fetch:(async(u:string|URL)=>{const url=new URL(String(u));return url.searchParams.has('activite_principale')?new Response('',{status:400}):Response.json(replay(url))}) as unknown as typeof fetch,wait:async()=>{}});
- assert.equal((await p.searchCompanies(DiscoveryInputSchema.parse(VIGIL))).length,19);
- assert.deepEqual(p.lastSearch!.failure_codes,['HTTP_400']);assert.deepEqual(p.lastAdmission!.failed_groups,['agroalimentaire']);
+ // page 1 answered, page 2 refused (e.g. a parameter the API refuses): what page 1 gave is kept, the group is reported failed
+ const firstPageOnly=await new RegistryProvider({fetch:(async(u:string|URL)=>Response.json(replay(new URL(String(u))))) as unknown as typeof fetch,wait:async()=>{},maxPagesPerGroup:1}).searchCompanies(DiscoveryInputSchema.parse(VIGIL));
+ const p=new RegistryProvider({fetch:(async(u:string|URL)=>{const url=new URL(String(u));return url.searchParams.get('page')==='2'?new Response('',{status:400}):Response.json(replay(url))}) as unknown as typeof fetch,wait:async()=>{}});
+ const kept=await p.searchCompanies(DiscoveryInputSchema.parse(VIGIL));
+ assert.ok(firstPageOnly.length>0&&firstPageOnly.length<19);assert.equal(kept.length,firstPageOnly.length);
+ assert.deepEqual(p.lastSearch!.failure_codes,['HTTP_400']);assert.deepEqual(p.lastAdmission!.failed_groups,['industriel']);
 });
 
 class Repo implements DiscoveryRepository {
@@ -119,7 +121,7 @@ test('J — through the pipeline: a register down fails the run explicitly, with
  const p=new RegistryProvider({fetch:(async()=>new Response('',{status:503})) as unknown as typeof fetch,wait:async()=>{}});
  await assert.rejects(new DiscoveryService(repo,p,e=>logs.push(e)).find_prospects(VIGIL),/DISCOVERY_FAILED/);
  assert.equal(repo.provider,'registry');
- assert.equal(repo.finished[0]!.error,'DISCOVERY_FAILED');assert.equal(repo.finished[0]!.metrics.search_failure_codes,'HTTP_503,HTTP_503');
+ assert.equal(repo.finished[0]!.error,'DISCOVERY_FAILED');assert.equal(repo.finished[0]!.metrics.search_failure_codes,'HTTP_503');
  assert.ok(logs.some(l=>l.cause==='REGISTRY_UNAVAILABLE'));
 });
 
@@ -157,7 +159,7 @@ test('bounds — a register request that hangs is aborted by its own timeout; th
  // AbortSignal.timeout's timer does not keep Node's event loop alive on its own (a server does): hold it open here.
  const keepAlive=setInterval(()=>{},50);
  try{await assert.rejects(p.searchCompanies(DiscoveryInputSchema.parse(VIGIL)),/REGISTRY_UNAVAILABLE/)}finally{clearInterval(keepAlive)}
- assert.deepEqual(p.lastSearch!.failure_codes,['TIMEOUT','TIMEOUT']);
+ assert.deepEqual(p.lastSearch!.failure_codes,['TIMEOUT']);
  assert.ok(seen.every(i=>i.redirect==='error'),'redirects are refused, like Brave');
 });
 
@@ -165,7 +167,7 @@ test('bounds — an oversized register response is refused, never parsed',async(
  const huge=JSON.stringify({results:[],total_pages:1,pad:'x'.repeat(2_100_000)});
  const p=new RegistryProvider({wait:async()=>{},fetch:(async()=>new Response(huge,{status:200,headers:{'content-type':'application/json'}})) as unknown as typeof fetch});
  await assert.rejects(p.searchCompanies(DiscoveryInputSchema.parse(VIGIL)),/REGISTRY_UNAVAILABLE/);
- assert.deepEqual(p.lastSearch!.failure_codes,['RESPONSE_TOO_LARGE','RESPONSE_TOO_LARGE']);
+ assert.deepEqual(p.lastSearch!.failure_codes,['RESPONSE_TOO_LARGE']);
 });
 
 test('bounds — pagination stops at the run time budget, keeping what was found (well under the 60 s route limit)',async()=>{
@@ -194,12 +196,12 @@ test('429 — the first refused request is retried ONCE after the API’s Retry-
  assert.deepEqual(p.lastAdmission!.failed_groups,[]);assert.ok(waits.includes(1000),'waits what Retry-After asks');
 });
 
-test('429 — never more than one retry: a second 429 fails the group alone, with its code and its name',async()=>{
+test('429 — never more than one retry: a second 429 fails the group, with its code and its name; what was found is kept',async()=>{
  const sent:URL[]=[];
  const p=new RegistryProvider({wait:async()=>{},fetch:(async(u:string|URL)=>{const url=new URL(String(u));sent.push(url);
-  return url.searchParams.get('section_activite_principale')==='C'?limited():Response.json(empty)}) as unknown as typeof fetch});
- await p.searchCompanies(DiscoveryInputSchema.parse(VIGIL));
- assert.equal(sent.filter(u=>u.searchParams.get('section_activite_principale')==='C').length,2,'one request, one retry, no third');
+  return url.searchParams.get('page')==='2'?limited():Response.json(vigilPages(url))}) as unknown as typeof fetch});
+ assert.ok((await p.searchCompanies(DiscoveryInputSchema.parse(VIGIL))).length>0,'page 1 is kept');
+ assert.equal(sent.filter(u=>u.searchParams.get('page')==='2').length,2,'one request, one retry, no third');
  assert.deepEqual(p.lastSearch!.failure_codes,['HTTP_429']);assert.equal(p.lastSearch!.requests_retried,1);
  assert.deepEqual(p.lastAdmission!.failed_groups,['industriel']);assert.deepEqual(p.lastSearch!.failed_groups,['industriel']);
 });
@@ -229,13 +231,13 @@ test('429 — no retry once it would overrun the run time budget; other errors a
 test('429 — every group still refused after its retry: the run fails explicitly (REGISTRY_UNAVAILABLE)',async()=>{
  const p=new RegistryProvider({wait:async()=>{},fetch:(async()=>limited()) as unknown as typeof fetch});
  await assert.rejects(p.searchCompanies(DiscoveryInputSchema.parse(VIGIL)),/REGISTRY_UNAVAILABLE/);
- assert.equal(p.lastSearch!.requests_sent,4);assert.deepEqual(p.lastSearch!.failure_codes,['HTTP_429','HTTP_429']);
+ assert.equal(p.lastSearch!.requests_sent,2);assert.deepEqual(p.lastSearch!.failure_codes,['HTTP_429']);
 });
 
 test('partial — a group that failed is kept in the run metrics, then shown with the results (never hidden)',async()=>{
  const repo=new Repo();
  const p=new RegistryProvider({wait:async()=>{},fetch:(async(u:string|URL)=>{const url=new URL(String(u));
-  return url.searchParams.get('section_activite_principale')==='C'?limited():Response.json(empty)}) as unknown as typeof fetch});
+  return url.searchParams.get('page')==='2'?limited():Response.json(vigilPages(url))}) as unknown as typeof fetch});
  await new DiscoveryService(repo,p,()=>{}).find_prospects(VIGIL);
  const metrics=repo.finished[0]!.metrics;
  assert.equal(metrics.search_failed_groups,'industriel');assert.equal(metrics.search_requests_retried,1);assert.equal(metrics.search_requests_failed,1);

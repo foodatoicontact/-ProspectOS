@@ -49,7 +49,16 @@ export function nothingAnswered(report:ProviderSearchReport|undefined):boolean{
 function searchMetrics(report:ProviderSearchReport|undefined):Record<string,string|number|null>{
  return report?{search_queries_planned:report.queries_planned,search_requests:report.requests_sent,search_requests_failed:report.requests_failed,search_failure_codes:report.failure_codes.join(',')||null,search_country:report.country,search_country_reason:report.country_reason,
   ...(report.requests_retried?{search_requests_retried:report.requests_retried}:{}),...(report.failed_groups?.length?{search_failed_groups:report.failed_groups.join(',')}:{}),
+  ...(report.registry?registryMetrics(report.registry):{}),
   ...(report.reused_from?{reused_from_run_id:report.reused_from.run_id,reused_from_email:report.reused_from.by_email,reused_from_started_at:report.reused_from.started_at}:{})}:{};
+}
+// Register runs: what the next canary must show without reconstruction (requested vs queried NAF groups, scope,
+// examined / admitted / rejected by reason / duplicates). Keys and counts only.
+function registryMetrics(r:NonNullable<ProviderSearchReport['registry']>):Record<string,string|number|null>{
+ const reasons=Object.entries(r.rejected).filter(([,n])=>(n??0)>0).sort(([a],[b])=>a.localeCompare(b));
+ return {registry_groups_requested:r.groups_requested.join(',')||null,registry_groups_kept:r.groups_kept.join(',')||null,registry_groups_narrowed:r.narrowed.map(n=>`${n.key}>${n.into.join('+')}`).join(',')||null,
+  registry_naf_scope:r.naf_scope.join(',')||null,registry_naf_code_count:r.naf_code_count,registry_examined:r.examined,registry_admitted:r.admitted,
+  registry_rejected:reasons.reduce((n,[,c])=>n+(c??0),0),registry_rejected_reasons:reasons.map(([k,c])=>`${k}:${c}`).join(',')||null,registry_duplicates:r.duplicates};
 }
 // Search-Until-New run metrics: counts, durations and the stop reason only — never a query (like searchMetrics).
 // new_results_found: exploitable candidates finally kept and classified NEW (the run's own new_results);

@@ -1,12 +1,22 @@
-# Applies the O1/O2 migrations 027 then 028 to the STAGING Supabase project (-ProspectOS-staging, ggilyurgopsjrpnvxovl)
-# and nothing else. Manual only (workflow_dispatch): no push, pull request or schedule trigger. The job runs in the
-# GitHub Environment "prospectos-staging" (add required reviewers there to get an approval step), the only place the
-# SUPABASE_STAGING_DB_URL secret lives. All the guards (staging ref, never the production ref, reviewed file MD5s,
-# stop on the first error, verification before recording) are in scripts/staging-migrate.sh; this file only wires it.
-name: Staging migrations (O1/O2 027-028)
+# Generic STAGING migration tool for ProspectOS (-ProspectOS-staging, ggilyurgopsjrpnvxovl): applies, in order, the
+# db/migrations/*.sql of the chosen ref that staging has not recorded yet. Permanent infrastructure: a new migration
+# needs no change here or in scripts/staging-migrate.sh. Manual only (workflow_dispatch). The job runs in the GitHub
+# Environment "prospectos-staging" (required reviewers there = an approval step), the only place the
+# SUPABASE_STAGING_DB_URL secret lives. The migrations come from `ref`, pinned to `expected_sha` (the commit reviewed),
+# while the runner (scripts/staging-migrate.sh, all database guards) comes from this workflow's own commit, so a
+# branch cannot bring its own runner.
+name: Staging migrations
 on:
   workflow_dispatch:
     inputs:
+      ref:
+        description: 'Branch holding the migrations to apply (e.g. feat/outreach-intelligence)'
+        required: true
+        type: string
+      expected_sha:
+        description: 'Full 40-character commit SHA of that branch, as reviewed'
+        required: true
+        type: string
       confirm_project_ref:
         description: 'Type the STAGING project ref to confirm (ggilyurgopsjrpnvxovl)'
         required: true
@@ -20,19 +30,36 @@ jobs:
   migrate-staging:
     if: github.repository == 'foodatoicontact/-ProspectOS'
     runs-on: ubuntu-24.04
-    timeout-minutes: 10
+    timeout-minutes: 15
     environment: prospectos-staging
     steps:
-      - name: Checkout (read only, no persisted credentials)
+      - name: Validate inputs (before anything is fetched)
+        env:
+          INPUT_REF: ${{ inputs.ref }}
+          INPUT_SHA: ${{ inputs.expected_sha }}
+        run: |
+          [[ "$INPUT_REF" =~ ^[A-Za-z0-9][A-Za-z0-9._/-]{0,199}$ && "$INPUT_REF" != *..* && "$INPUT_REF" != *//* ]] || { echo "invalid ref"; exit 1; }
+          [[ "$INPUT_SHA" =~ ^[0-9a-f]{40}$ ]] || { echo "expected_sha must be a full 40-character lowercase commit SHA"; exit 1; }
+      - name: Checkout the runner (this workflow's own commit)
         uses: actions/checkout@v4
         with:
+          path: tool
+          persist-credentials: false
+      - name: Checkout the migrations of the selected ref (read only, no persisted credentials)
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
+          path: target
+          fetch-depth: 1
           persist-credentials: false
       - name: PostgreSQL client
         run: psql --version || (sudo apt-get update -qq && sudo apt-get install -y -qq postgresql-client)
-      - name: Apply 027 then 028 to staging (guarded)
+      - name: Apply pending migrations to staging (guarded)
         env:
           SUPABASE_STAGING_DB_URL: ${{ secrets.SUPABASE_STAGING_DB_URL }}
           CONFIRM_PROJECT_REF: ${{ inputs.confirm_project_ref }}
+          EXPECTED_SHA: ${{ inputs.expected_sha }}
+          STAGING_MIGRATE_TARGET: target
         run: |
           echo "::add-mask::$SUPABASE_STAGING_DB_URL"
-          bash scripts/staging-migrate.sh
+          bash tool/scripts/staging-migrate.sh

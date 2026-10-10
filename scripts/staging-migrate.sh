@@ -1,26 +1,36 @@
 #!/usr/bin/env bash
-# Applies the O1/O2 migrations (027, then 028) to the STAGING Supabase database only. Run by
-# .github/workflows/staging-migrations.yml (manual workflow_dispatch, GitHub Environment "prospectos-staging").
+# Generic STAGING migration runner for ProspectOS (permanent infrastructure, called by
+# .github/workflows/staging-migrations.yml). It never needs editing for a new migration: it applies, in order, every
+# db/migrations/NNN_name.sql of the target checkout ($STAGING_MIGRATE_TARGET, default: this repository) that the staging history (supabase_migrations.schema_migrations,
+# matched by name) does not record yet.
 #
-# Guards, all before any connection:
-#  - CONFIRM_PROJECT_REF must be exactly the staging ref;
-#  - SUPABASE_STAGING_DB_URL must point at the staging project (direct host db.<ref>.supabase.co, or the Supabase
-#    pooler with user postgres.<ref>), must never mention the production ref, and may not override the host
-#    through query parameters;
-#  - each migration file must have the MD5 validated in review (no other SQL is ever run).
-# Then, per migration, in order: skipped if already recorded in supabase_migrations.schema_migrations; otherwise
-# run with ON_ERROR_STOP (the file's own begin/commit: all or nothing), verified (objects, RLS, functions, limits),
-# and only then recorded. Any error stops everything immediately. The connection string is never printed.
+# Guards, all before any connection — refused unless:
+#  - CONFIRM_PROJECT_REF is exactly the staging ref;
+#  - SUPABASE_STAGING_DB_URL is a plain postgresql:// URL to the staging host (db.<ref>.supabase.co) or to the Supabase
+#    pooler with user postgres.<ref>; it never mentions the production ref; its only query parameter is sslmode, which
+#    is mandatory (require / verify-*) on GitHub runners;
+#  - on GitHub runners, EXPECTED_SHA is set and equals the checked-out commit (when set elsewhere, it must match too).
+# Planning (read only), fail closed: a recorded NNN_* name with no file in this commit (other ref than the one applied
+# to staging), a file whose number is below the highest recorded one (out of order), two files with one number, a
+# migration this runner recorded whose file has changed since, a file outside the begin;/commit; convention or
+# containing psql meta-commands → refused, nothing applied.
+# Applying: ONE psql session for the whole run. It first takes a PostgreSQL session-level advisory lock (refused at once
+# if another run holds it; released at the end, or by the server if the session dies), then for each migration, in ONE
+# transaction: check it is still unrecorded → the file's statements (its own begin;/commit; lines removed, nothing
+# else) → its optional check file db/migrations/checks/<name>.sql → the history row with the file's exact text. Any
+# error stops the run: that migration is rolled back entirely (applied and recorded together, or not at all) and no
+# later migration is attempted. The connection string is never printed.
 set -euo pipefail
 
 STAGING_REF="ggilyurgopsjrpnvxovl"
 PRODUCTION_REF="vptqxhlxwiljfbkybqej"
+RUNNER_ID="prospectos-staging-migrate"
+LOCK_KEY="prospectos:staging-migrations"
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-MIGRATIONS=("027_outreach_intelligence" "028_outreach_ai_generation")
-declare -A EXPECTED_MD5=(
-  [027_outreach_intelligence]="1caaaf71c29cc52dbefe2422e2bf22fd"
-  [028_outreach_ai_generation]="b921ad6e79d21cd229e17abecc8482e9"
-)
+# The migrations come from the checkout of the selected ref (the runner itself from the workflow's own commit).
+TARGET="$(cd "${STAGING_MIGRATE_TARGET:-$ROOT}" && pwd)"
+MIGRATIONS_DIR="$TARGET/db/migrations"
+ON_GITHUB=0; [ "${GITHUB_ACTIONS:-}" = "true" ] && ON_GITHUB=1
 
 fail(){ echo "STAGING-MIGRATE REFUSED: $*" >&2; exit 1; }
 
@@ -32,12 +42,14 @@ case "$URL" in *"$PRODUCTION_REF"*) fail "the connection string mentions the PRO
 re='^postgres(ql)?://([^:@/?#]+)(:[^@]*)?@([^:/?#]+)(:[0-9]+)?/([A-Za-z0-9_]+)(\?(.*))?$'
 [[ "$URL" =~ $re ]] || fail "connection string is not a plain postgresql://user[:password]@host[:port]/db URL"
 DB_USER="${BASH_REMATCH[2]}"; DB_HOST="${BASH_REMATCH[4]}"; DB_QUERY="${BASH_REMATCH[8]:-}"
+SSL=""
 if [ -n "$DB_QUERY" ]; then
   IFS='&' read -ra params <<<"$DB_QUERY"
-  for p in "${params[@]}"; do case "$p" in sslmode=require|sslmode=verify-full|sslmode=verify-ca) ;; *) fail "only sslmode may be set in the query string";; esac; done
+  for p in "${params[@]}"; do case "$p" in sslmode=require|sslmode=verify-full|sslmode=verify-ca) SSL="$p";; *) fail "only sslmode may be set in the query string";; esac; done
 fi
+[ "$ON_GITHUB" = 0 ] || [ -n "$SSL" ] || fail "sslmode=require (or verify-*) is mandatory on GitHub runners"
 LOCAL_TEST=0
-if [ "${STAGING_MIGRATE_ALLOW_LOCALHOST:-}" = "1" ] && [ "${GITHUB_ACTIONS:-}" != "true" ]; then LOCAL_TEST=1; fi
+if [ "${STAGING_MIGRATE_ALLOW_LOCALHOST:-}" = "1" ] && [ "$ON_GITHUB" = 0 ]; then LOCAL_TEST=1; fi
 if [ "$DB_HOST" = "db.$STAGING_REF.supabase.co" ]; then
   [ "$DB_USER" = "postgres" ] || [ "$DB_USER" = "postgres.$STAGING_REF" ] || fail "unexpected database user for the staging host"
 elif [[ "$DB_HOST" =~ ^aws-[0-9]+-[a-z0-9-]+\.pooler\.supabase\.com$ ]]; then
@@ -47,49 +59,85 @@ elif [ "$LOCAL_TEST" = 1 ] && { [ "$DB_HOST" = "127.0.0.1" ] || [ "$DB_HOST" = "
 else
   fail "host is not the staging project"
 fi
-for m in "${MIGRATIONS[@]}"; do
-  f="$ROOT/db/migrations/$m.sql"; [ -f "$f" ] || fail "missing $m.sql"
-  actual="$(md5sum "$f" | cut -d' ' -f1)"
-  [ "$actual" = "${EXPECTED_MD5[$m]}" ] || fail "$m.sql does not have the reviewed content (md5 $actual)"
+HEAD_SHA="$(git -C "$TARGET" rev-parse HEAD 2>/dev/null || echo unknown)"
+if [ "$ON_GITHUB" = 1 ] && [ -z "${EXPECTED_SHA:-}" ]; then fail "EXPECTED_SHA is required on GitHub runners"; fi
+if [ -n "${EXPECTED_SHA:-}" ] && [ "$EXPECTED_SHA" != "$HEAD_SHA" ]; then fail "checked-out commit $HEAD_SHA is not the expected commit $EXPECTED_SHA"; fi
+
+# ——— 2. the migrations of this commit ———
+declare -a NAMES=(); declare -A FILE_OF=() NUM_SEEN=()
+for f in "$MIGRATIONS_DIR"/*.sql; do
+  [ -e "$f" ] || continue
+  n="$(basename "$f" .sql)"
+  [[ "$n" =~ ^[0-9]{3}_[a-z0-9_]+$ ]] || fail "unexpected migration file name: $n.sql"
+  num="${n:0:3}"; [ -z "${NUM_SEEN[$num]:-}" ] || fail "two migration files use number $num"
+  NUM_SEEN[$num]=1; NAMES+=("$n"); FILE_OF[$n]="$f"
+  if [ -f "$MIGRATIONS_DIR/checks/$n.sql" ] && grep -qE '^\s*\\' "$MIGRATIONS_DIR/checks/$n.sql"; then fail "checks/$n.sql contains psql meta-commands"; fi
 done
-echo "Guards passed: staging project $STAGING_REF, reviewed files 027 and 028."
+# db/schema.sql is the baseline, recorded on Supabase as 001_schema; it is never applied by this runner.
+BASELINE="001_schema"
+echo "Guards passed: staging project $STAGING_REF, commit $HEAD_SHA, ${#NAMES[@]} migration files."
 if [ "${STAGING_MIGRATE_GUARD_ONLY:-}" = "1" ]; then echo "Guard-only mode: no connection made."; exit 0; fi
 
-# ——— 2. migrations ———
-export PGCONNECT_TIMEOUT=15 PGAPPNAME="prospectos-staging-migrate" PGOPTIONS="-c client_min_messages=warning"
+export PGCONNECT_TIMEOUT=15 PGAPPNAME="$RUNNER_ID" PGOPTIONS="-c client_min_messages=warning"
 PSQL=(psql "$URL" -X -q -v ON_ERROR_STOP=1)
-recorded(){ "${PSQL[@]}" -tA -c "select count(*) from supabase_migrations.schema_migrations where name='$1'"; }
-verify_027(){ "${PSQL[@]}" -c "do \$v\$ begin
- if to_regclass('public.outreach_style_profiles') is null or to_regclass('public.prospect_public_content') is null then raise exception 'verify 027: tables missing'; end if;
- if (select count(*) from pg_class where oid in ('public.outreach_style_profiles'::regclass,'public.prospect_public_content'::regclass) and relrowsecurity)<>2 then raise exception 'verify 027: RLS not enabled'; end if;
- if (select count(*) from pg_policies where (tablename,policyname) in (('outreach_style_profiles','outreach_style_profiles_read'),('prospect_public_content','prospect_public_content_read')))<>2 then raise exception 'verify 027: policies missing'; end if;
- if (select count(*) from information_schema.columns where table_schema='public' and table_name='outreach' and column_name in ('generated_content','angle','public_content_ids','style_profile_id','created_by','last_edited_by','last_edited_at'))<>7 then raise exception 'verify 027: outreach columns missing'; end if;
- if (select count(*) from pg_proc p join pg_namespace n on n.oid=p.pronamespace where (n.nspname,p.proname) in (('public','save_outreach_style_profile'),('public','save_public_content'),('public','review_public_content'),('public','pin_public_content'),('public','delete_public_content'),('prospectos_private','guard_outreach_intelligence'),('prospectos_private','guard_public_content')))<>7 then raise exception 'verify 027: functions missing'; end if;
- if (select count(*) from pg_trigger where tgname in ('outreach_intelligence_guard','public_content_guard') and not tgisinternal)<>2 then raise exception 'verify 027: triggers missing'; end if;
-end \$v\$;"; }
-verify_028(){ "${PSQL[@]}" -c "do \$v\$ begin
- if to_regclass('prospectos_private.ai_outreach_limits') is null or to_regclass('prospectos_private.ai_outreach_usage') is null then raise exception 'verify 028: tables missing'; end if;
- if (select string_agg(plan||'='||period_limit||'/'||per_hour,',' order by plan) from prospectos_private.ai_outreach_limits)
-    <>'BETA=25/10,ENTERPRISE=3000/60,INTERNAL=10000/120,PAID=150/20,PRO=500/30,TEAM=1000/30' then raise exception 'verify 028: limits differ from the validated values'; end if;
- if (select count(*) from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and p.proname in ('reserve_ai_outreach','finish_ai_outreach'))<>2 then raise exception 'verify 028: functions missing'; end if;
- if pg_get_constraintdef((select oid from pg_constraint where conname='api_usage_events_operation_check')) not like '%outreach_generation%' then raise exception 'verify 028: cost operation missing'; end if;
- if position('ai_outreach_used' in (select prosrc from pg_proc where proname='get_commercial_usage'))=0 then raise exception 'verify 028: get_commercial_usage not extended'; end if;
-end \$v\$;"; }
-version_base="$(date -u +%s)"
-i=0
-for m in "${MIGRATIONS[@]}"; do
-  if [ "$(recorded "$m")" != "0" ]; then echo "$m: already recorded, skipped."; "verify_${m%%_*}"; i=$((i+1)); continue; fi
-  if [ "$m" = "028_outreach_ai_generation" ] && [ "$(recorded 027_outreach_intelligence)" = "0" ]; then fail "028 needs 027 recorded first"; fi
-  echo "$m: applying…"
-  "${PSQL[@]}" -f "$ROOT/db/migrations/$m.sql"
-  "verify_${m%%_*}"
-  version="$(date -u -d "@$((version_base + i))" +%Y%m%d%H%M%S)"
-  # psql variables (quoted by psql itself) are only interpolated in script input, hence stdin.
-  # The file is recorded byte for byte ($(...) would drop its final newline: a sentinel keeps it).
-  body="$(cat "$ROOT/db/migrations/$m.sql"; printf x)"; body="${body%x}"
-  echo "insert into supabase_migrations.schema_migrations(version,name,statements) values(:'version',:'name',array[:'body']);" \
-    | "${PSQL[@]}" -v version="$version" -v name="$m" -v body="$body" -f -
-  echo "$m: applied, verified and recorded (version $version)."
-  i=$((i+1))
+
+# ——— 3. plan (read only), fail closed ———
+HISTORY="$("${PSQL[@]}" -tA -F $'\t' -c "select name, coalesce(created_by,''), coalesce(md5(statements[1]),'') from supabase_migrations.schema_migrations where name ~ '^[0-9]{3}_' order by name")"
+declare -A RECORDED=() RECORDED_MD5=() RECORDED_BY=()
+max_recorded=0
+while IFS=$'\t' read -r name by md5; do
+  [ -n "$name" ] || continue
+  RECORDED[$name]=1; RECORDED_BY[$name]="$by"; RECORDED_MD5[$name]="$md5"
+  if [ "$name" != "$BASELINE" ] && [ -z "${FILE_OF[$name]:-}" ]; then fail "staging records $name, which this commit does not contain (wrong ref?)"; fi
+  n=$((10#${name:0:3})); [ "$n" -gt "$max_recorded" ] && max_recorded=$n
+done <<<"$HISTORY"
+[ -n "${RECORDED[$BASELINE]:-}" ] || fail "the baseline $BASELINE is not recorded on this database"
+declare -a PENDING=()
+for n in "${NAMES[@]}"; do
+  if [ -n "${RECORDED[$n]:-}" ]; then
+    if [ "${RECORDED_BY[$n]}" = "$RUNNER_ID" ] && [ "${RECORDED_MD5[$n]}" != "$(md5sum "${FILE_OF[$n]}" | cut -d' ' -f1)" ]; then
+      fail "$n.sql changed after this runner applied it"
+    fi
+    continue
+  fi
+  [ $((10#${n:0:3})) -gt "$max_recorded" ] || fail "$n is older than the newest recorded migration (out of order)"
+  PENDING+=("$n")
 done
-echo "Done: 027 and 028 are applied and recorded on the staging project."
+if [ "${#PENDING[@]}" = 0 ]; then echo "Nothing to apply: every migration of commit $HEAD_SHA is recorded on staging."; exit 0; fi
+echo "Plan (commit $HEAD_SHA):"; for n in "${PENDING[@]}"; do echo "  $n  md5 $(md5sum "${FILE_OF[$n]}" | cut -d' ' -f1)"; done
+
+# ——— 4. one session: lock, then each migration in its own all-or-nothing transaction ———
+WORK="$(mktemp -d)"; chmod 700 "$WORK"; trap 'rm -rf "$WORK"' EXIT
+DRIVER="$WORK/driver.sql"; VARS=()
+{
+  echo "do \$lock\$ begin if not pg_try_advisory_lock(hashtextextended('$LOCK_KEY',0)) then raise exception 'STAGING-MIGRATE LOCKED: another staging migration run holds the lock'; end if; end \$lock\$;"
+  i=0
+  for n in "${PENDING[@]}"; do
+    f="${FILE_OF[$n]}"
+    grep -qE '^\s*\\' "$f" && fail "$n.sql contains psql meta-commands"
+    b=$(grep -cx 'begin;' "$f" || true); c=$(grep -cx 'commit;' "$f" || true)
+    # awk reads the whole file: piping into an early-exiting reader could die of SIGPIPE under pipefail.
+    first=$(awk '!/^[[:space:]]*(--.*)?$/{print; exit}' "$f"); last=$(awk '!/^[[:space:]]*(--.*)?$/{l=$0} END{print l}' "$f")
+    if [ "$b" = 1 ] && [ "$c" = 1 ] && [ "$first" = "begin;" ] && [ "$last" = "commit;" ]; then
+      grep -vx -e 'begin;' -e 'commit;' "$f" > "$WORK/body_$i.sql"
+    elif [ "$b" = 0 ] && [ "$c" = 0 ]; then
+      cp "$f" "$WORK/body_$i.sql"
+    else
+      fail "$n.sql: transaction lines must be exactly one leading begin; and one trailing commit; (or none)"
+    fi
+    text="$(cat "$f"; printf x)"; VARS+=(-v "file_$i=${text%x}")
+    echo "begin;"
+    echo "do \$chk\$ begin if exists(select 1 from supabase_migrations.schema_migrations where name='$n') then raise exception 'STAGING-MIGRATE: $n is already recorded'; end if; end \$chk\$;"
+    echo "\\ir body_$i.sql"
+    if [ -f "$MIGRATIONS_DIR/checks/$n.sql" ]; then cp "$MIGRATIONS_DIR/checks/$n.sql" "$WORK/check_$i.sql"; echo "\\ir check_$i.sql"; fi
+    echo "insert into supabase_migrations.schema_migrations(version,name,statements,created_by)"
+    echo " select greatest(to_char(clock_timestamp() at time zone 'utc','YYYYMMDDHH24MISS')::numeric, coalesce(max(version::numeric) filter (where version ~ '^[0-9]{14}\$'),0)+1)::text,"
+    echo "  '$n', array[:'file_$i'], '$RUNNER_ID' from supabase_migrations.schema_migrations;"
+    echo "commit;"
+    echo "\\echo '$n: applied, checked and recorded.'"
+    i=$((i+1))
+  done
+  echo "select pg_advisory_unlock(hashtextextended('$LOCK_KEY',0)) as unlocked \\gset"
+} > "$DRIVER"
+"${PSQL[@]}" "${VARS[@]}" -f "$DRIVER"
+echo "Done: ${#PENDING[@]} migration(s) applied and recorded on the staging project."

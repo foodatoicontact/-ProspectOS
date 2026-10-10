@@ -23,6 +23,7 @@
     "test:outreach-intelligence-db": "node tests/outreach-intelligence-db.mjs",
     "test:outreach-ai-db": "node tests/outreach-ai-db.mjs",
     "test:outreach-ai-quota-db": "node tests/outreach-ai-quota-db.mjs",
+    "test:staging-migrate-realpg": "bash tests/staging-migrate-realpg.sh",
     "test:team-pool-concurrency-realpg": "bash tests/team-pool-concurrency-realpg.sh",
     "test:discovery-trust-db": "node tests/discovery-trust-boundary-db.mjs",
     "test:ai-quota-db": "node tests/ai-quota-db.mjs",

@@ -32,11 +32,11 @@ export const MAX_STYLE_EXAMPLES=5;
 export type StyleExampleRow={id:string;created_by:string|null;generated_content:string|null;content:string;created_at:string;prospect_name?:string|null};
 export type StyleExample={id:string;generated:string;edited:string;prospect_name:string|null};
 const escape=(s:string)=>s.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
-// What an example may teach is the transformation, not its content: the old prospect's name, quoted passages and
-// links are masked so no fact about another company can travel into a new message.
+// What an example may teach is the transformation, not its content: the old prospect's name, quoted passages,
+// links and figures are masked so no fact about another company can travel into a new message.
 function mask(text:string,name:string|null|undefined){
  let t=text;if(name&&name.trim().length>=2)t=t.replace(new RegExp(escape(name.trim()),'gi'),'{entreprise}');
- return t.replace(/«[^»]*»/g,'« … »').replace(/“[^”]*”/g,'“…”').replace(/https?:\/\/\S+/g,'{lien}');
+ return t.replace(/«[^»]*»/g,'« … »').replace(/“[^”]*”/g,'“…”').replace(/https?:\/\/\S+/g,'{lien}').replace(/\d+/g,'#');
 }
 // The user's own messages (created_by = the user) that a person really edited, newest first, at most 5.
 export function pickStyleExamples(rows:StyleExampleRow[],userId:string,max=MAX_STYLE_EXAMPLES):StyleExample[]{

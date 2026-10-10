@@ -6,7 +6,8 @@ import type {SupabaseClient} from '@supabase/supabase-js';
 // public.resolve_provider_cost (migration 009), a SECURITY DEFINER RPC not granted to any client role —
 // only the admin/service-role client passed in here ever calls it.
 export type Provider='brave'|'anthropic'|'openai';
-export type Operation='search'|'offer_analysis';
+// outreach_generation: the AI outreach composer (migration 028), priced with the same model's per-token prices.
+export type Operation='search'|'offer_analysis'|'outreach_generation';
 export type UnitType='request'|'input_tokens_1k'|'output_tokens_1k';
 export interface UsageQuantity {unit_type:UnitType;quantity:number}
 export interface ResolvedCost {estimatedCostMicros:number;pricingVersion:string}

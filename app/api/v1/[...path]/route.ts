@@ -3,6 +3,7 @@ import {handleDiscovery} from '../../../../src/discovery/api';
 import {projectCriteria} from '../../../../src/domain/relations';
 import {authenticatedDb} from '../../../../src/server/db';
 import {analyzeOffer,AnalyzeOfferError} from '../../../../src/server/ai';
+import {composeOutreachMessage} from '../../../../src/server/ai';
 import {analyzeCompanyGuarded} from '../../../../src/server/ai-guard';
 import {checked as checkedRpc} from '../../../../src/discovery/repository';
 import {CriterionContextSchema} from '../../../../src/discovery/types';
@@ -29,6 +30,7 @@ import {DEFAULT_CRITERIA,OUTREACH_STATUSES,validateCriteria,generateOutreach,sco
 import {STATUSES} from '../../../../src/domain/statuses';
 import {handleOutreachIntelligence,PUBLIC_CONTENT_COLUMNS} from '../../../../src/outreach/api';
 import {composeRuleBased} from '../../../../src/outreach/compose';
+import {generateOutreachWithAi,type AiGenerateResult} from '../../../../src/outreach/ai-generate';
 import {styleOf} from '../../../../src/outreach/style';
 import {OUTREACH_TRANSITIONS,isOutreachAction,allowedFrom,carriesContent} from '../../../../src/outreach/workflow';
 export const runtime='nodejs';
@@ -142,6 +144,34 @@ async function handler(request:Request,context:{params:Promise<{path:string[]}>}
  const styleRow=await db.from('outreach_style_profiles').select('*').eq('organization_id',p.organization_id).limit(1).then(r=>r.error?null:(r.data??[])[0]??null,()=>null);
  const styleProfileId:string|null=styleRow?.id??null;
  const composed=composeRuleBased({name:p.name,offer:project.offer,criteria:projectCriteria(project.icps),evidence:p.evidence,signals,profile:intentProfile,publicContent,now:new Date(),locale:draftLocale,style:styleOf(styleRow)});
+ // O1/O2 — AI only when the user asks for it (body.ai === true): one attempt = one "AI outreach" unit, reserved before the
+ // provider call (reserve_ai_outreach, migration 028); its rule-based fallback is the same attempt. Nothing possible before
+ // the reservation (AI not configured, BYOK broken, no unit) → the rule-based message, 0 unit. The model gets only the
+ // angle, the verified excerpts the rule-based message relies on, the user's style profile and ≤ 5 of the user's own edits.
+ let ai:AiGenerateResult|null=null;
+ if(body.ai===true){
+  const verifiedExcerpts=(p.evidence??[]).filter((e:{id:string;status:string})=>composed.evidence_ids.includes(e.id)&&e.status==='VERIFIED').map((e:{excerpt:string})=>e.excerpt);
+  ai=await generateOutreachWithAi({composed,name:p.name,offer:project.offer,locale:draftLocale,style:styleOf(styleRow),sources:[...(composed.angle.excerpt?[composed.angle.excerpt]:[]),...verifiedExcerpts],userId:user.id},{
+   userId:user.id,
+   availability:async()=>{
+    // Same provider, model and BYOK rule as the offer analysis: BYOK only on Anthropic; a broken BYOK key never falls
+    // back to the platform key (no attempt instead).
+    const provider=process.env.AI_PROVIDER;if((provider!=='anthropic'&&provider!=='openai')||!process.env.AI_MODEL)return {ok:false,reason:'AI_NOT_CONFIGURED'};
+    if(provider==='anthropic'){const credential=await resolveProviderCredential(p.organization_id,'anthropic');if(credential.status==='INVALID')return {ok:false,reason:'BYOK_CREDENTIAL_INVALID'};if(credential.status==='VALID')return {ok:true,apiKeyOverride:credential.apiKey,billingSource:'BYOK'}}
+    return process.env.AI_API_KEY?{ok:true,apiKeyOverride:null,billingSource:'PLATFORM'}:{ok:false,reason:'AI_NOT_CONFIGURED'};
+   },
+   reserve:()=>checked(db.rpc('reserve_ai_outreach',{p_prospect_id:p.id})),
+   loadExampleRows:async()=>{
+    const rows=await checked(db.from('outreach').select('id,prospect_id,created_by,generated_content,content,created_at').eq('organization_id',p.organization_id).eq('created_by',user.id).not('generated_content','is',null).order('created_at',{ascending:false}).limit(30));
+    const ids=[...new Set((rows??[]).map((r:{prospect_id:string})=>r.prospect_id))];
+    const names=ids.length?await checked(db.from('prospects').select('id,name').in('id',ids)):[];
+    return (rows??[]).map((r:{prospect_id:string})=>({...r,prospect_name:(names??[]).find((n:{id:string})=>n.id===r.prospect_id)?.name??null}));
+   },
+   call:(req,apiKeyOverride)=>composeOutreachMessage(req,{apiKeyOverride}),
+   meter:(usage,billingSource)=>recordApiUsage({organizationId:p.organization_id,projectId:p.project_id,userId:user.id,provider:usage.provider,operation:'outreach_generation',model:usage.model,inputTokens:usage.input_tokens,outputTokens:usage.output_tokens,billingSource}),
+  });
+ }
+ const text=ai?ai.text:composed.text;
  // At most one live DRAFT per prospect: a regeneration supersedes the previous one instead of
  // leaving an ambiguous pile of undecided drafts. Already-decided rows (APPROVED/USED/DISCARDED)
  // are historical record and are never touched here. The invariant itself is enforced by a partial
@@ -149,7 +179,9 @@ async function handler(request:Request,context:{params:Promise<{path:string[]}>}
  // generations can still both reach the insert below, but only one can ever succeed.
  await checked(db.from('outreach').update({status:'DISCARDED'}).eq('prospect_id',p.id).eq('organization_id',p.organization_id).eq('status','DRAFT'));
  // generated_content keeps the generated text for good (database: immutable); content is the copy a person edits.
- const {data:row,error:insertError}=await db.from('outreach').insert({organization_id:p.organization_id,prospect_id:p.id,generated_content:composed.text,content:composed.text,angle:composed.angle,public_content_ids:composed.public_content_ids,signal_ids:composed.signal_ids,evidence_ids:composed.evidence_ids,style_profile_id:styleProfileId,provider:composed.provider}).select('id,status,created_at').single();
+ const {data:row,error:insertError}=await db.from('outreach').insert({organization_id:p.organization_id,prospect_id:p.id,generated_content:text,content:text,angle:composed.angle,public_content_ids:composed.public_content_ids,signal_ids:composed.signal_ids,evidence_ids:composed.evidence_ids,style_profile_id:styleProfileId,provider:ai?ai.provider:composed.provider}).select('id,status,created_at').single();
+ // The attempt's audit: closed once with its outcome and the message it produced (none if the insert lost a race).
+ if(ai?.usage_id)await db.rpc('finish_ai_outreach',{p_usage_id:ai.usage_id,p_outcome:ai.outcome,p_reason:ai.fallback_reason,p_outreach_id:row?.id??null}).then(()=>{},()=>{});
  if(insertError){
  // 23505 = unique_violation: a concurrent generation for the same prospect won the race and its
  // DRAFT is now the live one. This is expected under concurrency, never a raw DB exception — the
@@ -158,7 +190,7 @@ async function handler(request:Request,context:{params:Promise<{path:string[]}>}
  if(insertError.code==='23505')return json({error:'Une autre génération est en cours pour ce prospect. Réessayez.'},409);
  throw Error('DATABASE_REQUEST_FAILED');
  }
- return json({...composed,mode:draftLocale==='en'?'Factual template':'Modèle factuel',generated_at:new Date().toISOString(),id:row.id,status:row.status,created_at:row.created_at},201);
+ return json({...composed,text,provider:ai?ai.provider:composed.provider,ai:ai?{attempted:ai.attempted,outcome:ai.outcome,fallback_reason:ai.fallback_reason}:null,mode:draftLocale==='en'?'Factual template':'Modèle factuel',generated_at:new Date().toISOString(),id:row.id,status:row.status,created_at:row.created_at},201);
  }
  if(resource==='outreach'&&request.method==='GET'&&!id){
  // The prospect's live message (DRAFT or APPROVED), with both texts and the frozen angle — so it survives a reload.

@@ -163,3 +163,40 @@ export async function analyzeOffer(text:string,options?:{apiKeyOverride?:string|
  const credentialSource:'BYOK'|'PLATFORM'=usingByokKey?'BYOK':'PLATFORM';
  return {summary:result.summary.slice(0,1000),target:result.target.slice(0,1000),questions:result.questions.slice(0,5).map((v:string)=>v.slice(0,1000)),status:'PROPOSITION_À_VALIDER',usage:{provider,model,...usage},credential_source:credentialSource};
 }
+
+// O1/O2 — the AI outreach composer's provider call (src/outreach/ai-generate.ts). Same provider, model, key and BYOK rule
+// as analyzeOffer (BYOK only when the platform is configured for Anthropic). One single-turn call: no tools, no web,
+// thinking disabled, bounded tokens and time. It returns the raw text — the JSON contract and the fact guard are checked
+// by the composer, never here — and the real usage. A response that cannot be trusted (truncated, refused, no text)
+// throws AnalyzeOfferError carrying the billed usage so the caller can still meter it. Nothing is logged but a reason code.
+const OUTREACH_MAX_TOKENS=1024;
+export const OUTREACH_AI_TIMEOUT_MS=20000;
+export async function composeOutreachMessage(req:{system:string;user:string},options?:{apiKeyOverride?:string|null}):Promise<{text:string;usage:{provider:'anthropic'|'openai';model:string;input_tokens:number|null;output_tokens:number|null}}>{
+ const model=process.env.AI_MODEL,provider=process.env.AI_PROVIDER;
+ const anthropic=provider==='anthropic';if(!anthropic&&provider!=='openai')throw Error('AI_NOT_CONFIGURED');
+ const usingByokKey=anthropic&&!!options?.apiKeyOverride;
+ const key=usingByokKey?options!.apiKeyOverride!:process.env.AI_API_KEY;
+ if(!key||!model)throw Error('AI_NOT_CONFIGURED');
+ const response=await fetch(anthropic?'https://api.anthropic.com/v1/messages':'https://api.openai.com/v1/chat/completions',{
+  method:'POST',signal:AbortSignal.timeout(OUTREACH_AI_TIMEOUT_MS),
+  headers:anthropic?{'content-type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01'}:{'content-type':'application/json',Authorization:`Bearer ${key}`},
+  body:JSON.stringify(anthropic
+   ?{model,max_tokens:OUTREACH_MAX_TOKENS,system:req.system,thinking:{type:'disabled'},messages:[{role:'user',content:req.user}]}
+   :{model,max_completion_tokens:OUTREACH_MAX_TOKENS,response_format:{type:'json_object'},messages:[{role:'system',content:req.system},{role:'user',content:req.user}]})});
+ if(!response.ok)throw Error('AI_UNAVAILABLE');
+ const body=await response.json();
+ const usage=anthropic
+  ?{provider:'anthropic' as const,model,input_tokens:toReliableTokenCount(body.usage?.input_tokens),output_tokens:toReliableTokenCount(body.usage?.output_tokens)}
+  :{provider:'openai' as const,model,input_tokens:toReliableTokenCount(body.usage?.prompt_tokens),output_tokens:toReliableTokenCount(body.usage?.completion_tokens)};
+ const billed=usage.input_tokens!==null&&usage.output_tokens!==null?{provider:usage.provider,model,input_tokens:usage.input_tokens,output_tokens:usage.output_tokens,credential_source:usingByokKey?'BYOK' as const:'PLATFORM' as const}:null;
+ let text:string;
+ if(anthropic){
+  if(body.stop_reason!=='end_turn'){console.error(JSON.stringify({component:'composeOutreachMessage',provider:'anthropic',reason:body.stop_reason==='max_tokens'?'TRUNCATED_MAX_TOKENS':'INVALID_STOP_REASON'}));throw new AnalyzeOfferError('AI_INVALID_RESULT',billed)}
+  text=Array.isArray(body.content)?body.content.filter((v:{type?:string})=>v?.type==='text').map((v:{text?:unknown})=>typeof v.text==='string'?v.text:'').join('').trim():'';
+ }else{
+  if(body.choices?.[0]?.finish_reason&&body.choices[0].finish_reason!=='stop')throw new AnalyzeOfferError('AI_INVALID_RESULT',billed);
+  text=typeof body.choices?.[0]?.message?.content==='string'?body.choices[0].message.content.trim():'';
+ }
+ if(!text)throw new AnalyzeOfferError('AI_INVALID_RESULT',billed);
+ return {text,usage};
+}

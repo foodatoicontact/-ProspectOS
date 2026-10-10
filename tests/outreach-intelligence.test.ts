@@ -26,7 +26,8 @@ const PROFILE={types:{hiring_role:25},terms:[]};
 // ——— O1.1 generated_content + workflow ———
 test('A — generation stores the generated text twice (generated_content = content); an edit never sends generated_content',async()=>{
  const route=await src(ROUTE);
- assert.match(route,/generated_content:composed\.text,content:composed\.text/,'the insert keeps the original next to the editable copy');
+ assert.match(route,/generated_content:text,content:text/,'the insert keeps the original next to the editable copy');
+ assert.match(route,/const text=ai\?ai\.text:composed\.text;/,'the generated text: the AI message when valid, else the rule-based one');
  const patch=route.slice(route.indexOf("resource==='outreach'&&request.method==='PATCH'"),route.indexOf("resource==='events'"));
  assert.doesNotMatch(patch,/generated_content/,'the PATCH route never writes generated_content');
 });

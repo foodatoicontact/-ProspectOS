@@ -372,7 +372,7 @@ test('9 — a locale that isn\'t exactly \'en\' (defaulting via the route.ts nor
 });
 test('10 — the outreach lifecycle literals (DRAFT/USED/status PATCH body) are untouched by the round-2 patch — route.ts diff for this bloc never touches anything beyond the draftLocale line',async()=>{
  const source=await readFile(new URL('../app/api/v1/[...path]/route.ts',import.meta.url),'utf8');
- const outreachBlock=source.match(/if\(resource==='outreach'&&request\.method==='POST'\)\{[\s\S]*?composeRuleBased\(\{name:p\.name,[\s\S]*?\n \}/);
+ const outreachBlock=source.match(/if\(resource==='outreach'&&request\.method==='POST'\)\{[\s\S]*?composeRuleBased\(\{name:p\.name,[\s\S]*?return json\(\{\.\.\.composed/);
  assert.ok(outreachBlock,'outreach POST block not found');
  assert.match(outreachBlock[0],/status:'DISCARDED'/);
  // O1/O2: the provider is the composer's own, always 'rule_based_v1' for the rule-based composer.

@@ -217,11 +217,12 @@ test('14 — no migration was added by this bloc: the RPCs, RLS and evidence_gua
  // none touches evidence, observations nor RLS policies.
  // 027 (outreach intelligence) adds outreach columns, style profiles and public content: no evidence, observation or
  // evidence RLS change (tests/outreach-intelligence-db.mjs checks evidence rows stay untouched). 028 (AI outreach units
- // and cost operation) touches neither.
- assert.deepEqual(files.slice(files.indexOf('015_dynamic_safe_analysis.sql')),['015_dynamic_safe_analysis.sql','016_beta_commercial_quotas.sql','017_stripe_billing.sql','018_deleted_accounts_release_beta_capacity.sql','019_discovery_registry_provider.sql','020_public_trial_availability.sql','021_discovery_failed_run_not_billed.sql','022_team_pro.sql','023_team_offer.sql','024_signals.sql','025_pipeline_feedback.sql','026_signal_monitoring.sql','027_outreach_intelligence.sql','028_outreach_ai_generation.sql']);
+ // and cost operation) touches neither. 029 (provenance at the moment of use) only adds a trigger refusing APPROVED/USED
+ // while a cited public content or signal is no longer verified: no evidence, observation or policy change (checked below).
+ assert.deepEqual(files.slice(files.indexOf('015_dynamic_safe_analysis.sql')),['015_dynamic_safe_analysis.sql','016_beta_commercial_quotas.sql','017_stripe_billing.sql','018_deleted_accounts_release_beta_capacity.sql','019_discovery_registry_provider.sql','020_public_trial_availability.sql','021_discovery_failed_run_not_billed.sql','022_team_pro.sql','023_team_offer.sql','024_signals.sql','025_pipeline_feedback.sql','026_signal_monitoring.sql','027_outreach_intelligence.sql','028_outreach_ai_generation.sql','029_outreach_provenance_revalidation.sql']);
  // 019 (register provider) only widens the provider checks and start_discovery's provider list.
  // 020 (public trial availability) only adds a boolean read of the beta seats; 021 ties a Discovery unit to its run.
- for(const f of ['016_beta_commercial_quotas.sql','017_stripe_billing.sql','018_deleted_accounts_release_beta_capacity.sql','019_discovery_registry_provider.sql','020_public_trial_availability.sql','021_discovery_failed_run_not_billed.sql','022_team_pro.sql','023_team_offer.sql']){
+ for(const f of ['016_beta_commercial_quotas.sql','017_stripe_billing.sql','018_deleted_accounts_release_beta_capacity.sql','019_discovery_registry_provider.sql','020_public_trial_availability.sql','021_discovery_failed_run_not_billed.sql','022_team_pro.sql','023_team_offer.sql','029_outreach_provenance_revalidation.sql']){
   const later=(await readFile(new URL(`../db/migrations/${f}`,import.meta.url),'utf8')).split('\n').filter(l=>!l.startsWith('--')).join('\n');
   assert.doesNotMatch(later,/evidence|observation|create policy|alter policy|drop policy|row level security/i,f);
  }

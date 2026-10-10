@@ -8,3 +8,8 @@ export const isOutreachAction=(v:unknown):v is OutreachAction=>typeof v==='strin
 export const allowedFrom=(action:OutreachAction):string[]=>[...OUTREACH_TRANSITIONS[action]];
 // Only saving and approving may carry a new text.
 export const carriesContent=(action:OutreachAction)=>action==='SAVE'||action==='APPROVED';
+// Migration 029: approving or copying a message whose cited public content or signal is no longer VERIFIED is refused by
+// the database (token outreach_source_not_verified). The API answers 409 with this code and sentence; the message is left
+// as it was — never regenerated, and no source is re-verified on the user's behalf.
+export const SOURCE_NOT_VERIFIED={code:'OUTREACH_SOURCE_NOT_VERIFIED',error:'Une source utilisée par ce message n’est plus vérifiée. Régénérez le message avant de l’approuver ou de le copier.'} as const;
+export const isSourceNotVerified=(e:unknown):boolean=>/\boutreach_source_not_verified\b/.test(String((e as {message?:unknown}|null|undefined)?.message??''));

@@ -14,6 +14,7 @@ import {FeedbackPanel} from '../src/components/FeedbackPanel';
 import type {ReviewSummary} from '../src/components/evidence-presentation';
 import {hasVerifiedCopy,reviewSummaryReady,createInFlight} from '../src/components/evidence-verification';
 import {fetchApiJson} from '../src/components/api-response';
+import {copyAfter} from '../src/components/clipboard';
 import {usageView,isEmailRateLimitError,type UsageView} from '../src/domain/pricing';
 import {scoreState,fitDisplay} from '../src/domain/score-display';
 import {estimateFit} from '../src/domain/fit-estimate';
@@ -237,7 +238,8 @@ export default function Home(){
  // Copying never marks the prospect contacted: that stays the separate "Marquer contacté" decision.
  async function saveDraft(){await work(async()=>{if(mode==='live'&&draftId)await api(`outreach/${draftId}`,'PATCH',{content:draft});log(tr('log.messageSaved'))})}
  async function approveDraft(){await work(async()=>{if(mode==='live'&&draftId)await api(`outreach/${draftId}`,'PATCH',{status:'APPROVED',content:draft});setDraftStatus('APPROVED');log(tr('log.messageApproved'))})}
- async function copyApproved(){await work(async()=>{await navigator.clipboard.writeText(draft);if(mode==='live'&&draftId)await api(`outreach/${draftId}`,'PATCH',{status:'USED'});setDraftStatus('USED');log(tr('log.messageCopied'));setNotice(tr('outreach.copyNotice'))})}
+ // Migration 029: the server decides first — a message whose source is no longer verified is neither marked used nor copied.
+ async function copyApproved(){await work(async()=>{const copied=await copyAfter(mode==='live'&&draftId?api(`outreach/${draftId}`,'PATCH',{status:'USED'}):Promise.resolve(null),draft);setDraftStatus('USED');if(copied)log(tr('log.messageCopied'));setNotice(copied?tr('outreach.copyNotice'):tr('outreach.copyManual'))})}
  // "Examiner la preuve": the block of THAT criterion in the review section (by its own anchor, never by
  // position), with its additional proofs unfolded, scrolled to and focused.
  function reviewCriterion(anchorId:string){const el=document.getElementById(anchorId);if(!el)return;el.querySelectorAll('details.evidence-more').forEach(d=>{(d as HTMLDetailsElement).open=true});el.scrollIntoView({behavior:'smooth',block:'start'});el.focus({preventScroll:true})}

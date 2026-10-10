@@ -5,7 +5,7 @@
 // The database behaviour (discovery, lock, history, rollback) is proved on a real PostgreSQL: tests/staging-migrate-realpg.sh.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {readFile,mkdtemp} from 'node:fs/promises';
+import {readFile,readdir,mkdtemp} from 'node:fs/promises';
 import {createHash} from 'node:crypto';
 import {spawnSync,execSync} from 'node:child_process';
 import {tmpdir} from 'node:os';
@@ -53,7 +53,7 @@ test('script: generic (no migration name or MD5 hard-coded), strict shell, one s
  assert.doesNotMatch(script,/\| *(head|tail)\b/,'no SIGPIPE-prone pipe under pipefail');
  assert.match(script,/"\$ON_GITHUB" = 0 \]/,'the localhost switch is ignored on GitHub runners');
  // The checks of 027/028 live with the migrations, not in the runner.
- for(const m of ['027_outreach_intelligence','028_outreach_ai_generation'])assert.match(await readFile(new URL(`db/migrations/checks/${m}.sql`,root),'utf8'),/raise exception 'check 02[78]/);
+ for(const m of ['027_outreach_intelligence','028_outreach_ai_generation','029_outreach_provenance_revalidation'])assert.match(await readFile(new URL(`db/migrations/checks/${m}.sql`,root),'utf8'),/raise exception 'check 0(2[789])/);
 });
 
 test('migrations 027/028 keep the reviewed content (integrity pinned here, not in the runner)',async()=>{
@@ -92,11 +92,14 @@ test('guards: the staging project only (direct host or its pooler user); product
 
 test('ref pinning: the target checkout must be exactly EXPECTED_SHA; its migrations are discovered (no runner change)',async()=>{
  const dir=await mkdtemp(join(tmpdir(),'staging-ref-'));
- execSync(`cp -r ${new URL('db',root).pathname} ${dir}/ && printf 'begin;\\nselect 1;\\ncommit;\\n' > ${dir}/db/migrations/029_future.sql && git -C ${dir} init -q && git -C ${dir} add -A && git -C ${dir} -c user.email=t@t -c user.name=t commit -qm ref`);
+ // The fixture is numbered after the newest real migration, so the test never depends on which migrations exist.
+ const real=(await readdir(new URL('db/migrations/',root))).filter(f=>/^[0-9]{3}_[a-z0-9_]+\.sql$/.test(f));
+ const next=String(Math.max(...real.map(f=>Number(f.slice(0,3))))+1).padStart(3,'0');
+ execSync(`cp -r ${new URL('db',root).pathname} ${dir}/ && printf 'begin;\\nselect 1;\\ncommit;\\n' > ${dir}/db/migrations/${next}_future.sql && git -C ${dir} init -q && git -C ${dir} add -A && git -C ${dir} -c user.email=t@t -c user.name=t commit -qm ref`);
  const sha=execSync(`git -C ${dir} rev-parse HEAD`,{encoding:'utf8'}).trim();
  const good=ok(DIRECT,{STAGING_MIGRATE_TARGET:dir,EXPECTED_SHA:sha});assert.equal(good.status,0,good.stderr);
- assert.match(good.stdout,new RegExp(`commit ${sha}, 28 migration files`),'027, 028 and the new 029 are all found');
+ assert.match(good.stdout,new RegExp(`commit ${sha}, ${real.length+1} migration files`),'every real migration and the new one are found');
  const bad=ok(DIRECT,{STAGING_MIGRATE_TARGET:dir,EXPECTED_SHA:'0'.repeat(40)});assert.notEqual(bad.status,0);assert.match(bad.stderr,/is not the expected commit/);
- execSync(`printf 'select 1;\\n' > ${dir}/db/migrations/029_dup.sql`);
- const dup=ok(DIRECT,{STAGING_MIGRATE_TARGET:dir});assert.notEqual(dup.status,0);assert.match(dup.stderr,/two migration files use number 029/);
+ execSync(`printf 'select 1;\\n' > ${dir}/db/migrations/${next}_dup.sql`);
+ const dup=ok(DIRECT,{STAGING_MIGRATE_TARGET:dir});assert.notEqual(dup.status,0);assert.match(dup.stderr,new RegExp(`two migration files use number ${next}`));
 });

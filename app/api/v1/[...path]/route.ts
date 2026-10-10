@@ -32,7 +32,7 @@ import {handleOutreachIntelligence,PUBLIC_CONTENT_COLUMNS} from '../../../../src
 import {composeRuleBased} from '../../../../src/outreach/compose';
 import {generateOutreachWithAi,type AiGenerateResult} from '../../../../src/outreach/ai-generate';
 import {styleOf} from '../../../../src/outreach/style';
-import {OUTREACH_TRANSITIONS,isOutreachAction,allowedFrom,carriesContent} from '../../../../src/outreach/workflow';
+import {OUTREACH_TRANSITIONS,isOutreachAction,allowedFrom,carriesContent,SOURCE_NOT_VERIFIED,isSourceNotVerified} from '../../../../src/outreach/workflow';
 export const runtime='nodejs';
 export const maxDuration=60;
 export const dynamic='force-dynamic';
@@ -214,7 +214,10 @@ async function handler(request:Request,context:{params:Promise<{path:string[]}>}
  if(action==='SAVE'&&patch.content===undefined)return json({error:'Contenu de brouillon invalide'},400);
  // A message not in an allowed status matches nothing (0 rows -> the same generic error as any not-found/wrong-tenant
  // case); USED/DISCARDED terminality and the APPROVED text lock are enforced again by the database (migrations 007, 027).
- const changed=await checked(db.from('outreach').update(patch).eq('id',id).in('status',allowedFrom(action)).select().single());
+ // Migration 029: a cited public content or signal that is no longer VERIFIED blocks APPROVED and USED — answered plainly,
+ // the message left exactly as it was (never regenerated, no source re-verified here). Any other failure stays generic.
+ const {data:changed,error:updateError}=await db.from('outreach').update(patch).eq('id',id).in('status',allowedFrom(action)).select().single();
+ if(updateError){if(isSourceNotVerified(updateError))return json({error:SOURCE_NOT_VERIFIED.error,code:SOURCE_NOT_VERIFIED.code},409);throw Error('DATABASE_REQUEST_FAILED')}
  // Signal Engine S8: a message marked used freezes why the prospect was contacted (best-effort).
  if(action==='USED'&&changed?.prospect_id)await recordContactSnapshot(db,changed.prospect_id,changed.id,'outreach_used');
  return json(changed);

@@ -45,6 +45,7 @@ const CODE_KEYS={
  TEAM_EMAIL_NOT_CONFIRMED:'error.team.emailNotConfirmed',
  TEAM_UNAVAILABLE:'error.team.unavailable',
  TEAM_MEMBER_REQUIRED:'error.team.memberRequired',
+ OUTREACH_SOURCE_NOT_VERIFIED:'error.outreachSourceNotVerified',
 } as const;
 export function localizeApiErrorMessage(message:string,code:string|undefined,locale:Locale):string{
  const key=code?CODE_KEYS[code as keyof typeof CODE_KEYS]:undefined;

@@ -96,7 +96,8 @@ test('employee range — only INSEE bands fully inside the range',()=>{
 
 test('NAF — business words map to official NAF labels, explicitly; an unknown word is never mapped',()=>{
  const p=proposeNafGroups(['industriel','agroalimentaire','blockchain']);
- const ind=p.groups.find(g=>g.key==='industriel')!,agro=p.groups.find(g=>g.key==='agroalimentaire')!;
+ const ind=proposeNafGroups(['industriel']).groups[0]!,agro=proposeNafGroups(['agroalimentaire']).groups[0]!;
+ assert.deepEqual(p.requested,['industriel','agroalimentaire']);assert.deepEqual(p.groups.map(g=>g.key),['agroalimentaire'],'the most precise group is the one queried');
  assert.equal(ind.section,'C');assert.equal(ind.label,'Section C — Industrie manufacturière');
  assert.deepEqual(agro.divisions.map(d=>d.label),['Division 10 — Industries alimentaires','Division 11 — Fabrication de boissons']);
  assert.ok(agro.codes.every(c=>/^1[01]\.\d{2}[A-Z]$/.test(c))&&agro.codes.includes('10.71A')&&agro.codes.includes('11.01Z'));
@@ -106,7 +107,7 @@ test('NAF — business words map to official NAF labels, explicitly; an unknown 
 });
 
 // ——— provider ———
-const VIGIL={project_id:'p',query:'industriel',location:'Auvergne-Rhône-Alpes',categories:['industriel','agroalimentaire'],max_results:20,optional_filters:{employee_range:{min:200,max:2000}}};
+const VIGIL={project_id:'p',query:'industriel',location:'Auvergne-Rhône-Alpes',categories:['industriel'],max_results:20,optional_filters:{employee_range:{min:200,max:2000}}};
 type Served=(url:URL)=>Raw|Response;
 function provider(serve:Served){
  const sent:URL[]=[];
@@ -117,11 +118,13 @@ const empty={results:[],total_results:0,page:1,per_page:25,total_pages:0};
 // Replay: the section C query answers with the real pages 1–2; the agri-food query had no real capture, so it answers empty.
 const replay:Served=url=>url.searchParams.get('section_activite_principale')==='C'?(Number(url.searchParams.get('page'))<=2?{...page(Number(url.searchParams.get('page'))),total_pages:2}:empty):empty;
 
-test('provider — Vigil: two separate registry queries (industry, agri-food) with structured filters',async()=>{
+test('provider — Vigil: structured registry queries; industry alone → section C, industry + agri-food → agri-food codes only',async()=>{
  const {p,sent}=provider(replay);await p.searchCompanies(DiscoveryInputSchema.parse(VIGIL));
- const ind=sent.filter(u=>u.searchParams.get('section_activite_principale')==='C'),agro=sent.filter(u=>u.searchParams.has('activite_principale'));
- assert.ok(ind.length>=1&&agro.length>=1);
- for(const u of sent){assert.equal(u.origin+u.pathname,'https://recherche-entreprises.api.gouv.fr/search');assert.equal(u.searchParams.get('region'),'84');assert.equal(u.searchParams.get('tranche_effectif_salarie'),'31,32,41,42');assert.equal(u.searchParams.get('etat_administratif'),'A');assert.equal(u.searchParams.get('per_page'),'25');assert.ok(!u.searchParams.has('q'),'no free-text query')}
+ assert.ok(sent.length>=1&&sent.every(u=>u.searchParams.get('section_activite_principale')==='C'&&!u.searchParams.has('activite_principale')));
+ const both=provider(replay);await both.p.searchCompanies(DiscoveryInputSchema.parse({...VIGIL,categories:['industriel','agroalimentaire']}));
+ const agro=both.sent.filter(u=>u.searchParams.has('activite_principale'));
+ assert.ok(agro.length>=1);assert.equal(both.sent.filter(u=>u.searchParams.has('section_activite_principale')).length,0,'no generic industry query');
+ for(const u of [...sent,...both.sent]){assert.equal(u.origin+u.pathname,'https://recherche-entreprises.api.gouv.fr/search');assert.equal(u.searchParams.get('region'),'84');assert.equal(u.searchParams.get('tranche_effectif_salarie'),'31,32,41,42');assert.equal(u.searchParams.get('etat_administratif'),'A');assert.equal(u.searchParams.get('per_page'),'25');assert.ok(!u.searchParams.has('q'),'no free-text query')}
  assert.ok(agro[0]!.searchParams.get('activite_principale')!.split(',').every(c=>/^1[01]\./.test(c)));
 });
 
@@ -137,13 +140,13 @@ test('provider — stops paginating once enough companies are admissible',async(
  assert.equal(raws.length,5);assert.equal(sent.filter(u=>u.searchParams.get('section_activite_principale')==='C').length,1);
 });
 
-test('provider — agri-food is never drowned by the industry query; one SIREN found by both is one company',async()=>{
+test('provider — agri-food is never drowned by the industry query (it is not sent); one SIREN listed twice is one company',async()=>{
  const mk=(i:number,naf:string)=>company({siren:String(100000000+i),nom_complet:`SOC ${i}`,nom_raison_sociale:`SOC ${i}`,activite_principale:naf,matching_etablissements:[site({activite_principale:naf,siret:String(10000000000000+i)})]});
- const ind=Array.from({length:25},(_,i)=>mk(i,'25.62B')),agro=[mk(100,'10.71A'),mk(101,'11.01Z'),ind[0]!];
+ const ind=Array.from({length:25},(_,i)=>mk(i,'25.62B')),agro=[mk(100,'10.71A'),mk(101,'11.01Z'),mk(100,'10.71A')];
  const {p}=provider(url=>url.searchParams.get('section_activite_principale')==='C'?{results:ind,total_results:25,page:1,per_page:25,total_pages:1}:{results:agro,total_results:3,page:1,per_page:25,total_pages:1});
- const out=(await p.searchCompanies(DiscoveryInputSchema.parse({...VIGIL,max_results:6}))).map(r=>p.normalizeResult(r));
- assert.equal(out.length,6);assert.equal(new Set(out.map(c=>c.raw_metadata.siren)).size,6);
- assert.ok(out.some(c=>c.raw_metadata.siren==='100000100')&&out.some(c=>c.raw_metadata.siren==='100000101'),'agri-food companies interleaved in the first results');
+ const out=(await p.searchCompanies(DiscoveryInputSchema.parse({...VIGIL,categories:['industriel','agroalimentaire'],max_results:6}))).map(r=>p.normalizeResult(r));
+ assert.deepEqual(out.map(c=>c.raw_metadata.siren),['100000100','100000101'],'agri-food only, one company per SIREN');
+ assert.equal(p.lastAdmission!.duplicates,1);
 });
 
 test('provider — nothing is sent when the zone or the sector cannot be mapped (never guessed)',async()=>{
@@ -154,9 +157,9 @@ test('provider — nothing is sent when the zone or the sector cannot be mapped 
 });
 
 test('provider — a failing page is counted, the others are kept; all failing raises',async()=>{
- const half=provider(url=>url.searchParams.has('activite_principale')?new Response('',{status:429}):replay(url));
+ const half=provider(url=>url.searchParams.get('page')==='2'?new Response('',{status:429}):replay(url));
  const raws=await half.p.searchCompanies(DiscoveryInputSchema.parse(VIGIL));
- assert.equal(raws.length,19);assert.equal(half.p.lastSearch!.requests_failed,1);assert.deepEqual(half.p.lastSearch!.failure_codes,['HTTP_429']);
+ assert.ok(raws.length>0&&raws.length<19);assert.equal(half.p.lastSearch!.requests_failed,1);assert.deepEqual(half.p.lastSearch!.failure_codes,['HTTP_429']);
  const none=provider(()=>new Response('',{status:500}));
  await assert.rejects(none.p.searchCompanies(DiscoveryInputSchema.parse(VIGIL)),/REGISTRY_UNAVAILABLE/);
 });

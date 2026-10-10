@@ -43,7 +43,10 @@ export type ProviderSearchReport={queries_planned:number;requests_sent:number;re
  // Requests that got a usable answer, when the provider counts it itself (register: retries make sent ≠ answered + failed).
  requests_answered?:number;
  // A teammate's identical search reused (migration 022): its run, who ran it and when — no request was sent.
- reused_from?:{run_id:string;by_email:string|null;started_at:string}};
+ reused_from?:{run_id:string;by_email:string|null;started_at:string};
+ // Register only: NAF groups asked / queried (after the most-precise reduction), their scope and the admission counts —
+ // group keys, NAF codes counts and reason codes only, never a URL or a company.
+ registry?:{groups_requested:string[];groups_kept:string[];narrowed:Array<{key:string;into:string[]}>;naf_scope:string[];naf_code_count:number;examined:number;admitted:number;rejected:Partial<Record<string,number>>;duplicates:number}};
 export interface DiscoveryProvider {id:string;mode:'live'|'test';lastSearch?:ProviderSearchReport;searchCompanies(input:DiscoveryInput):Promise<unknown[]>;
  // One provider request for one Search-Until-New variant (optional: without it the mode falls back to a normal search).
  searchVariant?(input:DiscoveryInput,query:string):Promise<unknown[]>;fetchCompanyDetails(candidate:Candidate):Promise<Candidate>;normalizeResult(raw:unknown):Candidate}

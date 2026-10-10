@@ -64,8 +64,11 @@ export class RegistryProvider implements DiscoveryProvider {
 
  async searchCompanies(input:DiscoveryInput):Promise<RegistryHit[]>{
   const report:ProviderSearchReport={queries_planned:0,requests_sent:0,requests_failed:0,failure_codes:[],country:'FR',country_reason:'registry_fr'};this.lastSearch=report;
-  const {groups,unmapped}=proposeNafGroups([...input.categories,input.query]);
+  const {groups,requested,narrowed,unmapped}=proposeNafGroups([...input.categories,input.query]);
   const admission:RegistryAdmissionReport={examined:0,admitted:0,rejected:{},duplicates:0,unmapped_terms:unmapped,failed_groups:[]};this.lastAdmission=admission;report.failed_groups=admission.failed_groups;
+  // Same objects as the admission report: the run metrics read the final counts once the search is over.
+  report.registry={groups_requested:requested,groups_kept:groups.map(g=>g.key),narrowed,naf_scope:groups.map(g=>g.section?`${g.key}:section:${g.section}`:`${g.key}:codes:${g.codes.length}`),
+   naf_code_count:groups.reduce((n,g)=>n+(g.section?0:g.codes.length),0),get examined(){return admission.examined},get admitted(){return admission.admitted},get rejected(){return admission.rejected},get duplicates(){return admission.duplicates}};
   const zone=resolveRegistryZone(input.location);
   if(!zone){report.failure_codes.push('REGISTRY_ZONE_UNMAPPED');return []}
   if(!groups.length){report.failure_codes.push('REGISTRY_SECTOR_UNMAPPED');return []}
@@ -103,7 +106,8 @@ export class RegistryProvider implements DiscoveryProvider {
   report.requests_answered=answered;
   // No request answered at all (a 429 and its retry count as one failure): explicit failure, never an empty success.
   if(report.requests_sent&&!answered)throw Error('REGISTRY_UNAVAILABLE');
-  // Interleaved, so a smaller group (agri-food) is never pushed out by a larger one (industry); one SIREN, one company.
+  // Groups left after reduceNafGroups are independent (none inside another): interleaved, so a smaller one is never pushed
+  // out by a larger one; one SIREN, one company.
   const out:RegistryHit[]=[];const bySiren=new Map<string,RegistryHit>();
   for(let i=0;perGroup.some(g=>i<g.length);i++)for(const g of perGroup){const hit=g[i];if(!hit)continue;const known=bySiren.get(hit.siren);
    if(known){admission.duplicates++;known.registry_groups.push(...hit.registry_groups.filter(x=>!known.registry_groups.some(k=>k.key===x.key)));continue}

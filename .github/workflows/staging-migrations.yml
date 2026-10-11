@@ -10,7 +10,7 @@ on:
   workflow_dispatch:
     inputs:
       ref:
-        description: 'Branch holding the migrations to apply (e.g. feat/outreach-intelligence)'
+        description: 'Branch holding the migrations to apply (e.g. feat/my-change)'
         required: true
         type: string
       expected_sha:

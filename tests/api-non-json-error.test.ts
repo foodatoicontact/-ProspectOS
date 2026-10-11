@@ -40,7 +40,7 @@ test('2 — JSON business error: status and server message reach api() unchanged
 test('3 — 401 JSON: handed to api(), whose session-expiry branch is unchanged',async()=>{
  const {res,data}=await fetchApiJson(async()=>jsonRes(401,{error:'Non authentifié'}),MSG);
  assert.equal(res.status,401);assert.deepEqual(data,{error:'Non authentifié'});
- assert.match(page,/const \{res,data\}=await fetchApiJson\(\(\)=>fetch\(`\/api\/v1\/\$\{path\}`,\{method,headers:\{Authorization:`Bearer \$\{t\}`,'Content-Type':'application\/json'\},\.\.\.\(body\?\{body:JSON\.stringify\(body\)\}:\{\}\)\}\),tr\('error\.serviceUnavailable'\)\);if\(res\.status===401&&mode==='live'\)\{await logout\(\);throw Error\(tr\('error\.sessionExpired'\)\)\}/,'same request, same 401 handling');
+ assert.match(page,/const \{res,data\}=await fetchApiJson\(\(\)=>fetch\(`\/api\/v1\/\$\{path\}`,\{method,headers:\{Authorization:`Bearer \$\{t\}`,'Content-Type':'application\/json',\.\.\.\(uxHeader\?\{\[UX_HEADER\]:uxHeader\}:\{\}\)\},\.\.\.\(body\?\{body:JSON\.stringify\(body\)\}:\{\}\)\}\),tr\('error\.serviceUnavailable'\)\);if\(res\.status===401&&mode==='live'\)\{await logout\(\);throw Error\(tr\('error\.sessionExpired'\)\)\}/,'same request, same 401 handling');
 });
 test('4 — 502 text/plain from a proxy: clean message',async()=>{
  await unavailable(async()=>new Response(UPSTREAM,{status:502,headers:{'content-type':'text/plain'}}));

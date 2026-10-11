@@ -14,6 +14,8 @@ import {recordApiUsage} from '../../../../src/server/usage';
 import {releaseCommercialUse} from '../../../../src/server/commercial-usage';
 import {newInviteToken,inviteTokenHash,isInviteToken,inviteLink,teamError,TEAM_ERRORS} from '../../../../src/server/team';
 import {createAdminClient} from '../../../../src/server/admin-client';
+import {recordUxEvent,UX_KIND_BY_ACTION} from '../../../../src/server/ux-events';
+import {parseUxHeader,UX_HEADER} from '../../../../src/ux/variant';
 import {createHash} from 'node:crypto';
 import {handleSignals} from '../../../../src/signals/api';
 import {BodaccSignalProvider,bodaccEnabled} from '../../../../src/signals/providers/bodacc';
@@ -62,6 +64,9 @@ async function callProviderMeteringFailure(call:()=>ReturnType<typeof analyzeOff
 async function handler(request:Request,context:{params:Promise<{path:string[]}>}){
  try {
  const {db,user}=await authenticatedDb(request);const {path}=await context.params;const [resource,id]=path;
+ // UX A/B (src/ux/variant.ts): a presentation label for analytics only, never read by any check below.
+ const ux=parseUxHeader(request.headers.get(UX_HEADER));
+ const uxAdmin=()=>{try{return createAdminClient()}catch{return null}};
  let body:Record<string,any>={};
  if(!['GET','HEAD'].includes(request.method)){const raw=await request.text();if(raw.length>20000)return json({error:'Corps trop volumineux'},413);try{body=JSON.parse(raw||'{}')}catch{return json({error:'JSON invalide'},400)}if(!body||Array.isArray(body))return json({error:'Objet requis'},400)}
  const discoveryResponse=await handleDiscovery(request,path,body,db,user);if(discoveryResponse)return discoveryResponse;
@@ -190,6 +195,7 @@ async function handler(request:Request,context:{params:Promise<{path:string[]}>}
  if(insertError.code==='23505')return json({error:'Une autre génération est en cours pour ce prospect. Réessayez.'},409);
  throw Error('DATABASE_REQUEST_FAILED');
  }
+ if(ux)await recordUxEvent({admin:uxAdmin(),env:process.env,now:()=>new Date(),kind:'outreach_generated',ux,userId:user.id,row:{organization_id:p.organization_id,prospect_id:p.id},outreach:{id:row.id,angle_type:composed.angle?.type,provider:ai?ai.provider:composed.provider}});
  return json({...composed,text,provider:ai?ai.provider:composed.provider,ai:ai?{attempted:ai.attempted,outcome:ai.outcome,fallback_reason:ai.fallback_reason}:null,mode:draftLocale==='en'?'Factual template':'Modèle factuel',generated_at:new Date().toISOString(),id:row.id,status:row.status,created_at:row.created_at},201);
  }
  if(resource==='outreach'&&request.method==='GET'&&!id){
@@ -220,9 +226,19 @@ async function handler(request:Request,context:{params:Promise<{path:string[]}>}
  if(updateError){if(isSourceNotVerified(updateError))return json({error:SOURCE_NOT_VERIFIED.error,code:SOURCE_NOT_VERIFIED.code},409);throw Error('DATABASE_REQUEST_FAILED')}
  // Signal Engine S8: a message marked used freezes why the prospect was contacted (best-effort).
  if(action==='USED'&&changed?.prospect_id)await recordContactSnapshot(db,changed.prospect_id,changed.id,'outreach_used');
+ if(ux&&UX_KIND_BY_ACTION[action]&&changed)await recordUxEvent({admin:uxAdmin(),env:process.env,now:()=>new Date(),kind:UX_KIND_BY_ACTION[action],ux,userId:user.id,row:{organization_id:changed.organization_id,prospect_id:changed.prospect_id},outreach:{id:changed.id,angle_type:changed.angle?.type,provider:changed.provider}});
  return json(changed);
  }
- if(resource==='events'&&request.method==='GET'){const pid=new URL(request.url).searchParams.get('prospect_id');return json(await checked(db.from('events').select('*').eq('prospect_id',pid??'').order('created_at',{ascending:false}).limit(100)))}
+ if(resource==='events'&&request.method==='GET'){const pid=new URL(request.url).searchParams.get('prospect_id');return json(await checked(db.from('events').select('*').eq('prospect_id',pid??'').not('kind','like','ux.%').order('created_at',{ascending:false}).limit(100)))}
+ if(resource==='ux-events'&&request.method==='POST'){
+ // UX A/B: the only event a browser may ask for is a view, of a prospect the user can read (RLS decides). The organization
+ // comes from that row, the user from the session; nothing else from the body is used. Always answered 202: analytics never
+ // fails the page, and the answer says nothing about a prospect the user cannot see.
+ const b=z.object({kind:z.literal('prospect_detail_viewed'),prospect_id:z.string().uuid()}).strict().parse(body);
+ const {data:seen}=await db.from('prospects').select('id,organization_id').eq('id',b.prospect_id).maybeSingle();
+ if(seen&&ux)await recordUxEvent({admin:uxAdmin(),env:process.env,now:()=>new Date(),kind:b.kind,ux,userId:user.id,row:{organization_id:seen.organization_id,prospect_id:seen.id}});
+ return json({accepted:true},202);
+ }
  if(resource==='analyze-company'&&request.method==='POST'){
  await requireActiveEntitlement(db,user.id);
  if(typeof body.text!=='string'||body.text.length<30||body.text.length>10000||!safeLink(String(body.source_url??'')))return json({error:'URL source et texte public de 30 à 10 000 caractères requis'},400);

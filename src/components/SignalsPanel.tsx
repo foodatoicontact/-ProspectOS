@@ -16,7 +16,7 @@ const DAY=86400000;
 const demoKey=(id:string)=>`prospectos-signals:${id}`;
 const domainOf=(url:string)=>{try{return new URL(url).hostname.replace(/^www\./,'')}catch{return null}};
 
-export function SignalsPanel({prospect,mode,api,locale,disabled,onBusyChange}:{prospect:Prospect;mode:'demo'|'live';api:Api;locale:Locale;disabled:boolean;onBusyChange:(active:boolean)=>void}){
+export function SignalsPanel({prospect,mode,api,locale,disabled,onBusyChange,onIntentChange}:{prospect:Prospect;mode:'demo'|'live';api:Api;locale:Locale;disabled:boolean;onBusyChange:(active:boolean)=>void;onIntentChange?:(intent:IntentScore|null)=>void}){
  const tr=(key:TKey)=>translate(locale,key);
  const [rows,setRows]=useState<Row[]>([]),[profile,setProfile]=useState<Profile|null>(null),[sources,setSources]=useState<{official_site:boolean;bodacc:boolean}|null>(null),[monitor,setMonitor]=useState<{frequency_days:number;next_run_at:string;paused_reason:string|null}|null>(null),[intent,setIntent]=useState<IntentScore|null>(null);
  const [busy,setBusy]=useState(false),[error,setError]=useState(''),[note,setNote]=useState(''),[adding,setAdding]=useState(false);
@@ -31,6 +31,8 @@ export function SignalsPanel({prospect,mode,api,locale,disabled,onBusyChange}:{p
   setProfile(r.profile??null);setRows(r.signals);setIntent(r.intent);setSources(r.sources??null);setMonitor(r.monitor??null);
  }
  useEffect(()=>{setRows([]);setIntent(null);setError('');setNote('');setAdding(false);load().catch(()=>setError(tr('signals.unavailable')));return()=>{generation.current++}},[prospect.id,mode]);
+ // UX A/B: reports the INTENT this panel already computed (variant B's « Pourquoi maintenant ? »); nothing is recomputed.
+ useEffect(()=>{onIntentChange?.(intent)},[intent]);
  const persistDemo=(list:Row[])=>{try{localStorage.setItem(demoKey(prospect.id),JSON.stringify(list))}catch{/* private mode */}recompute(list,null)};
  async function execute(fn:()=>Promise<void>){if(disabled||busy)return;onBusyChange(true);setBusy(true);setError('');setNote('');try{await fn()}catch(e){setError(e instanceof Error?e.message:tr('error.generic'))}finally{setBusy(false);onBusyChange(false)}}
 

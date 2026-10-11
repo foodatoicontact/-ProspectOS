@@ -42,3 +42,11 @@ Piège détecté : le premier lien d'une fiche est souvent le site d'un client d
 10 envois depuis prospectos.contact@gmail.com, signés Kevin Cardia : BiOui, Studio Conseil, Audrey Daneyrolle, ALBDEV, Native Web, La Lucarne, BunnyTech, ElevateCo, COME, Jixart.
 Écartés : Labanana (ICP marques e-commerce), Unigma et Tamline (communication/print), Azdine Mansour (site non vérifiable).
 Coût estimé : ~0,40 €. Total estimé : ~1,35 €, plafond de 1 € dépassé sur demande explicite. STOP.
+
+## Cycle 6 — Batch 4 (option B) — 2026-10-11
+Plafond : 1 € abandonné, nouveau plafond absolu de 5 € cumulés.
+Méthode déterministe : 349 fiches FranceNum Occitanie relues ; site officiel pris dans le champ JSON-LD `url` de la fiche (et non plus le premier lien, souvent un client du portfolio) ; exploration de l'accueil, du contact et des mentions légales ; emails retenus seulement sur le domaine de l'agence ; adresses recrutement, support, DPO et facturation exclues ; contrôle registre quand c'est possible (entreprises radiées exclues).
+Rejets : 150 hors cible (pas de création de site), 49 sans email publié, 14 sites injoignables, 12 déjà contactés, 4 sans site, 3 avec seulement des adresses inappropriées, puis 82 écartés à la revue (cible ou métier inadapté, 10 salariés ou plus, entreprises radiées, sites ambigus, réserve).
+35 envois personnalisés depuis prospectos.contact@gmail.com (freelances et très petites agences web qui servent les TPE locales).
+Environ 30 cibles qualifiées gardées en réserve, volontairement non envoyées : protéger la délivrabilité d'un Gmail neuf et mesurer le taux de réponse d'abord.
+Coût estimé : ~1,25 €. Total estimé : ~2,6 € sur 5 €. Réponses : 0. CA : 0 €. STOP.

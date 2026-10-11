@@ -1,11 +1,11 @@
 {
-  "api_budget_eur": 1.0,
-  "estimated_api_spend_eur": 1.35,
-  "remaining_api_budget_eur": -0.35,
+  "api_budget_eur": 5.0,
+  "estimated_api_spend_eur": 2.6,
+  "remaining_api_budget_eur": 2.4,
   "estimate_note": "Estimation prudente (contexte système ~35k tokens relu à chaque appel, Opus). Coût exact non mesurable depuis la session.",
   "external_spend_eur": 0,
   "revenue_confirmed_eur": 0,
   "revenue_pending_eur": 0,
   "objective_eur": 100,
-  "overrun_note": "Dépassement autorisé implicitement par la demande explicite du batch 3."
+  "overrun_note": "Plafond de 1 € remplacé par 5 € (décision utilisateur)."
 }

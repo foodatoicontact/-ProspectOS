@@ -1,6 +1,6 @@
 {
   "current_strategy": "S1 - Service productisé 'Pack 50 prospects qualifiés + messages' à 99€ (livré via ProspectOS, sans build)",
-  "current_stage": "BATCH3_DONE - 18 envois au total (5+3+10), attente des réponses, aucune relance",
+  "current_stage": "BATCH4_DONE - 53 envois au total, attente des réponses, aucune relance",
   "active_opportunities": [
     {
       "company": "Beeween (Montpellier)",
@@ -145,6 +145,286 @@
       "email": "contact@jixart.fr",
       "source": "FranceNum activateurs Occitanie → site de l'agence (domaine = nom de l'agence/responsable), email publié sur le site",
       "gmail_id": "1a12c381c2931601"
+    },
+    {
+      "batch": 4,
+      "sender": "prospectos.contact@gmail.com",
+      "company": "Agent Spécial (Montpellier)",
+      "email": "paulina@agentspecial.fr",
+      "source": "FranceNum (champ url officiel) → site de l'agence → email publié sur le domaine",
+      "gmail_id": "1a12c4d3365dacc9"
+    },
+    {
+      "batch": 4,
+      "sender": "prospectos.contact@gmail.com",
+      "company": "SHDESIGN (Pignan)",
+      "email": "anthony.chemla@shdesign.fr",
+      "source": "FranceNum (champ url officiel) → site de l'agence → email publié sur le domaine",
+      "gmail_id": "1a12c4d34235f08f"
+    },
+    {
+      "batch": 4,
+      "sender": "prospectos.contact@gmail.com",
+      "company": "Aquila Web (Toulouse)",
+      "email": "gaetan@aquila-web.fr",
+      "source": "FranceNum (champ url officiel) → site de l'agence → email publié sur le domaine",
+      "gmail_id": "1a12c4d36e94e9e5"
+    },
+    {
+      "batch": 4,
+      "sender": "prospectos.contact@gmail.com",
+      "company": "Demain il fera beau (Lussan)",
+      "email": "laurence@demainilferabeau.fr",
+      "source": "FranceNum (champ url officiel) → site de l'agence → email publié sur le domaine",
+      "gmail_id": "1a12c4d38df3a019"
+    },
+    {
+      "batch": 4,
+      "sender": "prospectos.contact@gmail.com",
+      "company": "DigitVitamin (Béziers)",
+      "email": "caroline@digitvitamin.com",
+      "source": "FranceNum (champ url officiel) → site de l'agence → email publié sur le domaine",
+      "gmail_id": "1a12c4d3b9aa7593"
+    },
+    {
+      "batch": 4,
+      "sender": "prospectos.contact@gmail.com",
+      "company": "gd6d (Auch)",
+      "email": "olivier@gd6d.fr",
+      "source": "FranceNum (champ url officiel) → site de l'agence → email publié sur le domaine",
+      "gmail_id": "1a12c4d3fea47f60"
+    },
+    {
+      "batch": 4,
+      "sender": "prospectos.contact@gmail.com",
+      "company": "Heteractis (Mondonville)",
+      "email": "sebastien@heteractis.fr",
+      "source": "FranceNum (champ url officiel) → site de l'agence → email publié sur le domaine",
+      "gmail_id": "1a12c4d41d07e328"
+    },
+    {
+      "batch": 4,
+      "sender": "prospectos.contact@gmail.com",
+      "company": "Maïlis Amalric (Toulouse)",
+      "email": "mailis@mailisamalric.fr",
+      "source": "FranceNum (champ url officiel) → site de l'agence → email publié sur le domaine",
+      "gmail_id": "1a12c4d42b7aa2bf"
+    },
+    {
+      "batch": 4,
+      "sender": "prospectos.contact@gmail.com",
+      "company": "Quick Web (Mons)",
+      "email": "yves.mothe@quick-web.pro",
+      "source": "FranceNum (champ url officiel) → site de l'agence → email publié sur le domaine",
+      "gmail_id": "1a12c4d44da8ff2e"
+    },
+    {
+      "batch": 4,
+      "sender": "prospectos.contact@gmail.com",
+      "company": "Taillez Media (Ségreville)",
+      "email": "loic@taillez.com",
+      "source": "FranceNum (champ url officiel) → site de l'agence → email publié sur le domaine",
+      "gmail_id": "1a12c4dd22105625"
+    },
+    {
+      "batch": 4,
+      "sender": "prospectos.contact@gmail.com",
+      "company": "Tout Feu Tout Flammes (Perpignan)",
+      "email": "cedric@toutfeutoutflammes.fr",
+      "source": "FranceNum (champ url officiel) → site de l'agence → email publié sur le domaine",
+      "gmail_id": "1a12c4dd4c0085cb"
+    },
+    {
+      "batch": 4,
+      "sender": "prospectos.contact@gmail.com",
+      "company": "Agence Lunoval (Toulouse)",
+      "email": "alexander@agencelunoval.fr",
+      "source": "FranceNum (champ url officiel) → site de l'agence → email publié sur le domaine",
+      "gmail_id": "1a12c4dd79ea50ff"
+    },
+    {
+      "batch": 4,
+      "sender": "prospectos.contact@gmail.com",
+      "company": "WASI (Bioule)",
+      "email": "gabrielle@wasi.fr",
+      "source": "FranceNum (champ url officiel) → site de l'agence → email publié sur le domaine",
+      "gmail_id": "1a12c4dda1c42fe2"
+    },
+    {
+      "batch": 4,
+      "sender": "prospectos.contact@gmail.com",
+      "company": "JollyLab (Castres)",
+      "email": "youcef@jollylab.fr",
+      "source": "FranceNum (champ url officiel) → site de l'agence → email publié sur le domaine",
+      "gmail_id": "1a12c4de05cdc45b"
+    },
+    {
+      "batch": 4,
+      "sender": "prospectos.contact@gmail.com",
+      "company": "Céline Grognet (Toulouse)",
+      "email": "celine@celine-grognet.fr",
+      "source": "FranceNum (champ url officiel) → site de l'agence → email publié sur le domaine",
+      "gmail_id": "1a12c4de0b758f7e"
+    },
+    {
+      "batch": 4,
+      "sender": "prospectos.contact@gmail.com",
+      "company": "Manuella Maya (Rabastens)",
+      "email": "contact@manuellamaya.com",
+      "source": "FranceNum (champ url officiel) → site de l'agence → email publié sur le domaine",
+      "gmail_id": "1a12c4de339ce14a"
+    },
+    {
+      "batch": 4,
+      "sender": "prospectos.contact@gmail.com",
+      "company": "OKOcraft (Montpellier)",
+      "email": "contact@okocraft.fr",
+      "source": "FranceNum (champ url officiel) → site de l'agence → email publié sur le domaine",
+      "gmail_id": "1a12c4de4166bb86"
+    },
+    {
+      "batch": 4,
+      "sender": "prospectos.contact@gmail.com",
+      "company": "Artdim (Carcassonne)",
+      "email": "contact@artdim.fr",
+      "source": "FranceNum (champ url officiel) → site de l'agence → email publié sur le domaine",
+      "gmail_id": "1a12c4de656d323b"
+    },
+    {
+      "batch": 4,
+      "sender": "prospectos.contact@gmail.com",
+      "company": "Era Studio (Pouyastruc)",
+      "email": "contact@erastudio.fr",
+      "source": "FranceNum (champ url officiel) → site de l'agence → email publié sur le domaine",
+      "gmail_id": "1a12c4e901525eb9"
+    },
+    {
+      "batch": 4,
+      "sender": "prospectos.contact@gmail.com",
+      "company": "Arkeris (Tarbes)",
+      "email": "contact@arkeris.com",
+      "source": "FranceNum (champ url officiel) → site de l'agence → email publié sur le domaine",
+      "gmail_id": "1a12c4e93a5414d4"
+    },
+    {
+      "batch": 4,
+      "sender": "prospectos.contact@gmail.com",
+      "company": "Metadido (Figeac)",
+      "email": "contact@metadido.com",
+      "source": "FranceNum (champ url officiel) → site de l'agence → email publié sur le domaine",
+      "gmail_id": "1a12c4e94662f6a0"
+    },
+    {
+      "batch": 4,
+      "sender": "prospectos.contact@gmail.com",
+      "company": "Sacim Web (Rodez)",
+      "email": "projet@sacim-web.com",
+      "source": "FranceNum (champ url officiel) → site de l'agence → email publié sur le domaine",
+      "gmail_id": "1a12c4e97962620d"
+    },
+    {
+      "batch": 4,
+      "sender": "prospectos.contact@gmail.com",
+      "company": "The Landing Company (Montauban)",
+      "email": "contact@thelandingcompany.fr",
+      "source": "FranceNum (champ url officiel) → site de l'agence → email publié sur le domaine",
+      "gmail_id": "1a12c4e98bb9cdbc"
+    },
+    {
+      "batch": 4,
+      "sender": "prospectos.contact@gmail.com",
+      "company": "Occi-Web (Toulouse)",
+      "email": "contact@occi-web.fr",
+      "source": "FranceNum (champ url officiel) → site de l'agence → email publié sur le domaine",
+      "gmail_id": "1a12c4e9a9cfddbd"
+    },
+    {
+      "batch": 4,
+      "sender": "prospectos.contact@gmail.com",
+      "company": "Anthony Laurent (Lespinasse)",
+      "email": "contact@a-laurent.fr",
+      "source": "FranceNum (champ url officiel) → site de l'agence → email publié sur le domaine",
+      "gmail_id": "1a12c4e9c25111bf"
+    },
+    {
+      "batch": 4,
+      "sender": "prospectos.contact@gmail.com",
+      "company": "Pixelance (Toulouse)",
+      "email": "contact@pixelance.fr",
+      "source": "FranceNum (champ url officiel) → site de l'agence → email publié sur le domaine",
+      "gmail_id": "1a12c4e9f9b1138f"
+    },
+    {
+      "batch": 4,
+      "sender": "prospectos.contact@gmail.com",
+      "company": "NovaTech Web (Caissargues)",
+      "email": "contact@novatechweb.fr",
+      "source": "FranceNum (champ url officiel) → site de l'agence → email publié sur le domaine",
+      "gmail_id": "1a12c4ea03104dab"
+    },
+    {
+      "batch": 4,
+      "sender": "prospectos.contact@gmail.com",
+      "company": "Around The Web (La Grande-Motte)",
+      "email": "hello@aroundtheweb.fr",
+      "source": "FranceNum (champ url officiel) → site de l'agence → email publié sur le domaine",
+      "gmail_id": "1a12c4f3486c86c0"
+    },
+    {
+      "batch": 4,
+      "sender": "prospectos.contact@gmail.com",
+      "company": "Stéphanie Vester (Saint-Élix)",
+      "email": "contact@stephanie-vester.fr",
+      "source": "FranceNum (champ url officiel) → site de l'agence → email publié sur le domaine",
+      "gmail_id": "1a12c4f37a56b610"
+    },
+    {
+      "batch": 4,
+      "sender": "prospectos.contact@gmail.com",
+      "company": "WebKomoMai (Muret)",
+      "email": "contact@webkomomai.fr",
+      "source": "FranceNum (champ url officiel) → site de l'agence → email publié sur le domaine",
+      "gmail_id": "1a12c4f393707de4"
+    },
+    {
+      "batch": 4,
+      "sender": "prospectos.contact@gmail.com",
+      "company": "Aurore Création Web (Aigues-Mortes)",
+      "email": "contact@aurorecreationweb.fr",
+      "source": "FranceNum (champ url officiel) → site de l'agence → email publié sur le domaine",
+      "gmail_id": "1a12c4f3b4fc0434"
+    },
+    {
+      "batch": 4,
+      "sender": "prospectos.contact@gmail.com",
+      "company": "BM Service (La Canourgue)",
+      "email": "contact@bm-services.com",
+      "source": "FranceNum (champ url officiel) → site de l'agence → email publié sur le domaine",
+      "gmail_id": "1a12c4f3c2916e84"
+    },
+    {
+      "batch": 4,
+      "sender": "prospectos.contact@gmail.com",
+      "company": "Internet Communication (Tarn)",
+      "email": "contact@internetcommunication.fr",
+      "source": "FranceNum (champ url officiel) → site de l'agence → email publié sur le domaine",
+      "gmail_id": "1a12c4f3efae1c56"
+    },
+    {
+      "batch": 4,
+      "sender": "prospectos.contact@gmail.com",
+      "company": "A New Story (Albi)",
+      "email": "contact@anewstory.fr",
+      "source": "FranceNum (champ url officiel) → site de l'agence → email publié sur le domaine",
+      "gmail_id": "1a12c4f405d8a350"
+    },
+    {
+      "batch": 4,
+      "sender": "prospectos.contact@gmail.com",
+      "company": "Emergéo (Toulouse)",
+      "email": "contact@emergeo.fr",
+      "source": "FranceNum (champ url officiel) → site de l'agence → email publié sur le domaine",
+      "gmail_id": "1a12c4f425fb5fbd"
     }
   ],
   "rejected_strategies": [
@@ -153,17 +433,17 @@
   ],
   "pending_human_approvals": [],
   "confirmed_revenue": 0,
-  "estimated_api_spend": 1.35,
-  "next_best_action": "Attendre les réponses. Batch 1 : boîte Velòu France (l'utilisateur transmet). Batchs 2 et 3 : prospectos.contact@gmail.com. Réserve : 73 autres fiches FranceNum Occitanie déjà extraites (pipeline déterministe, scratchpad), à reprendre seulement sur autorisation.",
+  "estimated_api_spend": 2.6,
+  "next_best_action": "Traiter en priorité toute réponse (5 prospects gratuits sous 48 h). Réserve d'environ 30 cibles qualifiées dans scratchpad/b3/stageB.json, à envoyer en J+3 si le taux de réponse le justifie.",
   "metrics": {
-    "prospects_qualifies": 18,
-    "messages_envoyes": 18,
+    "prospects_qualifies": 53,
+    "messages_envoyes": 53,
     "reponses": 0,
     "reponses_positives": 0,
     "demandes_pack": 0,
     "propositions_acceptees": 0,
     "paid_eur": 0,
-    "api_restant_estime_eur": -0.35,
+    "api_restant_estime_eur": 2.4,
     "batch2": {
       "prospects_qualifies": 3,
       "messages_envoyes": 3,
@@ -173,6 +453,12 @@
       "prospects_qualifies": 10,
       "messages_envoyes": 10,
       "reponses": 0
+    },
+    "batch4": {
+      "fiches_analysees": 349,
+      "rejetees": 314,
+      "envoyes": 35,
+      "reserve_qualifiee": "~30 (non envoyés : délivrabilité d'un compte Gmail neuf + mesure du taux de réponse d'abord)"
     }
   },
   "rejected_prospects": [
@@ -191,5 +477,6 @@
     "pre_send_check": "Avant tout envoi, vérifier que le connecteur Gmail est bien prospectos.contact@gmail.com (vérifié le 2026-10-11 : sender des messages envoyés = prospectos.contact@gmail.com). En cas de doute : STOP et demander.",
     "connector_verified": "2026-10-11 prospectos.contact@gmail.com"
   },
-  "budget_note": "Plafond de 1 € dépassé (~1,35 € estimé) sur demande explicite de l'utilisateur pour le batch 3 (10 envois)."
+  "budget_note": "Plafond de 1 € dépassé (~1,35 € estimé) sur demande explicite de l'utilisateur pour le batch 3 (10 envois).",
+  "budget_policy": "Plafond expérimental de 1 € abandonné. Nouveau plafond absolu : 5 € cumulés (décision utilisateur, 2026-10-11)."
 }

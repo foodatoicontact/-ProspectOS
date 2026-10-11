@@ -50,3 +50,6 @@ Rejets : 150 hors cible (pas de création de site), 49 sans email publié, 14 si
 35 envois personnalisés depuis prospectos.contact@gmail.com (freelances et très petites agences web qui servent les TPE locales).
 Environ 30 cibles qualifiées gardées en réserve, volontairement non envoyées : protéger la délivrabilité d'un Gmail neuf et mesurer le taux de réponse d'abord.
 Coût estimé : ~1,25 €. Total estimé : ~2,6 € sur 5 €. Réponses : 0. CA : 0 €. STOP.
+
+## Pause — 2026-10-11
+STOP pour la journée. Échantillon actif : 53 emails. Réserve gelée : 39 cibles (experiment/reserve.json). Pas de relance, pas de veille Gmail automatique, pas de recherche. Budget ~2,60 € / 5 €. CA 0 €. Statut : attente des réponses.

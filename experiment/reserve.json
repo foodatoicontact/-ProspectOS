@@ -1,0 +1,480 @@
+{
+ "note": "Réserve qualifiée du batch 4, gelée : ne pas contacter sans décision de l'utilisateur.",
+ "count": 39,
+ "prospects": [
+  {
+   "slug": "21-interactive",
+   "name": "21 Interactive",
+   "city": "Montpellier",
+   "cp": "34000",
+   "person": "Swann Bouchel",
+   "site": "21-interactive.com",
+   "emails": [
+    "contact@21-interactive.com"
+   ],
+   "title": "Agence de communication à Montpellier 21 Interactive"
+  },
+  {
+   "slug": "agence-orion",
+   "name": "AGENCE ORION",
+   "city": "Montpellier",
+   "cp": "34090",
+   "person": "Paul Lebard",
+   "site": "agenceorion.fr",
+   "emails": [
+    "contact@agenceorion.fr"
+   ],
+   "title": "🚀 Agence Orion | Marketing digital pour hôtels, restos & vignerons"
+  },
+  {
+   "slug": "alphavidia",
+   "name": "ALPHAVIDIA",
+   "city": "Lagardelle-sur-Lèze",
+   "cp": "31870",
+   "person": "Jean-Christophe Sarda",
+   "site": "alphavidia.com",
+   "emails": [
+    "contact@alphavidia.com"
+   ],
+   "title": "Création de site internet et référencement"
+  },
+  {
+   "slug": "am-webseo",
+   "name": "AM WEBSEO",
+   "city": "Castelnau-le-Lez",
+   "cp": "34170",
+   "person": "Azdine Mansour",
+   "site": "azdinemansour.fr",
+   "emails": [
+    "contact@azdinemansour.fr"
+   ],
+   "title": "Azdine Mansour – Consultant SEO & GEO freelance"
+  },
+  {
+   "slug": "au2vi",
+   "name": "AU2VI",
+   "city": "Toulouse",
+   "cp": "31100",
+   "person": "Vélu Virginie",
+   "site": "au2vi.fr",
+   "emails": [
+    "contact@au2vi.fr"
+   ],
+   "title": "AU2VI agence web et SEO - au2vi"
+  },
+  {
+   "slug": "azerty-techfr",
+   "name": "AZERTY-TECH.FR",
+   "city": "Lodève",
+   "cp": "34700",
+   "person": "Damien Agret",
+   "site": "azerty-tech.fr",
+   "emails": [
+    "info@azerty-tech.fr"
+   ],
+   "title": "Sites internet et standard IA à Pézenas — Azerty-Tech"
+  },
+  {
+   "slug": "bel-et-bien-vu-loic-bel-eirl",
+   "name": "Bel et Bien Vu - Loïc Bel eirl",
+   "city": "Longages",
+   "cp": "31410",
+   "person": "Loïc Bel",
+   "site": "bel-et-bien-vu.com",
+   "emails": [
+    "info@bel-et-bien-vu.com"
+   ],
+   "title": "Bel et Bien Vu agence de communication - Bel et Bien Vu"
+  },
+  {
+   "slug": "brique-lab",
+   "name": "BRIQUE LAB",
+   "city": "Toulouse",
+   "cp": "31000",
+   "person": "Hugo Raturat",
+   "site": "brique-lab.fr",
+   "emails": [
+    "hello@brique-lab.fr",
+    "hugo@brique-lab.fr",
+    "vincent@brique-lab.fr"
+   ],
+   "title": "Agence digitale à Toulouse : sites, visuels IA, contenus, automatisation | Brique Lab"
+  },
+  {
+   "slug": "celicomm",
+   "name": "Celicomm",
+   "city": "Toulouse",
+   "cp": "31100",
+   "person": "Céline Nouvon",
+   "site": "celicomm.com",
+   "emails": [
+    "contact@celicomm.com"
+   ],
+   "title": "Agence de communication Toulouse Celicomm"
+  },
+  {
+   "slug": "click-internet",
+   "name": "CLICK INTERNET",
+   "city": "Bessières",
+   "cp": "31660",
+   "person": "Sylvain Thual",
+   "site": "click-internet.fr",
+   "emails": [
+    "contact@click-internet.fr"
+   ],
+   "title": "Click Internet agence SEO & SEA"
+  },
+  {
+   "slug": "damien-goubeau",
+   "name": "Damien Goubeau",
+   "city": "Toulouse",
+   "cp": "31200",
+   "person": "Damien Goubeau",
+   "site": "damien-goubeau-developpement.fr",
+   "emails": [
+    "contact@damien-goubeau-developpement.fr"
+   ],
+   "title": "Création de site internet à Toulouse : développeur web freelance"
+  },
+  {
+   "slug": "digital-impackt",
+   "name": "DIGITAL IMPACKT",
+   "city": "Montpellier",
+   "cp": "34000",
+   "person": "Sacha Lelorrain",
+   "site": "digitalimpackt.fr",
+   "emails": [
+    "contact@digitalimpackt.fr"
+   ],
+   "title": "Digital Impackt | Agence web à Montpellier 100% créative !"
+  },
+  {
+   "slug": "digixperte",
+   "name": "Digixperte",
+   "city": "Montpellier",
+   "cp": "34000",
+   "person": "Nathan Bouard",
+   "site": "digixperte.com",
+   "emails": [
+    "contact@digixperte.com",
+    "nathanbouard@digixperte.com"
+   ],
+   "title": "Agence Marketing Digital Montpellier | ROI mesuré | DIGIXPERTE"
+  },
+  {
+   "slug": "dycast",
+   "name": "DYCAST",
+   "city": "Perpignan",
+   "cp": "66100",
+   "person": "Anthony Montardy",
+   "site": "dycast.fr",
+   "emails": [
+    "hello@dycast.fr"
+   ],
+   "title": "Agence web à Perpignan (66) — DYCAST · On code. On crée."
+  },
+  {
+   "slug": "elowup",
+   "name": "Elowup",
+   "city": "",
+   "cp": "31240",
+   "person": "Leang-Ming Ma",
+   "site": "elowup.com",
+   "emails": [
+    "contact@elowup.com"
+   ],
+   "title": "Création de sites web - région toulousaine | Agence de création de sites web"
+  },
+  {
+   "slug": "gtl-digital",
+   "name": "GTL DIGITAL",
+   "city": "Lézignan-Corbières",
+   "cp": "11200",
+   "person": "Gaëtan Gentil",
+   "site": "gtl-digital.fr",
+   "emails": [
+    "contact@gtl-digital.fr"
+   ],
+   "title": "Augmentez votre visibilité avec gtl digital | Agence de communication Audoise"
+  },
+  {
+   "slug": "heave",
+   "name": "Heave",
+   "city": "Sainte-Marie-la-Mer",
+   "cp": "66470",
+   "person": "Erwan Manchec",
+   "site": "heave.studio",
+   "emails": [
+    "contact@heave.studio"
+   ],
+   "title": "Agence WordPress et WooCommerce - Heave Studio"
+  },
+  {
+   "slug": "hexium",
+   "name": "HEXIUM",
+   "city": "Montpellier",
+   "cp": "34000",
+   "person": "Anthony Rubio",
+   "site": "hexium.io",
+   "emails": [
+    "contact@hexium.io",
+    "anthony@hexium.io"
+   ],
+   "title": "Agence Web - Développement, Design & Conseil - Hexium"
+  },
+  {
+   "slug": "hollebecq-amelie",
+   "name": "HOLLEBECQ AMELIE",
+   "city": "Nîmes",
+   "cp": "30000",
+   "person": "Amélie Colace",
+   "site": "insomniaq.fr",
+   "emails": [
+    "contact@insomniaq.fr"
+   ],
+   "title": "INSOMNIAQ - Agence de communication digitale à Nîmes"
+  },
+  {
+   "slug": "impulse-web",
+   "name": "Impulse Web",
+   "city": "Le-Crès",
+   "cp": "34920",
+   "person": "Valentin Barre",
+   "site": "impulse-web.fr",
+   "emails": [
+    "contact@impulse-web.fr"
+   ],
+   "title": "Agence Impulse Web Montpellier : Site internet & Référencement"
+  },
+  {
+   "slug": "jb-hunel-web-design-video",
+   "name": "JB Hunel",
+   "city": "Mudaison",
+   "cp": "34130",
+   "person": "Jean-Baptiste Hunel",
+   "site": "jbhunel.com",
+   "emails": [
+    "contact@jbhunel.com"
+   ],
+   "title": "JB Hunel - Webmaster, Graphiste, Vidéaste : Montpellier & France"
+  },
+  {
+   "slug": "keiyo",
+   "name": "KEIYO",
+   "city": "L'Union",
+   "cp": "31240",
+   "person": "Jean Emmery-Delecroix",
+   "site": "keiyo.fr",
+   "emails": [
+    "agence@keiyo.fr",
+    "contact@keiyo.fr"
+   ],
+   "title": "Keiyo - Agence Digitale à Toulouse & Corse | Web & Marketing"
+  },
+  {
+   "slug": "kwalt-digital",
+   "name": "Kwalt Digital",
+   "city": "Toulouse",
+   "cp": "31000",
+   "person": "Nicolas Peigner",
+   "site": "kwalt-digital.com",
+   "emails": [
+    "clients@kwalt-digital.com"
+   ],
+   "title": "Kwalt Digital - Agence web"
+  },
+  {
+   "slug": "la-boussole-des-petites-entreprises",
+   "name": "La Boussole des Petites Entreprises",
+   "city": "Ponteils-et-Brésis",
+   "cp": "30450",
+   "person": "Eden Brun-Jacome",
+   "site": "laboussoledespetitesentreprises.com",
+   "emails": [
+    "contact@laboussoledespetitesentreprises.com"
+   ],
+   "title": "La Boussole des Petites Entreprises - Création de Sites Internet"
+  },
+  {
+   "slug": "leadline",
+   "name": "Leadline",
+   "city": "Béziers",
+   "cp": "34500",
+   "person": "Damien Delebarre",
+   "site": "leadline.fr",
+   "emails": [
+    "contact@leadline.fr"
+   ],
+   "title": "Agence marketing digital : sites internet, SEO · Leadline"
+  },
+  {
+   "slug": "loup-blanc",
+   "name": "Loup Blanc",
+   "city": "Alès",
+   "cp": "30100",
+   "person": "Baptiste Dupuy",
+   "site": "loupblanc.pro",
+   "emails": [
+    "bonjour@loupblanc.pro"
+   ],
+   "title": "Agence marketing à Alès (Gard) - Stratégie, branding, site, SEO, ads"
+  },
+  {
+   "slug": "mh-webconsulting",
+   "name": "MH WebConsulting",
+   "city": "Saint-Orens-de-Gameville",
+   "cp": "31650",
+   "person": "Michaël Helie",
+   "site": "mh-webconsulting.fr",
+   "emails": [
+    "contact@mh-webconsulting.fr"
+   ],
+   "title": "Studio digital à Toulouse — Sites, applications, SEO & SEA | MH WebConsulting"
+  },
+  {
+   "slug": "oplia",
+   "name": "Oplia",
+   "city": "Montastruc-la-Conseillère",
+   "cp": "31380",
+   "person": "Thomas De Almeida",
+   "site": "oplia.fr",
+   "emails": [
+    "contact@oplia.fr"
+   ],
+   "title": "Agence Web Toulouse — Solutions Digitales & Stratégie | Oplia®"
+  },
+  {
+   "slug": "pub-pros-7",
+   "name": "PUB PROS 7",
+   "city": "SETE",
+   "cp": "34200",
+   "person": "Jean-Pierre Debost",
+   "site": "pubpros7.com",
+   "emails": [
+    "contact@pubpros7.com"
+   ],
+   "title": "Agence Marketing Digital & IA à Sète | Pub Pros7| Pour commerces, TPE et PME  à Montpellier | Pub Pros7, Sète, Nîmes et "
+  },
+  {
+   "slug": "resonance",
+   "name": "RESONANCE",
+   "city": "Carcassonne",
+   "cp": "11000",
+   "person": "Pierre Cocordan",
+   "site": "resonancecommunication.com",
+   "emails": [
+    "infos@resonancecommunication.com"
+   ],
+   "title": "Agence de communication et Création de site web à Carcassonne"
+  },
+  {
+   "slug": "skyreka",
+   "name": "SKYREKA",
+   "city": "Montauban",
+   "cp": "82000",
+   "person": "Anis Kasmi",
+   "site": "skyreka.com",
+   "emails": [
+    "contact@skyreka.com"
+   ],
+   "title": "SKYREKA - Agence Web Création Sites Web, Référencement SEO et Ads"
+  },
+  {
+   "slug": "studio-gracile-griffe-designs",
+   "name": "Studio Gracile Griffe Designs",
+   "city": "Roques",
+   "cp": "31120",
+   "person": "Vanessa Allongue",
+   "site": "ggdesigns.net",
+   "emails": [
+    "contact@ggdesigns.net"
+   ],
+   "title": "Studio graphique & web à Toulouse"
+  },
+  {
+   "slug": "tissot-david",
+   "name": "TISSOT DAVID",
+   "city": "Montpellier",
+   "cp": "34080",
+   "person": "David Tissot",
+   "site": "canardesign.com",
+   "emails": [
+    "contact@canardesign.com"
+   ],
+   "title": "David Tissot, développeur web full stack free-lance | Canardesign - David Tissot"
+  },
+  {
+   "slug": "toonetcreation",
+   "name": "TOONETCREATION",
+   "city": "Toulouse",
+   "cp": "31400",
+   "person": "Georges Corre",
+   "site": "toonetcreation.com",
+   "emails": [
+    "commerce@toonetcreation.com",
+    "contact@toonetcreation.com"
+   ],
+   "title": "Agence Web Toulouse | Création Site, SEO & Marketing Digital - toonetcreation"
+  },
+  {
+   "slug": "unkaiweb",
+   "name": "UnkaiWeb",
+   "city": "Montpellier",
+   "cp": "34070",
+   "person": "Maxime Chataux",
+   "site": "unkaiweb.fr",
+   "emails": [
+    "contact@unkaiweb.fr"
+   ],
+   "title": "Création de site internet à Montpellier | UnkaiWeb"
+  },
+  {
+   "slug": "urioz",
+   "name": "URIOZ",
+   "city": "Montauban",
+   "cp": "82000",
+   "person": "Hugo Cadene",
+   "site": "urioz.com",
+   "emails": [
+    "contact@urioz.com"
+   ],
+   "title": "Agence web à Montauban & Toulouse | Création de site internet, SEO - URIOZ"
+  },
+  {
+   "slug": "webance",
+   "name": "Webance",
+   "city": "Toulouse",
+   "cp": "31500",
+   "person": "Mathis Perron",
+   "site": "webance.fr",
+   "emails": [
+    "contact@webance.fr"
+   ],
+   "title": "Agence web à Toulouse : création de site internet | Webance"
+  },
+  {
+   "slug": "webtrafic",
+   "name": "WebTrafic",
+   "city": "Saint-Jean-de-Védas",
+   "cp": "34430",
+   "person": "Jeffrey Aldebert",
+   "site": "webtrafic.fr",
+   "emails": [
+    "contact@webtrafic.fr"
+   ],
+   "title": "Agence web dans l'Hérault : site internet et SEO | WebTrafic"
+  },
+  {
+   "slug": "wizz-you",
+   "name": "WIZZ YOU",
+   "city": "Toulouse",
+   "cp": "31000",
+   "person": "Théodore Toussaint",
+   "site": "wizz-you.com",
+   "emails": [
+    "contact@wizz-you.com"
+   ],
+   "title": "Agence web à Toulouse | Wizz You"
+  }
+ ]
+}

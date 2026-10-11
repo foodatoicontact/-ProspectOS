@@ -1,6 +1,6 @@
 {
   "current_strategy": "S1 - Service productisé 'Pack 50 prospects qualifiés + messages' à 99€ (livré via ProspectOS, sans build)",
-  "current_stage": "BATCH4_DONE - 53 envois au total, attente des réponses, aucune relance",
+  "current_stage": "EN_ATTENTE - échantillon actif de 53 emails, aucune prospection",
   "active_opportunities": [
     {
       "company": "Beeween (Montpellier)",
@@ -434,7 +434,7 @@
   "pending_human_approvals": [],
   "confirmed_revenue": 0,
   "estimated_api_spend": 2.6,
-  "next_best_action": "Traiter en priorité toute réponse (5 prospects gratuits sous 48 h). Réserve d'environ 30 cibles qualifiées dans scratchpad/b3/stageB.json, à envoyer en J+3 si le taux de réponse le justifie.",
+  "next_best_action": "Attendre. Si l'utilisateur signale une réponse : la traiter en priorité (5 prospects gratuits sous 48 h).",
   "metrics": {
     "prospects_qualifies": 53,
     "messages_envoyes": 53,
@@ -478,5 +478,16 @@
     "connector_verified": "2026-10-11 prospectos.contact@gmail.com"
   },
   "budget_note": "Plafond de 1 € dépassé (~1,35 € estimé) sur demande explicite de l'utilisateur pour le batch 3 (10 envois).",
-  "budget_policy": "Plafond expérimental de 1 € abandonné. Nouveau plafond absolu : 5 € cumulés (décision utilisateur, 2026-10-11)."
+  "budget_policy": "Plafond expérimental de 1 € abandonné. Nouveau plafond absolu : 5 € cumulés (décision utilisateur, 2026-10-11).",
+  "active_sample": {
+    "messages": 53,
+    "frozen_on": "2026-10-11"
+  },
+  "standing_rules": [
+    "Aucun envoi à la réserve (experiment/reserve.json) sans décision explicite de l'utilisateur",
+    "Aucune nouvelle recherche",
+    "Aucune relance, automatique ou manuelle",
+    "Ne pas consommer d'API pour surveiller Gmail périodiquement",
+    "Toute réponse humaine est prioritaire sur la prospection"
+  ]
 }

@@ -5,6 +5,7 @@
 import { strict as assert } from 'node:assert';
 import { readFile } from 'node:fs/promises';
 import { PGlite } from '@electric-sql/pglite';
+import { randomBytes } from 'node:crypto';
 
 const db = new PGlite();
 const schema = await readFile(new URL('../db/schema.sql', import.meta.url), 'utf8');
@@ -311,3 +312,23 @@ assert.equal(resaved.length, 1);
 assert.equal(resaved[0].key_last4, 'zzzz', 're-saving the same provider replaces (upserts) rather than duplicating the credential row');
 
 console.log('PASS discovery-cost-byok-db: BYOK — opaque table, owner-gated mutation, no secret ever returned, tenant isolation');
+
+// ============================================================
+// BYOK key_last4 — a realistic key whose tail holds '-' or '_' must be storable: the preview the app computes
+// (src/server/crypto.ts last4) always satisfies migration 009's key_last4 CHECK. Fake keys only, never printed.
+// ============================================================
+process.env.BYOK_MASTER_KEY ??= randomBytes(32).toString('base64');
+const { encryptSecret, last4 } = await import('../src/server/crypto.ts');
+for (const [provider, key] of [
+  ['anthropic', 'sk-ant-api03-FAKE-db-test-only-Zx9q-'],
+  ['openai', 'sk-proj-FAKE-db-test-only-9-AbC_'],
+]) {
+  const sealed = encryptSecret(key);
+  const row = (await as(A, `select public.save_provider_credential($1,$2,$3,$4,$5,$6) r`,
+    [OA, provider, sealed.ciphertext, sealed.iv, sealed.authTag, last4(key)])).rows[0].r;
+  assert.match(row.key_last4, /^[A-Za-z0-9]{4}$/, `${provider} — stored key_last4 satisfies the CHECK`);
+}
+const storedProviders = (await as(A, `select public.list_provider_credentials($1) r`, [OA])).rows[0].r.map(c => c.provider);
+assert.deepEqual(storedProviders, ['anthropic', 'brave', 'openai'], 'keys ending in - or _ were actually persisted');
+
+console.log('PASS discovery-cost-byok-db: BYOK key_last4 — keys ending in - or _ are persisted with a CHECK-compliant preview');

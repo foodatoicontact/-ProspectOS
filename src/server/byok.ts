@@ -1,4 +1,5 @@
 import type {SupabaseClient} from '@supabase/supabase-js';
+import {z} from 'zod';
 import {encryptSecret,decryptSecret,last4} from './crypto.ts';
 import {createAdminClient} from './admin-client.ts';
 export type ByokProvider='brave'|'anthropic'|'openai';
@@ -8,6 +9,10 @@ export interface CredentialSummary {provider:ByokProvider;key_last4:string;creat
 // bytea column use this exact form. A bare hex string without the prefix is not valid bytea input.
 const toBytea=(buf:Buffer):string=>'\\x'+buf.toString('hex');
 const fromBytea=(value:string):Buffer=>Buffer.from(value.replace(/^\\x/,''),'hex');
+
+// POST provider-credentials body. The key is trimmed here, once: the trimmed value is the one encrypted, previewed
+// (key_last4) and later sent to the provider — a pasted trailing space/newline never reaches any of them.
+export const ProviderCredentialSaveSchema=z.object({provider:z.enum(['brave','anthropic','openai']),api_key:z.string().trim().min(8).max(500)}).strict();
 
 // Saved through the caller's OWN authenticated client (RLS + save_provider_credential's own
 // require_owner check decide who may act — never trusted from anything else): the API key is encrypted

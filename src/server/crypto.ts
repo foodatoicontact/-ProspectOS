@@ -27,4 +27,6 @@ export function decryptSecret(encrypted:EncryptedSecret):string {
  decipher.setAuthTag(encrypted.authTag);
  return Buffer.concat([decipher.update(encrypted.ciphertext),decipher.final()]).toString('utf8');
 }
-export const last4=(secret:string):string=>secret.slice(-4).padStart(4,'0');
+// Alphanumerics only: provider_credentials.key_last4 CHECK '^[A-Za-z0-9]{4}$' (migration 009) rejects a key whose tail
+// holds '-', '_' or whitespace, and the save would fail (tests/byok-key-last4.test.ts).
+export const last4=(secret:string):string=>secret.replace(/[^A-Za-z0-9]/g,'').slice(-4).padStart(4,'0');

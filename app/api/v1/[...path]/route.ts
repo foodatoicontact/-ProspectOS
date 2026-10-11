@@ -25,7 +25,7 @@ import {safeFetch} from '../../../../src/discovery/safe-fetch';
 import {startCheckout,openPortal} from '../../../../src/server/billing/checkout';
 import {billingDeps,appOrigin} from '../../../../src/server/billing';
 import {billingConfig,checkoutAvailability} from '../../../../src/server/billing/config';
-import {saveProviderCredential,listProviderCredentials,deleteProviderCredential,resolveProviderCredential} from '../../../../src/server/byok';
+import {saveProviderCredential,listProviderCredentials,deleteProviderCredential,resolveProviderCredential,ProviderCredentialSaveSchema} from '../../../../src/server/byok';
 import {DEFAULT_CRITERIA,OUTREACH_STATUSES,validateCriteria,generateOutreach,scoreProspect,csv,safeLink} from '../../../../src/domain/core';
 import {STATUSES} from '../../../../src/domain/statuses';
 import {handleOutreachIntelligence,PUBLIC_CONTENT_COLUMNS} from '../../../../src/outreach/api';
@@ -292,7 +292,7 @@ async function handler(request:Request,context:{params:Promise<{path:string[]}>}
  const organizationId=z.string().uuid().parse(id);
  if(request.method==='GET')return json(await listProviderCredentials(db,organizationId));
  if(request.method==='POST'){
- const b=z.object({provider:z.enum(['brave','anthropic','openai']),api_key:z.string().min(8).max(500)}).strict().parse(body);
+ const b=ProviderCredentialSaveSchema.parse(body);
  return json(await saveProviderCredential(db,organizationId,b.provider,b.api_key),201);
  }
  if(request.method==='DELETE'){

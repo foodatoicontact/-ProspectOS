@@ -594,7 +594,6 @@ button,.button{transition:background-color .18s ease,border-color .18s ease,colo
 .sim-results{scroll-margin-top:44px}
 .sim-results>h2{font-family:'Manrope',sans-serif;font-size:21px;letter-spacing:-.02em;margin:6px 0 6px}
 .sim-match{font-weight:600;margin:0 0 4px}
-.sim-results>.muted{font-size:12.5px;margin:0 0 14px}
 .sim-prospect{display:grid;gap:10px;padding:16px;margin:0 0 14px}
 .sim-identity{display:flex;align-items:flex-start;gap:10px}
 .sim-identity>div{flex:1;min-width:0}
@@ -606,7 +605,16 @@ button,.button{transition:background-color .18s ease,border-color .18s ease,colo
 .sim-why.ux-hero-compact .ux-hero-line{font-size:14px}
 .sim-angle{border:2px solid var(--green);border-radius:14px;padding:12px 14px;background:#fff}
 .sim-angle p{margin:0 0 4px;overflow-wrap:anywhere}
-.sim-prepare{display:inline-flex;min-height:40px;align-items:center;font-weight:700;padding:0}
+.sim-prepare{display:flex;width:100%;min-height:48px;justify-content:center;align-items:center;text-align:center;margin-top:8px;font-weight:700;text-decoration:none}
+.sim-analysis{display:grid;gap:10px}
+.sim-analysis[hidden]{display:none}
+.sim-compact{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;margin:0;font-size:13px}
+.sim-compact b{font-family:'Manrope',sans-serif;font-size:18px}
+.sim-toggle{width:100%;min-height:44px;border:1px solid var(--line);border-radius:10px;background:#f8f9f5;font-weight:700;color:var(--ink);cursor:pointer}
+.sim-summary{font-weight:600;margin:0 0 6px}
+.sim-how{border:1px solid var(--line);border-radius:10px;padding:4px 12px;margin:0 0 14px;background:#fff}
+.sim-how>summary{cursor:pointer;font-weight:600;font-size:13px;min-height:40px;display:flex;align-items:center}
+.sim-how p{margin:0 0 8px;font-size:12.5px}
 .sim-proofs{border:1px solid var(--line);border-radius:12px;padding:6px 12px}
 .sim-proofs>summary{cursor:pointer;font-weight:600;min-height:40px;display:flex;align-items:center}
 .sim-proof-group h4{margin:10px 0 6px;font-size:13px}

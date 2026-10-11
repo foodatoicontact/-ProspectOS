@@ -1,25 +1,59 @@
 {
   "current_strategy": "S1 - Service productisé 'Pack 50 prospects qualifiés + messages' à 99€ (livré via ProspectOS, sans build)",
-  "current_stage": "BATCH1_BLOCKED - réseau sortant bloqué, aucun email pro vérifiable",
-  "active_opportunities": [],
+  "current_stage": "BATCH1_SENT - 5 envois effectués, STOP en attente de réponses",
+  "active_opportunities": [
+    {
+      "company": "Beeween (Montpellier)",
+      "email": "cyril@beeween.com",
+      "source": "beeween.com/contact + mentions légales",
+      "gmail_id": "1a12c22f3fbb0b90"
+    },
+    {
+      "company": "Clickzou (Toulouse)",
+      "email": "contact@clickzou.fr",
+      "source": "clickzou.fr mailto + mentions légales",
+      "gmail_id": "1a12c22f5d3d0627"
+    },
+    {
+      "company": "Agence FL (Perpignan)",
+      "email": "francoislaffargue@agencefl.com",
+      "source": "agencefl.com/contact",
+      "gmail_id": "1a12c22f734eb728"
+    },
+    {
+      "company": "LMWEB (Perpignan)",
+      "email": "contact@lmweb.fr",
+      "source": "lmweb.fr/contact",
+      "gmail_id": "1a12c22fb75c85e3"
+    },
+    {
+      "company": "Gard Web Création (Nîmes)",
+      "email": "contact@gardwebcreation.fr",
+      "source": "gardwebcreation.fr page d'accueil",
+      "gmail_id": "1a12c22fcfcd3986"
+    }
+  ],
   "rejected_strategies": [
     "S2 Foodatoi pour restaurants: cycle de vente long, démo/onboarding nécessaires, EV/coût plus faible",
     "S3 Nouveau SaaS/micro-produit: build avant validation, interdit par la règle 4"
   ],
-  "pending_human_approvals": [
-    "Ouvrir l'accès réseau sortant (politique réseau de l'environnement) pour lire les pages contact des prospects"
-  ],
+  "pending_human_approvals": [],
   "confirmed_revenue": 0,
-  "estimated_api_spend": 0.6,
-  "next_best_action": "Après ouverture réseau : 1 sous-agent bon marché extrait 5 emails publiés sur les sites des agences candidates (Beeween, Studio Gazoline, Ato Web, Clickzou, Jalis), puis 5 envois Gmail personnalisés, puis STOP.",
+  "estimated_api_spend": 0.75,
+  "next_best_action": "Attendre les réponses (aucune relance avant J+3). Si une réponse demande les 5 prospects gratuits : les produire avec ProspectOS.",
   "metrics": {
-    "prospects_qualifies": 0,
-    "messages_envoyes": 0,
+    "prospects_qualifies": 5,
+    "messages_envoyes": 5,
     "reponses": 0,
     "reponses_positives": 0,
     "demandes_pack": 0,
     "propositions_acceptees": 0,
     "paid_eur": 0,
-    "api_restant_estime_eur": 0.4
-  }
+    "api_restant_estime_eur": 0.25
+  },
+  "rejected_prospects": [
+    "Studio Gazoline: domaine à vendre (inactif)",
+    "Jalis: Marseille (hors Occitanie), grande structure",
+    "Ato Web: site injoignable"
+  ]
 }

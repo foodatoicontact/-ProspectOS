@@ -14,3 +14,8 @@ Budget restant : ~0,40 € (estim.) | CA confirmé : 0 € | CA potentiel : inch
 Action : identification de 5 agences web/consultants B2B en Occitanie (WebSearch OK).
 Résultat : sites des entreprises inaccessibles (proxy 403/DNS) → aucun email publié vérifiable → 0 envoi (pas d'email deviné, règle respectée).
 Décision : STOP. Débloquer le réseau sortant, sinon pivoter vers un canal ne nécessitant pas de lecture web.
+
+## Cycle 3 — 2026-10-11
+Réseau OK. Vérification directe : 2 candidats retenus sur 5 (Beeween, Clickzou) ; Studio Gazoline (domaine à vendre), Jalis (hors zone, grande structure) et Ato Web (site injoignable) écartés. +3 agences vérifiées (Agence FL, LMWEB, Gard Web Création).
+5 emails envoyés à des adresses publiées sur les sites. Offre : 5 prospects gratuits puis 99 € HT.
+Coût estimé : ~0,15 €. STOP.

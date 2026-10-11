@@ -52,3 +52,32 @@ test('no conceptual Figma metric is computed: no opportunity, no confidence scor
  const src=readFileSync(new URL('../src/ux/cockpit-view.ts',import.meta.url),'utf8')+readFileSync(new URL('../src/components/ProspectDetailB.tsx',import.meta.url),'utf8');
  assert.doesNotMatch(src,/opportunit|confidence ?score|scoreIntent\(|scoreProspect\(|estimateFit\(|selectAngle\(/i);
 });
+
+// Final mobile polish (B only): nothing is dropped from the timeline — it is folded. Compact hero without a verified
+// signal. A shorter initial message field on a phone, still fully editable.
+test('timeline — the view no longer caps by default: every item is kept, the component folds them',()=>{
+ const many=Array.from({length:9},(_,i)=>line({signal_id:`s${i}`,age_days:i}));
+ const t=timelineView({now,intent:intent({lines:many}),criteria:[],evidence:[],content:[]});
+ assert.equal(t.items.length,9);assert.equal(t.more,0);
+});
+test('timeline component — 3 items on a phone, 6 on a wide detail, then "Voir les X autres preuves" to unfold / fold',()=>{
+ const b=readFileSync(new URL('../src/components/ProspectDetailB.tsx',import.meta.url),'utf8');
+ const css=readFileSync(new URL('../app/globals.css',import.meta.url),'utf8');
+ assert.match(b,/const TL_PHONE=3,TL_WIDE=6;/);
+ assert.match(b,/aria-expanded=\{open\}/);
+ for(const k of ['ux.timeline.showMore','ux.timeline.showOne','ux.timeline.showLess'])assert.ok(b.includes(`'${k}'`),k);
+ assert.match(css,/\.ux-timeline:not\(\.open\) \.ux-tl-extra-wide\{display:none\}/);
+ assert.match(css,/@container detail \(max-width:699px\)\{[^}]*\.ux-timeline:not\(\.open\) \.ux-tl-extra-phone\{display:none\}/);
+});
+test('hero — the big card only for a verified signal; otherwise a compact card with the same exact text',()=>{
+ const b=readFileSync(new URL('../src/components/ProspectDetailB.tsx',import.meta.url),'utf8');
+ const css=readFileSync(new URL('../app/globals.css',import.meta.url),'utf8');
+ assert.match(b,/className=\{`ux-hero ux-hero-\$\{h\.state\}\$\{h\.state==='verified'\?'':' ux-hero-compact'\}`\}/);
+ assert.match(css,/\.ux-hero-compact\{[^}]*padding:10px 14px/);
+ assert.match(css,/\.ux-hero-compact \.ux-hero-line\{font-size:15px/);
+});
+test('message — on a phone, B shows about 5–6 lines first; the field stays resizable, scrollable and editable',()=>{
+ const css=readFileSync(new URL('../app/globals.css',import.meta.url),'utf8');
+ assert.match(css,/@container detail \(max-width:699px\)\{(?:[^}]*\}){0,4}[^}]*\.detail-layout\.ux-b \.message-box textarea\{height:calc\(5\.5 \* 1\.6em \+ 24px\);min-height:0;overflow-y:auto;resize:vertical\}/);
+ assert.match(readFileSync(new URL('../app/page.tsx',import.meta.url),'utf8'),/aria-label=\{tr\('outreach\.messageAria'\)\} rows=\{6\} value=\{draft\} readOnly=\{draftStatus!=='DRAFT'\} onChange=\{e=>setDraft\(e\.target\.value\)\}/,'same field, same handlers');
+});

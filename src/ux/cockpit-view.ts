@@ -31,7 +31,8 @@ export function reasonView(intent:IntentScore|null):ReasonView{
  return {state:'ready',score:verified?intent.score:null,verified,to_confirm:Math.max(intent.pending.count,toReview(intent).length)};
 }
 
-// Evidence timeline — date → event / proof → source / status, most recent first.
+// Evidence timeline — date → event / proof → source / status, most recent first. Every item is kept by default: the
+// component folds the list (fewer rows on a phone) and unfolds it on demand; nothing is dropped.
 export type TimelineStatus='verified'|'to_confirm'|'unknown';
 export type TimelineItem={kind:'signal'|'evidence'|'content';id:string;title:string;detail:string|null;source:string|null;date:string|null;age_days:number;status:TimelineStatus};
 type EvidenceIn={id:string;criterion:string;value:boolean;status:string;source_url:string;excerpt:string;observed_at:string;verified_by:string|null};
@@ -42,7 +43,7 @@ const clip=(s:string,n=140)=>{const t=s.trim().replace(/\s+/g,' ');return t.leng
 const ageOf=(iso:string,now:Date)=>{const t=Date.parse(iso);return Number.isFinite(t)?Math.max(0,Math.floor((now.getTime()-t)/DAY)):null};
 // Evidence: only what supports a criterion (value true); a contradicted proof is no proof. An inference stays "to confirm".
 const evidenceStatus=(s:string):TimelineStatus|null=>s==='VERIFIED'?'verified':s==='NOT_VERIFIED'||s==='INFERRED_UNCONFIRMED'?'to_confirm':s==='CONTRADICTED'?null:'unknown';
-export function timelineView(i:{now:Date;intent:IntentScore|null;criteria:{key:string;label:string}[];evidence:EvidenceIn[];content:ContentIn[]},limit=6):{items:TimelineItem[];more:number}{
+export function timelineView(i:{now:Date;intent:IntentScore|null;criteria:{key:string;label:string}[];evidence:EvidenceIn[];content:ContentIn[]},limit=Number.POSITIVE_INFINITY):{items:TimelineItem[];more:number}{
  const items:TimelineItem[]=[];
  if(i.intent){
   const seen=new Set<string>();

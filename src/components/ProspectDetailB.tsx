@@ -6,7 +6,7 @@
 // FIT and the existing verified INTENT. Timeline: signals, ICP evidence and public content with their own statuses.
 // The mockup's conceptual metrics (overall "86" score, certainty gauge) have no ProspectOS source: they are omitted.
 // The angle is the one the server returned with the message, none before a generation. Copier n'est pas « contacté ».
-import type {ReactNode} from 'react';
+import {useState,type ReactNode} from 'react';
 import type {IntentScore} from '../domain/intent';
 import type {Angle} from '../outreach/angle';
 import type {FitDisplay} from '../domain/score-display';
@@ -18,7 +18,8 @@ const t=(locale:Locale)=>(key:TKey)=>translate(locale,key);
 
 export function DecisionHero({intent,locale}:{intent:IntentScore|null;locale:Locale}){
  const tr=t(locale),h=heroView(intent);
- return <section className={`ux-hero ux-hero-${h.state}`} aria-labelledby="ux-hero-title">
+ // The big card is kept for a real verified trigger; without one, the same exact information in a compact card.
+ return <section className={`ux-hero ux-hero-${h.state}${h.state==='verified'?'':' ux-hero-compact'}`} aria-labelledby="ux-hero-title">
   <p className="eyebrow" id="ux-hero-title">{tr('ux.whyNow.title')}</p>
   {h.state==='loading'&&<p className="ux-hero-line muted">{tr('ux.whyNow.loading')}</p>}
   {h.state==='verified'&&<>
@@ -75,16 +76,23 @@ export function NextBestActionHead({angle,whyNowSentence,hasDraft,draftStatus,lo
  </div>;
 }
 
+// Folded by default: the most recent items first (3 on a phone, 6 on a wide detail), then "Voir les X autres preuves".
+// Every item stays in the page; CSS only hides the folded rows until the list is unfolded.
+const TL_PHONE=3,TL_WIDE=6;
 export function EvidenceTimeline({items,more,locale}:{items:TimelineItem[];more:number;locale:Locale}){
  const tr=t(locale),dateLocale=locale==='fr'?'fr-FR':'en-US';
- return <section className="ux-card ux-timeline" aria-labelledby="ux-timeline-title">
+ const [open,setOpen]=useState(false);
+ const extra=(n:number)=>Math.max(0,items.length-n);
+ const toggle=(n:number,cls:string)=>extra(n)>0&&<button type="button" className={`text-button ux-tl-toggle ${cls}`} aria-expanded={open} aria-controls="ux-timeline-list" onClick={()=>setOpen(o=>!o)}>{open?tr('ux.timeline.showLess'):extra(n)===1?tr('ux.timeline.showOne'):tr('ux.timeline.showMore').replace('{n}',String(extra(n)))}</button>;
+ return <section className={`ux-card ux-timeline${open?' open':''}`} aria-labelledby="ux-timeline-title">
   <h3 id="ux-timeline-title">{tr('ux.timeline.title')}</h3>
-  {!items.length?<p className="muted">{tr('ux.timeline.empty')}</p>:<ol>{items.map(i=><li key={`${i.kind}:${i.id}`} className={`ux-tl-${i.status}`}>
+  {!items.length?<p className="muted">{tr('ux.timeline.empty')}</p>:<ol id="ux-timeline-list">{items.map((i,n)=><li key={`${i.kind}:${i.id}`} className={`ux-tl-${i.status}${n>=TL_PHONE?' ux-tl-extra-phone':''}${n>=TL_WIDE?' ux-tl-extra-wide':''}`}>
    <span className="ux-tl-when">{i.date?new Date(`${i.date}T12:00:00Z`).toLocaleDateString(dateLocale,{day:'numeric',month:'short'}):tr('ux.whyNow.age').replace('{n}',String(i.age_days))}</span>
    <div><p><span className="ux-tl-kind">{tr(`ux.timeline.kind.${i.kind}` as TKey)}</span> {i.title}</p>
     {i.detail&&<p className="muted">{i.detail}</p>}
     <p className="muted">{i.source?`${i.source} · `:''}<span className={`ux-status ux-status-${i.status}`}>{tr(`ux.status.${i.status}` as TKey)}</span></p></div>
   </li>)}</ol>}
+  {toggle(TL_PHONE,'ux-tl-toggle-phone')}{toggle(TL_WIDE,'ux-tl-toggle-wide')}
   {more>0&&<p className="muted">{tr('ux.timeline.more').replace('{n}',String(more))}</p>}
  </section>;
 }

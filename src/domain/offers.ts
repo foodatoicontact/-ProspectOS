@@ -10,11 +10,11 @@ export type Offer={
  priceEurExclVatPerMonth:number|null; // null = on quote; TEAM: the price for `team.includedSeats` accounts
  quotas:Quotas|null;                  // per month (TEAM: per account, pooled); null = on quote
  team:{includedSeats:number;maxSeats:number;extraSeatEur:number}|null; // per-seat offer only
- badge:'early'|null;
+ badge:null;                          // no promotional badge (no scarcity or early-user claim)
  emphasis:boolean;                    // light visual emphasis only — no "best choice" claim
 };
 export const OFFERS:readonly Offer[]=[
- {id:'BETA',checkoutPlan:'BETA',priceEurExclVatPerMonth:CHECKOUT_PRICES.BETA.unitAmount/100,quotas:PLAN_QUOTAS.BETA,team:null,badge:'early',emphasis:false},
+ {id:'BETA',checkoutPlan:'BETA',priceEurExclVatPerMonth:CHECKOUT_PRICES.BETA.unitAmount/100,quotas:PLAN_QUOTAS.BETA,team:null,badge:null,emphasis:false},
  {id:'PRO',checkoutPlan:'PRO',priceEurExclVatPerMonth:CHECKOUT_PRICES.PRO.unitAmount/100,quotas:PLAN_QUOTAS.PRO,team:null,badge:null,emphasis:true},
  {id:'TEAM',checkoutPlan:'TEAM',priceEurExclVatPerMonth:TEAM_PRICING.baseAmount/100,quotas:PLAN_QUOTAS.PRO,
   team:{includedSeats:TEAM_PRICING.includedSeats,maxSeats:TEAM_PRICING.maxSeats,extraSeatEur:TEAM_PRICING.extraSeatAmount/100},badge:null,emphasis:false},

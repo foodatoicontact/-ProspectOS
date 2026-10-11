@@ -294,8 +294,8 @@ test('B5 — the 4 welcome SEO nav links are rendered via tr(), never as bare Fr
  assert.match(nav,/tr\('landing\.seo\.prospectionB2B'\)/);
  assert.match(nav,/tr\('landing\.seo\.prospectionAI'\)/);
  assert.match(nav,/tr\('landing\.seo\.leadScoring'\)/);
- assert.match(nav,/tr\('landing\.seo\.restaurants'\)/);
- assert.doesNotMatch(nav,/>Prospection B2B<|>Prospection IA<|>Lead scoring<|>Restaurants</,'no bare hardcoded label may remain once each is wrapped in tr()');
+ assert.match(nav,/tr\('landing\.seo\.pricing'\)/);
+ assert.doesNotMatch(nav,/>Prospection B2B<|>Prospection IA<|>Lead scoring<|>Tarifs</,'no bare hardcoded label may remain once each is wrapped in tr()');
 });
 test('B5 — the 4 new dictionary keys exist in both FR and EN, hrefs (the actual SEO page targets, left out of scope) are unchanged',async()=>{
  assert.equal(translate('fr','landing.seo.prospectionB2B'),'Prospection B2B');
@@ -303,12 +303,12 @@ test('B5 — the 4 new dictionary keys exist in both FR and EN, hrefs (the actua
  assert.equal(translate('fr','landing.seo.prospectionAI'),'Prospection IA');
  assert.equal(translate('en','landing.seo.prospectionAI'),'AI prospecting');
  assert.equal(translate('fr','landing.seo.leadScoring'),translate('en','landing.seo.leadScoring'));
- assert.equal(translate('fr','landing.seo.restaurants'),translate('en','landing.seo.restaurants'));
+ assert.equal(translate('fr','landing.seo.pricing'),'Tarifs');assert.equal(translate('en','landing.seo.pricing'),'Pricing');
  const page=await readFile(new URL('../app/page.tsx',import.meta.url),'utf8');
  assert.match(page,/href="\/prospection-b2b"/);
  assert.match(page,/href="\/prospection-ia"/);
  assert.match(page,/href="\/lead-scoring"/);
- assert.match(page,/href="\/prospection-restaurants"/);
+ assert.match(page,/href="\/tarifs"/);
 });
 
 // ------------------------------------------------------------

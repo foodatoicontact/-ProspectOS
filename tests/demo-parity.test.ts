@@ -65,7 +65,7 @@ test('D — the offer-analysis form is disabled and explained up front in demo m
  const source=await readFile(new URL('../app/page.tsx',import.meta.url),'utf8');
  assert.match(source,/mode==='demo'&&<p className="muted">\{tr\('icp\.demoAnalyzeNote'\)\}/);
  assert.match(source,/disabled=\{busy\|\|mode==='demo'\}>\{tr\('icp\.analyzeOffer'\)\}/);
- assert.match(fr['icp.demoAnalyzeNote'],/L.analyse IA devient disponible après activation bêta/);
+ assert.match(fr['icp.demoAnalyzeNote'],/L.analyse IA devient disponible une fois votre compte créé \(essai gratuit de 7 jours\)/);
 });
 test('D — analyze-company is still only ever called through the api() helper (server-side, entitlement-gated), never a direct provider call from the client',async()=>{
  const source=await readFile(new URL('../app/page.tsx',import.meta.url),'utf8');

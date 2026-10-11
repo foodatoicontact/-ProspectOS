@@ -29,7 +29,8 @@ export type SeoPage={
   intro:string;
   sections:{h2:string;blocks:SeoBlock[]}[];
   faq:{q:string;a:string}[];
-  cta:{title:string;text:string};
+  // href/label: the final call to action; by default the public demonstration on the home page.
+  cta:{title:string;text:string;href?:string;label?:string};
   related:string[];
 };
 

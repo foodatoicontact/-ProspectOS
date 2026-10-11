@@ -15,11 +15,11 @@ const read=(p:string)=>readFile(new URL(p,import.meta.url),'utf8');
 
 test('offers: the 49 € offer is “Solo”, Pro and Entreprise keep their names',()=>{
  assert.equal(fr['billing.betaName'],'ProspectOS Solo');assert.equal(en['billing.betaName'],'ProspectOS Solo');
- assert.equal(fr['pricing.planName'],'ProspectOS Solo');assert.equal(fr['offers.chooseBeta'],'Choisir Solo');assert.equal(en['offers.chooseBeta'],'Choose Solo');
+ assert.equal(fr['offers.chooseBeta'],'Choisir Solo');assert.equal(en['offers.chooseBeta'],'Choose Solo');
  assert.equal(fr['account.usagePaid'],'ProspectOS Solo — 49 € HT/mois');assert.equal(fr['account.upgrade'],'ProspectOS Solo — 49 € HT/mois');
  assert.match(fr['offers.proPoint1'],/Solo/);assert.match(en['offers.proPoint1'],/Solo/);
- assert.equal(fr['billing.proName'],'ProspectOS Pro B2B');assert.equal(fr['billing.enterpriseName'],'Entreprise / White Label');
- for(const k of ['billing.betaName','pricing.planName','offers.chooseBeta','account.usagePaid','account.upgrade','account.paidEnded','error.betaOfferClosed','offers.proPoint1'] as const){
+ assert.equal(fr['billing.proName'],'ProspectOS Pro');assert.equal(en['billing.proName'],'ProspectOS Pro');assert.equal(fr['billing.enterpriseName'],'Entreprise / White Label');
+ for(const k of ['billing.betaName','offers.chooseBeta','account.usagePaid','account.upgrade','account.paidEnded','error.betaOfferClosed','offers.proPoint1'] as const){
   assert.doesNotMatch(fr[k],/Bêta/,k);assert.doesNotMatch(en[k],/\bBeta\b/,k);
  }
 });

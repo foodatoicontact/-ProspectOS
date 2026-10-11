@@ -6,6 +6,7 @@ import {type BillingAvailability,type BillingSummary} from '../domain/plan-inten
 import {subscriptionView} from '../domain/subscription-view';
 import type {UsageView} from '../domain/pricing';
 import type {CheckoutPlan} from '../domain/plans';
+import {CONTACT_MAILTO} from '../domain/contact';
 // Account page billing block. Display only: the offers shown as buyable, the subscription status and every
 // button come from the server's answer (billing_offers / billing); the browser only sends the offer NAME
 // ('BETA', 'PRO' or 'TEAM') to /api/v1/billing/checkout, or asks POST /api/v1/billing/portal for the Customer Portal,
@@ -42,7 +43,7 @@ export function BillingSection({locale,offers,status,usage,busy,entitlementPlan,
    </div>}
    {view.manage==='portal'
     ?<button type="button" className="primary subscription-manage" disabled={busy||opening} aria-busy={opening} onClick={manage}>{tr('billing.manage')}</button>
-    :<p className="subscription-unavailable" role="note">{tr('billing.portalUnavailable')} <a href="/mentions-legales">{tr('offers.contact')}</a></p>}
+    :<p className="subscription-unavailable" role="note">{tr('billing.portalUnavailable')} <a href={CONTACT_MAILTO}>{tr('offers.contact')}</a></p>}
    {portalError&&<p className="reached" role="alert">{portalError}</p>}
   </section>}
   {showPlans&&<PricingPlans locale={locale} context="account" availability={offers} busy={busy} onChoose={onCheckout} layout="stack"/>}

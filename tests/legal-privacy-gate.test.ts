@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
-import {EDITOR, HOSTING, TRANSFERS, MISSING, TO_CONFIRM, MISSING_COMMERCIAL, TERMS_VERSION, PRIVACY_VERSION, LEGAL_PAGES, SERVICE_NAME, ACTIVITY_FORMALITY} from '../src/domain/legal.ts';
+import {EDITOR, HOSTING, TRANSFERS, MISSING, TO_CONFIRM, MISSING_COMMERCIAL, BLOCKED_VAT_DECISION, TERMS_VERSION, PRIVACY_VERSION, LEGAL_PAGES, SERVICE_NAME, ACTIVITY_FORMALITY} from '../src/domain/legal.ts';
 
 const legalRoutes=['mentions-legales','cgu','confidentialite','cgv'];
 
@@ -128,14 +128,27 @@ test('J — mentions légales identify the service concerned as SERVICE_NAME (Pr
 });
 
 // ------------------------------------------------------------
-// C — CGV never implies a paid offer already exists.
+// C — CGV describe the real paid offer (paid launch): prices and quotas read from plans.ts, never typed; every
+// VAT-dependent statement left as BLOCKED_VAT_DECISION until the owner decides; no invented exemption mention.
 // ------------------------------------------------------------
-test('C — the CGV page explicitly states no paid offer exists yet, and commercial terms use the MISSING_COMMERCIAL placeholder, never an invented price/duration/payment method',async()=>{
+test('C — the CGV state the real offers from plans.ts, the free trial, monthly renewal, cancellation and access rules, with the VAT decision explicitly blocked',async()=>{
  const source=await readFile(new URL('../app/cgv/page.tsx',import.meta.url),'utf8');
- assert.match(source,/n’a pas encore ouvert d’offre payante/);
- assert.match(source,/MISSING_COMMERCIAL/);
- for(const forbidden of [/\d+\s?€/,/Stripe/,/carte bancaire/i,/prélèvement/i])
-  assert.doesNotMatch(source,forbidden,'the CGV page must never invent a price or payment method');
+ assert.doesNotMatch(source,/n’a pas encore ouvert d’offre payante|MISSING_COMMERCIAL/,'the CGV no longer say no paid offer exists');
+ assert.match(source,/import \{CHECKOUT_PRICES, PLAN_QUOTAS, TEAM_PRICING\} from '..\/..\/src\/domain\/plans'/);
+ assert.doesNotMatch(source,/\b(49|99|179|60)\s?€/,'amounts are never typed in the CGV: they come from plans.ts');
+ for(const re of [/essai gratuit de 7 jours, sans carte bancaire/,/mensuel et sans engagement/,/Gérer mon abonnement/,/reste ouvert jusqu’à la fin de la période mensuelle déjà payée/,/accès en lecture/,/L\. 441-10 du Code de commerce/,/politique de confidentialité/])assert.match(source,re);
+ assert.match(source,/BLOCKED_VAT_DECISION/);
+ assert.equal(BLOCKED_VAT_DECISION,'[BLOCKED_VAT_DECISION]');
+});
+test('C — no VAT regime is asserted anywhere until the owner decides (no exemption mention, no VAT rate)',async()=>{
+ for(const f of ['../app/cgv/page.tsx','../app/cgu/page.tsx','../app/mentions-legales/page.tsx','../src/domain/seo-content.ts','../src/components/PricingPage.tsx','../src/i18n/fr.ts','../src/i18n/en.ts'])
+  assert.doesNotMatch(await readFile(new URL(f,import.meta.url),'utf8'),/293 ?B|TVA non applicable|franchise en base|TVA \d|\d+ ?% de TVA|TTC/,f);
+});
+test('C — the CGU describe the self-service trial and the paid offers, never a manual 10-place beta',async()=>{
+ const source=await readFile(new URL('../app/cgu/page.tsx',import.meta.url),'utf8');
+ assert.doesNotMatch(source,/accordé manuellement|10 places|Phase bêta|phase bêta|ouverture d’une offre payante/);
+ assert.match(source,/essai gratuit de 7 jours, sans moyen de paiement à fournir/);
+ assert.match(source,/<a href="\/cgv">conditions générales de vente<\/a>/);
 });
 
 // ------------------------------------------------------------

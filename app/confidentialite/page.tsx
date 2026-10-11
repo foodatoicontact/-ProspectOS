@@ -30,7 +30,7 @@ export default function Page(){
    <ul>
     <li>Email et identifiant technique de compte (gérés par l’authentification Supabase).</li>
     <li>Organisation(s) dont vous êtes membre et votre rôle (owner/member).</li>
-    <li>Statut d’accès (bêta, interne, expiration éventuelle) — voir la section bêta ci-dessous.</li>
+    <li>Statut d’accès (essai gratuit, offre payante, accès interne, dates de début et de fin).</li>
     <li>Contenu que vous créez : projets, critères ICP (profil de client idéal), messages préparés, historique d’actions liées à votre organisation.</li>
    </ul>
 
@@ -42,6 +42,11 @@ export default function Page(){
     <li>Journal d’usage des fournisseurs IA/recherche (fournisseur, modèle, nombre de jetons ou de requêtes, coût estimé, source de facturation) — enregistré de façon immuable (aucune modification ni suppression possible) à des fins de facturation et d’audit interne. Ce journal ne contient jamais le contenu de vos textes, ni les réponses des fournisseurs, ni aucun secret.</li>
     <li>Quotas horaires d’usage par organisation.</li>
     <li>Journal d’événements d’activité (ex. génération d’un message, export de compte demandé), horodaté et rattaché à votre organisation.</li>
+   </ul>
+   <h3>3.5 Données d’abonnement payant</h3>
+   <ul>
+    <li>Si vous souscrivez une offre payante : identifiants techniques de client et d’abonnement chez le prestataire de paiement, offre souscrite, nombre de comptes (offre Équipe), statut de l’abonnement, dates de la période en cours et indication d’une résiliation programmée.</li>
+    <li>Les données de paiement (numéro de carte, coordonnées bancaires) sont saisies sur la page de paiement du prestataire et ne sont jamais reçues ni conservées par ProspectOS.</li>
    </ul>
 
    <h3>3.4 Identifiants de connexion à un fournisseur IA personnel (BYOK)</h3>
@@ -63,7 +68,7 @@ export default function Page(){
     <li><b>Recherche et qualification de prospects B2B (Discovery)</b> — intérêt légitime de l’utilisateur professionnel à identifier des cibles commerciales pertinentes, sous réserve du respect par l’utilisateur des règles de prospection applicables.</li>
     <li><b>Analyse assistée par IA de votre propre offre commerciale</b> — exécution du contrat, à votre initiative explicite (fonctionnalité « Analyser un texte »).</li>
     <li><b>Sécurité, prévention des abus, quotas et facturation d’usage</b> — intérêt légitime de ProspectOS et de ses utilisateurs à un service fiable et correctement mesuré.</li>
-    <li><b>Gestion de l’accès bêta</b> (durée, capacité) — exécution du contrat spécifique à la phase bêta (voir la section 7 des <a href="/cgu">CGU</a>).</li>
+    <li><b>Gestion de l’essai gratuit et des abonnements</b> (durée, quotas, paiement, accès) — exécution du contrat (voir l’article 3 des <a href="/cgu">CGU</a> et les <a href="/cgv">CGV</a>).</li>
    </ul>
   </section>
 
@@ -74,6 +79,7 @@ export default function Page(){
     <li><b>Supabase</b> — hébergement de la base de données PostgreSQL et de l’authentification. Reçoit l’ensemble des données décrites en section 3.</li>
     <li><b>Vercel Inc.</b> — hébergement applicatif (exécution du site et de l’API ProspectOS).</li>
     <li><b>Anthropic</b> — lorsque la fonctionnalité d’analyse IA de votre offre est utilisée : reçoit le texte que vous soumettez volontairement à l’analyse (votre propre proposition commerciale, jamais une donnée de prospect saisie automatiquement), ainsi que, si vous utilisez votre clé personnelle (BYOK), cette clé — jamais en clair côté ProspectOS, transmise directement au fournisseur pour authentifier l’appel.</li>
+    <li><b>Stripe</b> — lorsque vous souscrivez ou gérez une offre payante : traite le paiement, l’abonnement et les factures ; reçoit l’adresse email et l’identifiant technique de votre compte, ainsi que les informations que vous saisissez sur sa page de paiement.</li>
     <li><b>Brave Search</b> — lorsque la recherche de prospects (Discovery) est utilisée en mode réel (non démonstration) : reçoit les termes de recherche que vous avez saisis (secteur d’activité, localisation) — jamais une donnée à caractère personnel identifiée individuellement.</li>
    </ul>
    <h3>Transferts internationaux</h3>
@@ -81,6 +87,7 @@ export default function Page(){
    <p className="muted"><b>Supabase</b> — {TRANSFERS.supabase}</p>
    <p className="muted"><b>Anthropic</b> — {TRANSFERS.anthropic}</p>
    <p className="muted"><b>Brave Search</b> — {TRANSFERS.braveSearch}</p>
+   <p className="muted"><b>Stripe</b> — {TRANSFERS.stripe}</p>
    <p>Aucune donnée n’est vendue à un tiers. Aucun outil publicitaire, aucun revendeur de données, aucun courtier en données n’est utilisé.</p>
   </section>
 
@@ -95,7 +102,7 @@ export default function Page(){
    <h2>8. Durées de conservation</h2>
    <ul>
     <li><b>Compte et données d’organisation</b> : conservées tant que le compte est actif, puis selon les modalités décrites en section 9 en cas de suppression.</li>
-    <li><b>Accès bêta</b> : la fenêtre d’accès (début, fin à 7 jours) est conservée comme historique de compte.</li>
+    <li><b>Accès (essai et abonnement)</b> : les dates de début et de fin d’accès sont conservées comme historique de compte. Les données d’abonnement sont conservées, y compris après suppression du compte, pour rattacher les factures émises par le prestataire de paiement.</li>
     <li><b>Journal d’usage et de facturation (api_usage_events)</b> : conservé de façon permanente et immuable par construction technique (aucune mise à jour ni suppression n’est possible sur cette table), à des fins de facturation, d’audit et de preuve de coût. Ce journal ne contient pas de contenu de conversation IA ni de donnée de prospect.</li>
     <li><b>Références d’audit</b> (auteur d’une preuve vérifiée, actions historisées) : conservées même après le départ d’un membre, afin de préserver l’intégrité et la traçabilité des preuves partagées au sein d’une organisation — voir section 9.</li>
    </ul>

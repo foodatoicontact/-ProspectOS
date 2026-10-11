@@ -25,7 +25,8 @@ function Block({block}:{block:SeoBlock}){
 
 const updatedLabel=(iso:string)=>new Intl.DateTimeFormat('fr-FR',{day:'numeric',month:'long',year:'numeric',timeZone:'UTC'}).format(new Date(iso));
 
-export function PublicSeoPage({page}:{page:SeoPage}){
+// `children`: an optional block rendered right after the hero (the offers on /tarifs).
+export function PublicSeoPage({page,children}:{page:SeoPage;children?:ReactNode}){
   // The page's questions and its place in the site, for search engines and AI assistants (escaped like layout.tsx).
   const jsonLd=JSON.stringify([faqJsonLd(page),breadcrumbJsonLd(page)]).replace(/</g,'\\u003c');
   return <main className="seo-public seo-article-page">
@@ -41,6 +42,7 @@ export function PublicSeoPage({page}:{page:SeoPage}){
         <p className="seo-intro">{page.intro}</p>
         <p className="seo-updated">Mis à jour le <time dateTime={page.updated}>{updatedLabel(page.updated)}</time></p>
       </header>
+      {children}
       {page.sections.map(section=><section key={section.h2}>
         <h2>{section.h2}</h2>
         {section.blocks.map((block,i)=><Block key={i} block={block}/>)}
@@ -52,7 +54,7 @@ export function PublicSeoPage({page}:{page:SeoPage}){
       <section className="seo-cta">
         <h2>{page.cta.title}</h2>
         <p>{page.cta.text}</p>
-        <Link href="/" className="primary large">Explorer la démonstration <span aria-hidden="true">↗</span></Link>
+        <Link href={page.cta.href??'/'} className="primary large">{page.cta.label??'Explorer la démonstration'} <span aria-hidden="true">↗</span></Link>
       </section>
     </article>
     <nav className="seo-related" aria-label="Ressources liées">

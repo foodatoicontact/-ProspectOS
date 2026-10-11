@@ -36,11 +36,11 @@ export async function startCheckout(input:{userId:string;email:string|null;body:
  const parsed=CheckoutBody.safeParse(input.body);
  if(!parsed.success)return fail(400,'INVALID_CHECKOUT_REQUEST','Offre invalide.');
  const plan=parsed.data.plan;
- if(plan==='ENTERPRISE')return fail(400,'ENTERPRISE_QUOTE_ONLY','L’offre Entreprise / White Label est sur devis. Contactez-nous.');
+ if(plan==='ENTERPRISE')return fail(400,'ENTERPRISE_QUOTE_ONLY','Les configurations spécifiques sont sur devis : écrivez-nous à prospectos.contact@gmail.com.');
  if(plan!=='BETA'&&plan!=='PRO'&&plan!=='TEAM')return fail(400,'INVALID_CHECKOUT_REQUEST','Offre invalide.');
  const {config,stripe,store}=deps;
  if(!config||!config.checkoutEnabled)return fail(503,'BILLING_UNAVAILABLE','Le paiement en ligne n’est pas disponible pour le moment.');
- if(plan==='BETA'&&!config.betaCheckoutOpen)return fail(409,'BETA_OFFER_CLOSED','L’offre ProspectOS Bêta n’est plus proposée aux nouveaux abonnés.');
+ if(plan==='BETA'&&!config.betaCheckoutOpen)return fail(409,'BETA_OFFER_CLOSED','L’offre ProspectOS Solo n’est plus proposée aux nouveaux abonnés.');
  const priceId=config.prices[plan];
  if(!priceId)return fail(503,'BILLING_UNAVAILABLE','Le paiement en ligne n’est pas disponible pour le moment.');
  const price=await stripe.retrievePrice(priceId,plan==='TEAM');

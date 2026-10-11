@@ -40,28 +40,22 @@ test('Offer — 49 € HT, 7 days, 20/50/5 in trial and 100/250/25 per paid peri
  assert.match(migration,/trial_analysis_limit int not null default 50/);
  assert.match(migration,/paid_discovery_limit int not null default 100/);
  assert.match(migration,/paid_analysis_limit int not null default 250/);
- assert.equal(fr['pricing.trialLimits'],'Essai 7 jours : 20 Discovery · 50 analyses prospects · 5 analyses d’offre IA');
- assert.equal(fr['pricing.paidLimits'],'49 € HT/mois : 100 Discovery · 250 analyses prospects · 25 analyses d’offre IA / mois');
+ assert.equal(fr['pricing.trialLimits'],'Essai 7 jours : 20 recherches de prospects · 50 analyses de prospects · 5 analyses d’offre IA');
+ assert.equal(fr['pricing.afterTrial'],'Ensuite : ProspectOS Solo à 49 € HT/mois ou ProspectOS Pro à 99 € HT/mois.');
 });
 
 // ---------------------------------------------------------------- N, O: pricing copy on the sign-up card
-test('N — the pricing shows 49 € HT / mois, without commitment, cancellable at any time',()=>{
- assert.equal(fr['pricing.planName'],'ProspectOS Solo');
- assert.equal(fr['pricing.price'],'49 € HT / mois');
- assert.equal(fr['pricing.terms'],'7 jours gratuits · Sans engagement · Annulation à tout moment');
- assert.equal(en['pricing.price'],'€49 excl. VAT / month');
- assert.match(page,/<div className="pricing-offer"><p><b>\{tr\('pricing\.planName'\)\}<\/b> · \{tr\('pricing\.price'\)\}<\/p><p className="muted">\{tr\('pricing\.terms'\)\}<\/p><ul><li>\{tr\('pricing\.trialLimits'\)\}<\/li><li>\{tr\('pricing\.paidLimits'\)\}<\/li><\/ul>/);
+test('N — the sign-up card: the trial volumes, then Solo 49 € / Pro 99 € HT per month, without commitment, and a link to /tarifs',()=>{
+ assert.equal(fr['pricing.terms'],'Sans engagement · Résiliable à tout moment · Prix hors taxes');
+ assert.equal(en['pricing.terms'],'No commitment · Cancel anytime · Prices excl. VAT');
+ assert.match(page,/<div className="pricing-offer"><ul><li>\{tr\('pricing\.trialLimits'\)\}<\/li><li>\{tr\('pricing\.afterTrial'\)\}<\/li><\/ul><p className="muted">\{tr\('pricing\.terms'\)\}<\/p><a className="text-button see-offers" href="\/tarifs">\{tr\('pricing\.seePricing'\)\} →<\/a><\/div>/);
 });
 test('O — the CTA announces the 7 free days, no card, and that the beta needs one\'s own account',()=>{
  assert.equal(fr['landing.trialCta'],'Démarrer mon essai gratuit — 7 jours');
  assert.equal(fr['landing.trialSub'],'Aucune carte bancaire requise pour commencer.');
  assert.equal(en['landing.trialCta'],'Start my free trial — 7 days');
- // The 49 € offer is now named Solo: the sentence no longer speaks of "la bêta".
- assert.equal(fr['pricing.betaAccess'],'Créez votre propre compte :');assert.equal(en['pricing.betaAccess'],'Create your own account:');
- assert.equal(fr['pricing.trialStart'],'Votre compte démarre avec 7 jours d’essai gratuit.');
  // While free-trial seats are open (or unknown) the sign-up promises the trial; once they are gone it offers the plans.
  assert.match(page,/onClick=\{\(\)=>login\(true\)\}>\{tr\(trialFull\?'landing\.createAccountCta':'landing\.trialCta'\)\}<\/button>\{trialFull\?<>[\s\S]*?<\/>:<><small className="muted">\{tr\('landing\.trialSub'\)\}<\/small><div className="pricing-offer">/);
- assert.match(page,/\{tr\('pricing\.betaAccess'\)\} \{tr\('pricing\.trialStart'\)\}/);
 });
 test('No internal cost and no payment secret ever reaches the browser',()=>{
  for(const [k,v] of Object.entries({...fr,...en}))if(k.startsWith('pricing.')||k.startsWith('account.usage'))assert.doesNotMatch(v,/\$|USD|Brave|Anthropic|coût|cost/i,k);
@@ -72,20 +66,20 @@ test('No internal cost and no payment secret ever reaches the browser',()=>{
 test('Counters — trial: Discovery X / 20, Analyses prospects X / 50, Analyses d’offre IA X / 5, trial end',()=>{
  const v=usageView(trial,NOW)!;
  assert.equal(v.kind,'trial');assert.equal(v.active,true);assert.equal(v.daysLeft,5);
- assert.equal(usageCounterLabel('fr','discovery',v.discovery.used,v.discovery.limit),'Discovery : 3 / 20');
- assert.equal(usageCounterLabel('fr','analysis',v.analysis.used,v.analysis.limit),'Analyses prospects : 12 / 50');
+ assert.equal(usageCounterLabel('fr','discovery',v.discovery.used,v.discovery.limit),'Recherches de prospects : 3 / 20');
+ assert.equal(usageCounterLabel('fr','analysis',v.analysis.used,v.analysis.limit),'Analyses de prospects : 12 / 50');
  assert.equal(usageCounterLabel('fr','ai_offer',v.aiOffer.used,v.aiOffer.limit),'Analyses d’offre IA : 1 / 5');
  assert.equal(usageCounterLabel('en','ai_offer',1,5),'AI offer analyses: 1 / 5');
  assert.equal(trialEndsInLabel('fr',5),'Essai se termine dans 5 jours');
  assert.equal(trialEndsInLabel('fr',1),'Essai se termine dans 1 jour');
  assert.equal(trialEndsInLabel('fr',0),'Essai se termine aujourd’hui');
- assert.equal(usageCounterLabel('en','discovery',3,20),'Discovery: 3 / 20');
+ assert.equal(usageCounterLabel('en','discovery',3,20),'Prospect searches: 3 / 20');
 });
 test('Counters — paid: Discovery X / 100, Analyses prospects X / 250, Analyses d’offre IA X / 25, reset date',()=>{
  const v=usageView(paid,NOW)!;
  assert.equal(v.kind,'paid');assert.equal(v.discovery.reached,true);assert.equal(v.analysis.reached,false);assert.equal(v.aiOffer.reached,true);
- assert.equal(usageCounterLabel('fr','discovery',100,100),'Discovery : 100 / 100');
- assert.equal(usageCounterLabel('fr','analysis',40,250),'Analyses prospects : 40 / 250');
+ assert.equal(usageCounterLabel('fr','discovery',100,100),'Recherches de prospects : 100 / 100');
+ assert.equal(usageCounterLabel('fr','analysis',40,250),'Analyses de prospects : 40 / 250');
  assert.equal(usageCounterLabel('fr','ai_offer',25,25),'Analyses d’offre IA : 25 / 25');
  assert.match(page,/usageCounterLabel\(locale,'ai_offer',usage\.aiOffer\.used,usage\.aiOffer\.limit\)/);
  assert.match(usageResetLabel('fr',v.periodEnd),/^Réinitialisation le \d{2}\/\d{2}\/2026$/);
@@ -127,15 +121,14 @@ test('M — trial ended: data kept, clear message, upgrade offer, no deletion pa
  assert.equal(fr['account.trialEnded'],'Votre essai est terminé.');
  assert.equal(fr['account.upgrade'],'ProspectOS Solo — 49 € HT/mois');
  assert.match(fr['account.trialEndedNote'],/Vos données restent disponibles/);
- // The manual-activation message stays wherever self-service checkout is not available (Production today).
+ // Where self-service checkout is not available, the account says so and gives the contact address.
  assert.match(page,/\{entitlementPlan==='BETA'&&betaActive===false&&!\(billingOffers\?\.BETA\|\|billingOffers\?\.PRO\|\|billingOffers\?\.TEAM\)&&<div className="account-field upgrade"><p><b>\{tr\('account\.upgrade'\)\}<\/b><\/p><p className="muted">\{tr\('account\.upgradeNote'\)\}<\/p><\/div>\}/);
- assert.equal(fr['account.upgradeNote'],'Pendant la bêta, l’activation de l’abonnement se fait manuellement. Contactez-nous pour continuer.');
- assert.equal(en['account.upgradeNote'],'During the beta, subscriptions are activated manually. Contact us to continue.');
+ assert.equal(fr['account.upgradeNote'],'Le paiement en ligne n’est pas encore ouvert : écrivez-nous à prospectos.contact@gmail.com pour activer une offre.');
+ assert.equal(en['account.upgradeNote'],'Online payment is not open yet: email us at prospectos.contact@gmail.com to activate a plan.');
  // The public pricing no longer claims a manual activation unconditionally (false wherever online payment is
  // open): it says the paid plan is taken from the account and granted only after the server's confirmation.
  assert.equal('pricing.manualActivation' in fr,false);
- assert.equal(fr['pricing.activation'],'Le passage à une offre payante se fait depuis votre compte. L’accès payant n’est accordé qu’après confirmation du paiement par notre serveur.');
- assert.match(page,/<li>\{tr\('pricing\.paidLimits'\)\}<\/li><\/ul><p className="muted">\{tr\('pricing\.activation'\)\}<\/p>/,'the public pricing says it');
+ assert.equal('pricing.activation' in fr,false,'the sign-up card links to /tarifs, which states it');
  for(const v of Object.values(fr))assert.doesNotMatch(v,/payer maintenant|acheter|s’abonner en ligne|checkout|paiement sécurisé/i);
  for(const v of Object.values(en))assert.doesNotMatch(v,/pay now|buy now|subscribe online|checkout|secure payment/i);
  // Self-service payment exists since 017, but never as a button of its own: the page only calls the server
@@ -275,11 +268,12 @@ test('J — a real Discovery is charged at launch whatever it finds; a fixture r
 });
 
 // ---------------------------------------------------------------- K: beta capacity message
-test('K — beta full: a clean FR/EN sentence, the internal code is never shown to the user',()=>{
- assert.equal(fr['error.betaCapacityReached'],'La bêta est actuellement complète. Contactez-nous pour être informé de la prochaine ouverture.');
- assert.equal(en['error.betaCapacityReached'],'The beta is currently full. Contact us to be notified when access reopens.');
- for(const locale of ['fr','en'] as const){const shown=localizeApiErrorMessage('La bêta est actuellement complète. Contactez-nous pour être informé de la prochaine ouverture.','BETA_CAPACITY_REACHED',locale);assert.doesNotMatch(shown,/BETA_CAPACITY_REACHED|CAPACITY/)}
- assert.match(route,/return json\(\{error:'La bêta est actuellement complète\. Contactez-nous pour être informé de la prochaine ouverture\.',code:'BETA_CAPACITY_REACHED'\},409\);/);
+test('K — trial seats full: a clean FR/EN sentence with the contact address, the internal code is never shown to the user',()=>{
+ const SERVER='Les places d’essai gratuit sont momentanément complètes. Choisissez une offre pour continuer, ou écrivez-nous à prospectos.contact@gmail.com.';
+ assert.equal(fr['error.betaCapacityReached'],SERVER);
+ assert.equal(en['error.betaCapacityReached'],'Free trial seats are temporarily full. Choose a plan to continue, or email us at prospectos.contact@gmail.com.');
+ for(const locale of ['fr','en'] as const){const shown=localizeApiErrorMessage(SERVER,'BETA_CAPACITY_REACHED',locale);assert.doesNotMatch(shown,/BETA_CAPACITY_REACHED|CAPACITY|bêta|beta/i)}
+ assert.ok(route.includes(`return json({error:'${SERVER}',code:'BETA_CAPACITY_REACHED'},409);`));
  assert.match(page,/code==='BETA_CAPACITY_REACHED'\)\{setNotice\(e\.message\);/,'the page shows the localized message, never the code');
  assert.match(migration,/^(?![\s\S]*beta_program)/,'capacity (10) is not touched by this migration');
 });

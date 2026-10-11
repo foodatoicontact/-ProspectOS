@@ -48,7 +48,7 @@ export async function buildAccountExportZip(db:SupabaseClient,user:{id:string;em
 `ProspectOS — export de données
 Généré le : ${new Date().toISOString()}
 
-account.json : votre email, vos memberships (organisation + rôle) et votre accès (bêta ou non).
+account.json : votre email, vos memberships (organisation + rôle) et votre accès (essai gratuit, offre payante ou accès interne).
 organizations.json, projects.json, icps.json, prospects.json, evidence.json, channels.json,
 outreach.json, history.json, signals.json, intent_profiles.json, public_content.json : les données de la ou des organisations dont vous êtes membre,
 telles que votre compte peut légitimement les consulter aujourd'hui (limité par les mêmes règles

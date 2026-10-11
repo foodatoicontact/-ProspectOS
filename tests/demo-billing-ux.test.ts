@@ -90,14 +90,15 @@ test('demo/visitor click records the intent and leaves the demo; it never calls 
 });
 test('the welcome screen shows the chosen offer during sign-up, confirmation and sign-in',()=>{
  const welcome=page.match(/if\(mode==='welcome'\)return <main className="welcome">[\s\S]*?<\/main>;/)![0];
- assert.match(welcome,/<section className="login card">\{planIntent&&<div className="plan-intent" role="status"><p>\{tr\('offers\.selected'\)\} <b>\{tr\(planIntent==='BETA'\?'billing\.betaName':'billing\.proName'\)\}<\/b>/,'shown above the sign-up form, the check-email screen and the sign-in form alike');
- assert.equal(fr['offers.selected'],'Offre choisie :');assert.equal(fr['billing.betaName'],'ProspectOS Solo');assert.equal(fr['billing.proName'],'ProspectOS Pro B2B');
+ assert.match(welcome,/<section className="login card" id="inscription">\{planIntent&&<div className="plan-intent" role="status"><p>\{tr\('offers\.selected'\)\} <b>\{tr\(offerNameKey\(planIntent\)\)\}<\/b>/,'shown above the sign-up form, the check-email screen and the sign-in form alike — named after the chosen offer (Solo, Pro or Équipe)');
+ assert.equal(fr['offers.selected'],'Offre choisie :');assert.equal(fr['billing.betaName'],'ProspectOS Solo');assert.equal(fr['billing.proName'],'ProspectOS Pro');assert.equal(fr['billing.teamName'],'ProspectOS Équipe');
 });
-test('the intent is acted on once, after the authenticated account answer, and only through startCheckout',()=>{
+test('the intent is acted on once, after the authenticated account answer, and never opens a payment page without a click',()=>{
  const resume=fn('async function resumePlanIntent(');
  assert.match(resume,/if\(!intent\|\|!acc\|\|intentHandled\.current\)return;intentHandled\.current=true;/,'no answer → nothing; never twice per session');
  assert.match(resume,/decidePlanIntent\(intent,acc\.billing_offers,acc\.billing\)/,'decided on the server answer only');
- assert.match(resume,/if\(decision\.action==='CHECKOUT'\)\{try\{await startCheckout\(decision\.plan,t\)\}catch\(e\)\{forgetPlanIntent\(\);/,'a refused checkout forgets the intent (no retry loop)');
+ assert.doesNotMatch(resume,/startCheckout/,'no automatic checkout after sign-in');
+ assert.match(resume,/forgetPlanIntent\(\);[\s\S]*if\(decision\.action==='CHECKOUT'\)\{setModal\('pricing'\);setNotice\(tr\('plan\.confirmNotice'\)\.replace\('\{plan\}',tr\(offerNameKey\(decision\.plan\)\)\)\);return\}/,'a buyable offer reopens the offers for an explicit confirmation; the intent is used once');
  assert.match(page,/await loadAccount\(t\);\n setMode\('live'\);void resumePlanIntent\(t\)/,'after a sign-in, with the session token (React state is not updated yet in this closure)');
  assert.match(page,/setMode\('live'\);if\(AUTH_RETURN==='CONFIRMED'[^\n]*void resumePlanIntent\(t\)\}catch/,'after the confirmation link / reload');
  assert.match(page,/async function loadAccount\(t=token\)\{try\{\n const invite=readPendingInvite\(\);if\(invite\)await acceptPendingInvite\(invite,t\);\n const acc=await api\('account','GET',undefined,t\);lastAccount\.current=acc;/);
@@ -125,12 +126,13 @@ test('offers derive from the server-checked prices and the database quotas (no s
  const ent=OFFERS.find(o=>o.id==='ENTERPRISE')!;assert.equal(ent.checkoutPlan,null,'ENTERPRISE is never buyable online');assert.equal(ent.priceEurExclVatPerMonth,null);
  assert.equal(offerForDbPlan('PAID')?.id,'BETA');assert.equal(offerForDbPlan('PRO')?.id,'PRO');assert.equal(offerForDbPlan('BETA'),null,'the trial is not a subscription');
  // Remaining public copy that still spells the BETA numbers matches the same source.
- assert.match(fr['pricing.price'],/^49 € HT/);assert.match(fr['pricing.paidLimits'],/100 Discovery · 250 analyses prospects · 25 analyses d’offre IA/);
+ assert.match(fr['pricing.afterTrial'],new RegExp(`Solo à ${offerFor('BETA').priceEurExclVatPerMonth} € HT/mois ou ProspectOS Pro à ${offerFor('PRO').priceEurExclVatPerMonth} € HT/mois`));
+ assert.match(fr['pricing.trialLimits'],new RegExp(`${PLAN_QUOTAS.TRIAL.discovery} recherches de prospects · ${PLAN_QUOTAS.TRIAL.analysis} analyses de prospects · ${PLAN_QUOTAS.TRIAL.aiOffer} analyses`));
 });
 test('the pricing component renders amounts and quotas from OFFERS only, with the agreed CTAs and no ranking claim',()=>{
- assert.match(pricing,/OFFERS\.map\(/);
+ assert.match(pricing,/OFFERS\.filter\(offer=>offer\.checkoutPlan!==null\)\.map\(/,'self-service offers only: a specific setup is a contact line, not a card');
  assert.doesNotMatch(pricing,/\b(49|99|100|250|300|750)\b/,'no amount or quota typed in the component');
- for(const [k,v] of [['offers.chooseBeta','Choisir Solo'],['offers.choosePro','Choisir Pro'],['offers.contact','Nous contacter'],['offers.badgeEarly','Premiers utilisateurs'],['offers.perMonth','HT / mois'],['offers.onQuote','Sur devis']])assert.equal(fr[k as keyof typeof fr],v);
+ for(const [k,v] of [['offers.chooseBeta','Choisir Solo'],['offers.choosePro','Choisir Pro'],['offers.contact','Nous écrire'],['offers.perMonth','HT / mois'],['offers.onQuote','Sur devis']])assert.equal(fr[k as keyof typeof fr],v);
  for(const v of [...Object.values(fr),...Object.values(en)])assert.doesNotMatch(v,/meilleur choix|le plus populaire|most popular|best choice|best value/i);
  assert.match(pricing,/onClick=\{\(\)=>onChoose\(plan\)\}/,'a click hands back the offer name only');
  assert.match(pricing,/disabled=\{busy\|\|!available\}/,'account context: not buyable on this deployment → disabled');

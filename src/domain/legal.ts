@@ -9,6 +9,9 @@
 export const MISSING = '[À FOURNIR]'; // genuinely unknown — the owner still needs to supply this
 export const TO_CONFIRM = '[À CONFIRMER]'; // a status that is administratively pending or contractually unverified — never asserted either way until confirmed
 export const MISSING_COMMERCIAL = '[À DÉFINIR AVANT COMMERCIALISATION]';
+// A VAT decision the owner has not taken yet (VAT regime, invoice mention, price display incl./excl. VAT). Rendered
+// visibly wherever the CGV depend on it — never replaced by a guessed regime or exemption mention.
+export const BLOCKED_VAT_DECISION = '[BLOCKED_VAT_DECISION]';
 
 // The service these legal pages actually concern. ProspectOS and Foodatoi are two distinct
 // projects operated by the same entrepreneur individuel (Kevin Cardia) — a prior version of this
@@ -82,14 +85,17 @@ export const TRANSFERS = {
  vercel: 'Le contrat de traitement des données (DPA) de Vercel prévoit des Clauses Contractuelles Types (CCT/SCC) européennes pour les transferts internationaux concernés par l’hébergement applicatif.',
  supabase: 'Le projet ProspectOS est configuré dans la région eu-west-1 (Irlande), qui détermine la localisation primaire des données selon la documentation Supabase. Ceci ne signifie pas qu’aucun traitement ou transfert hors UE ne peut jamais avoir lieu dans le cadre de l’exploitation du service ; le DPA Supabase intègre des Clauses Contractuelles Types pour les transferts internationaux applicables.',
  anthropic: 'Le contrat de traitement des données (DPA) d’Anthropic, incluant des Clauses Contractuelles Types, est intégré à ses Commercial Terms applicables à l’usage commercial de son API — utilisé uniquement pour les données décrites à la section 3 (texte d’offre que vous soumettez volontairement à l’analyse, et votre clé BYOK le cas échéant), jamais pour l’ensemble des données ProspectOS.',
+ // Payment processing for paid subscriptions (Stripe Checkout, Customer Portal, invoices). Its own transfer mechanism
+ // has not been verified for this bloc: stated as to confirm, never presumed.
+ stripe: `${TO_CONFIRM} — le mécanisme contractuel de Stripe applicable aux transferts internationaux liés au paiement des abonnements reste à vérifier et n’est pas présumé.`,
  braveSearch: `${TO_CONFIRM} — un mécanisme de transfert contractuel a été identifié pour Brave Ads, mais son applicabilité à l’API Brave Search effectivement utilisée par ProspectOS n’a pas été vérifiée et n’est pas présumée.`,
 };
 
 // Bumped whenever the corresponding page's substance changes — never silently. Recorded (via Supabase
 // Auth's own user_metadata, see app/page.tsx's signUp() call) at the moment a new account accepts them,
 // so a specific version can always be tied to a specific acceptance timestamp without a new table.
-export const TERMS_VERSION = '2026-09-21';
-export const PRIVACY_VERSION = '2026-09-21';
+export const TERMS_VERSION = '2026-10-11';
+export const PRIVACY_VERSION = '2026-10-11';
 
 export const LEGAL_PAGES = [
  {href: '/mentions-legales', label: 'Mentions légales'},

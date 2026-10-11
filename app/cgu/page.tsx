@@ -5,7 +5,7 @@ import {SITE_URL} from '../../src/domain/seo';
 
 export const metadata:Metadata={
  title:{absolute:'Conditions générales d’utilisation | ProspectOS'},
- description:'Conditions générales d’utilisation de ProspectOS : accès au service, compte, bêta, usage acceptable, IA, prospection et responsabilité.',
+ description:'Conditions générales d’utilisation de ProspectOS : accès au service, compte, essai gratuit et offres, usage acceptable, IA, prospection et responsabilité.',
  alternates:{canonical:`${SITE_URL}/cgu`},
  robots:{index:true,follow:true},
 };
@@ -26,20 +26,19 @@ export default function Page(){
   </section>
 
   <section>
-   <h2>3. Phase bêta</h2>
-   <p>ProspectOS est actuellement proposé en phase bêta, dans les conditions suivantes :</p>
+   <h2>3. Essai gratuit et offres payantes</h2>
+   <p>L’accès à ProspectOS s’organise comme suit :</p>
    <ul>
-    <li>Accès gratuit, pour une durée de 7 jours à compter de l’activation de votre accès.</li>
-    <li>L’accès bêta est accordé manuellement par l’exploitant, à un nombre limité de comptes (10 places maximum).</li>
-    <li>Le service, ses fonctionnalités et son comportement peuvent évoluer, être modifiés ou interrompus à tout moment sans préavis, s’agissant d’une phase de test.</li>
-    <li>Aucune garantie de disponibilité permanente ou continue n’est apportée pendant la phase bêta.</li>
-    <li>À l’expiration de votre accès bêta, vos données restent accessibles en lecture et vous conservez l’accès à votre compte, à l’export de vos données et à la suppression de votre compte ; les fonctionnalités nécessitant un accès actif (nouvelle recherche de prospects, nouvelle analyse IA, nouvelle génération de message) sont alors désactivées jusqu’à réactivation éventuelle ou ouverture d’une offre payante.</li>
+    <li>Tout nouveau compte bénéficie d’un essai gratuit de 7 jours, sans moyen de paiement à fournir, activé une seule fois par compte à sa première connexion. L’exploitant peut limiter le nombre d’essais ouverts simultanément.</li>
+    <li>Au-delà de l’essai, l’accès aux fonctionnalités actives nécessite un abonnement payant, souscrit depuis l’espace Compte dans les conditions des <a href="/cgv">conditions générales de vente</a> (offres, prix, quotas, résiliation).</li>
+    <li>Chaque offre comporte des quotas d’utilisation, appliqués par le serveur de ProspectOS.</li>
+    <li>À la fin de l’essai ou d’un abonnement, vos données restent accessibles en lecture et vous conservez l’accès à votre compte, à l’export de vos données et à la suppression de votre compte ; les fonctionnalités nécessitant un accès actif (nouvelle recherche de prospects, nouvelle analyse, préparation de message, surveillance de signaux) sont alors désactivées jusqu’à la souscription d’une offre.</li>
    </ul>
   </section>
 
   <section>
    <h2>4. Disponibilité</h2>
-   <p>ProspectOS est fourni « en l’état ». L’exploitant s’efforce d’assurer une disponibilité raisonnable du service mais ne garantit aucun taux de disponibilité contractuel pendant la phase bêta décrite à l’article 3.</p>
+   <p>ProspectOS est fourni « en l’état ». L’exploitant s’efforce d’assurer une disponibilité raisonnable du service mais ne garantit aucun taux de disponibilité contractuel ; les fonctionnalités et le comportement du service peuvent évoluer.</p>
   </section>
 
   <section>

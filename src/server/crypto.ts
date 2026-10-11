@@ -29,4 +29,7 @@ export function decryptSecret(encrypted:EncryptedSecret):string {
 }
 // Alphanumerics only: provider_credentials.key_last4 CHECK '^[A-Za-z0-9]{4}$' (migration 009) rejects a key whose tail
 // holds '-', '_' or whitespace, and the save would fail (tests/byok-key-last4.test.ts).
+// A provider key travels in an HTTP header (x-api-key / Authorization): visible ASCII only, no space. Anything else
+// (Unicode, invisible characters, whitespace, newline) makes fetch throw before any request leaves.
+export const isHeaderSafeSecret=(secret:string):boolean=>/^[\x21-\x7E]+$/.test(secret);
 export const last4=(secret:string):string=>secret.replace(/[^A-Za-z0-9]/g,'').slice(-4).padStart(4,'0');

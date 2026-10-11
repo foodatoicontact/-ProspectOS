@@ -76,10 +76,10 @@ test('save — the encrypted value and key_last4 come from the trimmed key, neve
  for(const value of Object.values(params))assert.ok(!String(value).includes(FAKE),'the plaintext key must never reach the RPC');
 });
 
-test('route — POST provider-credentials parses with the shared trimming schema and saves the parsed key',()=>{
+test('route — POST provider-credentials parses with the shared trimming parser and saves the parsed key',()=>{
  const route=readFileSync(new URL('../app/api/v1/[...path]/route.ts',import.meta.url),'utf8');
  const block=route.split("if(resource==='provider-credentials'){")[1]?.split("if(request.method==='DELETE')")[0]??'';
- assert.match(block,/ProviderCredentialSaveSchema\.parse\(body\)/);
+ assert.match(block,/parseProviderCredentialSave\(body\)/);
  assert.match(block,/saveProviderCredential\(db,organizationId,b\.provider,b\.api_key\)/);
  assert.doesNotMatch(block,/api_key:z\.string\(\)/,'no second, untrimmed api_key schema in the route');
 });

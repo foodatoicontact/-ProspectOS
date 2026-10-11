@@ -31,6 +31,7 @@
 // unchanged public error code. A network failure or a non-2xx response never reaches this point at all
 // (no body was ever parsed), so those cases correctly carry no usage and meter nothing — see
 // buildFailureUsage.
+import {isHeaderSafeSecret} from './crypto.ts';
 const ANTHROPIC_MAX_TOKENS=2048; // Conservative, fixed ceiling for a short structured JSON reply with
 // thinking disabled — not an arbitrary 16k/128k. Worst case under the existing schema (summary ≤1000
 // chars + target ≤1000 chars + up to 5 questions ≤1000 chars each, roughly 4 chars/token) is
@@ -165,11 +166,26 @@ export async function analyzeOffer(text:string,options?:{apiKeyOverride?:string|
 }
 
 // One line per provider failure so an AI_ERROR fallback can be explained: provider, operation, HTTP status and a
-// well-formed Anthropic request id (support reference) only. Never the key, prompt, response body or network error text.
+// well-formed Anthropic request id (support reference), or a transport category with an allowlisted system code.
+// Never the key, prompt, response body, error message, stack or cause text.
 const REQUEST_ID=/^req_[A-Za-z0-9]{1,64}$/;
-function logProviderFailure(provider:'anthropic'|'openai',failure:{status:number;requestId:string|null}|'NETWORK_ERROR'|'NETWORK_TIMEOUT'){
- const detail=typeof failure==='string'?{reason:failure}:{reason:'HTTP_ERROR',status:failure.status,...(failure.requestId&&REQUEST_ID.test(failure.requestId)?{request_id:failure.requestId}:{})};
+const SAFE_NETWORK_CODES=new Set(['ENOTFOUND','EAI_AGAIN','ECONNREFUSED','ECONNRESET','ECONNABORTED','ETIMEDOUT','EPIPE','EHOSTUNREACH','ENETUNREACH',
+ 'UND_ERR_CONNECT_TIMEOUT','UND_ERR_HEADERS_TIMEOUT','UND_ERR_BODY_TIMEOUT','UND_ERR_SOCKET','UND_ERR_CLOSED',
+ 'CERT_HAS_EXPIRED','UNABLE_TO_VERIFY_LEAF_SIGNATURE','SELF_SIGNED_CERT_IN_CHAIN','DEPTH_ZERO_SELF_SIGNED_CERT','ERR_TLS_CERT_ALTNAME_INVALID']);
+type ProviderFailure={status:number;requestId:string|null}|{reason:'INVALID_PROVIDER_CREDENTIAL'|'INVALID_REQUEST_HEADER'|'NETWORK_TIMEOUT'}|{reason:'NETWORK_ERROR';code:unknown};
+function logProviderFailure(provider:'anthropic'|'openai',failure:ProviderFailure){
+ const detail='status' in failure?{reason:'HTTP_ERROR',status:failure.status,...(failure.requestId&&REQUEST_ID.test(failure.requestId)?{request_id:failure.requestId}:{})}
+  :failure.reason==='NETWORK_ERROR'?{reason:failure.reason,...(typeof failure.code==='string'&&SAFE_NETWORK_CODES.has(failure.code)?{cause_code:failure.code}:{})}
+  :{reason:failure.reason};
  console.error(JSON.stringify({component:'composeOutreachMessage',provider,operation:'outreach_generation',...detail}));
+}
+// undici rejects a request it cannot build (invalid header value, …) with a bare TypeError; a transport failure is
+// TypeError('fetch failed') with the underlying system error as `cause`; the AbortSignal timeout is a TimeoutError.
+function classifyFetchFailure(e:unknown):ProviderFailure{
+ const error=e as {name?:unknown;cause?:{code?:unknown}}|null;
+ if(error?.name==='TimeoutError')return {reason:'NETWORK_TIMEOUT'};
+ if(e instanceof TypeError&&error?.cause===undefined)return {reason:'INVALID_REQUEST_HEADER'};
+ return {reason:'NETWORK_ERROR',code:error?.cause?.code};
 }
 
 // O1/O2 — the AI outreach composer's provider call (src/outreach/ai-generate.ts). Same provider, model, key and BYOK rule
@@ -185,6 +201,10 @@ export async function composeOutreachMessage(req:{system:string;user:string},opt
  const usingByokKey=anthropic&&!!options?.apiKeyOverride;
  const key=usingByokKey?options!.apiKeyOverride!:process.env.AI_API_KEY;
  if(!key||!model)throw Error('AI_NOT_CONFIGURED');
+ // Defense in depth (a BYOK key is already checked at save and when resolved): never build a request with a key no
+ // HTTP header can carry — no fetch, a deterministic error, the composer's fallback.
+ const providerName=anthropic?'anthropic' as const:'openai' as const;
+ if(!isHeaderSafeSecret(key)){logProviderFailure(providerName,{reason:'INVALID_PROVIDER_CREDENTIAL'});throw Error('INVALID_PROVIDER_CREDENTIAL')}
  let response:Response;
  try{response=await fetch(anthropic?'https://api.anthropic.com/v1/messages':'https://api.openai.com/v1/chat/completions',{
   method:'POST',signal:AbortSignal.timeout(OUTREACH_AI_TIMEOUT_MS),
@@ -192,8 +212,8 @@ export async function composeOutreachMessage(req:{system:string;user:string},opt
   body:JSON.stringify(anthropic
    ?{model,max_tokens:OUTREACH_MAX_TOKENS,system:req.system,thinking:{type:'disabled'},messages:[{role:'user',content:req.user}]}
    :{model,max_completion_tokens:OUTREACH_MAX_TOKENS,response_format:{type:'json_object'},messages:[{role:'system',content:req.system},{role:'user',content:req.user}]})})}
- catch(e){logProviderFailure(anthropic?'anthropic':'openai',(e as {name?:unknown})?.name==='TimeoutError'?'NETWORK_TIMEOUT':'NETWORK_ERROR');throw e}
- if(!response.ok){logProviderFailure(anthropic?'anthropic':'openai',{status:response.status,requestId:response.headers.get('request-id')});throw Error('AI_UNAVAILABLE')}
+ catch(e){logProviderFailure(providerName,classifyFetchFailure(e));throw e}
+ if(!response.ok){logProviderFailure(providerName,{status:response.status,requestId:response.headers.get('request-id')});throw Error('AI_UNAVAILABLE')}
  const body=await response.json();
  const usage=anthropic
   ?{provider:'anthropic' as const,model,input_tokens:toReliableTokenCount(body.usage?.input_tokens),output_tokens:toReliableTokenCount(body.usage?.output_tokens)}

@@ -35,9 +35,9 @@ export function llmsTxt():string{
 
 ## Offres et tarifs
 - Essai gratuit de 7 jours, sans carte bancaire : ${quota(PLAN_QUOTAS.TRIAL)}.
-- ProspectOS Solo — ${price('BETA')} € HT/mois, 1 compte : ${quota(PLAN_QUOTAS.BETA)} par mois.
-- ProspectOS Pro — ${price('PRO')} € HT/mois, 1 compte : ${quota(PLAN_QUOTAS.PRO)} par mois.
-- ProspectOS Équipe — ${TEAM_PRICING.baseAmount/100} € HT/mois pour ${TEAM_PRICING.includedSeats} comptes, + ${TEAM_PRICING.extraSeatAmount/100} € HT par compte supplémentaire, jusqu’à ${TEAM_PRICING.maxSeats} comptes : par compte, ${quota(PLAN_QUOTAS.PRO)} par mois, en pot commun ; une recherche identique faite par un coéquipier depuis moins de 7 jours est reprise sans être décomptée.
+- ProspectOS Solo — ${price('BETA')} €/mois, 1 compte : ${quota(PLAN_QUOTAS.BETA)} par mois.
+- ProspectOS Pro — ${price('PRO')} €/mois, 1 compte : ${quota(PLAN_QUOTAS.PRO)} par mois.
+- ProspectOS Équipe — ${TEAM_PRICING.baseAmount/100} €/mois pour ${TEAM_PRICING.includedSeats} comptes, + ${TEAM_PRICING.extraSeatAmount/100} € par compte supplémentaire, jusqu’à ${TEAM_PRICING.maxSeats} comptes : par compte, ${quota(PLAN_QUOTAS.PRO)} par mois, en pot commun ; une recherche identique faite par un coéquipier depuis moins de 7 jours est reprise sans être décomptée.
 - Entreprise / White Label — sur devis.
 - Sans engagement, résiliable à tout moment. Une recherche dont la source n’a répondu à aucune requête n’est pas décomptée. Détail : [Tarifs](${SITE_URL}/tarifs)
 

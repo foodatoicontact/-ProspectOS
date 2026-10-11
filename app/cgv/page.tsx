@@ -1,6 +1,6 @@
 import type {Metadata} from 'next';
 import {LegalPage} from '../../src/components/LegalPage';
-import {EDITOR, BLOCKED_VAT_DECISION, TERMS_VERSION} from '../../src/domain/legal';
+import {EDITOR, TERMS_VERSION} from '../../src/domain/legal';
 import {CHECKOUT_PRICES, PLAN_QUOTAS, TEAM_PRICING} from '../../src/domain/plans';
 import {SITE_URL} from '../../src/domain/seo';
 
@@ -16,7 +16,6 @@ export const metadata:Metadata={
 const eur=(cents:number)=>`${cents/100} €`;
 const SOLO=CHECKOUT_PRICES.BETA,PRO=CHECKOUT_PRICES.PRO;
 const T=PLAN_QUOTAS.TRIAL,S=PLAN_QUOTAS.BETA,P=PLAN_QUOTAS.PRO;
-const vat=<span className="missing">{BLOCKED_VAT_DECISION}</span>;
 
 export default function Page(){
  return <LegalPage title="Conditions générales de vente" updated={TERMS_VERSION} currentPath="/cgv">
@@ -37,11 +36,11 @@ export default function Page(){
   <section>
    <h2>3. Offres et prix</h2>
    <ul>
-    <li><b>ProspectOS Solo</b> — {eur(SOLO.unitAmount)} HT par mois, 1 compte : {S.discovery} recherches de prospects, {S.analysis} analyses de prospects et {S.aiOffer} analyses d’offre par IA par période mensuelle.</li>
-    <li><b>ProspectOS Pro</b> — {eur(PRO.unitAmount)} HT par mois, 1 compte : {P.discovery} recherches de prospects, {P.analysis} analyses de prospects et {P.aiOffer} analyses d’offre par IA par période mensuelle.</li>
-    <li><b>ProspectOS Équipe</b> — {eur(TEAM_PRICING.baseAmount)} HT par mois pour {TEAM_PRICING.includedSeats} comptes, puis {eur(TEAM_PRICING.extraSeatAmount)} HT par mois par compte supplémentaire, jusqu’à {TEAM_PRICING.maxSeats} comptes : les volumes de l’offre Pro par compte payé, mis en commun au sein de l’équipe.</li>
+    <li><b>ProspectOS Solo</b> — {eur(SOLO.unitAmount)} par mois, 1 compte : {S.discovery} recherches de prospects, {S.analysis} analyses de prospects et {S.aiOffer} analyses d’offre par IA par période mensuelle.</li>
+    <li><b>ProspectOS Pro</b> — {eur(PRO.unitAmount)} par mois, 1 compte : {P.discovery} recherches de prospects, {P.analysis} analyses de prospects et {P.aiOffer} analyses d’offre par IA par période mensuelle.</li>
+    <li><b>ProspectOS Équipe</b> — {eur(TEAM_PRICING.baseAmount)} par mois pour {TEAM_PRICING.includedSeats} comptes, puis {eur(TEAM_PRICING.extraSeatAmount)} par mois par compte supplémentaire, jusqu’à {TEAM_PRICING.maxSeats} comptes : les volumes de l’offre Pro par compte payé, mis en commun au sein de l’équipe.</li>
    </ul>
-   <p>Les prix sont exprimés en euros, hors taxes (HT). Régime de TVA applicable et mentions correspondantes : {vat}</p>
+   <p>Les prix sont indiqués en euros. L’éditeur bénéficie actuellement du régime de franchise en base de TVA et ne collecte pas de TVA sur les sommes facturées, sous réserve du maintien de ce régime fiscal.</p>
    <p>Les quotas sont appliqués par le serveur de ProspectOS sur chaque période mensuelle d’abonnement ; une période commence à la date de souscription puis à chaque date anniversaire. Les quotas non consommés ne sont pas reportés. Une action qui n’a produit aucun résultat (par exemple une recherche échouée) n’est pas décomptée.</p>
    <p>Une offre sur devis peut être proposée à certains clients ; ses conditions particulières sont alors fixées par écrit avec l’exploitant.</p>
    <p>Les prix applicables sont ceux affichés sur la page <a href="/tarifs">Tarifs</a> au moment de la souscription. Toute évolution de prix d’un abonnement en cours est notifiée au client avant de s’appliquer, et ne s’applique qu’à partir de la période suivante.</p>
@@ -56,7 +55,7 @@ export default function Page(){
   <section>
    <h2>5. Durée, facturation et renouvellement</h2>
    <p>L’abonnement est mensuel et sans engagement de durée. Il est payable d’avance et se renouvelle automatiquement chaque mois, à la date anniversaire de la souscription, jusqu’à sa résiliation.</p>
-   <p>Les factures sont mises à disposition depuis l’espace de gestion de l’abonnement accessible dans le Compte. Mentions de TVA portées sur les factures : {vat}</p>
+   <p>Les factures sont mises à disposition depuis l’espace de gestion de l’abonnement accessible dans le Compte. Elles sont émises sans TVA collectée, conformément au régime de franchise en base applicable à l’éditeur, et comportent la mention légale requise pour ce régime.</p>
   </section>
 
   <section>

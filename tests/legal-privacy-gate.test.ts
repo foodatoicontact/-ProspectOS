@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
-import {EDITOR, HOSTING, TRANSFERS, MISSING, TO_CONFIRM, MISSING_COMMERCIAL, BLOCKED_VAT_DECISION, TERMS_VERSION, PRIVACY_VERSION, LEGAL_PAGES, SERVICE_NAME, ACTIVITY_FORMALITY} from '../src/domain/legal.ts';
+import {EDITOR, HOSTING, TRANSFERS, MISSING, TO_CONFIRM, MISSING_COMMERCIAL, VAT_REGIME, VAT_PRICE_NOTE, TERMS_VERSION, PRIVACY_VERSION, LEGAL_PAGES, SERVICE_NAME, ACTIVITY_FORMALITY} from '../src/domain/legal.ts';
 
 const legalRoutes=['mentions-legales','cgu','confidentialite','cgv'];
 
@@ -54,10 +54,11 @@ test('B — VAT status is left as an explicit "to confirm" — never asserted as
  assert.equal(EDITOR.vatStatus,TO_CONFIRM);
  assert.doesNotMatch(EDITOR.vatStatus,/^FR\d/,'must never look like a fabricated FR-prefixed VAT number');
 });
-test('B — the mentions légales page never claims the VAT status is definitively "non applicable"',async()=>{
+test('B — the mentions légales page states the confirmed VAT regime (franchise en base) without inventing a VAT number or quoting a fiscal article',async()=>{
  const source=await readFile(new URL('../app/mentions-legales/page.tsx',import.meta.url),'utf8');
- assert.doesNotMatch(source,/TVA non applicable/);
- assert.match(source,/n’est pas présumé applicable ou non applicable/,'the neutral framing must be present');
+ assert.match(source,/L’éditeur relève du régime de franchise en base de TVA : aucune TVA n’est collectée sur les sommes facturées\./);
+ assert.match(source,/Aucun numéro de TVA intracommunautaire n’est affiché à ce stade ; un numéro sera indiqué ici s’il est attribué\./);
+ assert.doesNotMatch(source,/293 ?B|n’est pas présumé applicable ou non applicable/,'no article quoted; the old neutral framing is superseded by the confirmed regime');
 });
 test('B — RCS is left explicitly unresolved as "to confirm" (not asserted as either applicable or not applicable) since no number or greffe city was provided, and the pending activity formality is why',()=>{
  assert.equal(EDITOR.rcs,TO_CONFIRM);
@@ -128,21 +129,33 @@ test('J — mentions légales identify the service concerned as SERVICE_NAME (Pr
 });
 
 // ------------------------------------------------------------
-// C — CGV describe the real paid offer (paid launch): prices and quotas read from plans.ts, never typed; every
-// VAT-dependent statement left as BLOCKED_VAT_DECISION until the owner decides; no invented exemption mention.
+// C — CGV describe the real paid offer (paid launch): prices and quotas read from plans.ts, never typed; VAT as the
+// owner confirmed it (franchise en base, INPI record): no VAT collected, invoices without VAT carrying the mention
+// required for that regime — no rate, no fiscal article reference, no VAT number asserted.
 // ------------------------------------------------------------
-test('C — the CGV state the real offers from plans.ts, the free trial, monthly renewal, cancellation and access rules, with the VAT decision explicitly blocked',async()=>{
+test('C — the CGV state the real offers from plans.ts, the free trial, monthly renewal, cancellation and access rules, and the VAT franchise regime',async()=>{
  const source=await readFile(new URL('../app/cgv/page.tsx',import.meta.url),'utf8');
- assert.doesNotMatch(source,/n’a pas encore ouvert d’offre payante|MISSING_COMMERCIAL/,'the CGV no longer say no paid offer exists');
+ assert.doesNotMatch(source,/n’a pas encore ouvert d’offre payante|MISSING_COMMERCIAL|BLOCKED_VAT_DECISION/,'no placeholder left in the CGV');
  assert.match(source,/import \{CHECKOUT_PRICES, PLAN_QUOTAS, TEAM_PRICING\} from '..\/..\/src\/domain\/plans'/);
  assert.doesNotMatch(source,/\b(49|99|179|60)\s?€/,'amounts are never typed in the CGV: they come from plans.ts');
  for(const re of [/essai gratuit de 7 jours, sans carte bancaire/,/mensuel et sans engagement/,/Gérer mon abonnement/,/reste ouvert jusqu’à la fin de la période mensuelle déjà payée/,/accès en lecture/,/L\. 441-10 du Code de commerce/,/politique de confidentialité/])assert.match(source,re);
- assert.match(source,/BLOCKED_VAT_DECISION/);
- assert.equal(BLOCKED_VAT_DECISION,'[BLOCKED_VAT_DECISION]');
+ assert.match(source,/Les prix sont indiqués en euros\. L’éditeur bénéficie actuellement du régime de franchise en base de TVA et ne collecte pas de TVA sur les sommes facturées, sous réserve du maintien de ce régime fiscal\./);
+ assert.match(source,/Elles sont émises sans TVA collectée, conformément au régime de franchise en base applicable à l’éditeur, et comportent la mention légale requise pour ce régime\./);
+ assert.doesNotMatch(source,/\bHT\b|hors taxes/,'no "HT" under the franchise regime: the price shown is the price paid');
 });
-test('C — no VAT regime is asserted anywhere until the owner decides (no exemption mention, no VAT rate)',async()=>{
- for(const f of ['../app/cgv/page.tsx','../app/cgu/page.tsx','../app/mentions-legales/page.tsx','../src/domain/seo-content.ts','../src/components/PricingPage.tsx','../src/i18n/fr.ts','../src/i18n/en.ts'])
-  assert.doesNotMatch(await readFile(new URL(f,import.meta.url),'utf8'),/293 ?B|TVA non applicable|franchise en base|TVA \d|\d+ ?% de TVA|TTC/,f);
+test('C — VAT: the franchise regime is stated, no rate, no fiscal article, no TTC/HT price, no invented VAT number',async()=>{
+ assert.equal(VAT_REGIME,'Franchise en base de TVA');assert.equal(VAT_PRICE_NOTE,'TVA non applicable (franchise en base)');
+ assert.equal(EDITOR.vatStatus,TO_CONFIRM,'no intracommunity VAT number until the owner provides one');
+ const files=['../app/cgv/page.tsx','../app/cgu/page.tsx','../app/mentions-legales/page.tsx','../app/confidentialite/page.tsx','../src/domain/seo-content.ts','../src/domain/geo.ts','../src/domain/seo.ts','../src/components/PricingPage.tsx','../src/components/PricingPlans.tsx','../src/components/BillingSection.tsx','../src/i18n/fr.ts','../src/i18n/en.ts'];
+ for(const f of files){
+  const src=await readFile(new URL(f,import.meta.url),'utf8');
+  assert.doesNotMatch(src,/293 ?B|\bCGI\b|\d+(?:[.,]\d+)? ?% ?(de )?TVA|TVA (à|de) \d|\bTTC\b|€ ?HT|HT ?\/|HT par|hors taxes|excl\. VAT|BLOCKED_VAT_DECISION/,f);
+  assert.doesNotMatch(src,/FR ?\d{2} ?\d{3} ?\d{3} ?\d{3}/,`${f}: no intracommunity VAT number`);
+ }
+ const notice=await readFile(new URL('../app/mentions-legales/page.tsx',import.meta.url),'utf8');
+ assert.match(notice,/<Field label="Régime de TVA" value=\{VAT_REGIME\}\/>/);
+ assert.match(notice,/<Field label="Numéro de TVA intracommunautaire" value=\{EDITOR\.vatStatus\}\/>/);
+ assert.doesNotMatch(await readFile(new URL('../src/domain/seo.ts',import.meta.url),'utf8'),/valueAddedTaxIncluded/,'schema.org does not claim VAT excluded or included');
 });
 test('C — the CGU describe the self-service trial and the paid offers, never a manual 10-place beta',async()=>{
  const source=await readFile(new URL('../app/cgu/page.tsx',import.meta.url),'utf8');

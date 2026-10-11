@@ -9,9 +9,12 @@
 export const MISSING = '[À FOURNIR]'; // genuinely unknown — the owner still needs to supply this
 export const TO_CONFIRM = '[À CONFIRMER]'; // a status that is administratively pending or contractually unverified — never asserted either way until confirmed
 export const MISSING_COMMERCIAL = '[À DÉFINIR AVANT COMMERCIALISATION]';
-// A VAT decision the owner has not taken yet (VAT regime, invoice mention, price display incl./excl. VAT). Rendered
-// visibly wherever the CGV depend on it — never replaced by a guessed regime or exemption mention.
-export const BLOCKED_VAT_DECISION = '[BLOCKED_VAT_DECISION]';
+// VAT regime of the editor, confirmed by the owner from the INPI creation record (micro-BIC, "franchise en base de
+// TVA"): no VAT is charged, so a displayed price is the price paid. No fiscal article is quoted here (none has been
+// validated for this bloc) and no intracommunity VAT number is asserted (see EDITOR.vatStatus).
+export const VAT_REGIME = 'Franchise en base de TVA';
+// The one public price note: never "HT" (it would suggest VAT on top), never a rate.
+export const VAT_PRICE_NOTE = 'TVA non applicable (franchise en base)';
 
 // The service these legal pages actually concern. ProspectOS and Foodatoi are two distinct
 // projects operated by the same entrepreneur individuel (Kevin Cardia) — a prior version of this
@@ -40,9 +43,9 @@ export const EDITOR = {
  // activity formality itself is still pending INSEE/TCO processing — never invent a number, a greffe
  // city, or a new registration here.
  rcs: TO_CONFIRM,
- // Never asserted as "non applicable" merely because the regime is micro-entreprise — an intracommunity
- // VAT number must be shown here if one applies. None has been verified, so this stays an explicit,
- // neutral "to confirm" rather than either a fabricated number or a definitive exemption claim.
+ // The intracommunity VAT NUMBER (not the regime — see VAT_REGIME: franchise en base, confirmed). No number has
+ // been provided or verified, so this stays an explicit "to confirm": never a fabricated number, and never
+ // "non attribué" until the owner confirms that none has been assigned.
  vatStatus: TO_CONFIRM,
  address: '1 rue Edmond Haraucourt, 31100 Toulouse, France',
  phone: '06 35 15 10 66',

@@ -36,6 +36,7 @@ export function billingConfig(env:BillingEnv=process.env):BillingConfig|null{
   prices:{BETA:price(env.STRIPE_PRICE_BETA),PRO:price(env.STRIPE_PRICE_PRO),TEAM:price(env.STRIPE_PRICE_TEAM)},
   checkoutEnabled:env.BILLING_ENABLED==='true',
   betaCheckoutOpen:env.BILLING_BETA_CHECKOUT_OPEN!=='false',
+  // Stays unset while the editor is under the VAT franchise scheme (legal.ts VAT_REGIME): no VAT may be charged.
   automaticTax:env.STRIPE_AUTOMATIC_TAX==='true',
   portalConfiguration:env.STRIPE_PORTAL_CONFIGURATION&&/^bpc_[A-Za-z0-9]+$/.test(env.STRIPE_PORTAL_CONFIGURATION)?env.STRIPE_PORTAL_CONFIGURATION:null,
  };

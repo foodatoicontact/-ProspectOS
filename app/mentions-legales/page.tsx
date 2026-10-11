@@ -1,6 +1,6 @@
 import type {Metadata} from 'next';
 import {LegalPage} from '../../src/components/LegalPage';
-import {EDITOR, HOSTING, MISSING, TO_CONFIRM, TERMS_VERSION, SERVICE_NAME, ACTIVITY_FORMALITY} from '../../src/domain/legal';
+import {EDITOR, HOSTING, MISSING, TO_CONFIRM, TERMS_VERSION, SERVICE_NAME, ACTIVITY_FORMALITY, VAT_REGIME} from '../../src/domain/legal';
 import {SITE_URL} from '../../src/domain/seo';
 
 export const metadata:Metadata={
@@ -30,8 +30,9 @@ export default function Page(){
    <Field label="Immatriculation RNE (Registre National des Entreprises)" value={EDITOR.rneRegistrationDate}/>
    <Field label="RCS (registre du commerce et des sociétés)" value={EDITOR.rcs}/>
    <p className="muted">La formalité d’adjonction d’activité ProspectOS étant encore en cours de traitement (voir ci-dessous), l’applicabilité d’une inscription RCS distincte pour cette activité — ainsi que le numéro et la ville de greffe le cas échéant — reste à confirmer une fois cette formalité validée.</p>
+   <Field label="Régime de TVA" value={VAT_REGIME}/>
    <Field label="Numéro de TVA intracommunautaire" value={EDITOR.vatStatus}/>
-   <p className="muted">Le statut TVA de cette activité est en cours de vérification et n’est pas présumé applicable ou non applicable à ce stade. Un numéro sera indiqué ici s’il s’avère exigible.</p>
+   <p className="muted">L’éditeur relève du régime de franchise en base de TVA : aucune TVA n’est collectée sur les sommes facturées. Aucun numéro de TVA intracommunautaire n’est affiché à ce stade ; un numéro sera indiqué ici s’il est attribué.</p>
    <Field label="Capital social" value={EDITOR.capital}/>
    <Field label="Siège social" value={EDITOR.address}/>
    <Field label="Téléphone" value={EDITOR.phone}/>

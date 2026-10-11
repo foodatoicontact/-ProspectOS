@@ -32,7 +32,7 @@ const trial={plan:'BETA',status:'ACTIVE',period_start:day(-2),period_end:day(5),
 const paid={plan:'PAID',status:'ACTIVE',period_start:day(-10),period_end:day(20),active:true,discovery_used:100,discovery_limit:100,analysis_used:40,analysis_limit:250,ai_offer_used:25,ai_offer_limit:25};
 
 // ---------------------------------------------------------------- A, F, G: the offer, never changed silently
-test('Offer — 49 € HT, 7 days, 20/50/5 in trial and 100/250/25 per paid period — same numbers as the migration',()=>{
+test('Offer — 49 €, 7 days, 20/50/5 in trial and 100/250/25 per paid period — same numbers as the migration',()=>{
  assert.deepEqual(BETA_OFFER,{priceEurExclVatPerMonth:49,trialDays:7,trial:{discovery:20,analysis:50,aiOffer:5},paid:{discovery:100,analysis:250,aiOffer:25}});
  assert.match(migration,/trial_ai_offer_limit int not null default 5/);
  assert.match(migration,/paid_ai_offer_limit int not null default 25/);
@@ -41,13 +41,13 @@ test('Offer — 49 € HT, 7 days, 20/50/5 in trial and 100/250/25 per paid peri
  assert.match(migration,/paid_discovery_limit int not null default 100/);
  assert.match(migration,/paid_analysis_limit int not null default 250/);
  assert.equal(fr['pricing.trialLimits'],'Essai 7 jours : 20 recherches de prospects · 50 analyses de prospects · 5 analyses d’offre IA');
- assert.equal(fr['pricing.afterTrial'],'Ensuite : ProspectOS Solo à 49 € HT/mois ou ProspectOS Pro à 99 € HT/mois.');
+ assert.equal(fr['pricing.afterTrial'],'Ensuite : ProspectOS Solo à 49 €/mois ou ProspectOS Pro à 99 €/mois.');
 });
 
 // ---------------------------------------------------------------- N, O: pricing copy on the sign-up card
-test('N — the sign-up card: the trial volumes, then Solo 49 € / Pro 99 € HT per month, without commitment, and a link to /tarifs',()=>{
- assert.equal(fr['pricing.terms'],'Sans engagement · Résiliable à tout moment · Prix hors taxes');
- assert.equal(en['pricing.terms'],'No commitment · Cancel anytime · Prices excl. VAT');
+test('N — the sign-up card: the trial volumes, then Solo 49 € / Pro 99 € per month, without commitment, and a link to /tarifs',()=>{
+ assert.equal(fr['pricing.terms'],'Sans engagement · Résiliable à tout moment · TVA non applicable (franchise en base)');
+ assert.equal(en['pricing.terms'],'No commitment · Cancel anytime · VAT not applicable (VAT franchise scheme)');
  assert.match(page,/<div className="pricing-offer"><ul><li>\{tr\('pricing\.trialLimits'\)\}<\/li><li>\{tr\('pricing\.afterTrial'\)\}<\/li><\/ul><p className="muted">\{tr\('pricing\.terms'\)\}<\/p><a className="text-button see-offers" href="\/tarifs">\{tr\('pricing\.seePricing'\)\} →<\/a><\/div>/);
 });
 test('O — the CTA announces the 7 free days, no card, and that the beta needs one\'s own account',()=>{
@@ -119,7 +119,7 @@ test('M — trial ended: data kept, clear message, upgrade offer, no deletion pa
  const v=usageView({...trial,period_end:day(-1),active:false},NOW)!;
  assert.equal(v.active,false);assert.equal(daysLeft(day(-1),NOW),0);
  assert.equal(fr['account.trialEnded'],'Votre essai est terminé.');
- assert.equal(fr['account.upgrade'],'ProspectOS Solo — 49 € HT/mois');
+ assert.equal(fr['account.upgrade'],'ProspectOS Solo — 49 €/mois');
  assert.match(fr['account.trialEndedNote'],/Vos données restent disponibles/);
  // Where self-service checkout is not available, the account says so and gives the contact address.
  assert.match(page,/\{entitlementPlan==='BETA'&&betaActive===false&&!\(billingOffers\?\.BETA\|\|billingOffers\?\.PRO\|\|billingOffers\?\.TEAM\)&&<div className="account-field upgrade"><p><b>\{tr\('account\.upgrade'\)\}<\/b><\/p><p className="muted">\{tr\('account\.upgradeNote'\)\}<\/p><\/div>\}/);

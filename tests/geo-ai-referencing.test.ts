@@ -18,9 +18,9 @@ test('llms.txt: the llmstxt.org shape — title, summary, sections of absolute l
  assert.match(t,/^# ProspectOS\n\n> .{80,}\n/);
  for(const h of ['## Ce que fait ProspectOS','## Offres et tarifs','## Principes','## Pages','## Contact'])assert.ok(t.includes(h),h);
  const solo=OFFERS.find(o=>o.id==='BETA')!,pro=OFFERS.find(o=>o.id==='PRO')!;
- assert.match(t,new RegExp(`ProspectOS Solo[^\\n]*${solo.priceEurExclVatPerMonth} € HT/mois`));
+ assert.match(t,new RegExp(`ProspectOS Solo[^\\n]*${solo.priceEurExclVatPerMonth} €/mois`));
  // Pro is one account since 2026-10-06; teams buy ProspectOS Équipe (tests/team-offer.test.ts).
- assert.match(t,new RegExp(`ProspectOS Pro[^\\n]*${pro.priceEurExclVatPerMonth} € HT/mois, 1 compte`));
+ assert.match(t,new RegExp(`ProspectOS Pro[^\\n]*${pro.priceEurExclVatPerMonth} €/mois, 1 compte`));
  assert.match(t,/ProspectOS Équipe[^\n]*jusqu’à 5 comptes/);
  assert.match(t,/Entreprise[^\n]*sur devis/);
  for(const [plan,q] of [['Solo',PLAN_QUOTAS.BETA],['Pro',PLAN_QUOTAS.PRO]] as const)assert.ok(t.includes(`${q.discovery} recherches`)&&t.includes(`${q.analysis} analyses de prospects`),plan);
@@ -82,7 +82,7 @@ test('factual pages for the questions people ask assistants: tarifs, logiciel de
   const text=JSON.stringify(page);for(const re of FORBIDDEN)assert.doesNotMatch(text,re,`${slug} ${re}`);
  }
  const tarifs=JSON.stringify(getSeoPage('tarifs'));
- for(const o of OFFERS.filter(o=>o.priceEurExclVatPerMonth!==null))assert.ok(tarifs.includes(`${o.priceEurExclVatPerMonth} € HT par mois`),`tarifs ${o.id}`);
+ for(const o of OFFERS.filter(o=>o.priceEurExclVatPerMonth!==null))assert.ok(tarifs.includes(`${o.priceEurExclVatPerMonth} € par mois`),`tarifs ${o.id}`);
  for(const q of [PLAN_QUOTAS.BETA,PLAN_QUOTAS.PRO,PLAN_QUOTAS.TRIAL])assert.ok(tarifs.includes(`${q.discovery} recherches`)&&tarifs.includes(`${q.analysis} analyses de prospects`)&&tarifs.includes(`${q.aiOffer} analyses d’offre`));
  assert.ok(tarifs.includes('5 comptes'));
  const about=JSON.stringify(getSeoPage('a-propos'));

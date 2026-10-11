@@ -4,8 +4,8 @@
 //
 // Database values are kept as they already exist in production (no row is rewritten):
 //   account_entitlements.plan  'BETA'       → commercial TRIAL      (7-day free trial, historical name)
-//                              'PAID'       → commercial BETA       (ProspectOS Bêta, 49 € HT / month)
-//                              'PRO'        → commercial PRO        (ProspectOS Pro, 99 € HT / month, 1 account)
+//                              'PAID'       → commercial BETA       (ProspectOS Solo, 49 € / month)
+//                              'PRO'        → commercial PRO        (ProspectOS Pro, 99 € / month, 1 account)
 //                              'TEAM'       → commercial TEAM       (ProspectOS Équipe, 2 to 5 accounts, per seat — 023)
 //                              'ENTERPRISE' → commercial ENTERPRISE (quote only, activated by an operator)
 //                              'INTERNAL'   → commercial INTERNAL   (unlimited, unchanged)

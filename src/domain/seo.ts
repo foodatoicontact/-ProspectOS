@@ -84,15 +84,16 @@ export const softwareApplicationJsonLd={
     'Travail en équipe de 2 à 5 comptes avec base de données et quotas partagés (offre Équipe)',
     'Export CSV et export complet des données du compte',
   ],
-  // The real self-service prices (OFFERS ← CHECKOUT_PRICES / TEAM_PRICING), monthly, excluding VAT. Never a rating or a review.
+  // The real self-service prices (OFFERS ← CHECKOUT_PRICES / TEAM_PRICING), monthly. No VAT is charged (franchise en base):
+  // the price is the price paid, so the schema states no VAT inclusion flag either way. Never a rating or a review.
   offers:OFFERS.filter(o=>o.priceEurExclVatPerMonth!==null).map(o=>({
     '@type':'Offer',
     name:o.id==='PRO'?'ProspectOS Pro':o.id==='TEAM'?'ProspectOS Équipe':'ProspectOS Solo',
     price:String(o.priceEurExclVatPerMonth),
     priceCurrency:'EUR',
     url:`${SITE_URL}/tarifs`,
-    priceSpecification:{'@type':'UnitPriceSpecification',price:String(o.priceEurExclVatPerMonth),priceCurrency:'EUR',unitCode:'MON',valueAddedTaxIncluded:false},
-    ...(o.team?{description:`${o.priceEurExclVatPerMonth} € HT par mois pour ${o.team.includedSeats} comptes, + ${o.team.extraSeatEur} € HT par compte supplémentaire, jusqu’à ${o.team.maxSeats} comptes`}:{}),
+    priceSpecification:{'@type':'UnitPriceSpecification',price:String(o.priceEurExclVatPerMonth),priceCurrency:'EUR',unitCode:'MON'},
+    ...(o.team?{description:`${o.priceEurExclVatPerMonth} € par mois pour ${o.team.includedSeats} comptes, + ${o.team.extraSeatEur} € par compte supplémentaire, jusqu’à ${o.team.maxSeats} comptes`}:{}),
   })),
   publisher:{'@type':'Organization',name:'ProspectOS',url:SITE_URL},
 };

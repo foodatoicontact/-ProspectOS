@@ -16,7 +16,7 @@ const read=(p:string)=>readFile(new URL(p,import.meta.url),'utf8');
 test('offers: the 49 € offer is “Solo”, Pro and Entreprise keep their names',()=>{
  assert.equal(fr['billing.betaName'],'ProspectOS Solo');assert.equal(en['billing.betaName'],'ProspectOS Solo');
  assert.equal(fr['offers.chooseBeta'],'Choisir Solo');assert.equal(en['offers.chooseBeta'],'Choose Solo');
- assert.equal(fr['account.usagePaid'],'ProspectOS Solo — 49 € HT/mois');assert.equal(fr['account.upgrade'],'ProspectOS Solo — 49 € HT/mois');
+ assert.equal(fr['account.usagePaid'],'ProspectOS Solo — 49 €/mois');assert.equal(fr['account.upgrade'],'ProspectOS Solo — 49 €/mois');
  assert.match(fr['offers.proPoint1'],/Solo/);assert.match(en['offers.proPoint1'],/Solo/);
  assert.equal(fr['billing.proName'],'ProspectOS Pro');assert.equal(en['billing.proName'],'ProspectOS Pro');assert.equal(fr['billing.enterpriseName'],'Entreprise / White Label');
  for(const k of ['billing.betaName','offers.chooseBeta','account.usagePaid','account.upgrade','account.paidEnded','error.betaOfferClosed','offers.proPoint1'] as const){

@@ -56,7 +56,7 @@ archive the BETA price while subscriptions use it; never migrate BETA → PRO au
 | `STRIPE_PRICE_BETA` / `STRIPE_PRICE_PRO` | TEST price ids | LIVE price ids |
 | `BILLING_ENABLED` | `true` | `true` when opening sales |
 | `BILLING_ALLOW_LIVE` | unset | `true` |
-| `STRIPE_AUTOMATIC_TAX` | unset | `true` once Stripe Tax is configured |
+| `STRIPE_AUTOMATIC_TAX` | unset | must stay unset while the editor is under the VAT franchise scheme (no VAT charged) |
 | `BILLING_BETA_CHECKOUT_OPEN` | unset | `false` when the 49 € offer closes |
 | `STRIPE_PORTAL_CONFIGURATION`, `APP_BASE_URL` | optional | optional |
 

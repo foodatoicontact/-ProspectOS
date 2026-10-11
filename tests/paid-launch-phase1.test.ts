@@ -27,11 +27,11 @@ const tarifsRoute=await read('../app/tarifs/page.tsx');
 const welcome=page.match(/if\(mode==='welcome'\)return <main className="welcome">[\s\S]*?<\/main>;/)![0];
 
 // ---------------------------------------------------------------- pricing copy
-test('pricing — /tarifs states Solo 49 € and Pro 99 € HT per month, the trial, Team second, all read from plans.ts',()=>{
+test('pricing — /tarifs states Solo 49 € and Pro 99 € per month, the trial, Team second, all read from plans.ts',()=>{
  const t=getSeoPage('tarifs');const all=JSON.stringify(t);
  assert.equal(CHECKOUT_PRICES.BETA.unitAmount,4900);assert.equal(CHECKOUT_PRICES.PRO.unitAmount,9900);
  assert.match(t.h1,/7 jours gratuitement, puis choisissez Solo ou Pro/);
- assert.ok(all.includes('ProspectOS Solo — 49 € HT par mois')&&all.includes('ProspectOS Pro — 99 € HT par mois'));
+ assert.ok(all.includes('ProspectOS Solo — 49 € par mois')&&all.includes('ProspectOS Pro — 99 € par mois'));
  assert.ok(all.includes(`${PLAN_QUOTAS.BETA.discovery} recherches de prospects`)&&all.includes(`${PLAN_QUOTAS.PRO.discovery} recherches de prospects`));
  assert.doesNotMatch(t.title,/Entreprise/,'the Enterprise offer is not promoted in the title');
  assert.doesNotMatch(all,/Entreprise \/ White Label — sur devis/,'no Enterprise line in the offers list');
@@ -110,7 +110,7 @@ test('plan selection — the chosen offer is named after itself (Équipe is no l
  assert.match(pricingPlans,/export const offerNameKey=\(id:Offer\['id'\]\):TKey=>id==='BETA'\?'billing\.betaName':id==='PRO'\?'billing\.proName':id==='TEAM'\?'billing\.teamName':'billing\.enterpriseName';/,'TEAM → its own name');
  assert.match(welcome,/<b>\{tr\(offerNameKey\(planIntent\)\)\}<\/b>/);
  assert.doesNotMatch(page,/planIntent==='BETA'\?'billing\.betaName':'billing\.proName'/);
- assert.equal(fr['billing.proName'],'ProspectOS Pro');assert.equal(fr['account.usagePro'],'ProspectOS Pro — 99 € HT/mois');
+ assert.equal(fr['billing.proName'],'ProspectOS Pro');assert.equal(fr['account.usagePro'],'ProspectOS Pro — 99 €/mois');
  for(const v of [...Object.values(fr),...Object.values(en)])assert.doesNotMatch(v,/Pro B2B/);
 });
 test('plan selection — a plan chosen before signing in never opens a payment page by itself',()=>{

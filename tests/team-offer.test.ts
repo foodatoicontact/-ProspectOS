@@ -137,10 +137,10 @@ test('copy: Pro says 1 account, Équipe says 2 to 5 accounts with shared base an
 
 test('public facts: llms.txt, /tarifs and schema.org state Pro = 1 account and Équipe = 179 € for 2 + 60 € per account up to 5',()=>{
  const t=llmsTxt();
- assert.match(t,/ProspectOS Pro — 99 € HT\/mois, 1 compte/);
- assert.match(t,/ProspectOS Équipe — 179 € HT\/mois pour 2 comptes, \+ 60 € HT par compte supplémentaire, jusqu’à 5 comptes/);
+ assert.match(t,/ProspectOS Pro — 99 €\/mois, 1 compte/);
+ assert.match(t,/ProspectOS Équipe — 179 €\/mois pour 2 comptes, \+ 60 € par compte supplémentaire, jusqu’à 5 comptes/);
  const tarifs=JSON.stringify(getSeoPage('tarifs'));
- assert.ok(tarifs.includes('179 € HT par mois')&&tarifs.includes('60 € HT par compte supplémentaire')&&tarifs.includes('jusqu’à 5 comptes'));
+ assert.ok(tarifs.includes('179 € par mois')&&tarifs.includes('60 € par compte supplémentaire')&&tarifs.includes('jusqu’à 5 comptes'));
  assert.doesNotMatch(tarifs,/ProspectOS Pro[^"]{0,80}jusqu’à 5 comptes/,'Pro is never sold as a team anymore');
  const offers=(softwareApplicationJsonLd as any).offers as any[];
  const team=offers.find(o=>o.name==='ProspectOS Équipe');assert.ok(team);assert.equal(team.price,'179');

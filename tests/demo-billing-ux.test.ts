@@ -126,13 +126,13 @@ test('offers derive from the server-checked prices and the database quotas (no s
  const ent=OFFERS.find(o=>o.id==='ENTERPRISE')!;assert.equal(ent.checkoutPlan,null,'ENTERPRISE is never buyable online');assert.equal(ent.priceEurExclVatPerMonth,null);
  assert.equal(offerForDbPlan('PAID')?.id,'BETA');assert.equal(offerForDbPlan('PRO')?.id,'PRO');assert.equal(offerForDbPlan('BETA'),null,'the trial is not a subscription');
  // Remaining public copy that still spells the BETA numbers matches the same source.
- assert.match(fr['pricing.afterTrial'],new RegExp(`Solo à ${offerFor('BETA').priceEurExclVatPerMonth} € HT/mois ou ProspectOS Pro à ${offerFor('PRO').priceEurExclVatPerMonth} € HT/mois`));
+ assert.match(fr['pricing.afterTrial'],new RegExp(`Solo à ${offerFor('BETA').priceEurExclVatPerMonth} €/mois ou ProspectOS Pro à ${offerFor('PRO').priceEurExclVatPerMonth} €/mois`));
  assert.match(fr['pricing.trialLimits'],new RegExp(`${PLAN_QUOTAS.TRIAL.discovery} recherches de prospects · ${PLAN_QUOTAS.TRIAL.analysis} analyses de prospects · ${PLAN_QUOTAS.TRIAL.aiOffer} analyses`));
 });
 test('the pricing component renders amounts and quotas from OFFERS only, with the agreed CTAs and no ranking claim',()=>{
  assert.match(pricing,/OFFERS\.filter\(offer=>offer\.checkoutPlan!==null\)\.map\(/,'self-service offers only: a specific setup is a contact line, not a card');
  assert.doesNotMatch(pricing,/\b(49|99|100|250|300|750)\b/,'no amount or quota typed in the component');
- for(const [k,v] of [['offers.chooseBeta','Choisir Solo'],['offers.choosePro','Choisir Pro'],['offers.contact','Nous écrire'],['offers.perMonth','HT / mois'],['offers.onQuote','Sur devis']])assert.equal(fr[k as keyof typeof fr],v);
+ for(const [k,v] of [['offers.chooseBeta','Choisir Solo'],['offers.choosePro','Choisir Pro'],['offers.contact','Nous écrire'],['offers.perMonth','/ mois'],['offers.onQuote','Sur devis']])assert.equal(fr[k as keyof typeof fr],v);
  for(const v of [...Object.values(fr),...Object.values(en)])assert.doesNotMatch(v,/meilleur choix|le plus populaire|most popular|best choice|best value/i);
  assert.match(pricing,/onClick=\{\(\)=>onChoose\(plan\)\}/,'a click hands back the offer name only');
  assert.match(pricing,/disabled=\{busy\|\|!available\}/,'account context: not buyable on this deployment → disabled');

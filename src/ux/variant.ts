@@ -54,6 +54,8 @@ export function resolveUxVariant(i:{enabled:boolean;userId:string|null;forced:Ux
  if(!i.userId)return {variant:'A',assignment:'default'};
  return {variant:hashedVariant(i.userId),assignment:'hashed'};
 }
+// Temporary Preview diagnostic: what this browser resolved. Shown only when the experiment runs; no business content.
+export function uxDiagnosticLabel(enabled:boolean,a:UxAssignment):string|null{return enabled?`UX: ${a.variant} | enabled:${enabled} | assignment:${a.assignment}`:null}
 // The label sent with the user's own API calls — analytics only, never an authorization input.
 export function uxHeaderValue(a:UxAssignment):string|null{return a.assignment==='default'?null:`${a.variant};${a.assignment}`}
 export function parseUxHeader(value:string|null):{variant:UxVariant;assignment:'hashed'|'forced'}|null{

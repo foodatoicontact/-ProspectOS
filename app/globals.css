@@ -505,3 +505,5 @@ button,.button{transition:background-color .18s ease,border-color .18s ease,colo
  .detail-layout.ux-b .detail-main{display:flex;flex-direction:column}
  .ux-decision{grid-template-columns:repeat(3,minmax(0,1fr))}
 }
+/* UX A/B — temporary Preview diagnostic (only rendered when the experiment runs). */
+.ux-debug{position:fixed;right:8px;bottom:8px;z-index:50;margin:0;padding:4px 8px;border-radius:6px;background:#19342c;color:#fff;font:600 11px/1.4 monospace;opacity:.85;pointer-events:none}

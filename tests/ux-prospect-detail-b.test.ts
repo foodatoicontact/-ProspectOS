@@ -36,7 +36,7 @@ test('page — one instance of each panel and of the message block (no duplicate
   assert.equal(count(page,n),1,n);
 });
 test('page — B only adds the decision summary and groups the justifications; A renders exactly as before',()=>{
- assert.match(page,/<div className=\{uxAssignment\.variant==='B'\?'detail-layout ux-b':'detail-layout'\}>/);
+ assert.match(page,/<div className=\{uxAssignment\.variant==='B'\?'detail-layout ux-b':'detail-layout'\} data-ux-variant=\{uxAssignment\.variant\}>/);
  assert.match(page,/\{uxAssignment\.variant==='B'&&<ProspectDecisionSummary intent=\{detailIntent\} angle=\{draftAngle\} whyNowSentence=\{draftWhy\} hasDraft=\{!!draft\} draftStatus=\{draftStatus\} locale=\{locale\}\/>\}/);
  assert.match(page,/<UxJustifications variant=\{uxAssignment\.variant\} locale=\{locale\}>/);
  // the wrapped blocks keep their order and their own code

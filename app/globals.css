@@ -484,3 +484,4 @@ button,.button{transition:background-color .18s ease,border-color .18s ease,colo
 .public-content-item blockquote{margin:6px 0;padding-left:10px;border-left:3px solid #dfe7d4;white-space:pre-wrap;overflow-wrap:anywhere}
 .public-content-item .pill{margin-right:6px}
 .style-form label,.public-content-form label{margin:10px 0}
+.outreach-error{margin:12px 0 0;background:#fbefeb;border-color:#efd3ca;color:#8a4434}

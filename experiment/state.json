@@ -40,7 +40,7 @@
   "pending_human_approvals": [],
   "confirmed_revenue": 0,
   "estimated_api_spend": 0.75,
-  "next_best_action": "Attendre les réponses (pas de relance avant J+3). Les réponses arriveront sur la boîte Velòu France, pas sur prospectos.contact@gmail.com : l'utilisateur doit les transmettre ou autoriser leur lecture. Toute action sortante passe par prospectos.contact@gmail.com uniquement.",
+  "next_best_action": "Attendre les réponses, sans relance avant J+3 (2026-10-14). Les réponses du batch 1 arrivent sur la boîte Velòu France, que la session ne voit plus : l'utilisateur doit les transmettre. Toute relance éventuelle part de prospectos.contact@gmail.com, signée Kevin Cardia.",
   "metrics": {
     "prospects_qualifies": 5,
     "messages_envoyes": 5,
@@ -64,6 +64,7 @@
       "Velòu France (et l'adresse Gmail qui y est liée)"
     ],
     "incident": "Batch 1 (5 messages) envoyé depuis l'adresse liée à Velòu France. Les messages restent comptabilisés : ne pas les supprimer, ne pas les renvoyer, ne pas les corriger.",
-    "pre_send_check": "Avant tout envoi, vérifier que l'outil d'envoi est bien connecté à prospectos.contact@gmail.com. Le connecteur Gmail de la session ne l'est pas : STOP et demander à l'utilisateur."
+    "pre_send_check": "Avant tout envoi, vérifier que le connecteur Gmail est bien prospectos.contact@gmail.com (vérifié le 2026-10-11 : sender des messages envoyés = prospectos.contact@gmail.com). En cas de doute : STOP et demander.",
+    "connector_verified": "2026-10-11 prospectos.contact@gmail.com"
   }
 }

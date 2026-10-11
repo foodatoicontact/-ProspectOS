@@ -26,3 +26,5 @@ Règle à partir de maintenant : tout envoi lié à ProspectOS ou au pack de pro
 Le connecteur Gmail actuel n'est pas prospectos.contact@gmail.com : aucun envoi possible par ce connecteur.
 Les réponses du batch 1 arriveront sur la boîte Velòu France.
 Statut : batch terminé, aucun nouvel envoi, attente des réponses.
+
+Connecteur Gmail vérifié : prospectos.contact@gmail.com (sans envoi). Les réponses du batch 1 restent sur la boîte Velòu France : l'utilisateur les transmet.

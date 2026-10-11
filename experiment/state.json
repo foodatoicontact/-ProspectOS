@@ -1,16 +1,25 @@
 {
   "current_strategy": "S1 - Service productisé 'Pack 50 prospects qualifiés + messages' à 99€ (livré via ProspectOS, sans build)",
-  "current_stage": "PROPOSAL_READY - attente validation humaine pour contacter",
+  "current_stage": "BATCH1_BLOCKED - réseau sortant bloqué, aucun email pro vérifiable",
   "active_opportunities": [],
   "rejected_strategies": [
     "S2 Foodatoi pour restaurants: cycle de vente long, démo/onboarding nécessaires, EV/coût plus faible",
     "S3 Nouveau SaaS/micro-produit: build avant validation, interdit par la règle 4"
   ],
   "pending_human_approvals": [
-    "Envoyer offer.md (message court) à 10-20 contacts du réseau existant (agences, freelances, artisans B2B) — par l'humain ou via Gmail en brouillons",
-    "Choix moyen d'encaissement: lien de paiement (Stripe/PayPal/virement) au nom de l'utilisateur"
+    "Ouvrir l'accès réseau sortant (politique réseau de l'environnement) pour lire les pages contact des prospects"
   ],
   "confirmed_revenue": 0,
-  "estimated_api_spend": 0.35,
-  "next_best_action": "Humain: valider + envoyer le message aux contacts chauds. Agent: dès 1 réponse INTERESTED, générer le pack via ProspectOS (déterministe) et répondre."
+  "estimated_api_spend": 0.6,
+  "next_best_action": "Après ouverture réseau : 1 sous-agent bon marché extrait 5 emails publiés sur les sites des agences candidates (Beeween, Studio Gazoline, Ato Web, Clickzou, Jalis), puis 5 envois Gmail personnalisés, puis STOP.",
+  "metrics": {
+    "prospects_qualifies": 0,
+    "messages_envoyes": 0,
+    "reponses": 0,
+    "reponses_positives": 0,
+    "demandes_pack": 0,
+    "propositions_acceptees": 0,
+    "paid_eur": 0,
+    "api_restant_estime_eur": 0.4
+  }
 }

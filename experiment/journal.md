@@ -8,3 +8,9 @@ Action : offre + message rédigés (offer.md). Contact = validation humaine.
 Coût estimé : ~0,35 € (inventaire + mise en place).
 Résultat : en attente d'envoi.
 Décision suivante : stop jusqu'à réponse d'un prospect (aucune exploration supplémentaire).
+
+## Cycle 2 — 2026-10-11
+Budget restant : ~0,40 € (estim.) | CA confirmé : 0 € | CA potentiel : inchangé
+Action : identification de 5 agences web/consultants B2B en Occitanie (WebSearch OK).
+Résultat : sites des entreprises inaccessibles (proxy 403/DNS) → aucun email publié vérifiable → 0 envoi (pas d'email deviné, règle respectée).
+Décision : STOP. Débloquer le réseau sortant, sinon pivoter vers un canal ne nécessitant pas de lecture web.

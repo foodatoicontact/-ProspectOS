@@ -1,0 +1,10 @@
+{
+  "api_budget_eur": 1.00,
+  "estimated_api_spend_eur": 0.35,
+  "remaining_api_budget_eur": 0.65,
+  "estimate_note": "Estimation prudente (contexte système ~35k tokens relu à chaque appel, Opus). Coût exact non mesurable depuis la session.",
+  "external_spend_eur": 0,
+  "revenue_confirmed_eur": 0,
+  "revenue_pending_eur": 0,
+  "objective_eur": 100
+}

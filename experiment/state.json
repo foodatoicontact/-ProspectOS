@@ -1,0 +1,16 @@
+{
+  "current_strategy": "S1 - Service productisé 'Pack 50 prospects qualifiés + messages' à 99€ (livré via ProspectOS, sans build)",
+  "current_stage": "PROPOSAL_READY - attente validation humaine pour contacter",
+  "active_opportunities": [],
+  "rejected_strategies": [
+    "S2 Foodatoi pour restaurants: cycle de vente long, démo/onboarding nécessaires, EV/coût plus faible",
+    "S3 Nouveau SaaS/micro-produit: build avant validation, interdit par la règle 4"
+  ],
+  "pending_human_approvals": [
+    "Envoyer offer.md (message court) à 10-20 contacts du réseau existant (agences, freelances, artisans B2B) — par l'humain ou via Gmail en brouillons",
+    "Choix moyen d'encaissement: lien de paiement (Stripe/PayPal/virement) au nom de l'utilisateur"
+  ],
+  "confirmed_revenue": 0,
+  "estimated_api_spend": 0.35,
+  "next_best_action": "Humain: valider + envoyer le message aux contacts chauds. Agent: dès 1 réponse INTERESTED, générer le pack via ProspectOS (déterministe) et répondre."
+}

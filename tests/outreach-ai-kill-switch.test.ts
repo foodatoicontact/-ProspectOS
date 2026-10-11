@@ -14,7 +14,7 @@ const {aiOutreachEnabled,withAiOutreachUsage}=await import('../src/outreach/ai-s
 const {generateOutreachWithAi}=await import('../src/outreach/ai-generate.ts');
 const {composeOutreachMessage,analyzeOffer}=await import('../src/server/ai.ts');
 
-const FAKE_BYOK='sk-ant-fake-byok-key-for-tests-0001';
+const FAKE_BYOK='fake-byok-key-for-tests-0001';
 const composed={text:'Bonjour l’équipe Kerlan, message factuel.',evidence_ids:['e1'],signal_ids:[],public_content_ids:[],provider:'rule_based_v1' as const,why_now:null,
  angle:{type:'evidence' as const,source_id:'e1',label:'l',reason:'VERIFIED_EVIDENCE',source_url:'https://www.example.fr/',observed_at:null,excerpt:'Kerlan recrute.'}} as any;
 const input={composed,name:'Kerlan',offer:'Nous auditons la sécurité des sites industriels.',locale:'fr' as const,style:null,sources:['Kerlan recrute.'],userId:'me'};

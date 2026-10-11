@@ -2,7 +2,7 @@
 // ignore it). AI_OUTREACH_ENABLED must say "true" (or "1") to allow an AI outreach attempt; absent, empty, "false" or
 // anything else = hard OFF: no attempt, no BYOK credential read, no unit reserved, no provider call — the rule-based
 // message only — and the browser neither shows the "use AI" option nor an AI outreach counter.
-export function aiOutreachEnabled(env:{AI_OUTREACH_ENABLED?:string}):boolean{
+export function aiOutreachEnabled(env:Record<string,string|undefined>):boolean{
  const v=env.AI_OUTREACH_ENABLED?.trim().toLowerCase();
  return v==='true'||v==='1';
 }

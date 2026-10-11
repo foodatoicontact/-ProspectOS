@@ -141,12 +141,12 @@ export default function Home(){
  const acc=await api('account','GET',undefined,t);lastAccount.current=acc;
  let entitlement=acc.entitlement;
  if(!entitlement&&acc.role!=='member'){try{const activated=await api('account/activate-trial','POST',{},t);entitlement={plan:activated.plan,status:activated.status,expires_at:activated.expires_at,active:activated.status==='ACTIVE'&&new Date(activated.expires_at).getTime()>Date.now()}}catch(e){if(e instanceof Error&&(e as Error&{code?:string}).code==='BETA_CAPACITY_REACHED'){setNotice(e.message);setTrialAvailable(false);setModal('pricing')}}}
- setOrgName(acc.organization?.name??'');setOrgId(acc.organization_id??'');setRole(acc.role??'');setBetaActive(entitlement?entitlement.active:null);setBetaExpiresAt(entitlement?.expires_at??'');setEntitlementPlan(entitlement?.plan??null);setUsage(usageView(acc.usage));setAiOutreachOn(acc.ai_outreach_enabled===true);setBillingOffers(acc.billing_offers??null);setBillingStatus(acc.billing??null);
+ setOrgName(acc.organization?.name??'');setOrgId(acc.organization_id??'');setRole(acc.role??'');setBetaActive(entitlement?entitlement.active:null);setBetaExpiresAt(entitlement?.expires_at??'');setEntitlementPlan(entitlement?.plan??null);setUsage(usageView(acc.usage));setBillingOffers(acc.billing_offers??null);setBillingStatus(acc.billing??null);setAiOutreachOn(acc.ai_outreach_enabled===true);
  if(!acc.entitlement&&entitlement)await refreshUsage(t)
  }catch{}}
  // Commercial counters, read-only (get_commercial_usage on the server). Display only: every limit is enforced
  // by the database; a failed read leaves the last known counters in place.
- async function refreshUsage(t=token){try{const acc=await api('account','GET',undefined,t);setUsage(usageView(acc.usage));setAiOutreachOn(acc.ai_outreach_enabled===true);setBillingOffers(acc.billing_offers??null);setBillingStatus(acc.billing??null);if(acc.entitlement){setEntitlementPlan(acc.entitlement.plan);setBetaActive(acc.entitlement.active);setBetaExpiresAt(acc.entitlement.expires_at)}}catch{}}
+ async function refreshUsage(t=token){try{const acc=await api('account','GET',undefined,t);setUsage(usageView(acc.usage));setBillingOffers(acc.billing_offers??null);setBillingStatus(acc.billing??null);setAiOutreachOn(acc.ai_outreach_enabled===true);if(acc.entitlement){setEntitlementPlan(acc.entitlement.plan);setBetaActive(acc.entitlement.active);setBetaExpiresAt(acc.entitlement.expires_at)}}catch{}}
  // Subscription: the browser names the offer only; the server answers with the hosted payment page (or the
  // billing portal) URL. Access is granted later by the server, never by coming back from that page.
  async function startCheckout(plan:PlanName,t=token){const {url}=await api('billing/checkout','POST',{plan},t);if(typeof url==='string'){clearPlanIntent(browserStorage());setPlanIntent(null);window.location.assign(url)}}

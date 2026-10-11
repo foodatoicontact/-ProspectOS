@@ -100,7 +100,7 @@ test('Counters — the page reads them from GET account only, and shows the rese
  assert.match(page,/setUsage\(usageView\(acc\.usage\)\)/);
  assert.match(page,/usage\.kind==='paid'\?usageResetLabel\(locale,usage\.periodEnd\):trialEndsInLabel\(locale,usage\.daysLeft\)/);
  assert.match(route,/const usageAnswer=await db\.rpc\('get_commercial_usage'\);/);
- assert.match(route,/usage:usageAnswer\.error\?null:usageAnswer\.data\?\?null,/,'the account answer degrades to usage:null, never an error');
+ assert.match(route,/usage:usageAnswer\.error\?null:withAiOutreachUsage\(usageAnswer\.data\?\?null,aiOutreachEnabled\(process\.env\)\),/,'the account answer degrades to usage:null, never an error (the AI outreach pair only while the kill switch is on)');
  assert.match(page,/setEntitlementPlan\(null\);setUsage\(null\);/,'logout clears the counters');
 });
 

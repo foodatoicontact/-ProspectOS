@@ -83,7 +83,7 @@ const composed={text:'Bonjour l’équipe DIMO Software, j’ai remarqué ceci s
  angle:{type:'evidence' as const,source_id:'e1',label:'DIMO Software édite des logiciels de gestion financière',reason:'VERIFIED_EVIDENCE',source_url:'https://dimo.example/a-propos',observed_at:'2026-10-05T12:00:00Z',excerpt:SOURCES[0]}};
 function attempt(message:string){
  const log:string[]=[];
- const deps={userId:'me',availability:async()=>({ok:true as const,apiKeyOverride:null,billingSource:'PLATFORM' as const}),
+ const deps={enabled:true,userId:'me',availability:async()=>({ok:true as const,apiKeyOverride:null,billingSource:'PLATFORM' as const}),
   reserve:async()=>{log.push('reserve');return 'u1'},loadExampleRows:async()=>[],
   call:async()=>({text:JSON.stringify({message}),usage:{provider:'anthropic' as const,model:'m',input_tokens:120,output_tokens:40}}),
   meter:async()=>{log.push('meter')}};

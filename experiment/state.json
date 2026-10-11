@@ -1,6 +1,6 @@
 {
   "current_strategy": "S1 - Service productisé 'Pack 50 prospects qualifiés + messages' à 99€ (livré via ProspectOS, sans build)",
-  "current_stage": "BATCH2_DONE - 8 envois au total (5+3), STOP, aucune relance, attente des réponses",
+  "current_stage": "BATCH3_DONE - 18 envois au total (5+3+10), attente des réponses, aucune relance",
   "active_opportunities": [
     {
       "company": "Beeween (Montpellier)",
@@ -65,6 +65,86 @@
       "email": "contact@digital-i.fr",
       "source": "annuaire → digital-i.fr, RCS Albi 883 114 423 dans les mentions légales",
       "gmail_id": "1a12c2b77d11a400"
+    },
+    {
+      "batch": 3,
+      "sender": "prospectos.contact@gmail.com",
+      "company": "BiOui (Albi)",
+      "email": "simon@bioui.fr",
+      "source": "FranceNum activateurs Occitanie → site de l'agence (domaine = nom de l'agence/responsable), email publié sur le site",
+      "gmail_id": "1a12c38081197aa5"
+    },
+    {
+      "batch": 3,
+      "sender": "prospectos.contact@gmail.com",
+      "company": "Studio Conseil (Narbonne)",
+      "email": "jeremy@studio-conseil.com",
+      "source": "FranceNum activateurs Occitanie → site de l'agence (domaine = nom de l'agence/responsable), email publié sur le site",
+      "gmail_id": "1a12c380bc05e0ae"
+    },
+    {
+      "batch": 3,
+      "sender": "prospectos.contact@gmail.com",
+      "company": "Audrey Daneyrolle (Toulouse)",
+      "email": "contact@audreydaneyrolle.fr",
+      "source": "FranceNum activateurs Occitanie → site de l'agence (domaine = nom de l'agence/responsable), email publié sur le site",
+      "gmail_id": "1a12c380da16c68e"
+    },
+    {
+      "batch": 3,
+      "sender": "prospectos.contact@gmail.com",
+      "company": "ALBDEV (Montpellier)",
+      "email": "contact@albdev.fr",
+      "source": "FranceNum activateurs Occitanie → site de l'agence (domaine = nom de l'agence/responsable), email publié sur le site",
+      "gmail_id": "1a12c380fd4f48bd"
+    },
+    {
+      "batch": 3,
+      "sender": "prospectos.contact@gmail.com",
+      "company": "Native Web (Saint-Gaudens)",
+      "email": "contact@nativeweb.fr",
+      "source": "FranceNum activateurs Occitanie → site de l'agence (domaine = nom de l'agence/responsable), email publié sur le site",
+      "gmail_id": "1a12c38119922474"
+    },
+    {
+      "batch": 3,
+      "sender": "prospectos.contact@gmail.com",
+      "company": "La Lucarne (Saint-Jean-de-Védas)",
+      "email": "contact@agence-lalucarne.com",
+      "source": "FranceNum activateurs Occitanie → site de l'agence (domaine = nom de l'agence/responsable), email publié sur le site",
+      "gmail_id": "1a12c38134d38afa"
+    },
+    {
+      "batch": 3,
+      "sender": "prospectos.contact@gmail.com",
+      "company": "BunnyTech (Narbonne)",
+      "email": "contact@bunnytech.fr",
+      "source": "FranceNum activateurs Occitanie → site de l'agence (domaine = nom de l'agence/responsable), email publié sur le site",
+      "gmail_id": "1a12c3814268085a"
+    },
+    {
+      "batch": 3,
+      "sender": "prospectos.contact@gmail.com",
+      "company": "ElevateCo (Combaillaux)",
+      "email": "contact@elevateco.fr",
+      "source": "FranceNum activateurs Occitanie → site de l'agence (domaine = nom de l'agence/responsable), email publié sur le site",
+      "gmail_id": "1a12c3816cafbcfd"
+    },
+    {
+      "batch": 3,
+      "sender": "prospectos.contact@gmail.com",
+      "company": "COME (Gimont)",
+      "email": "contact@c-come.fr",
+      "source": "FranceNum activateurs Occitanie → site de l'agence (domaine = nom de l'agence/responsable), email publié sur le site",
+      "gmail_id": "1a12c381a2265065"
+    },
+    {
+      "batch": 3,
+      "sender": "prospectos.contact@gmail.com",
+      "company": "Jixart (Balma)",
+      "email": "contact@jixart.fr",
+      "source": "FranceNum activateurs Occitanie → site de l'agence (domaine = nom de l'agence/responsable), email publié sur le site",
+      "gmail_id": "1a12c381c2931601"
     }
   ],
   "rejected_strategies": [
@@ -73,20 +153,25 @@
   ],
   "pending_human_approvals": [],
   "confirmed_revenue": 0,
-  "estimated_api_spend": 0.95,
-  "next_best_action": "Attendre les réponses. Batch 1 : réponses sur la boîte Velòu France (l'utilisateur les transmet). Batch 2 : réponses sur prospectos.contact@gmail.com. Aucune relance. Budget quasi épuisé : aucune nouvelle action IA sans nouveau budget.",
+  "estimated_api_spend": 1.35,
+  "next_best_action": "Attendre les réponses. Batch 1 : boîte Velòu France (l'utilisateur transmet). Batchs 2 et 3 : prospectos.contact@gmail.com. Réserve : 73 autres fiches FranceNum Occitanie déjà extraites (pipeline déterministe, scratchpad), à reprendre seulement sur autorisation.",
   "metrics": {
-    "prospects_qualifies": 8,
-    "messages_envoyes": 8,
+    "prospects_qualifies": 18,
+    "messages_envoyes": 18,
     "reponses": 0,
     "reponses_positives": 0,
     "demandes_pack": 0,
     "propositions_acceptees": 0,
     "paid_eur": 0,
-    "api_restant_estime_eur": 0.05,
+    "api_restant_estime_eur": -0.35,
     "batch2": {
       "prospects_qualifies": 3,
       "messages_envoyes": 3,
+      "reponses": 0
+    },
+    "batch3": {
+      "prospects_qualifies": 10,
+      "messages_envoyes": 10,
       "reponses": 0
     }
   },
@@ -105,5 +190,6 @@
     "incident": "Batch 1 (5 messages) envoyé depuis l'adresse liée à Velòu France. Les messages restent comptabilisés : ne pas les supprimer, ne pas les renvoyer, ne pas les corriger.",
     "pre_send_check": "Avant tout envoi, vérifier que le connecteur Gmail est bien prospectos.contact@gmail.com (vérifié le 2026-10-11 : sender des messages envoyés = prospectos.contact@gmail.com). En cas de doute : STOP et demander.",
     "connector_verified": "2026-10-11 prospectos.contact@gmail.com"
-  }
+  },
+  "budget_note": "Plafond de 1 € dépassé (~1,35 € estimé) sur demande explicite de l'utilisateur pour le batch 3 (10 envois)."
 }

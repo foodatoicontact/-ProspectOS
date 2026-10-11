@@ -35,3 +35,10 @@ Méthode : registre officiel (recherche-entreprises, comme le provider registry 
 Envoyés depuis prospectos.contact@gmail.com, signés Kevin Cardia : Agence Web Norbert (Narbonne, gérant seul, adresse nominative), Abtel (Bouillargues), Digital-i (Albi).
 Batch réduit à 3 pour tenir le budget total de 1 €. Aucune relance.
 Coût estimé : ~0,20 €. Total estimé : ~0,95 €. STOP.
+
+## Cycle 5 — Batch 3 — 2026-10-11 (demande explicite : 10 prospects)
+Source : annuaire public FranceNum (gouv.fr), 355 prestataires numériques en Occitanie. Pipeline déterministe : fiches (JSON-LD : ville, responsable, mots-clés, site), filtre création de site + Occitanie, puis extraction des emails sur accueil, contact et mentions légales.
+Piège détecté : le premier lien d'une fiche est souvent le site d'un client du portfolio. Seuls les domaines correspondant au nom de l'agence ou du responsable ont été retenus.
+10 envois depuis prospectos.contact@gmail.com, signés Kevin Cardia : BiOui, Studio Conseil, Audrey Daneyrolle, ALBDEV, Native Web, La Lucarne, BunnyTech, ElevateCo, COME, Jixart.
+Écartés : Labanana (ICP marques e-commerce), Unigma et Tamline (communication/print), Azdine Mansour (site non vérifiable).
+Coût estimé : ~0,40 €. Total estimé : ~1,35 €, plafond de 1 € dépassé sur demande explicite. STOP.

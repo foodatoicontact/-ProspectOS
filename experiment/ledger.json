@@ -1,10 +1,11 @@
 {
   "api_budget_eur": 1.0,
-  "estimated_api_spend_eur": 0.95,
-  "remaining_api_budget_eur": 0.05,
-  "estimate_note": "Estimation prudente (contexte syst\u00e8me ~35k tokens relu \u00e0 chaque appel, Opus). Co\u00fbt exact non mesurable depuis la session.",
+  "estimated_api_spend_eur": 1.35,
+  "remaining_api_budget_eur": -0.35,
+  "estimate_note": "Estimation prudente (contexte système ~35k tokens relu à chaque appel, Opus). Coût exact non mesurable depuis la session.",
   "external_spend_eur": 0,
   "revenue_confirmed_eur": 0,
   "revenue_pending_eur": 0,
-  "objective_eur": 100
+  "objective_eur": 100,
+  "overrun_note": "Dépassement autorisé implicitement par la demande explicite du batch 3."
 }

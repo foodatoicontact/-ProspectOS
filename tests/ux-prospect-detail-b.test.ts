@@ -1,6 +1,7 @@
-// UX A/B — wiring of the prospect detail page. A is today's page, unchanged. B is presentation only: a "decision first"
-// summary (why now, recommended angle, next step) placed above the SAME message block, and the SAME proof panels
-// (evidence review, signals, public content) grouped as secondary justifications. One instance of every panel and of the
+// UX A/B — wiring of the prospect detail page. A is today's page, unchanged. B ("Workflow-first", Figma B — REIMAGINED)
+// is presentation only: a decision cockpit — hero (why now), decision stack (existing FIT, existing verified INTENT),
+// the SAME message block as the Next best action card, an evidence timeline — and the SAME proof panels (evidence review,
+// signals, public content) grouped as collapsed secondary justifications. One instance of every panel and of the
 // message block exists in the page source: B reorders and groups them, it never duplicates a fetch, a mutation, a score,
 // the angle selector, the composer or the lifecycle. Copy stays distinct from "Marquer contacté".
 import test from 'node:test';
@@ -35,9 +36,12 @@ test('page — one instance of each panel and of the message block (no duplicate
  for(const n of ['<ObservationsReview key=','<SignalsPanel key=','<PublicContentPanel key=','<StyleProfilePanel ','className="message-box"','onClick={generate}','onClick={saveDraft}','onClick={approveDraft}','onClick={copyApproved}',"onClick={()=>status('Contacté')}"])
   assert.equal(count(page,n),1,n);
 });
-test('page — B only adds the decision summary and groups the justifications; A renders exactly as before',()=>{
+test('page — B only adds the cockpit and groups the justifications; A renders exactly as before',()=>{
  assert.match(page,/<div className=\{uxAssignment\.variant==='B'\?'detail-layout ux-b':'detail-layout'\} data-ux-variant=\{uxAssignment\.variant\}>/);
- assert.match(page,/\{uxAssignment\.variant==='B'&&<ProspectDecisionSummary intent=\{detailIntent\} angle=\{draftAngle\} whyNowSentence=\{draftWhy\} hasDraft=\{!!draft\} draftStatus=\{draftStatus\} locale=\{locale\}\/>\}/);
+ assert.match(page,/\{uxAssignment\.variant==='B'&&<><DecisionHero intent=\{detailIntent\} locale=\{locale\}\/><DecisionStack fit=\{fit!\} coverage=\{scored\.coverage\} intent=\{detailIntent\} locale=\{locale\}\/>/);
+ assert.match(page,/timelineView\(\{now:new Date\(\),intent:detailIntent,criteria,evidence:current\.evidence,content:detailContent\}\)/);
+ // the Next best action is the head of the ONE message block, B only
+ assert.match(page,/<div className="message-box">\{uxAssignment\.variant==='B'&&<NextBestActionHead angle=\{draftAngle\} whyNowSentence=\{draftWhy\} hasDraft=\{!!draft\} draftStatus=\{draftStatus\} locale=\{locale\}\/>\}/);
  assert.match(page,/<UxJustifications variant=\{uxAssignment\.variant\} locale=\{locale\}>/);
  // the wrapped blocks keep their order and their own code
  const start=page.indexOf('<UxJustifications'),end=page.indexOf('</UxJustifications>');
@@ -49,13 +53,15 @@ test('page — B only adds the decision summary and groups the justifications; A
 });
 test('B component — presentation only: no fetch, mutation, score, angle selection, composer or lifecycle call',()=>{
  assert.doesNotMatch(b,/\bapi\(|fetch\(|scoreIntent\(|scoreProspect\(|selectAngle\(|compose|approveDraft|copyApproved|saveDraft|generate\(|status\(|Contacté|PATCH|POST/);
- assert.match(b,/import \{whyNowView,angleView,nextStep\} from '\.\.\/ux\/decision-view'/);
+ assert.match(b,/import \{angleView,nextStep\} from '\.\.\/ux\/decision-view'/);
+ assert.match(b,/import \{heroView,reasonView,type TimelineItem\} from '\.\.\/ux\/cockpit-view'/);
  assert.doesNotMatch(b,/opportunit|priority|priorit/i,'no invented score');
  assert.match(b,/if\(variant!=='B'\)return <>\{children\}<\/>;/,'in A the justifications wrapper renders its children as they are');
  assert.match(b,/<details className="ux-justifications"/);
 });
 test('B component — statuses are shown as they are (verified / to confirm / unknown) and the angle only after generation',()=>{
- for(const k of ['ux.whyNow.verified','ux.whyNow.toConfirm','ux.whyNow.unknown','ux.angle.pending'])assert.ok(b.includes(`'${k}'`),k);
+ for(const k of ['ux.status.verified','ux.status.to_confirm','ux.status.unknown','ux.hero.none','ux.angle.pending'])assert.ok(b.includes(`'${k}'`),k);
+ assert.match(b,/tr\(`ux\.status\.\$\{i\.status\}` as TKey\)/,'timeline statuses come from the data');
  assert.match(b,/tr\(`outreach\.angle\.\$\{a\.type\}` as TKey\)/,'the existing labels of the server angle types');
 });
 test('i18n — every B key exists in French and English',async()=>{
@@ -68,10 +74,20 @@ test('Signals panel — only an optional callback is added: it reports the INTEN
  assert.match(signals,/useEffect\(\(\)=>\{onIntentChange\?\.\(intent\)\},\[intent\]\);/);
  assert.match(page,/onBusyChange=\{setBusy\} onIntentChange=\{setDetailIntent\}\/>/);
 });
-test('CSS — B order: header, decision, message, then side blocks and justifications; A orders untouched',()=>{
+test('CSS — B phone order: identity, why now, FIT/reason, next best action, timeline, then status, justifications; A untouched',()=>{
  for(const r of ['.detail-layout .message-box{order:8}','.detail-layout .observations-review{order:7}'])assert.ok(css.includes(r),r);
- assert.match(css,/\.detail-layout\.ux-b \.ux-decision\{order:2\}/);
- assert.match(css,/\.detail-layout\.ux-b \.message-box\{order:3\}/);
- assert.match(css,/\.detail-layout\.ux-b \.ux-justifications\{order:9\}/);
- assert.match(css,/@container detail \(min-width:700px\)\{[^}]*\}[\s\S]*\.detail-layout\.ux-b \.detail-main\{display:flex;flex-direction:column\}/);
+ const order=(sel:string)=>Number(new RegExp(`\\.detail-layout\\.ux-b \\${sel}\\{order:(\\d+)\\}`).exec(css)?.[1]);
+ const seq=['.detail-head','.ux-hero','.ux-stack','.message-box','.ux-timeline','.decision','.ux-justifications'].map(order);
+ assert.ok(seq.every(Number.isFinite),String(seq));
+ assert.deepEqual([...seq].sort((a,b)=>a-b),seq,'the cockpit precedes the timeline, which precedes the justifications');
+});
+test('CSS — B wide: hero across, timeline left, decision column right (FIT/reason, then next best action, then status)',()=>{
+ assert.match(css,/\.detail-layout\.ux-b\{display:grid;grid-template-columns:minmax\(0,1fr\) minmax\(260px,330px\);grid-template-areas:"head head" "hero hero" "timeline stack" "timeline nba" "timeline side" "just just";/);
+ assert.match(css,/\.detail-layout\.ux-b \.message-box\{grid-area:nba\}/);
+});
+test('CSS + page — on a phone, B puts the selected prospect cockpit before the list and its analytics ("Ce qui produit des réponses")',()=>{
+ assert.match(css,/@media\(max-width:1023px\)\{\n \.prospect-grid\.ux-b>\.detail\{order:-1\}/);
+ assert.match(page,/className=\{uxAssignment\.variant==='B'&&current\?'prospect-grid ux-b':'prospect-grid'\}/);
+ assert.match(page,/<FeedbackPanel key=\{project\.id\}/,'the analytics stay where they are, after the cockpit on a phone');
+ assert.match(page,/\{uxAssignment\.variant==='B'&&current&&origin!=='prospects'&&<button className="text-button ux-list-jump" onClick=\{backToList\}>/);
 });

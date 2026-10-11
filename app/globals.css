@@ -485,25 +485,82 @@ button,.button{transition:background-color .18s ease,border-color .18s ease,colo
 .public-content-item .pill{margin-right:6px}
 .style-form label,.public-content-form label{margin:10px 0}
 .outreach-error{margin:12px 0 0;background:#fbefeb;border-color:#efd3ca;color:#8a4434}
-/* UX A/B, variant B (decision first): the same blocks, reordered — header, decision summary, message, then the side
-   blocks and the proof panels grouped as secondary justifications. Variant A keeps every rule above unchanged. */
 .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
-.ux-decision{display:grid;gap:10px;margin:14px 0}
-.ux-step{border:1px solid var(--line);border-radius:10px;padding:10px 12px;background:#fff}
-.ux-step .eyebrow{margin:0 0 4px}
-.ux-step p{margin:4px 0;overflow-wrap:anywhere}
-.ux-step .pill.verified{background:var(--lime)}
-.ux-justifications{margin-top:14px;border:1px solid var(--line);border-radius:10px;padding:8px 12px}
-.ux-justifications>summary{cursor:pointer;font-weight:600;min-height:40px;display:flex;align-items:center}
-.detail-layout.ux-b .ux-decision{order:2}
-.detail-layout.ux-b .message-box{order:3}
-.detail-layout.ux-b .coverage{order:4}
-.detail-layout.ux-b .channels-block{order:5}
+/* UX A/B, variant B "Workflow-first" (Figma: B — REIMAGINED): a decision cockpit. Hero (why now) → decision stack (FIT,
+   reason now) → Next best action (the one message block) → evidence timeline → status/channels → collapsed justifications.
+   Phone and narrow detail: one column in that order. Wide detail: hero across, timeline left, decision column right. */
+.detail-layout.ux-b{gap:14px}
+.detail-layout.ux-b .detail-head{order:1}
+.detail-layout.ux-b .ux-hero{order:2}
+.detail-layout.ux-b .ux-stack{order:3}
+.detail-layout.ux-b .message-box{order:4}
+.detail-layout.ux-b .ux-timeline{order:5}
 .detail-layout.ux-b .decision{order:6}
+.detail-layout.ux-b .channels-block{order:7}
+.detail-layout.ux-b .history{order:8}
 .detail-layout.ux-b .ux-justifications{order:9}
+/* FIT and coverage live in the decision stack; the angle lives in the Next best action head. */
+.detail-layout.ux-b .score-ring,.detail-layout.ux-b .detail-estimate,.detail-layout.ux-b .detail-coverage,.detail-layout.ux-b .coverage,.detail-layout.ux-b .message-box .outreach-angle{display:none}
+.detail-layout.ux-b .detail-head h2{font-size:22px}
+.ux-hero{border-radius:16px;padding:18px 20px;background:#eef5e2;border:1px solid #cfe0b6}
+.ux-hero .eyebrow{margin:0 0 8px}
+.ux-hero p{margin:0 0 6px;overflow-wrap:anywhere}
+.ux-hero-line{font-family:'Manrope',sans-serif;font-weight:800;font-size:20px;line-height:1.3;letter-spacing:-.02em;color:var(--ink)}
+.ux-hero-none,.ux-hero-to_confirm{background:#f8f9f5;border-color:var(--line)}
+.ux-badges{display:flex;flex-wrap:wrap;gap:6px}
+.ux-badge{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;padding:3px 9px;border-radius:999px;background:var(--ink);color:#fff}
+.ux-hero .pill.verified,.ux-status-verified{background:var(--lime)}
+.ux-stack{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.ux-card{border:1px solid var(--line);border-radius:14px;padding:14px 16px;background:#fff;min-width:0}
+.ux-card .eyebrow{margin:0 0 6px}
+.ux-card p{margin:0 0 4px;overflow-wrap:anywhere}
+.ux-metric{display:flex;align-items:baseline;gap:6px}
+.ux-metric b{font-family:'Manrope',sans-serif;font-size:30px;font-weight:800;letter-spacing:-.03em;line-height:1}
+.ux-metric small{color:var(--muted);font-size:12px}
+.detail-layout.ux-b .message-box{border:2px solid var(--green);border-radius:16px;padding:16px;background:#fff;box-shadow:0 6px 18px rgba(25,52,44,.08);margin:0}
+.ux-nba-head{margin:0 0 10px;padding:0 0 12px;border-bottom:1px solid var(--line)}
+.ux-nba-head .eyebrow{margin:0 0 8px;color:var(--green)}
+.ux-nba-angle{border-radius:10px;background:#f8f9f5;padding:10px 12px;margin:0 0 8px}
+.ux-nba-angle p{margin:0 0 4px;overflow-wrap:anywhere}
+.ux-nba-label{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--muted)}
+.ux-nba-step{margin:0;font-weight:600}
+.ux-timeline h3{margin:0 0 10px;font-size:15px}
+.ux-timeline ol{list-style:none;margin:0;padding:0}
+.ux-timeline li{display:grid;grid-template-columns:74px minmax(0,1fr);gap:10px;padding:10px 0 10px 12px;border-left:2px solid var(--line);position:relative}
+.ux-timeline li::before{content:'';position:absolute;left:-6px;top:15px;width:10px;height:10px;border-radius:50%;background:#fff;border:2px solid #c5cdc4}
+.ux-timeline li.ux-tl-verified::before{background:var(--green);border-color:var(--green)}
+.ux-timeline li.ux-tl-to_confirm::before{border-color:#d4a72c}
+.ux-tl-when{font-size:12px;color:var(--muted);font-weight:600}
+.ux-tl-kind{font-size:11px;font-weight:700;color:var(--green);margin-right:4px}
+.ux-status{font-size:11px;padding:1px 7px;border-radius:999px;background:#f1f3ee;white-space:nowrap}
+.ux-status-to_confirm{background:#fdf6e3;color:#7a5d17}
+@container detail (max-width:520px){.ux-timeline li{grid-template-columns:minmax(0,1fr);gap:2px}}
+.ux-list-jump{display:none}
+.ux-justifications{margin-top:4px;border:1px solid var(--line);border-radius:10px;padding:8px 12px}
+.ux-justifications>summary{cursor:pointer;font-weight:600;min-height:40px;display:flex;align-items:center}
 @container detail (min-width:700px){
- .detail-layout.ux-b .detail-main{display:flex;flex-direction:column}
- .ux-decision{grid-template-columns:repeat(3,minmax(0,1fr))}
+ .detail-layout.ux-b{display:grid;grid-template-columns:minmax(0,1fr) minmax(260px,330px);grid-template-areas:"head head" "hero hero" "timeline stack" "timeline nba" "timeline side" "just just";gap:16px 24px;align-items:start}
+ .detail-layout.ux-b .detail-main{display:contents}
+ .detail-layout.ux-b .detail-head{grid-area:head}
+ .detail-layout.ux-b .ux-hero{grid-area:hero}
+ .detail-layout.ux-b .ux-hero-line{font-size:24px}
+ .detail-layout.ux-b .ux-timeline{grid-area:timeline}
+ .detail-layout.ux-b .ux-stack{grid-area:stack;grid-template-columns:1fr}
+ .detail-layout.ux-b .message-box{grid-area:nba}
+ .detail-layout.ux-b .detail-side{grid-area:side;border-left:0;padding-left:0;position:static}
+ .detail-layout.ux-b .ux-justifications{grid-area:just}
+}
+/* B on a phone or tablet (one-column page): the selected prospect's cockpit comes before the list and its analytics. */
+@media(max-width:1023px){
+ .prospect-grid.ux-b>.detail{order:-1}
+ .prospect-grid.ux-b .ux-list-jump{display:inline-block;margin:0 0 10px}
+ /* the project's global counters stay, as one compact row, so they do not push the cockpit down */
+ .content.ux-b-page>.metrics{grid-template-columns:repeat(4,minmax(0,1fr));gap:0;padding:10px 0;margin-bottom:14px}
+ .content.ux-b-page>.metrics>div{padding:0 8px;border-right:1px solid var(--line)}
+ .content.ux-b-page>.metrics>div:last-child{border:0}
+ .content.ux-b-page>.metrics b{font-size:20px;margin:4px 0 0}
+ .content.ux-b-page>.metrics span{font-size:9.5px;line-height:1.2;display:block}
+ .content.ux-b-page>.metrics small{display:none}
 }
 /* UX A/B — temporary Preview diagnostic (only rendered when the experiment runs). */
 .ux-debug{position:fixed;right:8px;bottom:8px;z-index:50;margin:0;padding:4px 8px;border-radius:6px;background:#19342c;color:#fff;font:600 11px/1.4 monospace;opacity:.85;pointer-events:none}

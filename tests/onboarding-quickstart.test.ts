@@ -110,7 +110,7 @@ test('11, 12 — auth and billing untouched by the quick start',()=>{
 test('14 — existing users: the quick start appears only without a project, for an unfinished onboarding project, or on demand',()=>{
  assert.match(page,/const showQuickStart=mode==='live'&&view==='prospects'&&\(!projects\.length\|\|!!resumeProject\);/);
  assert.match(page,/onClick=\{\(\)=>\{setQuickResume\(null\);setModal\(mode==='live'\?'quickstart':'project'\)\}\}>\{tr\('nav\.newProject'\)\}/);
- assert.match(page,/\{view==='prospects'&&!showQuickStart&&<div className="prospect-grid">/);
+ assert.match(page,/\{view==='prospects'&&!showQuickStart&&<div className=(?:"prospect-grid"|\{uxAssignment\.variant==='B'&&current\?'prospect-grid ux-b':'prospect-grid'\})>/);
 });
 test('15 — the manual path still works: same creation calls, same starter ICP, same ICP editor',()=>{
  assert.match(page,/async function createLiveProject\(name:string,projectOffer:string,starter:Criterion\[\]\):Promise<Project>\{let orgs=await api\('organizations'\);let org=orgs\[0\]\?\.id;if\(!org\)org=await api\('organizations','POST',\{name:tr\('project\.defaultOrgName'\)\}\);const row=await api\('projects','POST',\{name,organization_id:org,offer:projectOffer\}\);await api\('icps','POST',\{project_id:row\.id,criteria:starter\}\);return \{\.\.\.row,criteria:starter\}\}/);

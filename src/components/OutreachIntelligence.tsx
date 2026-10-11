@@ -8,7 +8,7 @@ import {translate,type Locale,type TKey} from '../i18n';
 // the user's own writing style, and public content pasted and reviewed by a person. Public content is never evidence
 // nor a signal and never changes a score; nothing here fetches a page (ProspectOS never reads LinkedIn).
 type Api=(path:string,method?:string,body?:unknown)=>Promise<any>;
-type PublicContentRow={id:string;source_url:string;source_domain:string|null;author:string|null;content:string;published_at:string|null;observed_at:string;status:'PENDING_REVIEW'|'VERIFIED'|'REJECTED';pinned:boolean};
+export type PublicContentRow={id:string;source_url:string;source_domain:string|null;author:string|null;content:string;published_at:string|null;observed_at:string;status:'PENDING_REVIEW'|'VERIFIED'|'REJECTED';pinned:boolean};
 const safeHref=(u:string|null)=>{if(!u)return null;try{const x=new URL(u);return ['http:','https:'].includes(x.protocol)?x.href:null}catch{return null}};
 
 export function AngleSummary({angle,whyNow,locale}:{angle:Angle|null;whyNow:string|null;locale:Locale}){
@@ -43,11 +43,13 @@ export function StyleProfilePanel({organizationId,mode,api,locale,disabled}:{org
  </details>;
 }
 
-export function PublicContentPanel({prospect,mode,api,locale,disabled,onBusyChange}:{prospect:Prospect;mode:'demo'|'live';api:Api;locale:Locale;disabled:boolean;onBusyChange:(active:boolean)=>void}){
+export function PublicContentPanel({prospect,mode,api,locale,disabled,onBusyChange,onRowsChange}:{prospect:Prospect;mode:'demo'|'live';api:Api;locale:Locale;disabled:boolean;onBusyChange:(active:boolean)=>void;onRowsChange?:(rows:PublicContentRow[])=>void}){
  const tr=(key:TKey)=>translate(locale,key);
  const [rows,setRows]=useState<PublicContentRow[]>([]),[error,setError]=useState(''),[busy,setBusy]=useState(false),[adding,setAdding]=useState(false);
  const [form,setForm]=useState({source_url:'',content:'',author:'',published_at:''});
  const generation=useRef(0);
+ // UX B reads the rows it already loaded (evidence timeline); nothing else changes.
+ useEffect(()=>{onRowsChange?.(rows)},[rows]);
  async function load(){const g=++generation.current;const r=await api(`prospects/${prospect.id}/public-content`);if(g===generation.current)setRows(r??[])}
  useEffect(()=>{setRows([]);setError('');setAdding(false);if(mode==='live')load().catch(()=>setError(tr('publicContent.unavailable')));return()=>{generation.current++}},[prospect.id,mode]);
  async function execute(fn:()=>Promise<void>){if(disabled||busy)return;onBusyChange(true);setBusy(true);setError('');try{await fn();await load()}catch(e){setError(e instanceof Error?e.message:tr('error.generic'))}finally{setBusy(false);onBusyChange(false)}}

@@ -1,41 +1,91 @@
 'use client';
-// UX A/B, variant B ("decision first") — presentation only. It reads data the page already holds and calls nothing:
-// no fetch, no mutation, no score, no angle selection, no message generation, no lifecycle step (those stay in the shared
-// message block of the page). « Pourquoi maintenant ? » shows the INTENT as the Signals panel computed it, statuses as they
-// are; the angle is the one the server returned with the message, none before a generation. Copier n'est pas « contacté ».
+// UX A/B, variant B "Workflow-first" (Figma: B — REIMAGINED, a decision cockpit) — presentation only. It reads data the
+// page already holds and calls nothing: no fetch, no mutation, no score, no angle selection, no message generation, no
+// lifecycle step (those stay in the page's one message block, which B shows as the Next best action card).
+// Hero: why now, from the strongest verified signal as it is (or an explicit neutral state). Decision stack: the existing
+// FIT and the existing verified INTENT. Timeline: signals, ICP evidence and public content with their own statuses.
+// The mockup's conceptual metrics (overall "86" score, certainty gauge) have no ProspectOS source: they are omitted.
+// The angle is the one the server returned with the message, none before a generation. Copier n'est pas « contacté ».
 import type {ReactNode} from 'react';
 import type {IntentScore} from '../domain/intent';
 import type {Angle} from '../outreach/angle';
-import {whyNowView,angleView,nextStep} from '../ux/decision-view';
+import type {FitDisplay} from '../domain/score-display';
+import {angleView,nextStep} from '../ux/decision-view';
+import {heroView,reasonView,type TimelineItem} from '../ux/cockpit-view';
 import {translate,type Locale,type TKey} from '../i18n';
 
-export function ProspectDecisionSummary({intent,angle,whyNowSentence,hasDraft,draftStatus,locale}:{intent:IntentScore|null;angle:Angle|null;whyNowSentence:string|null;hasDraft:boolean;draftStatus:string;locale:Locale}){
- const tr=(key:TKey)=>translate(locale,key);
- const why=whyNowView(intent),a=angleView(angle),step=nextStep(hasDraft,draftStatus);
- return <section className="ux-decision" aria-labelledby="ux-decision-title">
-  <h3 id="ux-decision-title" className="sr-only">{tr('ux.title')}</h3>
-  <div className="ux-step">
-   <p className="eyebrow">1 · {tr('ux.whyNow.title')}</p>
-   {why.state==='loading'&&<p className="muted">{tr('ux.whyNow.loading')}</p>}
-   {why.state==='verified'&&<><p><span className="pill verified">{tr('ux.whyNow.verified')}</span> <b>{why.title}</b></p>
-    <p className="muted">{why.source_domain??''}{why.source_domain?' · ':''}{tr('ux.whyNow.age').replace('{n}',String(why.age_days))} · {tr('ux.whyNow.intent').replace('{n}',String(why.intent_score))}{why.count>1?` · ${tr('ux.whyNow.more').replace('{n}',String(why.count-1))}`:''}</p></>}
-   {why.state==='to_confirm'&&<><p><span className="pill">{tr('ux.whyNow.toConfirm')}</span>{why.title?<> {why.title}</>:null}</p><p className="muted">{tr('ux.whyNow.toConfirmHint').replace('{n}',String(why.count))}</p></>}
-   {why.state==='unknown'&&<p><span className="pill">{tr('ux.whyNow.unknown')}</span> <span className="muted">{tr('ux.whyNow.unknownHint')}</span></p>}
-  </div>
-  <div className="ux-step">
-   <p className="eyebrow">2 · {tr('ux.angle.title')}</p>
+const t=(locale:Locale)=>(key:TKey)=>translate(locale,key);
+
+export function DecisionHero({intent,locale}:{intent:IntentScore|null;locale:Locale}){
+ const tr=t(locale),h=heroView(intent);
+ return <section className={`ux-hero ux-hero-${h.state}`} aria-labelledby="ux-hero-title">
+  <p className="eyebrow" id="ux-hero-title">{tr('ux.whyNow.title')}</p>
+  {h.state==='loading'&&<p className="ux-hero-line muted">{tr('ux.whyNow.loading')}</p>}
+  {h.state==='verified'&&<>
+   <p className="ux-badges"><span className="ux-badge">{tr(`signals.type.${h.signal_type}` as TKey)}</span><span className="pill verified">{tr('ux.status.verified')}</span></p>
+   <p className="ux-hero-line">{h.title}</p>
+   <p className="muted">{h.source_domain??''}{h.source_domain?' · ':''}{tr('ux.whyNow.age').replace('{n}',String(h.age_days))}{h.count>1?` · ${tr('ux.whyNow.more').replace('{n}',String(h.count-1))}`:''}</p>
+  </>}
+  {h.state==='to_confirm'&&<>
+   <p className="ux-badges"><span className="pill">{tr('ux.status.to_confirm')}</span></p>
+   <p className="ux-hero-line">{tr('ux.hero.toConfirm').replace('{n}',String(h.count))}</p>
+   {h.title&&<p className="muted">{h.title}</p>}
+  </>}
+  {h.state==='none'&&<>
+   <p className="ux-badges"><span className="pill">{tr('ux.status.unknown')}</span></p>
+   <p className="ux-hero-line">{tr('ux.hero.none')}</p>
+  </>}
+ </section>;
+}
+
+// Right column: only metrics ProspectOS really has — FIT (estimateFit, unchanged) and the verified INTENT.
+export function DecisionStack({fit,coverage,intent,locale}:{fit:FitDisplay;coverage:number;intent:IntentScore|null;locale:Locale}){
+ const tr=t(locale),r=reasonView(intent);
+ return <div className="ux-stack">
+  <section className="ux-card ux-fit" aria-label={tr('ux.fit.title')}>
+   <p className="eyebrow">{tr('ux.fit.title')}</p>
+   <p className="ux-metric"><b>{fit.main??'—'}</b><small>{fit.kind==='none'?tr('score.notScored'):fit.kind==='estimated'?`/100 · ${tr('score.estimated')}`:'/100'}</small></p>
+   {fit.kind==='estimated'&&<p className="muted">{fit.verified!==null?`${tr('score.verifiedPart').replace('{n}',String(fit.verified))} · `:''}{tr('score.toVerify').replace('{n}',String(fit.toVerify)).replace('{p}',String(fit.toVerifyPoints))}</p>}
+   <p className="muted">{tr('detail.coverageShort')} : {coverage}%</p>
+  </section>
+  <section className="ux-card ux-reason" aria-label={tr('ux.reason.title')}>
+   <p className="eyebrow">{tr('ux.reason.title')}</p>
+   {r.state==='loading'?<p className="muted">{tr('ux.whyNow.loading')}</p>:<>
+    <p className="ux-metric"><b>{r.score??'—'}</b>{r.score!==null&&<small>{tr('ux.reason.verifiedIntent')}</small>}</p>
+    <p className="muted">{tr('ux.reason.counts').replace('{v}',String(r.verified)).replace('{c}',String(r.to_confirm))}</p>
+   </>}
+  </section>
+ </div>;
+}
+
+// Head of the Next best action card, inside the page's one message block: the server's angle, then the next O1 step.
+export function NextBestActionHead({angle,whyNowSentence,hasDraft,draftStatus,locale}:{angle:Angle|null;whyNowSentence:string|null;hasDraft:boolean;draftStatus:string;locale:Locale}){
+ const tr=t(locale),a=angleView(angle),step=nextStep(hasDraft,draftStatus);
+ return <div className="ux-nba-head">
+  <p className="eyebrow">{tr('ux.nba.title')}</p>
+  <div className="ux-nba-angle">
+   <p className="ux-nba-label">{tr('ux.angle.title')}</p>
    {a.state==='pending_generation'?<p className="muted">{tr('ux.angle.pending')}</p>:<>
-    <p><b>{tr(`outreach.angle.${a.type}` as TKey)}</b></p>
-    {a.label&&a.type!=='generic'&&<p className="muted">{a.label}</p>}
+    <p><b>{tr(`outreach.angle.${a.type}` as TKey)}</b>{a.label&&a.type!=='generic'?<span className="muted"> · {a.label}</span>:null}</p>
     {whyNowSentence&&<p className="muted">{whyNowSentence}</p>}
     {a.source_host&&<p className="muted">{tr('ux.angle.source')} : {a.source_host}</p>}
-    <p className="muted">{tr('ux.angle.serverChosen')}</p>
    </>}
   </div>
-  <div className="ux-step">
-   <p className="eyebrow">3 · {tr('ux.message.title')}</p>
-   <p className="muted">{tr(`ux.next.${step}` as TKey)}</p>
-  </div>
+  <p className="ux-nba-step">{tr(`ux.next.${step}` as TKey)}</p>
+ </div>;
+}
+
+export function EvidenceTimeline({items,more,locale}:{items:TimelineItem[];more:number;locale:Locale}){
+ const tr=t(locale),dateLocale=locale==='fr'?'fr-FR':'en-US';
+ return <section className="ux-card ux-timeline" aria-labelledby="ux-timeline-title">
+  <h3 id="ux-timeline-title">{tr('ux.timeline.title')}</h3>
+  {!items.length?<p className="muted">{tr('ux.timeline.empty')}</p>:<ol>{items.map(i=><li key={`${i.kind}:${i.id}`} className={`ux-tl-${i.status}`}>
+   <span className="ux-tl-when">{i.date?new Date(`${i.date}T12:00:00Z`).toLocaleDateString(dateLocale,{day:'numeric',month:'short'}):tr('ux.whyNow.age').replace('{n}',String(i.age_days))}</span>
+   <div><p><span className="ux-tl-kind">{tr(`ux.timeline.kind.${i.kind}` as TKey)}</span> {i.title}</p>
+    {i.detail&&<p className="muted">{i.detail}</p>}
+    <p className="muted">{i.source?`${i.source} · `:''}<span className={`ux-status ux-status-${i.status}`}>{tr(`ux.status.${i.status}` as TKey)}</span></p></div>
+  </li>)}</ol>}
+  {more>0&&<p className="muted">{tr('ux.timeline.more').replace('{n}',String(more))}</p>}
  </section>;
 }
 

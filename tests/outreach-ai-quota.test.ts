@@ -30,7 +30,7 @@ test('quota exhausted → rule-based, no provider call, no unit; the UI says the
  const calls:string[]=[];
  const composed={text:'Bonjour l’équipe K, message sûr.',evidence_ids:[],signal_ids:[],public_content_ids:[],provider:'rule_based_v1' as const,why_now:null,angle:{type:'generic' as const,source_id:null,label:'',reason:'NO_VERIFIED_DATA',source_url:null,observed_at:null,excerpt:null}};
  // As the route's checked(): the database refusal travels as the error's cause.
- const r=await generateOutreachWithAi({composed,name:'K',offer:'',locale:'fr',style:null,sources:[],userId:'me'},{userId:'me',
+ const r=await generateOutreachWithAi({composed,name:'K',offer:'',locale:'fr',style:null,sources:[],userId:'me'},{enabled:true,userId:'me',
   availability:async()=>({ok:true,apiKeyOverride:null,billingSource:'PLATFORM'}),
   reserve:async()=>{calls.push('reserve');throw Error('DATABASE_REQUEST_FAILED',{cause:{message:'ai_outreach_limit_reached'}})},
   loadExampleRows:async()=>{calls.push('examples');return []},call:async()=>{calls.push('call');return {text:'',usage:null}},meter:async()=>{calls.push('meter')}});

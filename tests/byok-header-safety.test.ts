@@ -102,7 +102,7 @@ test('outreach — an INVALID stored credential stops before the reservation: no
  const fetchSpy=mock.method(globalThis,'fetch',async()=>{throw Error('must not be called')});
  const reserve=mock.fn(async()=>'usage-1');const call=mock.fn(async()=>({text:'x',usage:null}));
  const composed={text:'Message de secours.',evidence_ids:['e1'],signal_ids:[],public_content_ids:[],angle:{type:'evidence',label:'l',excerpt:'x',source_url:'https://www.example.fr/'}} as any;
- const r=await generateOutreachWithAi({composed,name:'N',offer:'O',locale:'fr',style:null,sources:[],userId:'u'},{userId:'u',
+ const r=await generateOutreachWithAi({composed,name:'N',offer:'O',locale:'fr',style:null,sources:[],userId:'u'},{enabled:true,userId:'u',
   availability:async()=>({ok:false,reason:'BYOK_CREDENTIAL_INVALID'}),reserve,loadExampleRows:async()=>[],call,meter:async()=>{}});
  assert.equal(reserve.mock.callCount(),0,'no unit reserved');
  assert.equal(call.mock.callCount(),0);assert.equal(fetchSpy.mock.callCount(),0);

@@ -2,7 +2,7 @@
 // provider and the cost ledger). Order: availability (provider configured, BYOK usable) → reserve ONE unit (plan and
 // hourly limits, database) → the composer (angle, verified sources, style profile, ≤ 5 of the same user's own edits,
 // masked) → fact guard → the AI text, or the rule-based message of the SAME attempt (no second unit). Nothing possible
-// before the reservation (not configured, BYOK broken, no unit) = no attempt, 0 unit, the rule-based message.
+// before the reservation (switch off, not configured, BYOK broken, no unit) = no attempt, 0 unit, the rule-based message.
 import {composeWithAi,type ComposerRequest} from './ai-composer.ts';
 import {pickStyleExamples,type StyleExampleRow,type StyleProfile} from './style.ts';
 import type {Composed} from './compose.ts';
@@ -10,6 +10,9 @@ import type {Composed} from './compose.ts';
 export type AiUsage={provider:'anthropic'|'openai';model:string;input_tokens:number|null;output_tokens:number|null};
 export type AiAvailability={ok:true;apiKeyOverride:string|null;billingSource:'PLATFORM'|'BYOK'}|{ok:false;reason:string};
 export type AiGenerateDeps={
+ // The kill switch (src/outreach/ai-switch.ts): anything but true stops here — before the BYOK credential is read, a
+ // unit is reserved or the provider is called.
+ enabled:boolean;
  userId:string;
  availability:()=>Promise<AiAvailability>;
  reserve:()=>Promise<string>;
@@ -36,6 +39,7 @@ export async function generateOutreachWithAi(input:AiGenerateInput,deps:AiGenera
  const c=input.composed;
  const base={evidence_ids:c.evidence_ids,signal_ids:c.signal_ids,public_content_ids:c.public_content_ids};
  const noAttempt=(reason:string):AiGenerateResult=>({...base,text:c.text,provider:'rule_based_v1',attempted:false,usage_id:null,outcome:null,fallback_reason:reason,examples_used:0});
+ if(deps.enabled!==true)return noAttempt('AI_OUTREACH_DISABLED');
  let available:AiAvailability;
  try{available=await deps.availability()}catch{return noAttempt('AI_NOT_CONFIGURED')}
  if(!available.ok)return noAttempt(available.reason);

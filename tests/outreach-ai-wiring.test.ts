@@ -27,7 +27,7 @@ const rows=[
 const VALID='Bonjour, j’ai vu que Kerlan recrute un responsable de la sécurité des systèmes d’information. Nous auditons la sécurité des sites industriels. Seriez-vous ouvert à un court échange ?';
 function deps(o:Record<string,any>={}){
  const log:any[]=[];
- const d={userId:'me',
+ const d={enabled:true,userId:'me',
   availability:async()=>({ok:true,apiKeyOverride:null,billingSource:'PLATFORM'}),
   reserve:async()=>{log.push(['reserve']);return 'u1'},
   loadExampleRows:async()=>rows,
@@ -124,7 +124,7 @@ test('AI provider adapter: one JSON call, no tools, thinking off, bounded; usage
 
 test('UI: "Rédiger avec l’IA" is an explicit choice; the result says whether the AI text or the safe fallback is shown',async()=>{
  const page=await src('../app/page.tsx');
- assert.match(page,/api\('outreach','POST',\{prospect_id:current\.id,locale,ai:useAi\}\)/);
+ assert.match(page,/api\('outreach','POST',\{prospect_id:current\.id,locale,ai:useAi&&aiOutreachOn\}\)/);
  assert.match(page,/tr\('outreach\.useAi'\)/);assert.match(page,/tr\('outreach\.aiFallback'\)/);
  for(const lang of ['fr','en']){const dict=(await import(`../src/i18n/${lang}.ts`))[lang];for(const k of ['outreach.useAi','outreach.aiFallback','outreach.aiUsed'])assert.ok(dict[k],`${lang} ${k}`)}
 });

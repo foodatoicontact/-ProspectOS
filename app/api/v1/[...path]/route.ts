@@ -33,6 +33,7 @@ import {STATUSES} from '../../../../src/domain/statuses';
 import {handleOutreachIntelligence,PUBLIC_CONTENT_COLUMNS} from '../../../../src/outreach/api';
 import {composeRuleBased} from '../../../../src/outreach/compose';
 import {generateOutreachWithAi,type AiGenerateResult} from '../../../../src/outreach/ai-generate';
+import {aiOutreachEnabled,withAiOutreachUsage} from '../../../../src/outreach/ai-switch';
 import {styleOf} from '../../../../src/outreach/style';
 import {OUTREACH_TRANSITIONS,isOutreachAction,allowedFrom,carriesContent,SOURCE_NOT_VERIFIED,isSourceNotVerified} from '../../../../src/outreach/workflow';
 export const runtime='nodejs';
@@ -157,6 +158,8 @@ async function handler(request:Request,context:{params:Promise<{path:string[]}>}
  if(body.ai===true){
   const verifiedExcerpts=(p.evidence??[]).filter((e:{id:string;status:string})=>composed.evidence_ids.includes(e.id)&&e.status==='VERIFIED').map((e:{excerpt:string})=>e.excerpt);
   ai=await generateOutreachWithAi({composed,name:p.name,offer:project.offer,locale:draftLocale,style:styleOf(styleRow),sources:[...(composed.angle.excerpt?[composed.angle.excerpt]:[]),...verifiedExcerpts],userId:user.id},{
+   // Kill switch (AI_OUTREACH_ENABLED, absent = off): off, nothing below runs — no BYOK read, no unit, no call.
+   enabled:aiOutreachEnabled(process.env),
    userId:user.id,
    availability:async()=>{
     // Same provider, model and BYOK rule as the offer analysis: BYOK only on Anthropic; a broken BYOK key never falls
@@ -347,7 +350,9 @@ async function handler(request:Request,context:{params:Promise<{path:string[]}>}
   organization_id:membership?.organization_id??null,
   role:membership?.role??null,
   entitlement:entitlement?{plan:entitlement.plan,status:entitlement.status,expires_at:entitlement.expires_at,active:entitlement.status==='ACTIVE'&&new Date(entitlement.expires_at).getTime()>Date.now()}:null,
-  usage:usageAnswer.error?null:usageAnswer.data??null,
+  usage:usageAnswer.error?null:withAiOutreachUsage(usageAnswer.data??null,aiOutreachEnabled(process.env)),
+  // AI outreach kill switch: only a boolean, never the variable itself. Off = the browser offers no AI outreach.
+  ai_outreach_enabled:aiOutreachEnabled(process.env),
   billing:billingAnswer.error?null:billingAnswer.data??null,
   billing_offers:checkoutAvailability(billingConfig()),
  });

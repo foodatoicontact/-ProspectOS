@@ -40,6 +40,31 @@ export function tutoyerTemplate(text:string,name:string,offer:string):string{
  if(opening===null)return text;
  return `${outreachGreeting(name,'fr','tu')}${opening} ${offer.trim()||'Je souhaite te présenter notre offre et vérifier si elle correspond à tes besoins.'} Est-ce qu’un court échange t’intéresserait ?`;
 }
+// The style profile's max_chars, applied to the finished message without a blind slice. The message is always
+// [protected head: greeting + verified quote / "why now" sentence][offer][closing question]; the head is never touched.
+// In order, the first candidate that fits wins: the closing question in its short form; trailing offer sentences dropped
+// (the first one stays); the first offer sentence shortened on a word boundary with "…" (kept only if ≥ 40 characters
+// remain); the offer left out. If head + short question alone exceed max_chars, that is the message, over the limit:
+// a verified quote is never cut or altered. A text without that structure is returned unchanged (never sliced).
+const CLOSING={fr:{vous:['Seriez-vous ouvert à un court échange ?','Seriez-vous ouvert à un échange ?'],tu:['Est-ce qu’un court échange t’intéresserait ?','Ça t’intéresserait d’en parler ?']},
+ en:{vous:['Would you be open to a short conversation?','Open to a quick chat?'],tu:['Would you be open to a short conversation?','Open to a quick chat?']}};
+const DEFAULT_OFFER={fr:{vous:'Je souhaite vous présenter notre offre et vérifier si elle correspond à vos besoins.',tu:'Je souhaite te présenter notre offre et vérifier si elle correspond à tes besoins.'},
+ en:{vous:'I’d like to introduce our offer and check whether it fits your needs.',tu:'I’d like to introduce our offer and check whether it fits your needs.'}};
+const MIN_SHORTENED_OFFER=40;
+export function fitToMaxChars(text:string,o:{offer:string;locale:'fr'|'en';address:Address;maxChars:number}):string{
+ if(text.length<=o.maxChars)return text;
+ const [closing,shortClosing]=CLOSING[o.locale][o.address],offer=o.offer.trim()||DEFAULT_OFFER[o.locale][o.address];
+ const tail=` ${offer} ${closing}`;
+ if(!text.endsWith(tail))return text;
+ const head=text.slice(0,text.length-tail.length),fits=(t:string)=>t.length<=o.maxChars;
+ const sentences=offer.split(/(?<=[.!?])\s+/);
+ const withOffer=(part:string)=>`${head} ${part} ${shortClosing}`;
+ for(let k=sentences.length;k>=1;k--){const t=withOffer(sentences.slice(0,k).join(' '));if(fits(t))return t}
+ const budget=o.maxChars-head.length-shortClosing.length-2;
+ const words=sentences[0].replace(/[.!?]+$/,'').split(' ');
+ for(let n=words.length-1;n>=1;n--){const part=`${words.slice(0,n).join(' ').replace(/[\s,;:.!?…]+$/,'')}…`;if(part.length<MIN_SHORTENED_OFFER)break;if(part.length<=budget)return withOffer(part)}
+ return `${head} ${shortClosing}`;
+}
 export function composeRuleBased(input:ComposeInput):Composed{
  // O1: the user's address_mode — 'tu' tutoies the template and the angle sentence (French); 'auto' and 'vous' keep 'vous'.
  const address:Address=input.locale==='fr'&&input.style?.address_mode==='tu'?'tu':'vous';
@@ -51,5 +76,7 @@ export function composeRuleBased(input:ComposeInput):Composed{
   const c=input.publicContent.find(x=>x.id===angle.source_id)!;const sentence=publicContentSentence(c,input.locale,address);
   text=withWhyNow(text,input.name,{sentence,signal_ids:[]},input.locale,address);public_content_ids=[c.id];why_now=sentence;
  }
+ // max_chars only when a style profile is given (the live route always passes one); legacy / demo calls are unchanged.
+ if(input.style)text=fitToMaxChars(text,{offer:input.offer,locale:input.locale,address,maxChars:input.style.max_chars});
  return {text,evidence_ids:base.evidence_ids,signal_ids,public_content_ids,angle,provider:'rule_based_v1',why_now};
 }

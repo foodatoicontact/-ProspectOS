@@ -1,7 +1,9 @@
 // UX A/B — which presentation of the prospect detail page a user sees (experiment prospect_detail_v1). Presentation only:
 // every fetch, mutation, score, angle, message and lifecycle step is shared by A and B.
-// - Enabled on Preview (VERCEL_ENV=preview) or local development only; Production and any other environment: always A,
-//   no header, no event. The server decides it (app/layout.tsx sets data-ux-ab), the client only reads it.
+// - Enabled on Preview (VERCEL_ENV=preview) or local development only; Production is a hard off (always A, no header, no
+//   event). Decided by the server PER REQUEST (GET /api/public/ux-config), never in a statically prerendered file: a static
+//   page freezes it with the build environment (the Preview bug of 135bdbf9). Where the platform does not expose
+//   VERCEL_ENV, the explicit project switch UX_AB_ENABLED=1 (scoped to Preview) enables it; it never applies in Production.
 // - Normal assignment: a deterministic hash of the signed-in user's id — the same variant on every reload and device,
 //   never random, never stored.
 // - ?ux=A / ?ux=B: a manual override for comparing both on the same prospect, kept for the browser tab only
@@ -11,12 +13,18 @@ export type UxAssignment={variant:UxVariant;assignment:'hashed'|'forced'|'defaul
 export const UX_EXPERIMENT='prospect_detail_v1';
 export const UX_FORCED_SESSION_KEY='prospectos.ux.prospect_detail_v1.forced';
 export const UX_HEADER='x-prospectos-ux';
-type Env={VERCEL_ENV?:string;NODE_ENV?:string};
+type Env={VERCEL_ENV?:string;NODE_ENV?:string;UX_AB_ENABLED?:string};
 type SessionStore={getItem(k:string):string|null;setItem(k:string,v:string):void;removeItem(k:string):void};
 
 export function uxAbEnabledFromEnv(env:Env):boolean{
  if(env.VERCEL_ENV)return env.VERCEL_ENV==='preview';
- return env.NODE_ENV==='development';
+ return env.UX_AB_ENABLED==='1'||env.NODE_ENV==='development';
+}
+// Which environment the server sees — reported by /api/public/ux-config as a runtime proof.
+export function uxEnvironment(env:Env):'preview'|'production'|'development'|'unknown'{
+ if(env.VERCEL_ENV==='preview'||env.VERCEL_ENV==='production')return env.VERCEL_ENV;
+ if(!env.VERCEL_ENV&&env.NODE_ENV==='development')return 'development';
+ return 'unknown';
 }
 // FNV-1a, 32 bits: stable, dependency-free, the same in the browser and on the server.
 export function hashedVariant(userId:string):UxVariant{

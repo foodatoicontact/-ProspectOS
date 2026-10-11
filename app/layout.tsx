@@ -1,6 +1,5 @@
 import type {Metadata} from 'next';
 import {SITE_URL,siteMetadata,softwareApplicationJsonLd,webSiteJsonLd,organizationJsonLd} from '../src/domain/seo';
-import {uxAbEnabledFromEnv} from '../src/ux/variant';
 import './globals.css';
 
 export const metadata:Metadata={
@@ -29,8 +28,7 @@ export const metadata:Metadata={
 
 export default function Layout({children}:{children:React.ReactNode}){
   const jsonLd=JSON.stringify([softwareApplicationJsonLd,webSiteJsonLd,organizationJsonLd]).replace(/</g,'\\u003c');
-  // UX A/B (src/ux/variant.ts): decided on the server, present only on Preview builds — Production HTML is unchanged.
-  return <html lang="fr" {...(uxAbEnabledFromEnv(process.env)?{'data-ux-ab':'1'}:{})}><body>
+  return <html lang="fr"><body>
     {children}
     <script type="application/ld+json" dangerouslySetInnerHTML={{__html:jsonLd}}/>
   </body></html>;

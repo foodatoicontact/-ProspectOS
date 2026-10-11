@@ -12,12 +12,10 @@ const read=(p:string)=>readFileSync(new URL(p,import.meta.url),'utf8');
 const page=read('../app/page.tsx'),b=read('../src/components/ProspectDetailB.tsx'),layout=read('../app/layout.tsx'),css=read('../app/globals.css'),signals=read('../src/components/SignalsPanel.tsx');
 const count=(s:string,needle:string)=>s.split(needle).length-1;
 
-test('the Preview flag is decided on the server (layout) and is absent from Production HTML',()=>{
- assert.match(layout,/import \{uxAbEnabledFromEnv\} from '\.\.\/src\/ux\/variant'/);
- assert.match(layout,/<html lang="fr" \{\.\.\.\(uxAbEnabledFromEnv\(process\.env\)\?\{'data-ux-ab':'1'\}:\{\}\)\}>/);
+test('the Preview flag is decided by the server per request, never in the static layout (tests/ux-runtime-flag.test.ts)',()=>{
+ assert.match(layout,/return <html lang="fr"><body>/);
 });
 test('page — the variant is resolved once on the client from the flag, the user id and the tab override',()=>{
- assert.match(page,/document\.documentElement\.dataset\.uxAb==='1'/);
  assert.match(page,/resolveUxVariant\(\{enabled:uxEnabled,userId:mode==='live'\?identity\.current:null,forced:readForced\(window\.location\.search,tabStore\(\)\)\}\)/);
  assert.doesNotMatch(page,/localStorage\.setItem\([^)]*ux/i,'the assignment is never written to localStorage');
 });

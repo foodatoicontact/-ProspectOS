@@ -109,7 +109,7 @@ export default function Home(){
  // one clear "service unavailable" message (see src/components/api-response.ts). JSON answers are unchanged.
  // UX A/B (src/ux/variant.ts): which presentation of the prospect page — never a business input. The label travels with
  // the user's own API calls for analytics only; the server never trusts it for anything else.
- const [uxAssignment,setUxAssignment]=useState<UxAssignment>({variant:'A',assignment:'default'});const [detailIntent,setDetailIntent]=useState<IntentScore|null>(null);const viewedRef=useRef(new Set<string>());
+ const [uxAssignment,setUxAssignment]=useState<UxAssignment>({variant:'A',assignment:'default'});const [uxEnabled,setUxEnabled]=useState(false);const [detailIntent,setDetailIntent]=useState<IntentScore|null>(null);const viewedRef=useRef(new Set<string>());
  const uxHeader=uxHeaderValue(uxAssignment);
  async function api(path:string,method='GET',body?:unknown,t=token){const {res,data}=await fetchApiJson(()=>fetch(`/api/v1/${path}`,{method,headers:{Authorization:`Bearer ${t}`,'Content-Type':'application/json',...(uxHeader?{[UX_HEADER]:uxHeader}:{})},...(body?{body:JSON.stringify(body)}:{})}),tr('error.serviceUnavailable'));if(res.status===401&&mode==='live'){await logout();throw Error(tr('error.sessionExpired'))}if(!res.ok){
  // The server always answers in French — only the small, stable set of known `code`s is re-localized
@@ -295,8 +295,10 @@ export default function Home(){
  // A live account without any project starts with the quick start instead of an empty workspace.
  const resumeProject=resumeProjectId?projects.find(p=>p.id===resumeProjectId)??null:null;
  const showQuickStart=mode==='live'&&view==='prospects'&&(!projects.length||!!resumeProject);
- // UX A/B: resolved on the client once the server flag (layout data-ux-ab, Preview only), the user and the tab override are known.
- useEffect(()=>{const uxEnabled=document.documentElement.dataset.uxAb==='1';setUxAssignment(resolveUxVariant({enabled:uxEnabled,userId:mode==='live'?identity.current:null,forced:readForced(window.location.search,tabStore())}))},[mode,token]);
+ // UX A/B: the server says per request whether the experiment runs here (Preview only); any failure keeps A.
+ useEffect(()=>{let gone=false;fetch('/api/public/ux-config',{cache:'no-store'}).then(r=>r.ok?r.json():null).then(c=>{if(!gone)setUxEnabled(c?.enabled===true)}).catch(()=>{});return()=>{gone=true}},[]);
+ // Resolved once the server flag, the user and the tab override are known.
+ useEffect(()=>{setUxAssignment(resolveUxVariant({enabled:uxEnabled,userId:mode==='live'?identity.current:null,forced:readForced(window.location.search,tabStore())}))},[mode,token,uxEnabled]);
  // One view per prospect and variant per page session, only when the detail page is really shown (the server dedupes again).
  useEffect(()=>{if(mode!=='live'||view!=='prospects'||showQuickStart||!current||!uxHeader||!markViewOnce(viewedRef.current,`${current.id}:${uxAssignment.variant}`))return;api('ux-events','POST',{kind:'prospect_detail_viewed',prospect_id:current.id}).catch(()=>{})},[mode,view,showQuickStart,current?.id,uxHeader]);
  // One pricing dialog for the visitor (welcome, demo: intent only) and the signed-in user (server availability).

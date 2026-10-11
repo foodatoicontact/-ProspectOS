@@ -19,3 +19,10 @@ Décision : STOP. Débloquer le réseau sortant, sinon pivoter vers un canal ne 
 Réseau OK. Vérification directe : 2 candidats retenus sur 5 (Beeween, Clickzou) ; Studio Gazoline (domaine à vendre), Jalis (hors zone, grande structure) et Ato Web (site injoignable) écartés. +3 agences vérifiées (Agence FL, LMWEB, Gard Web Création).
 5 emails envoyés à des adresses publiées sur les sites. Offre : 5 prospects gratuits puis 99 € HT.
 Coût estimé : ~0,15 €. STOP.
+
+## Correction — 2026-10-11 (contrainte expéditeur)
+Les 5 messages du batch 1 sont partis depuis une adresse liée à Velòu France, une identité qui ne doit pas servir à cette activité. Ils restent comptabilisés : pas de suppression, pas de renvoi, pas de correctif.
+Règle à partir de maintenant : tout envoi lié à ProspectOS ou au pack de prospects part uniquement de prospectos.contact@gmail.com, signé Kevin Cardia. Aucune autre identité sans autorisation explicite.
+Le connecteur Gmail actuel n'est pas prospectos.contact@gmail.com : aucun envoi possible par ce connecteur.
+Les réponses du batch 1 arriveront sur la boîte Velòu France.
+Statut : batch terminé, aucun nouvel envoi, attente des réponses.

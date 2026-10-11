@@ -1,6 +1,6 @@
 {
   "current_strategy": "S1 - Service productisé 'Pack 50 prospects qualifiés + messages' à 99€ (livré via ProspectOS, sans build)",
-  "current_stage": "BATCH1_SENT - 5 envois effectués, STOP en attente de réponses",
+  "current_stage": "BATCH1_DONE - 5 envois, en attente des réponses, aucun nouvel envoi",
   "active_opportunities": [
     {
       "company": "Beeween (Montpellier)",
@@ -40,7 +40,7 @@
   "pending_human_approvals": [],
   "confirmed_revenue": 0,
   "estimated_api_spend": 0.75,
-  "next_best_action": "Attendre les réponses (aucune relance avant J+3). Si une réponse demande les 5 prospects gratuits : les produire avec ProspectOS.",
+  "next_best_action": "Attendre les réponses (pas de relance avant J+3). Les réponses arriveront sur la boîte Velòu France, pas sur prospectos.contact@gmail.com : l'utilisateur doit les transmettre ou autoriser leur lecture. Toute action sortante passe par prospectos.contact@gmail.com uniquement.",
   "metrics": {
     "prospects_qualifies": 5,
     "messages_envoyes": 5,
@@ -55,5 +55,15 @@
     "Studio Gazoline: domaine à vendre (inactif)",
     "Jalis: Marseille (hors Occitanie), grande structure",
     "Ato Web: site injoignable"
-  ]
+  ],
+  "sender_policy": {
+    "authorized_sender": "prospectos.contact@gmail.com",
+    "authorized_signature": "Kevin Cardia",
+    "rule": "Toute action liée à l'offre ProspectOS / pack de prospects part uniquement de prospectos.contact@gmail.com. Aucune autre identité ou adresse sans autorisation explicite de l'utilisateur.",
+    "forbidden_identities": [
+      "Velòu France (et l'adresse Gmail qui y est liée)"
+    ],
+    "incident": "Batch 1 (5 messages) envoyé depuis l'adresse liée à Velòu France. Les messages restent comptabilisés : ne pas les supprimer, ne pas les renvoyer, ne pas les corriger.",
+    "pre_send_check": "Avant tout envoi, vérifier que l'outil d'envoi est bien connecté à prospectos.contact@gmail.com. Le connecteur Gmail de la session ne l'est pas : STOP et demander à l'utilisateur."
+  }
 }

@@ -164,6 +164,14 @@ export async function analyzeOffer(text:string,options?:{apiKeyOverride?:string|
  return {summary:result.summary.slice(0,1000),target:result.target.slice(0,1000),questions:result.questions.slice(0,5).map((v:string)=>v.slice(0,1000)),status:'PROPOSITION_À_VALIDER',usage:{provider,model,...usage},credential_source:credentialSource};
 }
 
+// One line per provider failure so an AI_ERROR fallback can be explained: provider, operation, HTTP status and a
+// well-formed Anthropic request id (support reference) only. Never the key, prompt, response body or network error text.
+const REQUEST_ID=/^req_[A-Za-z0-9]{1,64}$/;
+function logProviderFailure(provider:'anthropic'|'openai',failure:{status:number;requestId:string|null}|'NETWORK_ERROR'|'NETWORK_TIMEOUT'){
+ const detail=typeof failure==='string'?{reason:failure}:{reason:'HTTP_ERROR',status:failure.status,...(failure.requestId&&REQUEST_ID.test(failure.requestId)?{request_id:failure.requestId}:{})};
+ console.error(JSON.stringify({component:'composeOutreachMessage',provider,operation:'outreach_generation',...detail}));
+}
+
 // O1/O2 — the AI outreach composer's provider call (src/outreach/ai-generate.ts). Same provider, model, key and BYOK rule
 // as analyzeOffer (BYOK only when the platform is configured for Anthropic). One single-turn call: no tools, no web,
 // thinking disabled, bounded tokens and time. It returns the raw text — the JSON contract and the fact guard are checked
@@ -177,13 +185,15 @@ export async function composeOutreachMessage(req:{system:string;user:string},opt
  const usingByokKey=anthropic&&!!options?.apiKeyOverride;
  const key=usingByokKey?options!.apiKeyOverride!:process.env.AI_API_KEY;
  if(!key||!model)throw Error('AI_NOT_CONFIGURED');
- const response=await fetch(anthropic?'https://api.anthropic.com/v1/messages':'https://api.openai.com/v1/chat/completions',{
+ let response:Response;
+ try{response=await fetch(anthropic?'https://api.anthropic.com/v1/messages':'https://api.openai.com/v1/chat/completions',{
   method:'POST',signal:AbortSignal.timeout(OUTREACH_AI_TIMEOUT_MS),
   headers:anthropic?{'content-type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01'}:{'content-type':'application/json',Authorization:`Bearer ${key}`},
   body:JSON.stringify(anthropic
    ?{model,max_tokens:OUTREACH_MAX_TOKENS,system:req.system,thinking:{type:'disabled'},messages:[{role:'user',content:req.user}]}
-   :{model,max_completion_tokens:OUTREACH_MAX_TOKENS,response_format:{type:'json_object'},messages:[{role:'system',content:req.system},{role:'user',content:req.user}]})});
- if(!response.ok)throw Error('AI_UNAVAILABLE');
+   :{model,max_completion_tokens:OUTREACH_MAX_TOKENS,response_format:{type:'json_object'},messages:[{role:'system',content:req.system},{role:'user',content:req.user}]})})}
+ catch(e){logProviderFailure(anthropic?'anthropic':'openai',(e as {name?:unknown})?.name==='TimeoutError'?'NETWORK_TIMEOUT':'NETWORK_ERROR');throw e}
+ if(!response.ok){logProviderFailure(anthropic?'anthropic':'openai',{status:response.status,requestId:response.headers.get('request-id')});throw Error('AI_UNAVAILABLE')}
  const body=await response.json();
  const usage=anthropic
   ?{provider:'anthropic' as const,model,input_tokens:toReliableTokenCount(body.usage?.input_tokens),output_tokens:toReliableTokenCount(body.usage?.output_tokens)}

@@ -48,6 +48,8 @@ export async function composeWithAi(input:ComposerInput,call:(req:ComposerReques
  const guard=checkComposedMessage(text,{name:input.name,offer:input.offer,sources:[...input.sources,...(input.angle.excerpt?[input.angle.excerpt]:[])],
   allowedUrls:input.angle.source_url?[input.angle.source_url]:[],forbiddenNames:input.examples.map(e=>e.prospect_name??'').filter(Boolean),
   bannedPhrases:style.banned_phrases,maxChars:Math.min(style.max_chars,4000),angleType:input.angle.type});
- if(!guard.ok)return fallback(input,guard.reason);
+ // A claim refusal names its family (UNSUPPORTED_CLAIM_HIRING…), the form ai_outreach_usage.fallback_reason accepts
+ // (^[A-Z_]{1,60}$, migration 028) — never anything from the message itself.
+ if(!guard.ok)return fallback(input,guard.reason==='UNSUPPORTED_CLAIM'?`UNSUPPORTED_CLAIM_${guard.category.toUpperCase()}`:guard.reason);
  return {text,provider:'ai_composer_v1',fallback_reason:null,evidence_ids:input.fallback.evidence_ids,signal_ids:input.fallback.signal_ids,public_content_ids:input.fallback.public_content_ids};
 }

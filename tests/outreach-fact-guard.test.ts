@@ -13,14 +13,15 @@ const OFFER='BIG aide les entreprises B2B à accélérer leur prospection commer
 const SOURCES=['DIMO Software édite des logiciels de gestion financière depuis 1987 et accompagne 2 500 clients dans 25 pays, avec une note de 4,5 sur 5.'];
 const ctx=(o:Partial<GuardContext>={}):GuardContext=>({name:'DIMO Software',offer:OFFER,sources:SOURCES,allowedUrls:[],forbiddenNames:[],bannedPhrases:[],maxChars:2000,angleType:'evidence',...o});
 const check=(text:string,o:Partial<GuardContext>={})=>checkComposedMessage(text,ctx(o));
-const REFUSED_CLAIM={ok:false,reason:'UNSUPPORTED_CLAIM'};
+// A claim refusal names the family of fact it found unsourced (tests/outreach-fact-guard-category.test.ts).
+const REFUSED_CLAIM=(category:string)=>({ok:false,reason:'UNSUPPORTED_CLAIM',category});
 const REFUSED_NUMBER={ok:false,reason:'UNSUPPORTED_NUMBER'};
 const OFFER_SENTENCE='BIG permet de renforcer rapidement une équipe commerciale et d’accompagner votre croissance, sans recruter immédiatement un SDR en interne.';
 
 // ——— D1 — offer and prospect facts, strictly apart ———
 test('D1 — the reported case: an offer about recruiting never proves that DIMO Software recrute des commerciaux',()=>{
- assert.deepEqual(check('DIMO Software recrute des commerciaux.'),REFUSED_CLAIM);
- assert.deepEqual(check('Bonjour, DIMO Software recrute des commerciaux. BIG aide les entreprises B2B à accélérer leur prospection commerciale avec des commerciaux freelances spécialisés.'),REFUSED_CLAIM);
+ assert.deepEqual(check('DIMO Software recrute des commerciaux.'),REFUSED_CLAIM('hiring'));
+ assert.deepEqual(check('Bonjour, DIMO Software recrute des commerciaux. BIG aide les entreprises B2B à accélérer leur prospection commerciale avec des commerciaux freelances spécialisés.'),REFUSED_CLAIM('hiring'));
 });
 
 for(const [category,message] of [
@@ -29,13 +30,13 @@ for(const [category,message] of [
  ['partnership, the offer’s very expression','DIMO Software est le partenaire commercial des éditeurs de logiciels.'],
  ['launch, the offer’s very expression','J’ai vu le lancement d’une nouvelle offre chez DIMO Software.'],
 ])test(`D1 — ${category}: in the offer, absent from the prospect’s sources → refused`,()=>{
- assert.deepEqual(check(message),REFUSED_CLAIM);
+ assert.deepEqual(check(message),REFUSED_CLAIM(({recruiting:'hiring',growth:'growth',partnership:'partnership',launch:'launch'} as Record<string,string>)[category.split(',')[0]]));
 });
 
 test('D1 — the company’s own name proves nothing either (a name that contains a fact word)',()=>{
  const o={name:'Recrutis',offer:'Nous aidons les équipes commerciales à prospecter.'};
- assert.deepEqual(check('Recrutis recrute des commerciaux.',o),REFUSED_CLAIM);
- assert.deepEqual(check('Recrutis recrute des commerciaux.',{...o,sources:['Recrutis édite un logiciel de paie.']}),REFUSED_CLAIM,'nor does the name inside a source');
+ assert.deepEqual(check('Recrutis recrute des commerciaux.',o),REFUSED_CLAIM('hiring'));
+ assert.deepEqual(check('Recrutis recrute des commerciaux.',{...o,sources:['Recrutis édite un logiciel de paie.']}),REFUSED_CLAIM('hiring'),'nor does the name inside a source');
  assert.deepEqual(check('Recrutis recrute des commerciaux.',{...o,sources:['Recrutis recrute des commerciaux à Nantes.']}),{ok:true},'a source that states it does');
  assert.deepEqual(check('Bonjour l’équipe Recrutis, nous aidons les équipes commerciales à prospecter.',o),{ok:true},'naming the company is no claim');
 });
@@ -48,7 +49,7 @@ test('D1 — still accepted: a sentence copied from the offer, a fact the prospe
 });
 
 test('D1 — fail-closed boundary: a paraphrase of the offer that carries a fact word is refused (whose fact it is cannot be told); the copied sentence is accepted',()=>{
- assert.deepEqual(check('BIG t’aide à renforcer ton équipe sans recruter de SDR.'),REFUSED_CLAIM);
+ assert.deepEqual(check('BIG t’aide à renforcer ton équipe sans recruter de SDR.'),REFUSED_CLAIM('hiring'));
  assert.deepEqual(check(OFFER_SENTENCE),{ok:true});
 });
 
@@ -89,7 +90,7 @@ function attempt(message:string){
  return generateOutreachWithAi({composed,name:'DIMO Software',offer:OFFER,locale:'fr',style:null,sources:SOURCES,userId:'me'},deps).then(r=>({r,log}));
 }
 for(const [name,message,reason] of [
- ['D1 claim','Bonjour, DIMO Software recrute des commerciaux. BIG aide les entreprises B2B à accélérer leur prospection commerciale avec des commerciaux freelances spécialisés.','UNSUPPORTED_CLAIM'],
+ ['D1 claim','Bonjour, DIMO Software recrute des commerciaux. BIG aide les entreprises B2B à accélérer leur prospection commerciale avec des commerciaux freelances spécialisés.','UNSUPPORTED_CLAIM_HIRING'],
  ['D2 number (250, a piece of the sourced 2 500)','Bonjour, DIMO Software accompagne 250 clients. BIG aide les entreprises B2B à accélérer leur prospection commerciale avec des commerciaux freelances spécialisés.','UNSUPPORTED_NUMBER'],
 ])test(`fallback — a refused AI answer (${name}) → the safe rule-based message, exactly 1 unit, the same provenance`,async()=>{
  const {r,log}=await attempt(message);

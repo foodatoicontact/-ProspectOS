@@ -5,8 +5,11 @@
 import {fold,bannedPhrasesIn} from './style.ts';
 
 export type GuardContext={name:string;offer:string;sources:string[];allowedUrls:string[];forbiddenNames:string[];bannedPhrases:string[];maxChars:number;angleType:string};
-export type GuardResult={ok:true}|{ok:false;reason:'EMPTY'|'TOO_LONG'|'BANNED_PHRASE'|'FOREIGN_COMPANY'|'UNSUPPORTED_QUOTE'|'UNSUPPORTED_URL'|'UNSUPPORTED_NUMBER'|'UNSUPPORTED_CLAIM'};
-// Kinds of company facts a message must never assert unless a source says so (FR + EN stems, folded).
+// Kinds of company facts a message must never assert unless a source says so (FR + EN stems, folded). Each family has a
+// canonical name, returned with an UNSUPPORTED_CLAIM refusal so an attempt can be diagnosed without keeping its text.
+export const CLAIM_CATEGORIES=['hiring','funding','growth','partnership','incident','contract','acquisition','appointment','launch','certification','event','revenue','publication'] as const;
+export type ClaimCategory=typeof CLAIM_CATEGORIES[number];
+export type GuardResult={ok:true}|{ok:false;reason:'EMPTY'|'TOO_LONG'|'BANNED_PHRASE'|'FOREIGN_COMPANY'|'UNSUPPORTED_QUOTE'|'UNSUPPORTED_URL'|'UNSUPPORTED_NUMBER'}|{ok:false;reason:'UNSUPPORTED_CLAIM';category:ClaimCategory};
 const CLAIMS:RegExp[]=[/recrut|embauch|\bhiring\b|recruit/,/levee de fonds|\bleve\b|financement|funding|\braised?\b|tour de table/,/croissance|\bgrowth\b|en plein essor|forte expansion/,
  /partenariat|partenaire|partnership|\bpartner/,/incident|cyberattaque|piratage|\bbreach|\battaque\b|ransomware|rancongiciel/,/\bcontrat\b|marche public|appel d.offres|\bcontract\b|\btender\b/,
  /rachat|acquisition|\bacquis|acquired|\bfusion\b|merger/,/nomination|\bnomme|appointed|nouveau (directeur|dirigeant|president)|new (ceo|cto|director)/,/\blancement\b|\blance\b|\blaunch/,
@@ -40,7 +43,8 @@ export function checkComposedMessage(text:string,ctx:GuardContext):GuardResult{
  for(const sentence of t.split(/(?<=[.!?…])\s+|\n+/)){
   const s=fold(sentence).replace(/[.!?…]+$/,'').trim();
   if(!s||(s.split(' ').length>=3&&offer.includes(s)))continue;
-  if(CLAIMS.some(re=>re.test(withoutName(s,own))&&!re.test(proof)))return {ok:false,reason:'UNSUPPORTED_CLAIM'};
+  const family=CLAIMS.findIndex(re=>re.test(withoutName(s,own))&&!re.test(proof));
+  if(family>=0)return {ok:false,reason:'UNSUPPORTED_CLAIM',category:CLAIM_CATEGORIES[family]};
  }
  return {ok:true};
 }

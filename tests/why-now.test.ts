@@ -62,5 +62,6 @@ test('purity and wiring: no model; the outreach route adds why-now, stores signa
  assert.match(route,/signals=await verifiedSignalsOf\(db,p\.id\);intentProfile=await intentProfileOf\(db,p\.project_id\)/);
  assert.match(route,/signal_ids:composed\.signal_ids,evidence_ids:composed\.evidence_ids/);
  const compose=await readFile(new URL('../src/outreach/compose.ts',import.meta.url),'utf8');
- assert.match(compose,/const why=whyNow\(input\.signals,input\.profile,input\.now,input\.locale\);if\(why\)\{text=withWhyNow\(text,input\.name,why,input\.locale\)/);
+ // O1: the user's address mode (tu / vous) is passed along with the locale.
+ assert.match(compose,/const why=whyNow\(input\.signals,input\.profile,input\.now,input\.locale,address\);if\(why\)\{text=withWhyNow\(text,input\.name,why,input\.locale,address\)/);
 });

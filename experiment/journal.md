@@ -28,3 +28,10 @@ Les réponses du batch 1 arriveront sur la boîte Velòu France.
 Statut : batch terminé, aucun nouvel envoi, attente des réponses.
 
 Connecteur Gmail vérifié : prospectos.contact@gmail.com (sans envoi). Les réponses du batch 1 restent sur la boîte Velòu France : l'utilisateur les transmet.
+
+## Cycle 4 — Batch 2 — 2026-10-11
+Budget avant : ~0,25 € (estim.) | CA confirmé : 0 €
+Méthode : registre officiel (recherche-entreprises, comme le provider registry de ProspectOS) puis vérification déterministe du site par le SIREN dans les mentions légales. Registre instable (connexions coupées) : 2 recherches web en appoint.
+Envoyés depuis prospectos.contact@gmail.com, signés Kevin Cardia : Agence Web Norbert (Narbonne, gérant seul, adresse nominative), Abtel (Bouillargues), Digital-i (Albi).
+Batch réduit à 3 pour tenir le budget total de 1 €. Aucune relance.
+Coût estimé : ~0,20 €. Total estimé : ~0,95 €. STOP.

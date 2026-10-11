@@ -1,36 +1,70 @@
 {
   "current_strategy": "S1 - Service productisé 'Pack 50 prospects qualifiés + messages' à 99€ (livré via ProspectOS, sans build)",
-  "current_stage": "BATCH1_DONE - 5 envois, en attente des réponses, aucun nouvel envoi",
+  "current_stage": "BATCH2_DONE - 8 envois au total (5+3), STOP, aucune relance, attente des réponses",
   "active_opportunities": [
     {
       "company": "Beeween (Montpellier)",
       "email": "cyril@beeween.com",
       "source": "beeween.com/contact + mentions légales",
-      "gmail_id": "1a12c22f3fbb0b90"
+      "gmail_id": "1a12c22f3fbb0b90",
+      "batch": 1,
+      "sender": "adresse Velòu France (incident)"
     },
     {
       "company": "Clickzou (Toulouse)",
       "email": "contact@clickzou.fr",
       "source": "clickzou.fr mailto + mentions légales",
-      "gmail_id": "1a12c22f5d3d0627"
+      "gmail_id": "1a12c22f5d3d0627",
+      "batch": 1,
+      "sender": "adresse Velòu France (incident)"
     },
     {
       "company": "Agence FL (Perpignan)",
       "email": "francoislaffargue@agencefl.com",
       "source": "agencefl.com/contact",
-      "gmail_id": "1a12c22f734eb728"
+      "gmail_id": "1a12c22f734eb728",
+      "batch": 1,
+      "sender": "adresse Velòu France (incident)"
     },
     {
       "company": "LMWEB (Perpignan)",
       "email": "contact@lmweb.fr",
       "source": "lmweb.fr/contact",
-      "gmail_id": "1a12c22fb75c85e3"
+      "gmail_id": "1a12c22fb75c85e3",
+      "batch": 1,
+      "sender": "adresse Velòu France (incident)"
     },
     {
       "company": "Gard Web Création (Nîmes)",
       "email": "contact@gardwebcreation.fr",
       "source": "gardwebcreation.fr page d'accueil",
-      "gmail_id": "1a12c22fcfcd3986"
+      "gmail_id": "1a12c22fcfcd3986",
+      "batch": 1,
+      "sender": "adresse Velòu France (incident)"
+    },
+    {
+      "batch": 2,
+      "sender": "prospectos.contact@gmail.com",
+      "company": "Agence Web Norbert (Narbonne, SIREN 891500555)",
+      "email": "hellofred@agencenorbert.com",
+      "source": "registre recherche-entreprises → agencenorbert.com (via FranceNum), SIREN vérifié dans les mentions légales",
+      "gmail_id": "1a12c2b72b6297aa"
+    },
+    {
+      "batch": 2,
+      "sender": "prospectos.contact@gmail.com",
+      "company": "Abtel (Bouillargues, SIREN 477565063)",
+      "email": "contact@abtel.fr",
+      "source": "registre recherche-entreprises → abtel.fr, SIREN vérifié dans les mentions légales",
+      "gmail_id": "1a12c2b75a6d6348"
+    },
+    {
+      "batch": 2,
+      "sender": "prospectos.contact@gmail.com",
+      "company": "Digital-i (Albi, SIREN 883114423)",
+      "email": "contact@digital-i.fr",
+      "source": "annuaire → digital-i.fr, RCS Albi 883 114 423 dans les mentions légales",
+      "gmail_id": "1a12c2b77d11a400"
     }
   ],
   "rejected_strategies": [
@@ -39,17 +73,22 @@
   ],
   "pending_human_approvals": [],
   "confirmed_revenue": 0,
-  "estimated_api_spend": 0.75,
-  "next_best_action": "Attendre les réponses, sans relance avant J+3 (2026-10-14). Les réponses du batch 1 arrivent sur la boîte Velòu France, que la session ne voit plus : l'utilisateur doit les transmettre. Toute relance éventuelle part de prospectos.contact@gmail.com, signée Kevin Cardia.",
+  "estimated_api_spend": 0.95,
+  "next_best_action": "Attendre les réponses. Batch 1 : réponses sur la boîte Velòu France (l'utilisateur les transmet). Batch 2 : réponses sur prospectos.contact@gmail.com. Aucune relance. Budget quasi épuisé : aucune nouvelle action IA sans nouveau budget.",
   "metrics": {
-    "prospects_qualifies": 5,
-    "messages_envoyes": 5,
+    "prospects_qualifies": 8,
+    "messages_envoyes": 8,
     "reponses": 0,
     "reponses_positives": 0,
     "demandes_pack": 0,
     "propositions_acceptees": 0,
     "paid_eur": 0,
-    "api_restant_estime_eur": 0.25
+    "api_restant_estime_eur": 0.05,
+    "batch2": {
+      "prospects_qualifies": 3,
+      "messages_envoyes": 3,
+      "reponses": 0
+    }
   },
   "rejected_prospects": [
     "Studio Gazoline: domaine à vendre (inactif)",

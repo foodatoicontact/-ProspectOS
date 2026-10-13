@@ -80,7 +80,7 @@ test('35 — the flag never touches ENTITY: non-Signal paths are not handled (nu
 });
 test('3, 7 — flag true: a run goes through entitlement → start (1 unit, in the database) → fixture provider → save → complete',async()=>{
  const {d,log,writer}=deps();
- const {res,db}=await call(['projects',PROJ,'signal-discovery'],'POST',{query:'restaurant',location:'Occitanie',categories:['restauration rapide','snack','coffee shop'],provider:'fixture'},d);
+ const {res,db}=await call(['projects',PROJ,'signal-discovery'],'POST',{query:'restaurant',location:'Occitanie',categories:['restauration rapide','snack','coffee shop']},d);
  assert.equal(res?.status,201);const body=await res!.json();
  assert.equal(body.status,'completed');assert.equal(body.refunded,false);
  assert.equal(log[0],'entitlement');
@@ -97,28 +97,28 @@ test('4 — unauthenticated: the router checks the session before any Signal-fir
 test('5–6 — non-member (database refusal) and inactive entitlement: refused, nothing searched',async()=>{
  const provider=new FixtureSignalSearchProvider(ALL);
  const nm=deps({},provider);const db=fakeDb({rpcError:{start_signal_discovery:'Authenticated tenant member required'}});
- const a=await call(['projects',PROJ,'signal-discovery'],'POST',{query:'restaurant',location:'Occitanie',provider:'fixture'},nm.d,db);
+ const a=await call(['projects',PROJ,'signal-discovery'],'POST',{query:'restaurant',location:'Occitanie'},nm.d,db);
  assert.equal(a.res?.status,400);assert.equal((await a.res!.json()).code,'DATABASE_REQUEST_FAILED');assert.equal(provider.calls.length,0);assert.equal(nm.writer.calls.length,0);
  for(const [code,status] of [['ENTITLEMENT_REQUIRED',403],['BETA_ACCESS_EXPIRED',402]] as const){
   const e=deps({requireEntitlement:async()=>{throw Error(code)}},provider);
-  const r=await call(['projects',PROJ,'signal-discovery'],'POST',{query:'restaurant',location:'Occitanie',provider:'fixture'},e.d);
+  const r=await call(['projects',PROJ,'signal-discovery'],'POST',{query:'restaurant',location:'Occitanie'},e.d);
   assert.equal(r.res?.status,status);assert.equal((await r.res!.json()).code,code);assert.equal(r.db.calls.length,0,'no start, no unit');assert.equal(provider.calls.length,0);
  }
  for(const [msg,code,status] of [['plan_limit_reached','PLAN_LIMIT_REACHED',429],['quota_exceeded','QUOTA_EXCEEDED',429],['max_results_exceeded','MAX_RESULTS_EXCEEDED',400]] as const){
-  const r=await call(['projects',PROJ,'signal-discovery'],'POST',{query:'restaurant',location:'Occitanie',provider:'fixture'},deps({},provider).d,fakeDb({rpcError:{start_signal_discovery:msg}}));
+  const r=await call(['projects',PROJ,'signal-discovery'],'POST',{query:'restaurant',location:'Occitanie'},deps({},provider).d,fakeDb({rpcError:{start_signal_discovery:msg}}));
   assert.equal(r.res?.status,status);assert.equal((await r.res!.json()).code,code);
  }
  assert.equal(provider.calls.length,0);
 });
 test('API input — strict body; Brave without a key refused before any unit; invalid ids refused',async()=>{
- for(const body of [{location:'Occitanie'},{query:'restaurant',location:'Occitanie',signal_types:['funding']},{query:'restaurant',location:'Occitanie',max_results:51},{query:'restaurant',location:'Occitanie',provider:'registry'},{query:'restaurant',location:'Occitanie',extra:1}]){
+ for(const body of [{location:'Occitanie'},{query:'restaurant',location:'Occitanie',signal_types:['funding']},{query:'restaurant',location:'Occitanie',max_results:51},{query:'restaurant',location:'Occitanie',provider:'registry'},{query:'restaurant',location:'Occitanie',provider:'fixture'},{query:'restaurant',location:'Occitanie',provider:'brave'},{query:'restaurant',location:'Occitanie',extra:1}]){
   const r=await call(['projects',PROJ,'signal-discovery'],'POST',body,deps().d);assert.equal(r.res?.status,400,JSON.stringify(body));assert.equal(r.db.calls.length,0);
  }
  const nokey=deps({provider:()=>new BraveSignalSearchProvider('')});
  const r=await call(['projects',PROJ,'signal-discovery'],'POST',{query:'restaurant',location:'Occitanie'},nokey.d);
  assert.equal(r.res?.status,503);assert.equal((await r.res!.json()).code,'BRAVE_NOT_CONFIGURED');assert.equal(r.db.calls.length,0,'no unit consumed');
  const cfg=deps({writer:()=>{throw Error('CONFIGURATION_REQUIRED')}});
- const c=await call(['projects',PROJ,'signal-discovery'],'POST',{query:'restaurant',location:'Occitanie',provider:'fixture'},cfg.d);
+ const c=await call(['projects',PROJ,'signal-discovery'],'POST',{query:'restaurant',location:'Occitanie'},cfg.d);
  assert.equal(c.res?.status,503);assert.equal(c.db.calls.length,0);
  assert.equal((await call(['projects','nope','signal-discovery'],'POST',{query:'restaurant',location:'Occitanie'},deps().d)).res?.status,400);
 });
@@ -265,7 +265,7 @@ test('23 — metering: brave only, once per run, requests sent (not results); fi
  const {d,log}=deps({},new BraveSignalSearchProvider(KEY,okFetch(braveBody([])) as any));
  await call(['projects',PROJ,'signal-discovery'],'POST',{query:'restaurant',location:'Occitanie'},d);
  assert.deepEqual(log.filter(l=>Array.isArray(l)&&l[0]==='meter'),[['meter',3]]);
- const f=deps();await call(['projects',PROJ,'signal-discovery'],'POST',{query:'restaurant',location:'Occitanie',provider:'fixture'},f.d);
+ const f=deps();await call(['projects',PROJ,'signal-discovery'],'POST',{query:'restaurant',location:'Occitanie'},f.d);
  assert.equal(f.log.filter(l=>Array.isArray(l)&&l[0]==='meter').length,0);
  const route=await readFile(new URL('../app/api/v1/[...path]/route.ts',import.meta.url),'utf8');
  assert.match(route,/meter:\(run,requestCount\)=>recordApiUsage\(\{organizationId:run\.organization_id,projectId:run\.project_id,userId:user\.id,provider:'brave',operation:'search',requestCount\}\)/);
@@ -280,7 +280,7 @@ test('24 — no key, token or snippet in logs, errors or answers',async()=>{
   const everything=JSON.stringify(log)+answer+JSON.stringify(spies.flatMap(s=>s.mock.calls.map(c=>c.arguments)));
   assert.doesNotMatch(everything,new RegExp(KEY));assert.doesNotMatch(everything,/X-Subscription-Token|Authorization|ECONNREFUSED/i);
   assert.match(answer,/PROVIDER_UNAVAILABLE/);assert.match(answer,/BRAVE_NETWORK_ERROR/);
-  const ok=deps({},new FixtureSignalSearchProvider(ALL));await call(['projects',PROJ,'signal-discovery'],'POST',{query:'restaurant',location:'Occitanie',provider:'fixture'},ok.d);
+  const ok=deps({},new FixtureSignalSearchProvider(ALL));await call(['projects',PROJ,'signal-discovery'],'POST',{query:'restaurant',location:'Occitanie'},ok.d);
   const line=ok.log.find(l=>l&&l.component==='signal-discovery');
   assert.deepEqual(Object.keys(line).sort(),['candidates','closed','component','error_code','provider','refunded','requests_answered','requests_sent','results','run_id','saved','status']);
   assert.doesNotMatch(JSON.stringify(ok.log),/Napolino|ouvrira|https?:/,'no snippet, title or URL in logs');
@@ -334,6 +334,20 @@ test('33–34 — ENTITY / Registry: their modules never reference Signal-first;
  assert.ok(route.indexOf('handleDiscovery(request,path,body,db,user)',h)<route.indexOf('handleSignalDiscovery(request',h),'ENTITY first');
  assert.equal((route.match(/SIGNAL_DISCOVERY_ENABLED|signalDiscoveryEnabled\(process\.env\)/g)??[]).length,1,'the flag is read once, for Signal-first only');
  assert.equal((route.match(/handleDiscovery\(request,path,body,db,user\)/g)??[]).length,1);
+});
+test('hardening — the public API cannot select the fixture provider; the router only builds the Brave source',async()=>{
+ const asked:unknown[]=[];const fixture=new FixtureSignalSearchProvider(ALL);
+ const d=deps({provider:(...a:unknown[])=>{asked.push(a);return fixture}}).d;
+ const r=await call(['projects',PROJ,'signal-discovery'],'POST',{query:'restaurant',location:'Occitanie',provider:'fixture'},d);
+ assert.equal(r.res?.status,400);assert.equal((await r.res!.json()).code,'INVALID_REQUEST');
+ assert.deepEqual([asked.length,fixture.calls.length,r.db.calls.length],[0,0,0],'no provider built, no search, no unit');
+ const ok=await call(['projects',PROJ,'signal-discovery'],'POST',{query:'restaurant',location:'Occitanie'},d);
+ assert.equal(ok.res?.status,201);assert.deepEqual(asked,[[]],'the provider factory takes no user choice');
+ const route=await readFile(new URL('../app/api/v1/[...path]/route.ts',import.meta.url),'utf8');
+ assert.doesNotMatch(route,/FixtureSignalSearchProvider|signal-discovery\/provider/,'the router never builds the fixture provider');
+ assert.match(route,/provider:\(\)=>new BraveSignalSearchProvider\(process\.env\.BRAVE_SEARCH_API_KEY\?\?''\)/);
+ const api=await readFile(new URL('../src/signal-discovery/api.ts',import.meta.url),'utf8');
+ assert.doesNotMatch(api.split('\n').filter(l=>!/^\s*\/\//.test(l)).join('\n'),/'fixture'/,'no fixture choice in the public schema');
 });
 test('fixture provider default answers: fictitious, no real brand',()=>{
  for(const h of DEMO_HITS)assert.match(new URL(h.url).hostname,/-exemple\.fr$/);

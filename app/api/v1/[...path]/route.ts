@@ -20,7 +20,6 @@ import {createHash} from 'node:crypto';
 import {handleSignals} from '../../../../src/signals/api';
 import {handleSignalDiscovery,signalDiscoveryEnabled} from '../../../../src/signal-discovery/api';
 import {BraveSignalSearchProvider} from '../../../../src/signal-discovery/brave';
-import {FixtureSignalSearchProvider} from '../../../../src/signal-discovery/provider';
 import {BodaccSignalProvider,bodaccEnabled} from '../../../../src/signals/providers/bodacc';
 import {intentProfileOf,verifiedSignalsOf,recordContactSnapshot} from '../../../../src/signals/context';
 import {createSupabaseAnalysisAudit} from '../../../../src/discovery/analysis-audit';
@@ -91,7 +90,7 @@ async function handler(request:Request,context:{params:Promise<{path:string[]}>}
  const signalDiscoveryResponse=await handleSignalDiscovery(request,path,body,db,json,{
   enabled:signalDiscoveryEnabled(process.env),userId:user.id,now:()=>new Date(),
   requireEntitlement:()=>requireActiveEntitlement(db,user.id),writer:()=>createAdminClient(),
-  provider:id=>id==='brave'?new BraveSignalSearchProvider(process.env.BRAVE_SEARCH_API_KEY??''):new FixtureSignalSearchProvider(),
+  provider:()=>new BraveSignalSearchProvider(process.env.BRAVE_SEARCH_API_KEY??''),
   meter:(run,requestCount)=>recordApiUsage({organizationId:run.organization_id,projectId:run.project_id,userId:user.id,provider:'brave',operation:'search',requestCount}),
   log:line=>console.info(JSON.stringify(line)),
  });if(signalDiscoveryResponse)return signalDiscoveryResponse;

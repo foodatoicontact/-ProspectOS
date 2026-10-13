@@ -34,8 +34,9 @@ export type SignalDiscoveryDeps={
  requireEntitlement:()=>Promise<void>;
  // The server's privileged client (service role); throws when the server is not configured.
  writer:()=>SupabaseClient;
- // The search source: 'brave' throws BRAVE_NOT_CONFIGURED without a key.
- provider:(id:'brave'|'fixture')=>SignalSearchProvider;
+ // The search source. The public API only ever asks for the real source (Brave; throws BRAVE_NOT_CONFIGURED
+ // without a key): the fixture provider is not selectable by a user — only code (tests) can inject it here.
+ provider:()=>SignalSearchProvider;
  meter:(run:{id:string;organization_id:string;project_id:string},requestCount:number)=>Promise<void>;
  log?:(line:Record<string,unknown>)=>void;
 };
@@ -47,7 +48,6 @@ const RunSchema=z.object({
  categories:z.array(term).max(8).default([]),
  signal_types:z.array(z.enum(SIGNAL_DISCOVERY_TYPES)).min(1).max(2).default([...SIGNAL_DISCOVERY_TYPES]),
  max_results:z.number().int().min(1).max(MAX_RESULTS_CEILING).default(20),
- provider:z.enum(['brave','fixture']).default('brave'),
 }).strict();
 const AddSchema=z.object({
  name:z.string().trim().min(1).max(200).optional(),
@@ -104,7 +104,7 @@ export async function handleSignalDiscovery(request:Request,path:string[],body:u
    await deps.requireEntitlement();
    // Configuration first: a server without its key or its privileged client refuses before any unit is consumed.
    let writer:SupabaseClient;try{writer=deps.writer()}catch{return refuse(json,'CONFIGURATION_REQUIRED')}
-   const provider=deps.provider(input.provider);
+   const provider=deps.provider();
    const result=await runSignalDiscovery({project_id,query:input.query,location:input.location,categories:input.categories,signal_types:input.signal_types,max_results:input.max_results},{
     repo:new SupabaseSignalDiscoveryRepository(db,writer,deps.userId),provider,now:deps.now,log:deps.log,
     meter:provider.metered?deps.meter:undefined,

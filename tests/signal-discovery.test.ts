@@ -172,6 +172,9 @@ function intentSignal(c:SignalDiscoveryCandidate,status:IntentSignal['status']):
  return {id:`sig-${c.event_key}`,signal_type:s.signal_type,status,title:s.title,excerpt:s.excerpt,source_url:s.source_url,source_domain:c.source_domain,
   confidence:0.6,event_date:s.event_date??null,published_at:s.published_at??null,observed_at:s.observed_at,matched_terms:s.matched_terms};
 }
+const P1_MODULES=['plan.ts','extract.ts','entity.ts','rank.ts','record.ts'];
+// Code only: comment lines may name what the module deliberately does not do.
+const codeOf=(src:string)=>src.split('\n').filter(l=>!/^\s*\/\//.test(l)).join('\n');
 test('11 — an unverified candidate changes neither FIT nor INTENT',async()=>{
  const c=candidate('future_opening_resolved');
  // FIT reads verified evidence only: a candidate is not evidence, the score with no evidence is unchanged.
@@ -181,7 +184,9 @@ test('11 — an unverified candidate changes neither FIT nor INTENT',async()=>{
   const src=await readFile(new URL(`../src/signal-discovery/${f}`,import.meta.url),'utf8');
   const imports=src.split('\n').filter(l=>/^import /.test(l)).join('\n');
   assert.doesNotMatch(imports,/domain\/|evidence|observations/,`${f}: no FIT / INTENT / evidence input`);
-  assert.doesNotMatch(src,/'VERIFIED'|"VERIFIED"|\bstatus\s*:/,`${f}: never sets a review status`);
+  assert.doesNotMatch(codeOf(src),/'VERIFIED'|"VERIFIED"|review_signal|reviewed_by/,`${f}: never sets a review status`);
+  // The pure P1 modules carry no status at all (P3's service and API only name a RUN's status).
+  if(P1_MODULES.includes(f))assert.doesNotMatch(src,/\bstatus\s*:/,`${f}: no status in the pure logic`);
  }
  // Even once handed to the Signal Engine, a pending signal adds nothing to verified INTENT.
  const r=scoreIntent([intentSignal(c,'PENDING_REVIEW')],null,NOW);
@@ -209,18 +214,22 @@ test('13 — a signal VERIFIED by a person (existing review_signal path) feeds I
 // ------------------------------------------------------------
 // 14: ENTITY mode unchanged
 // ------------------------------------------------------------
-test('14 — ENTITY / Registry Discovery untouched: no import of the new module, no mode switch, no route, no migration',async()=>{
- const tracked=execFileSync('git',['ls-files','src','app','supabase'],{encoding:'utf8'}).split('\n').filter(f=>/\.(ts|tsx|sql)$/.test(f)&&!f.startsWith('src/signal-discovery/'));
+// Updated in P3: the API router (app/api/v1/[...path]/route.ts) is now the ONLY file outside the module that knows it.
+test('14 — ENTITY / Registry Discovery untouched: no import of the new module outside the router, no mode switch',async()=>{
+ const ROUTER='app/api/v1/[...path]/route.ts';
+ const tracked=execFileSync('git',['ls-files','src','app','supabase'],{encoding:'utf8'}).split('\n').filter(f=>/\.(ts|tsx|sql)$/.test(f)&&!f.startsWith('src/signal-discovery/')&&f!==ROUTER);
  for(const f of tracked){
   const src=await readFile(new URL(`../${f}`,import.meta.url),'utf8');
-  assert.doesNotMatch(src,/signal-discovery|signal_discovery|SIGNAL_DISCOVERY/,`${f} must not know about Signal-first Discovery in P1`);
+  assert.doesNotMatch(src,/signal-discovery|signal_discovery|SIGNAL_DISCOVERY/,`${f} must not know about Signal-first Discovery`);
  }
  const types=await readFile(new URL('../src/discovery/types.ts',import.meta.url),'utf8');
  assert.doesNotMatch(types,/discovery_mode/);
  // The new module only READS existing primitives; it never imports the ENTITY run path.
  for(const f of await readdir(new URL('../src/signal-discovery/',import.meta.url))){
   const src=await readFile(new URL(`../src/signal-discovery/${f}`,import.meta.url),'utf8');
-  assert.doesNotMatch(src,/discovery\/(?:api|services|observations|repository|providers\/)|server\/|supabase/,f);
+  assert.doesNotMatch(codeOf(src),/discovery\/(?:api|services|observations|providers\/)/,f);
+  // Database and server access only in the two P3 adapters; the pure modules and the service stay database-free.
+  if(!['api.ts','repository.ts'].includes(f))assert.doesNotMatch(codeOf(src),/discovery\/repository|server\/|supabase/,f);
  }
 });
 

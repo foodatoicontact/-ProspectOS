@@ -27,13 +27,25 @@ export const EVENT_PHRASES:Record<SignalDiscoveryType,readonly string[]>={
  expansion:['deuxième établissement','nouvelle implantation','poursuit son développement'],
 };
 
-// The two main cities of each metropolitan region (regional capital first), used to reach local news when the zone
-// is a whole region. Public facts, never a guess about where a company is.
+// The main cities of each metropolitan region (regional capital first, then by population), used to reach local news
+// when the zone is a whole region. Public facts, never a guess about where a company is.
+// P4 (canary #1, "restaurant" × Occitanie): the region's name in a query does not keep the engine in the region — 48
+// of 56 results were national news. The queries are now anchored on six cities: the first two with the region's name,
+// the next four in the second opening query.
 const REGION_CITIES:Record<string,readonly string[]>={
- 'Auvergne-Rhône-Alpes':['Lyon','Grenoble'],'Bourgogne-Franche-Comté':['Dijon','Besançon'],'Bretagne':['Rennes','Brest'],
- 'Centre-Val de Loire':['Orléans','Tours'],'Corse':['Ajaccio','Bastia'],'Grand Est':['Strasbourg','Metz'],'Hauts-de-France':['Lille','Amiens'],
- 'Île-de-France':['Paris'],'Normandie':['Rouen','Caen'],'Nouvelle-Aquitaine':['Bordeaux','Limoges'],'Occitanie':['Toulouse','Montpellier'],
- 'Pays de la Loire':['Nantes','Angers'],'Provence-Alpes-Côte d’Azur':['Marseille','Nice'],
+ 'Auvergne-Rhône-Alpes':['Lyon','Grenoble','Saint-Étienne','Villeurbanne','Clermont-Ferrand','Annecy'],
+ 'Bourgogne-Franche-Comté':['Dijon','Besançon','Belfort','Chalon-sur-Saône','Auxerre','Mâcon'],
+ 'Bretagne':['Rennes','Brest','Quimper','Lorient','Vannes','Saint-Malo'],
+ 'Centre-Val de Loire':['Orléans','Tours','Bourges','Blois','Chartres','Châteauroux'],
+ 'Corse':['Ajaccio','Bastia','Porto-Vecchio','Corte','Calvi','Propriano'],
+ 'Grand Est':['Strasbourg','Metz','Reims','Mulhouse','Nancy','Colmar'],
+ 'Hauts-de-France':['Lille','Amiens','Roubaix','Tourcoing','Dunkerque','Calais'],
+ 'Île-de-France':['Paris','Boulogne-Billancourt','Saint-Denis','Argenteuil','Montreuil','Versailles'],
+ 'Normandie':['Rouen','Caen','Le Havre','Cherbourg','Évreux','Alençon'],
+ 'Nouvelle-Aquitaine':['Bordeaux','Limoges','Poitiers','Pau','La Rochelle','Mérignac'],
+ 'Occitanie':['Toulouse','Montpellier','Nîmes','Perpignan','Béziers','Carcassonne'],
+ 'Pays de la Loire':['Nantes','Angers','Le Mans','Saint-Nazaire','La Roche-sur-Yon','Cholet'],
+ 'Provence-Alpes-Côte d’Azur':['Marseille','Nice','Toulon','Aix-en-Provence','Avignon','Cannes'],
 };
 
 export type SignalQuery={q:string;signal_types:SignalDiscoveryType[];zone:string;purpose:'zone'|'cities'|'expansion'};
@@ -85,13 +97,17 @@ export function planSignalQueries(input:SignalPlanInput):SignalQueryPlan{
  const zone=zoneOf(input.location);
  const subjectPart=subjects.length?anyOf(subjects):'';
  const queries:SignalQuery[]=[];
+ // The zone as typed plus its first two cities; the second opening query reaches the other cities (a city or a
+ // department typed by the user: its own name, then the cities read in it).
+ const head=[zone.label,...zone.cities.slice(0,2)].filter((c,i,all)=>all.findIndex(x=>foldPlace(x)===foldPlace(c))===i);
+ const tail=zone.cities.length>2?zone.cities.slice(2,6):zone.cities;
  const add=(q:SignalQuery)=>{const text=fit(q.q.replace(/\s+/g,' ').trim());if(text&&!queries.some(x=>x.q===text))queries.push({...q,q:text})};
  if(types.includes('new_site')){
   const opening=EVENT_PHRASES.new_site;
-  add({q:`${subjectPart} ${anyOf(opening.slice(0,5))} ${zone.label}`,signal_types:['new_site'],zone:zone.label,purpose:'zone'});
-  if(zone.cities.length)add({q:`${subjectPart} ${anyOf(opening.slice(4))} ${anyOf(zone.cities)}`,signal_types:['new_site'],zone:zone.cities.join(', '),purpose:'cities'});
+  add({q:`${subjectPart} ${anyOf(opening.slice(0,5))} ${anyOf(head)}`,signal_types:['new_site'],zone:head.join(', '),purpose:'zone'});
+  if(tail.length)add({q:`${subjectPart} ${anyOf(opening.slice(4))} ${anyOf(tail)}`,signal_types:['new_site'],zone:tail.join(', '),purpose:'cities'});
  }
- if(types.includes('expansion'))add({q:`${subjectPart} ${anyOf(EVENT_PHRASES.expansion)} ${zone.label}`,signal_types:['expansion'],zone:zone.label,purpose:'expansion'});
+ if(types.includes('expansion'))add({q:`${subjectPart} ${anyOf(EVENT_PHRASES.expansion)} ${anyOf(head)}`,signal_types:['expansion'],zone:head.join(', '),purpose:'expansion'});
  const to=day(input.now),from=day(new Date(input.now.getTime()-FRESHNESS_DAYS*86400000));
  const max=Math.max(1,Math.min(MAX_RESULTS_CEILING,Math.floor(input.max_results??20)));
  return {queries:queries.slice(0,MAX_SIGNAL_QUERIES),subjects,zone,freshness:`${from}to${to}`,window:{from,to,days:FRESHNESS_DAYS},max_results:max};

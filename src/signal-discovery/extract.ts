@@ -19,6 +19,7 @@
 import {fold,parseDay} from '../signals/extract.ts';
 import {eventDateIn} from '../discovery/strategies/event-time.ts';
 import {mentionedPlace,placesIn} from '../discovery/geo-fr.ts';
+import {eventPlacesIn} from './places.ts';
 import {FRESHNESS_DAYS,type SignalDiscoveryType} from './plan.ts';
 
 export const SIGNAL_DISCOVERY_SOURCE_TYPE='search_snippet' as const;
@@ -55,7 +56,7 @@ export type ExtractedEvent={
  headline:string;
  snippet:string;
 };
-export type ExtractRejection='INVALID_URL'|'NO_EVENT'|'NON_ESTABLISHMENT_OPENING'|'NOT_PHYSICAL_EXPANSION'|'NEGATED'|'STALE_PUBLICATION'|'STALE_EVENT';
+export type ExtractRejection='INVALID_URL'|'NO_EVENT'|'GENERIC_CONTENT'|'NON_ESTABLISHMENT_OPENING'|'NOT_PHYSICAL_EXPANSION'|'NEGATED'|'STALE_PUBLICATION'|'STALE_EVENT';
 export type ExtractOutcome={ok:true;event:ExtractedEvent}|{ok:false;reason:ExtractRejection};
 
 // Accents removed, case kept, same length as the NFC text: indexes found here are indexes in the raw sentence.
@@ -106,6 +107,10 @@ const PHYSICAL_ANCHOR=new RegExp(`\\b(?:${ESTABLISHMENT}|ouvr\\w*|ouverture|impl
 const NAMED_PLACE=/(?:^|\s)(?:a|au|en|dans|sur) [A-Z]/;
 // A list or a guide ("les 10 nouveaux restaurants à tester", "notre sélection") is editorial content, never one event.
 const LISTICLE=/\b(?:top \d+|\d+ (?:nouveaux|nouvelles|adresses|restaurants|bonnes adresses|lieux|spots)|les? meilleure?s?|guide|selection|notre liste|a tester|a decouvrir|ou manger|ou boire|bons plans)\b/;
+// P4 (canary #1): a how-to, a cost guide or a ranking is about openings IN GENERAL, never one event ("Guide pour
+// ouvrir un snack", "L'ouverture d'un snack nécessite un budget…", "Top 200 restauration rapide : le classement").
+// Read on the whole result (headline + snippet), for every event rule — expansion included.
+const GENERIC_CONTENT=/\b(?:guide (?:pour|de|du|complet)|comment (?:ouvrir|reussir|lancer|monter|creer)|(?:\d+ |les )?(?:etapes|conseils|astuces) (?:pour|de|d')|ouvrir (?:un|une|son|sa) [a-z' -]{2,30} (?:avec succes|en \d{4} ?:|: (?:guide|conseils|etapes))|business plan|(?:quel |combien )(?:budget|coute|cout|investissement)|necessite un (?:budget|investissement|apport)|budget (?:compris |moyen |necessaire )|top \d+|classement (?:complet|des|annuel|\d{4})|palmares)\b/;
 const NON_PHYSICAL_EXPANSION=/\b(?:elargit|etend|developpe|enrichit|diversifie|renouvelle)\s+(?:sa|son|ses|leur|leurs)\s+(?:gamme|offre|carte|catalogue|menu|services?|clientele|audience|public|communaute|activite en ligne|presence en ligne|presence digitale)\b|\bs'etend (?:a|au|aux|vers) (?:un|une|de) (?:nouveaux?|nouvelles?) (?:public|clientele|audience|cible)s?\b|\bexpansion (?:de|du|des) (?:sa|son|ses|leur) (?:gamme|offre|catalogue|audience|carte)\b|\b(?:developpement|expansion) (?:commercial|digital|numerique|en ligne|international)\b/i;
 const NEGATION=/\b(?:n'ouvrira pas|n'ouvre pas|n'a pas ouvert|ne va pas ouvrir|ne vont pas ouvrir|renonce a (?:ouvrir|s'implanter)|renoncent a|abandonne (?:son|le) projet|annule (?:l'ouverture|son ouverture)|ouverture (?:annulee|abandonnee|reportee sine die)|ferme (?:definitivement )?ses portes|fermeture definitive)\b/i;
 const FUTURE_WORDS=/\b(?:prochainement|bientot|a venir|prevue?s?|d'ici|courant|attendue?s?|prochaine?s?)\b/i;
@@ -137,6 +142,7 @@ function establishmentContext(text:string):boolean{return new RegExp(`\\b${ESTAB
 function eventIn(sentence:string,context:string):Match|{reason:ExtractRejection}{
  const kc=keepCase(sentence),low=kc.toLowerCase();
  if(NEGATION.test(low))return {reason:'NEGATED'};
+ if(GENERIC_CONTENT.test(keepCase(context).toLowerCase()))return {reason:'GENERIC_CONTENT'};
  for(const re of EXPANSION_RULES){
   re.lastIndex=0;const m=re.exec(low);if(!m)continue;
   const isPursuit=/poursui|accelere/.test(m[0]);
@@ -238,19 +244,31 @@ function placeAfter(text:string):string|null{
  for(const m of text.matchAll(re)){
   const name=m[1]!.trim();const first=keepCase(name.replace(/^(?:l'|l’|la |le |les )/i,'')).split(/[\s-]/)[0]!;
   if(MONTH_WORD.test(first))continue;
-  return name;
+  // "au Mans" → "Le Mans", "aux Ulis" → "Les Ulis": the article the preposition contracted.
+  const prep=/(?:^|\s)(au|aux)\s/.exec(m[0])?.[1];
+  return prep==='au'&&!/^(?:l'|l’|la |le |les )/i.test(name)?`Le ${name}`:prep==='aux'&&!/^(?:l'|l’|la |le |les )/i.test(name)?`Les ${name}`:name;
  }
  return null;
 }
+// The place is read in the event's clause first; P4: the communes it introduces as places count (places.ts), "au
+// Mans" is written back "Le Mans", and a clause that names no place the gazetteer knows lets the headline say where
+// ("…dans la commune de Castelnaudary" while the snippet only says "l'ouverture est programmée pour l'été").
 function locationOf(clause:string,headline:string,basisFromHeadline:boolean):EventLocation|null{
- const read=(t:string,basis:EventLocation['basis']):EventLocation|null=>{
-  const literal=placeAfter(t);const found=placesIn(literal??t);
-  const text=literal??mentionedPlace(null,t);
+ const read=(t:string,basis:EventLocation['basis']):(EventLocation&{unresolved?:true})|null=>{
+  const literal=placeAfter(t);
+  const found=eventPlacesIn(t,{demonyms:basis==='EVENT_MENTION'});
+  const known=found.departments.size>0||found.regions.size>0;
+  const text=(found.communes[0]&&(!literal||!placesIn(literal).departments.size)?found.communes[0]:null)??literal??mentionedPlace(null,t);
   if(!text)return null;
-  return {text:text.slice(0,80),departments:[...found.departments].sort(),regions:[...found.regions].sort(),basis};
+  return {text:text.slice(0,80),departments:[...found.departments].sort().slice(0,10),regions:[...found.regions].sort().slice(0,5),basis,...(known?{}:{unresolved:true as const})};
  };
- return read(clause,'EVENT_MENTION')??(basisFromHeadline?read(headline,'HEADLINE_MENTION'):null);
+ const own=read(clause,'EVENT_MENTION');
+ if(own&&!own.unresolved)return strip(own);
+ const fromHeadline=basisFromHeadline?read(headline,'HEADLINE_MENTION'):null;
+ if(fromHeadline&&!fromHeadline.unresolved)return strip(fromHeadline);
+ return own?strip(own):fromHeadline?strip(fromHeadline):null;
 }
+const strip=({unresolved:_,...l}:EventLocation&{unresolved?:true}):EventLocation=>l;
 
 function publishedAtOf(pageAge:string|null|undefined,now:Date):string|null{
  if(!pageAge||typeof pageAge!=='string')return null;
@@ -261,11 +279,30 @@ function publishedAtOf(pageAge:string|null|undefined,now:Date):string|null{
 const clip=(s:string)=>{if(s.length<=MAX_EXCERPT_CHARS)return {text:s,truncated:false};return {text:s.slice(0,MAX_EXCERPT_CHARS-1).replace(/\s+\S*$/,'')+'…',truncated:true}};
 const isPublicHttpUrl=(u:string)=>{try{const x=new URL(u);return (x.protocol==='https:'||x.protocol==='http:')&&!x.username&&!x.password}catch{return false}};
 
+// P4: the site's own name glued to a headline ("… | Le Télégramme", "… - MontpelYeah Magazine", "… — InfOccitanie")
+// is the SOURCE, never part of the event: read as such it made a magazine the subject (non_commercial:MEDIA → OUT)
+// and leaked into excerpts. Removed after " | " always (a page-title separator), after " - " / " — " / " – " only
+// when the segment matches the source host. A headline is never emptied.
+export function withoutSiteName(headline:string,url:string):string{
+ let host='';try{host=new URL(url).hostname.toLowerCase().replace(/^www\./,'')}catch{return headline}
+ const label=keepCase(host.split('.').slice(0,-1).join('')).toLowerCase().replace(/[^a-z0-9]/g,'');
+ const al=(s:string)=>keepCase(s).toLowerCase().replace(/[^a-z0-9]/g,'');
+ let h=headline;
+ for(let i=0;i<2;i++){
+  const pipe=/\s+\|\s+([^|]{1,60})$/.exec(h);
+  if(pipe&&pipe.index>=12){h=h.slice(0,pipe.index).trim();continue}
+  const dash=/\s+[-–—]\s+([^-–—]{1,60})$/.exec(h);
+  if(dash&&dash.index>=12){const seg=al(dash[1]!);if(seg.length>=4&&label.length>=4&&(seg.startsWith(label)||label.startsWith(seg)||seg.includes(label)||label.includes(seg))){h=h.slice(0,dash.index).trim();continue}}
+  break;
+ }
+ return h;
+}
+
 export function extractEvent(hit:SearchHit,now:Date):ExtractOutcome{
  if(!isPublicHttpUrl(hit.url))return {ok:false,reason:'INVALID_URL'};
  const published_at=publishedAtOf(hit.page_age,now);
  if(published_at&&now.getTime()-Date.parse(published_at)>FRESHNESS_DAYS*DAY_MS)return {ok:false,reason:'STALE_PUBLICATION'};
- const headline=hit.title.normalize('NFC').replace(/\s+/g,' ').trim();
+ const headline=withoutSiteName(hit.title.normalize('NFC').replace(/\s+/g,' ').trim(),hit.url);
  const snippet=(hit.description??'').normalize('NFC').replace(/\s+/g,' ').trim();
  const context=`${headline} ${snippet}`;
  // The snippet's sentences first (they carry dates and places), then the headline.
@@ -298,6 +335,6 @@ export function extractEvent(hit:SearchHit,now:Date):ExtractOutcome{
    subject_text:sentence.slice(0,found.subjectEnd??found.index).trim(),headline,snippet,
   }};
  }
- const priority:ExtractRejection[]=['NEGATED','NON_ESTABLISHMENT_OPENING','NOT_PHYSICAL_EXPANSION','NO_EVENT'];
+ const priority:ExtractRejection[]=['GENERIC_CONTENT','NEGATED','NON_ESTABLISHMENT_OPENING','NOT_PHYSICAL_EXPANSION','NO_EVENT'];
  return {ok:false,reason:priority.find(r=>reasons.includes(r))??'NO_EVENT'};
 }

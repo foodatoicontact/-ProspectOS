@@ -43,7 +43,9 @@ test('plan — at most 3 queries, within Brave limits, 180-day freshness, discov
   assert.doesNotMatch(q.q,/linkedin|facebook|instagram|site:/i,'no social network, no site operator');
   assert.doesNotMatch(q.q,/ OR $/);
  }
- assert.deepEqual(plan.zone,{label:'Occitanie',cities:['Toulouse','Montpellier']});
+ // P4: a whole region is reached through six cities (canary #1: the region's name alone brought national news).
+ assert.deepEqual(plan.zone,{label:'Occitanie',cities:['Toulouse','Montpellier','Nîmes','Perpignan','Béziers','Carcassonne']});
+ assert.ok(plan.queries.every(q=>/Toulouse|Nîmes/.test(q.q)),'every query names cities of the zone');
  assert.equal(plan.freshness,'2026-04-16to2026-10-13');assert.equal(plan.window.days,FRESHNESS_DAYS);
  assert.equal(plan.max_results,20);
  assert.ok(plan.queries.some(q=>q.signal_types.includes('new_site'))&&plan.queries.some(q=>q.signal_types.includes('expansion')));

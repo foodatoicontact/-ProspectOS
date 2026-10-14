@@ -49,7 +49,16 @@ function mentionsTerm(text:string,term:string):boolean{
  const stem=t.replace(/(?:s|x)$/,'');
  return new RegExp(`(?:^|[^a-z0-9])${stem.replace(/[-\s]+/g,'[- ]?')}(?:s|x)?(?:$|[^a-z0-9])`).test(fold(text));
 }
-const ZONE_REASON:Record<LocationState,string>={VERIFIED:'ZONE_MATCH',COMPATIBLE:'ZONE_COMPATIBLE',UNKNOWN:'ZONE_UNKNOWN',MISMATCH:'ZONE_MISMATCH'};
+type Zone=typeof ZONE_REASON[LocationState];
+// P4: the zone from the departments and regions extract.ts resolved for the event's own place (communes included).
+function placeZone(zone:ReturnType<typeof locationTarget>,location:ExtractedEvent['location']):Zone{
+ if(!location)return 'ZONE_UNKNOWN';
+ if(location.departments.some(d=>zone.places.departments.has(d)))return 'ZONE_MATCH';
+ if(zone.cityTokens.some(t=>` ${foldPlace(location.text)} `.includes(` ${t} `)))return 'ZONE_MATCH';
+ if(!zone.places.regions.size||!location.regions.length)return 'ZONE_UNKNOWN';
+ return location.regions.some(r=>zone.places.regions.has(r))?'ZONE_COMPATIBLE':'ZONE_MISMATCH';
+}
+const ZONE_REASON={VERIFIED:'ZONE_MATCH',COMPATIBLE:'ZONE_COMPATIBLE',UNKNOWN:'ZONE_UNKNOWN',MISMATCH:'ZONE_MISMATCH'} as const satisfies Record<LocationState,string>;
 export function icpPrefilter(event:ExtractedEvent,entity:EntityResolution,target:IcpTarget):{match:IcpMatch;reasons:string[];location_state:LocationState;non_commercial:NonCommercialKind|null}{
  const reasons:string[]=[];
  const text=`${event.headline} ${event.excerpt}`;
@@ -58,11 +67,20 @@ export function icpPrefilter(event:ExtractedEvent,entity:EntityResolution,target
  // The place of the event (its own mention) first; else whatever place the result writes.
  const where=event.location?event.location.text:text;
  let state:LocationState='UNKNOWN';
- if(target.location.trim()){state=compareLocation(locationTarget(target.location),where).state;if(state==='UNKNOWN'&&event.location)state=compareLocation(locationTarget(target.location),text).state}
+ if(target.location.trim()){
+  const zone=locationTarget(target.location);
+  // P4: the departments and regions extract.ts resolved for the event's own place (communes included) decide first;
+  // the literal comparison of geo-fr only when they say nothing.
+  const own=placeZone(zone,event.location);
+  if(own!=='ZONE_UNKNOWN')state=(Object.keys(ZONE_REASON) as LocationState[]).find(k=>ZONE_REASON[k]===own)!;
+  else{state=compareLocation(zone,where).state;if(state==='UNKNOWN'&&event.location)state=compareLocation(zone,text).state}
+ }
  // Zone words only: nothing here is verified (geo-fr's own state names are not reused in the reasons).
  const zone=ZONE_REASON[state];
  reasons.push(`location:${zone}`);
- const kind=nonCommercialKind(entity.entity_name??'',event.headline,event.source_url,event.snippet);
+ // The organization's kind is read from WHO the event is about (its name, the subject of the event sentence), never
+ // from the source: a signal is almost always found in a newspaper, and "… – X Magazine" made the event OUT (P4).
+ const kind=nonCommercialKind(entity.entity_name??'',event.subject_text,'');
  if(kind)reasons.push(`non_commercial:${kind}`);
  const match:IcpMatch=kind||state==='MISMATCH'?'OUT':terms.length&&(zone==='ZONE_MATCH'||zone==='ZONE_COMPATIBLE')?'IN':'UNKNOWN';
  return {match,reasons,location_state:state,non_commercial:kind};
@@ -73,6 +91,14 @@ export function icpPrefilter(event:ExtractedEvent,entity:EntityResolution,target
 // ------------------------------------------------------------
 const hash=(s:string)=>createHash('sha256').update(fold(s)).digest('hex');
 const periodKey=(d:AnnouncedDate|null)=>!d||d.year===null?'nodate':d.month?`${d.year}-${String(d.month).padStart(2,'0')}`:`${d.year}`;
+// Two places agree when they share a department, or — neither resolved — read the same.
+function samePlace(a:ExtractedEvent,b:ExtractedEvent):boolean{
+ if(!a.location||!b.location)return true;
+ const da=a.location.departments,db=b.location.departments;
+ if(da.length&&db.length)return da.some(d=>db.includes(d));
+ if(da.length||db.length)return false;
+ return foldPlace(a.location.text)===foldPlace(b.location.text);
+}
 const placeKey=(e:ExtractedEvent)=>!e.location?'noplace':e.location.departments.length?e.location.departments.join('+'):foldPlace(e.location.text);
 export function eventKeyOf(c:ExtractedEvent&EntityResolution):string{
  const who=c.entity_name?entityCore(c.entity_name):`unresolved-${hash(c.excerpt).slice(0,16)}`;
@@ -85,15 +111,18 @@ function sameEvent(a:SignalDiscoveryCandidate,b:SignalDiscoveryCandidate):boolea
  if(a.signal_type!==b.signal_type)return false;
  if(!a.entity_name||!b.entity_name)return hash(a.excerpt)===hash(b.excerpt);
  if(!(sameCanonicalOrganization(a.entity_name,b.entity_name)||entityCore(a.entity_name)===entityCore(b.entity_name)))return false;
- const pa=placeKey(a),pb=placeKey(b);if(pa!=='noplace'&&pb!=='noplace'&&pa!==pb)return false;
+ if(!samePlace(a,b))return false;
  const da=periodKey(a.event_date),db=periodKey(b.event_date);
  return da==='nodate'||db==='nodate'||da.startsWith(db)||db.startsWith(da);
 }
 const granularityRank=(d:AnnouncedDate|null)=>!d||d.year===null?0:d.granularity==='DAY'?4:d.granularity==='MONTH'?3:d.granularity==='PERIOD'?2:1;
 // The source shown first: the most precise one (resolved organization, resolved domain, most precise date, most
 // recent publication), then the URL. Facts are never mixed across sources: the kept candidate carries its own.
+const icpRank=(m:IcpMatch)=>m==='IN'?0:m==='UNKNOWN'?1:2;
 function better(a:SignalDiscoveryCandidate,b:SignalDiscoveryCandidate):number{
  return Number(!!b.entity_name)-Number(!!a.entity_name)
+  // P4: the source that places the event in the zone and names the activity is the one a person reviews first.
+  ||icpRank(a.icp_match)-icpRank(b.icp_match)
   ||Number(!!b.entity_domain)-Number(!!a.entity_domain)
   ||Number(b.entity_confidence==='HIGH')-Number(a.entity_confidence==='HIGH')
   ||Number(b.location?.basis==='EVENT_MENTION')-Number(a.location?.basis==='EVENT_MENTION')

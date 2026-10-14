@@ -16,6 +16,7 @@ import {assessCandidateQuality} from '../discovery/candidate-quality.ts';
 import {resolveCanonicalCompany} from '../discovery/entity-resolution.ts';
 import {entityCore} from '../discovery/admissibility.ts';
 import {isPlaceName} from '../discovery/geo-fr.ts';
+import {isCommuneName} from './places.ts';
 import type {SourceType} from '../discovery/source-classification.ts';
 import type {ExtractedEvent} from './extract.ts';
 
@@ -89,6 +90,9 @@ function nameInClause(clause:string):string|null{
  const m=new RegExp(`^(${CAP_RUN})(?:\\s+(?:bientot|prochainement|desormais|aussi|egalement|deja|enfin|officiellement|qui|,))*\\s*$`).exec(rest);
  if(!m)return null;
  const name=raw.slice(offset,offset+m[1]!.length).trim();
+ // P4: a commune named alone at the head of a clause is a place ("Jonzac, 3 800 habitants, … son deuxième
+ // fast-food"); introduced as an organization ("l'enseigne Orange") it stays a name.
+ if(!intro&&isCommuneName(name))return null;
  return acceptable(name)?name:null;
 }
 function acceptable(name:string):boolean{
@@ -106,9 +110,41 @@ export function eventSubject(subjectText:string):string|null{
  for(let i=clauses.length-1;i>=0;i--){const n=nameInClause(clauses[i]!);if(n)return n}
  return null;
 }
+// P4 (canary #1): the organization is often named as the OBJECT of the event, not its subject — "Un nouveau
+// restaurant McDonald's s'apprête à ouvrir", "le nouveau restaurant Burger King de Castelnaudary", "un nouveau Quick
+// ouvrira ses portes". Read only right after "nouveau/nouvel/nouvelle" (an establishment word optional) or after an
+// establishment word + "de l'enseigne": a capitalized name there, never a place, never a generic word.
+const OBJECT_NAME=new RegExp(`(?:^|[\\s,(])(?:(?:un|une|le|la|son|sa|du|de|d')\\s+)?(?:nouveau|nouvel|nouvelle|tout nouveau|toute nouvelle)\\s+(?:(?:restaurant|etablissement|magasin|point de vente|boutique|enseigne|fast-food|drive)\\s+)?(?:(?:de l'enseigne|de la chaine|de la marque)\\s+)?(${CAP_RUN})`,'g');
+export function objectName(text:string):string|null{
+ const kc=keepCase(text).replace(/[«»"“”]/g,' ');const raw=text.normalize('NFC').replace(/[«»"“”]/g,' ');
+ for(const m of kc.matchAll(OBJECT_NAME)){
+  const start=m.index!+m[0].length-m[1]!.length;
+  // A name stops before a lowercase word: "Quick va ouvrir" → "Quick"; CAP_RUN already does. Trim a trailing "Le/La".
+  let name=raw.slice(start,start+m[1]!.length).replace(/\s+(?:Le|La|Les|De|Du|Des)$/,'').trim();
+  // "Burger King de Castelnaudary": the place after "de/du/d'" is where, not who.
+  const tail=/\s+(?:de|du|des|d'|d’)\s*([A-ZÀ-Ý].*)$/.exec(name);
+  if(tail&&(isPlaceName(tail[1]!)||isCommuneName(tail[1]!)))name=name.slice(0,tail.index).trim();
+  const introduced=/(?:de l'enseigne|de la chaine|de la marque)\s+$/.test(m[0].slice(0,m[0].length-m[1]!.length));
+  if(acceptable(name)&&(introduced||!isCommuneName(name)))return name;
+ }
+ return null;
+}
+// The grammatical subject's own clause (the text before the first comma): "La chaîne de restauration rapide, qui
+// avait un temps déserté la France au profit de Burger King, ouvre…" → "La chaîne de restauration rapide". A capital
+// at its very start is the sentence's, never a name.
+const mainClauseNamesNoOne=(subject:string)=>!/\s[A-Z]/.test(keepCase(subject.split(/\s*[,;:–—(]\s*/)[0]??''));
+// P4: a headline that opens on the organization and its event verb ("Crousto s'installe au Crès et dévoile…"),
+// for verbs the shared headline reading does not know. The name must stand alone before the verb.
+const HEADLINE_LEAD=new RegExp(`^(${CAP_RUN})\\s+(?:ouvre|ouvrira|va ouvrir|a ouvert|vient d'ouvrir|s'installe|s'installera|s'implante|s'implantera|arrive|debarque|inaugure|s'agrandit|poursuit son (?:developpement|implantation|expansion))\\b`);
+function headlineLead(headline:string):string|null{
+ const kc=keepCase(headline);const m=HEADLINE_LEAD.exec(kc);if(!m)return null;
+ const name=headline.normalize('NFC').slice(0,m[1]!.length).trim();
+ return acceptable(name)&&!isCommuneName(name)?name:null;
+}
+const sameAsHeadlineObject=(name:string,headline:string)=>{const h=objectName(headline);return !!h&&same(name,h)};
 const same=(a:string,b:string)=>{const ca=entityCore(a),cb=entityCore(b);return ca.length>=2&&cb.length>=2&&(ca===cb||ca.startsWith(cb)||cb.startsWith(ca))};
 const corroborates=(name:string,domain:string|null)=>{if(!domain)return false;const n=alnum(entityCore(name)||name),label=alnum(domain.split('.')[0]??'');return n.length>=3&&(label.startsWith(n)||n.startsWith(label)&&label.length>=4)};
-const OPENING_HEADLINE=/\b(?:ouvr\w*|ouverture|implant\w*|inaugur\w*|nouveau|nouvelle|nouvel|arrive|debarque|s'agrandit|deuxieme|second|seconde|troisieme|franchise)\b/i;
+const OPENING_HEADLINE=/\b(?:ouvr\w*|ouverture|implant\w*|s'install\w*|inaugur\w*|nouveau|nouvelle|nouvel|arrive|debarque|s'agrandit|deuxieme|second|seconde|troisieme|franchise)\b/i;
 
 export function resolveEventEntity(event:ExtractedEvent):EntityResolution{
  const reasons:string[]=[];
@@ -123,13 +159,19 @@ export function resolveEventEntity(event:ExtractedEvent):EntityResolution{
  const fromEvent=eventSubject(event.subject_text);
  const headlineMethod=canonical.companyName.status==='RESOLVED'?canonical.companyName.method:null;
  // Only an explicit headline pattern names an organization; a name derived from a domain never does here.
- const fromHeadline=headlineMethod&&['colon_prefix','leading_verb','chez_mention'].includes(headlineMethod)&&acceptable(canonical.companyName.name)?canonical.companyName.name:null;
+ const fromHeadline=(headlineMethod&&['colon_prefix','leading_verb','chez_mention'].includes(headlineMethod)&&acceptable(canonical.companyName.name)?canonical.companyName.name:null)??headlineLead(event.headline);
  let name:string|null=null,method:EntityNameMethod|null=null,confidence:EntityResolution['entity_confidence']=null;
+ const fromObject=fromEvent?null:objectName(event.excerpt)??(event.excerpt_origin==='search_result_snippet'?objectName(event.headline):null);
  if(fromEvent&&fromHeadline){
   if(same(fromEvent,fromHeadline)){name=fromEvent;method='headline_and_event';confidence='HIGH'}
   else reasons.push('headline_names_another_organization');
  }else if(fromEvent){name=fromEvent;method='event_subject';confidence='MEDIUM'}
- else if(fromHeadline&&OPENING_HEADLINE.test(keepCase(event.headline))&&event.excerpt_origin==='search_result_snippet'&&!event.subject_text.trim().match(/[A-Z]/)){
+ else if(fromObject&&(!fromHeadline||same(fromObject,fromHeadline)||sameAsHeadlineObject(fromObject,event.headline))){
+  // A headline prefix that is a rubric ("Commerce : … le nouveau restaurant Burgerio") does not contradict a name the
+  // headline itself writes as the object of the opening.
+  name=fromObject;method='event_subject';confidence=fromHeadline&&same(fromObject,fromHeadline)?'HIGH':'MEDIUM';reasons.push('named_as_event_object');
+ }else if(fromObject&&fromHeadline)reasons.push('headline_names_another_organization');
+ else if(fromHeadline&&OPENING_HEADLINE.test(keepCase(event.headline))&&event.excerpt_origin==='search_result_snippet'&&mainClauseNamesNoOne(event.subject_text)){
   // "Napoli ouvrira à Toulouse" as headline, the snippet sentence without subject ("Le restaurant ouvrira…").
   name=fromHeadline;method='headline_subject';confidence='MEDIUM';
  }else if(fromHeadline&&event.excerpt_origin==='search_result_title'){name=fromHeadline;method='headline_subject';confidence='MEDIUM'}

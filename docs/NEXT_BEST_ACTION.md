@@ -75,7 +75,7 @@ référence (signal, contenu, preuve) appartient au prospect et au tenant.
 - Les seuils V1 sont des choix explicites, documentés et versionnés (`config_version`), pas des valeurs apprises.
 - Dépendance de branche : la PR NBA contient la PR Signal-first (#31) tant que celle-ci n'est pas fusionnée.
 
-## 5. Modèle de score (config `nba-v1.1-2026-10`, `src/nba/engine.ts` `NBA_DEFAULT_CONFIG`)
+## 5. Modèle de score (config `nba-v1.2-2026-10`, `src/nba/engine.ts` `NBA_DEFAULT_CONFIG`)
 
 Chaque score va de 0 à 100 et garde ses lignes (`scores.*.lines`) ; aucun n'est masqué derrière le total.
 
@@ -117,7 +117,7 @@ Canary 6XPOS sur staging : 10 DISMISS sur 10 et une explication fausse (« ni un
 - **WHY_THIS_ACTION dérivé de l'état réel** (`actionReason`) : signal récent présent, signal trop ancien (nommé, avec sa
   durée de vie), signal hors zone (nommé, avec son lieu), FIT faible, ou informations insuffisantes — jamais une phrase
   générique.
-- **SIGNAL_GEO_RELEVANCE** (`geoRelevance`) : zone = localisations `target_fit` de l'ICP résolues en codes de département /
+- **SIGNAL_GEO_RELEVANCE** (`geoRelevance`) — **remplacé en v1.2 par le modèle géographique générique, voir `docs/GEO_MODEL.md`.** Version v1.1 d'origine : zone = localisations `target_fit` de l'ICP résolues en codes de département /
   régions (geo-fr : régions, départements, préfectures — une commune plus petite saisie dans l'ICP n'est pas résolue, donc pas de zone) ; lieu du signal = `raw_metadata.location` structuré de Signal-first. MATCH (département de la
   zone, ou région nommée en entier), MISMATCH (toutes ses régions hors zone : TIMING 0 pour cet ICP), UNKNOWN (pas de zone,
   lieu non structuré, ou même région mais autre département) : compté comme avant, l'incertitude est écrite. Aucune

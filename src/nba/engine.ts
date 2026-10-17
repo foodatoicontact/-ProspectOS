@@ -10,7 +10,9 @@ import {estimateFit,type EstimateEvidence} from '../domain/fit-estimate.ts';
 import {scoreIntent,type IntentSignal,type IntentProfileInput} from '../domain/intent.ts';
 import type {Criterion} from '../domain/core.ts';
 import type {SignalType} from '../signals/types.ts';
-import {DEPARTMENTS,placesIn} from '../discovery/geo-fr.ts';
+import {relevanceOf,isGeoPlace,geoPlace,placeLabel,type GeoPlace,type GeoRelevance,type GeoRelevanceReason} from '../geo/model.ts';
+import {resolveScope} from '../geo/gazetteer.ts';
+import {frPlacesFromLegacyLocation} from '../geo/fr.ts';
 import {REGISTRY,entryOf,decayOf,fold,CONVERSATION_DECAY,CONVERSATION_TIMING_WEIGHT,CONVERSATION_TOPICS,
  type CommercialSignalType,type Decay,type RegistryEntry,type ConversationTopic} from './registry.ts';
 
@@ -45,7 +47,8 @@ export type NbaConfig={
 };
 export const NBA_DEFAULT_CONFIG:NbaConfig={
  // v1.1 (canary fix 1): UNKNOWN_FIT_FRESH_SIGNAL, state-derived WHY_THIS_ACTION, signal geographic relevance.
- version:'nba-v1.1-2026-10',
+ // v1.2: generic geography (src/geo/), France and international.
+ version:'nba-v1.2-2026-10',
  weights:{fit:0.35,timing:0.30,intent:0.15,evidence_quality:0.10,freshness:0.10},
  fit:{contactMin:60,engageMin:50,watchMin:50,dismissBelow:30},
  timing:{contactMin:50,watchMin:15},
@@ -76,49 +79,38 @@ export type NbaInput={prospect:NbaProspect;criteria:Criterion[];evidence:Estimat
  profile:IntentProfileInput;now:Date;config?:NbaConfig};
 
 // ------------------------------------------------------------
-// 0. Geographic relevance of a signal (canary fix 1, FIX 3). Structured data only: the ICP's own target_fit locations
-// resolved to department codes / region names by the shared Discovery gazetteer (geo-fr: regions, departments,
-// prefectures — a smaller commune typed in the ICP is not resolved, so it adds no zone), and the
-// signal's structured place (department codes / region names). Never a text comparison.
-//   MATCH     the signal's department is in the zone, or its region is one the ICP names as a whole region.
-//   MISMATCH  every region the signal names is outside the zone's regions: it adds nothing to TIMING for this ICP.
-//   UNKNOWN   no zone in the ICP, no structured place on the signal, or same region but another department and the
-//             ICP does not name that whole region: never presumed relevant, never presumed irrelevant — said so.
+// 0. Geographic relevance of a signal — generic, France and international (src/geo/model.ts). The ICP's scope is its
+// target_fit locations resolved to generic places (src/geo/gazetteer.ts: exact names only); the signal's place is its
+// structured location: raw_metadata.geo (generic, any country) or, for Signal-first France, raw_metadata.location
+// translated by the France adapter. Nothing here knows a country's administrative levels; no text comparison.
+//   MATCH     the signal's place is inside the scope;
+//   MISMATCH  the signal's place is known and outside the scope: it adds nothing to TIMING for this ICP;
+//   UNKNOWN   no scope, no structured place, or not precise enough to conclude: counted as before, never presumed
+//             relevant — the uncertainty is written.
 // ------------------------------------------------------------
-export type GeoRelevance='MATCH'|'MISMATCH'|'UNKNOWN';
-// regions: every region the zone touches (named, or of a named department/city); wholeRegions: regions named as such.
-export type IcpZone={departments:Set<string>;regions:Set<string>;wholeRegions:Set<string>;labels:string[]};
-export type SignalGeo={relevance:GeoRelevance;place:string|null;reason:'in_zone'|'outside_zone'|'icp_zone_undefined'|'signal_place_unknown'|'same_region_other_department'};
-const REGION_OF=new Map(DEPARTMENTS.map(d=>[d.code,d.region]));
+export type IcpZone={places:GeoPlace[];labels:string[]};
+export type SignalGeo={relevance:GeoRelevance;place:string|null;reason:GeoRelevanceReason};
 export function icpZoneOf(criteria:Criterion[]):IcpZone|null{
  const labels=criteria.flatMap(c=>c.rules?.type==='target_fit'?c.rules.config.locations??[]:[]).map(l=>l.trim()).filter(Boolean);
- const zone:IcpZone={departments:new Set(),regions:new Set(),wholeRegions:new Set(),labels};
- for(const l of labels){
-  const p=placesIn(l);
-  const departments=new Set(p.departments);
-  departments.forEach(d=>{zone.departments.add(d);const r=REGION_OF.get(d);if(r)zone.regions.add(r)});
-  p.regions.forEach(r=>zone.regions.add(r));
-  // A label that names a region and no department or city is the whole region ("Occitanie").
-  if(!departments.size)p.regions.forEach(r=>zone.wholeRegions.add(r));
- }
- return zone.departments.size||zone.regions.size?zone:null;
+ const places=resolveScope(labels);
+ return places.length?{places,labels}:null;
 }
-function locationOf(s:NbaSignal):{text:string|null;departments:string[];regions:string[]}|null{
- const loc=s.raw_metadata&&typeof s.raw_metadata==='object'?(s.raw_metadata as Record<string,any>).location:null;
- if(!loc||typeof loc!=='object')return null;
- const departments=Array.isArray(loc.departments)?loc.departments.filter((d:unknown):d is string=>typeof d==='string'):[];
- const regions=new Set<string>(Array.isArray(loc.regions)?loc.regions.filter((r:unknown):r is string=>typeof r==='string'):[]);
- for(const d of departments){const r=REGION_OF.get(d);if(r)regions.add(r)}
- return {text:typeof loc.text==='string'?loc.text:null,departments,regions:[...regions]};
+export function signalPlaces(s:NbaSignal):GeoPlace[]{
+ const meta=s.raw_metadata&&typeof s.raw_metadata==='object'?s.raw_metadata as Record<string,unknown>:null;
+ if(!meta)return [];
+ const geo=meta.geo;
+ if(Array.isArray(geo))return geo.filter(isGeoPlace).map(geoPlace);
+ if(isGeoPlace(geo))return [geoPlace(geo)];
+ const loc=meta.location;
+ if(loc&&typeof loc==='object')return frPlacesFromLegacyLocation(loc as Record<string,unknown>);
+ return [];
 }
 export function geoRelevance(s:NbaSignal,zone:IcpZone|null):SignalGeo{
- const loc=locationOf(s);const place=loc?.text??null;
- if(!zone)return {relevance:'UNKNOWN',place,reason:'icp_zone_undefined'};
- if(!loc||(!loc.departments.length&&!loc.regions.length))return {relevance:'UNKNOWN',place,reason:'signal_place_unknown'};
- if(loc.departments.some(d=>zone.departments.has(d)))return {relevance:'MATCH',place,reason:'in_zone'};
- if(loc.regions.some(r=>zone.wholeRegions.has(r)))return {relevance:'MATCH',place,reason:'in_zone'};
- if(loc.regions.length&&loc.regions.every(r=>!zone.regions.has(r)))return {relevance:'MISMATCH',place,reason:'outside_zone'};
- return {relevance:'UNKNOWN',place,reason:'same_region_other_department'};
+ const places=signalPlaces(s);
+ const loc=s.raw_metadata&&typeof s.raw_metadata==='object'?(s.raw_metadata as Record<string,any>).location:null;
+ const place=places[0]?placeLabel(places[0]):typeof loc?.text==='string'?loc.text:null;
+ const r=relevanceOf(places,zone?.places??[]);
+ return {relevance:r.relevance,place,reason:r.reason};
 }
 
 // ------------------------------------------------------------
@@ -358,9 +350,10 @@ function explain(c:Ctx,rule:RuleId,target:Target):Explanation{
   else inferred.push({kind:'inference',text:`Type « ${e.label.fr} » déduit du type de signal « ${s.base_type} ».`,refs:[ref]});
   if(s.date_basis==='observed_only')unknown.push({kind:'unknown',text:'Date du fait inconnue : seule la date de relevé est connue.',refs:[ref]});
   if(s.geo.relevance==='MATCH')why_now.push({kind:'fact',text:`Lieu du signal : ${s.geo.place??'—'}, dans ${zoneName(c.zone)}.`,refs:[ref]});
-  else unknown.push({kind:'unknown',text:s.geo.reason==='icp_zone_undefined'?'Pertinence géographique non établie : l’ICP ne définit pas de zone.'
-   :s.geo.reason==='signal_place_unknown'?'Pertinence géographique non établie : le lieu du signal n’est pas connu.'
-   :`Pertinence géographique non établie : ${s.geo.place??'le lieu du signal'} est dans la même région mais hors des départements de ${zoneName(c.zone)}.`,refs:[ref]});
+  else unknown.push({kind:'unknown',text:s.geo.reason==='scope_undefined'?'Pertinence géographique non établie : l’ICP ne définit pas de zone exploitable.'
+   :s.geo.reason==='place_unknown'?'Pertinence géographique non établie : le lieu du signal n’est pas connu de façon structurée.'
+   :s.geo.reason==='mixed_places'?`Pertinence géographique non établie : le signal cite des lieux dans et hors de ${zoneName(c.zone)}.`
+   :`Pertinence géographique non établie : le lieu connu du signal (${s.geo.place??'—'}) n’est pas assez précis pour ${zoneName(c.zone)}.`,refs:[ref]});
  }else if(primary?.kind==='conversation'){
   const v=primary.conversation,ref:Ref={kind:'public_content',id:v.content_id,source_url:v.source_url};
   why_now.push({kind:'fact',text:`${v.author??'Publication'} ${v.published_at?`le ${day(v.published_at)}`:''} : « ${clip(v.excerpt)} » (${[v.source_domain,ago(v.age_days)].filter(Boolean).join(', ')}).`,refs:[ref]});

@@ -109,21 +109,22 @@ test('CASE 10 — ICP Toulouse / Occitanie, signal in Toulouse → MATCH: counts
  assert.equal(unknownFit.recommended_action,'WATCH');
 });
 
-test('GEO — structured only: whole region vs department, no zone, no structured place, never a text match',()=>{
+test('GEO — structured only: scope precision, no zone, no structured place, never a text match (generic model: tests/geo-model.test.ts)',()=>{
  const z=(l:string[])=>icpZoneOf(crit(90,l));
- assert.equal(geoRelevance(opening({},MONTPELLIER),z(['Toulouse','Occitanie'])).relevance,'MATCH','Occitanie named as a whole region');
- assert.deepEqual(geoRelevance(opening({},MONTPELLIER),z(['Toulouse'])),{relevance:'UNKNOWN',place:'Montpellier',reason:'same_region_other_department'});
+ assert.equal(geoRelevance(opening({},MONTPELLIER),z(['Toulouse','Occitanie'])).relevance,'MATCH','Occitanie is in the scope');
+ // A known place outside the scope is MISMATCH (Montpellier is not Toulouse) …
+ assert.deepEqual(geoRelevance(opening({},MONTPELLIER),z(['Toulouse'])),{relevance:'MISMATCH',place:'Montpellier',reason:'outside_scope'});
  assert.equal(geoRelevance(opening({},VANNES),z(['Toulouse'])).relevance,'MISMATCH');
+ // … but a place known only down to its department, against a town scope, is not precise enough: UNKNOWN.
+ assert.deepEqual(geoRelevance(opening({},{text:'Blagnac',departments:['31'],regions:['Occitanie']}),z(['Toulouse'])),{relevance:'UNKNOWN',place:'Blagnac',reason:'insufficient_precision'});
  assert.equal(geoRelevance(opening({},{text:'Blagnac',departments:['31'],regions:['Occitanie']}),z(['Haute-Garonne'])).relevance,'MATCH');
- assert.deepEqual(geoRelevance(opening({},VANNES),null),{relevance:'UNKNOWN',place:'Vannes',reason:'icp_zone_undefined'});
+ assert.deepEqual(geoRelevance(opening({},VANNES),null),{relevance:'UNKNOWN',place:'Vannes',reason:'scope_undefined'});
  assert.equal(icpZoneOf(crit(90)),null,'an ICP without locations has no zone');
- // A place written as text only (no codes) is never compared by its words.
- assert.deepEqual(geoRelevance(opening({},{text:'Toulouse'}),z(['Toulouse'])),{relevance:'UNKNOWN',place:'Toulouse',reason:'signal_place_unknown'});
- assert.equal(geoRelevance(opening(),z(['Toulouse'])).reason,'signal_place_unknown');
- // A prefecture resolves to its department; a smaller commune typed in the ICP is not resolved (geo-fr only): no zone,
- // so its signals stay UNKNOWN — never guessed.
- assert.deepEqual([...z(['Carcassonne'])!.departments],['11']);
- assert.equal(z(['Castelnaudary']),null);
+ // A place written as text only (no structure) is never compared by its words.
+ assert.deepEqual(geoRelevance(opening({},{text:'Toulouse'}),z(['Toulouse'])),{relevance:'UNKNOWN',place:'Toulouse',reason:'place_unknown'});
+ assert.equal(geoRelevance(opening(),z(['Toulouse'])).reason,'place_unknown');
+ // A prefecture is known; a smaller commune typed in the ICP is not (no zone, its signals stay UNKNOWN).
+ assert.ok(z(['Carcassonne']));assert.equal(z(['Castelnaudary']),null);
  // UNKNOWN never removes timing (unchanged behaviour), MISMATCH does.
  assert.ok(run({criteria:crit(90),evidence:[ev()],signals:[opening({},VANNES)]}).scores.timing.score>0);
 });

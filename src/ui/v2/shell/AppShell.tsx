@@ -22,6 +22,8 @@ export type AppShellProps={
  locale:Locale;current:NavKey|null;onNavigate:(key:NavKey)=>void;
  project:ProjectSwitcherProps;account:Omit<UserMenuProps,'locale'>;
  title:string;actions?:ShellAction[];debug?:ReactNode;children:ReactNode;
+ // A screen already migrated to v2 (UI-3: Today 2.0) replaces the legacy region for that view.
+ screen?:ReactNode;
 };
 // Actions that belong to the current screen (e.g. Prospects: export, add) — no longer global buttons of the envelope.
 export type ShellAction={key:string;label:string;onClick:()=>void;primary?:boolean;disabled?:boolean;icon?:IconName};
@@ -103,7 +105,7 @@ export function SideNav({locale,current,onNavigate,project,account,projectOpen,m
  </aside>;
 }
 
-export function AppShell({locale,current,onNavigate,project,account,title,actions,debug,children}:AppShellProps){
+export function AppShell({locale,current,onNavigate,project,account,title,actions,debug,children,screen}:AppShellProps){
  const desktop=useIsDesktop();
  const [projectOpen,setProjectOpen]=useState(false);
  const [menuOpen,setMenuOpen]=useState(false);
@@ -124,7 +126,7 @@ export function AppShell({locale,current,onNavigate,project,account,title,action
    {debug}
    {actions&&actions.length>0&&<div className="pos-app__toolbar">{actions.map(a=><Button key={a.key} variant={a.primary?'primary':'secondary'} size="sm"
     iconStart={a.icon} disabled={a.disabled} onClick={a.onClick}>{a.label.replace(/^＋\s*/,'')}</Button>)}</div>}
-   <div className="pos-legacy">{children}</div>
+   {screen??<div className="pos-legacy">{children}</div>}
   </main>
   <BottomNav locale={locale} current={current} onNavigate={navigate}/>
   <Sheet open={projectOpen&&!desktop} onClose={()=>setProjectOpen(false)} title={PROJECT_TEXT[locale].title} locale={locale}>
@@ -135,3 +137,5 @@ export function AppShell({locale,current,onNavigate,project,account,title,action
   </Sheet>
  </ThemeProvider>;
 }
+// Loaded with the shell (one dynamic import in app/page.tsx).
+export {TodayV2} from '../today/TodayV2.tsx';

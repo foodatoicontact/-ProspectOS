@@ -52,14 +52,19 @@ export async function recordUxEvent(i:UxEventInput):Promise<'recorded'|'skipped'
 // Zero-Friction ZF1 measurement (docs/ZERO_FRICTION.md). Same table, same rules: no actor (not business activity),
 // closed numeric payload, no text, nothing written in Production. One event per kind per client session; the client
 // counts only trusted user clicks/submits (never renders, loads, polling or automatic recomputations).
-export const ZF_KINDS=['ZF_SESSION_STARTED','ZF_TODAY_VIEWED','ZF_FIRST_RECOMMENDATION_VISIBLE','ZF_FIRST_MEANINGFUL_ACTION','ZF_ADVANCED_DETAILS_OPENED'] as const;
+// UI-3: ZF_WHY_OPENED = level 2 ("Voir pourquoi"); ZF_ADVANCED_DETAILS_OPENED stays level 3 only.
+export const ZF_KINDS=['ZF_SESSION_STARTED','ZF_TODAY_VIEWED','ZF_FIRST_RECOMMENDATION_VISIBLE','ZF_FIRST_MEANINGFUL_ACTION','ZF_ADVANCED_DETAILS_OPENED','ZF_WHY_OPENED'] as const;
 export type ZfKind=typeof ZF_KINDS[number];
 export type ZfEventInput={admin:SupabaseClient|null;env:{VERCEL_ENV?:string;NODE_ENV?:string;UX_AB_ENABLED?:string};enabled:boolean;userId:string;organizationId:string;
+ // UI-3: the project the event belongs to, kept distinct from the organization (row column) in the payload.
+ projectId?:string;
  kind:string;sessionId:string;elapsedMs:number;interactions:number};
-export function zfPayload(i:Pick<ZfEventInput,'kind'|'sessionId'|'elapsedMs'|'interactions'|'userId'>):Record<string,unknown>|null{
+export function zfPayload(i:Pick<ZfEventInput,'kind'|'sessionId'|'elapsedMs'|'interactions'|'userId'|'projectId'>):Record<string,unknown>|null{
  if(!(ZF_KINDS as readonly string[]).includes(i.kind)||!UUID.test(i.sessionId)||!UUID.test(i.userId))return null;
  if(!Number.isInteger(i.elapsedMs)||i.elapsedMs<0||i.elapsedMs>86400000||!Number.isInteger(i.interactions)||i.interactions<0||i.interactions>10000)return null;
- return {schema:1,experiment:'zero_friction_today',session_id:i.sessionId,elapsed_ms:i.elapsedMs,interactions:i.interactions,user_id:i.userId};
+ if(i.projectId!==undefined&&!UUID.test(i.projectId))return null;
+ return {schema:1,experiment:'zero_friction_today',session_id:i.sessionId,elapsed_ms:i.elapsedMs,interactions:i.interactions,user_id:i.userId,
+  ...(i.projectId?{project_id:i.projectId}:{})};
 }
 // Why a ZF event was not written — logged (no personal data) so a silent 202 can never hide a broken measurement again.
 export type ZfOutcome='recorded'|'duplicate'|'flag_off'|'production'|'invalid'|'no_writer'|'failed';
@@ -98,7 +103,7 @@ export async function handleZfEvent(body:unknown,db:SupabaseClient,user:{id:stri
   const b=parsed.data;
   const {data:proj}=await db.from('projects').select('organization_id').eq('id',b.project_id).maybeSingle();
   if(!proj)return 'invalid';
-  return recordZfEvent({admin:deps.admin(),env:deps.env,enabled:deps.enabled,userId:user.id,organizationId:proj.organization_id,kind:b.kind,
+  return recordZfEvent({admin:deps.admin(),env:deps.env,enabled:deps.enabled,userId:user.id,organizationId:proj.organization_id,projectId:b.project_id,kind:b.kind,
    sessionId:b.session_id,elapsedMs:b.elapsed_ms,interactions:b.interactions});
  })();
  deps.log({component:'zf-events',kind:parsed.success?parsed.data.kind:null,outcome});

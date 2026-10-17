@@ -40,6 +40,8 @@
 .pos-ui .pos-btn--full{display:flex;width:100%}
 .pos-ui .pos-btn--primary{background:var(--pos-accent);color:var(--pos-on-accent);box-shadow:var(--pos-shadow-accent)}
 .pos-ui .pos-btn--primary:hover{background:var(--pos-accent-hover)}
+.pos-ui .pos-btn--contact{background:var(--pos-action-contact);color:var(--pos-on-action-contact)}
+.pos-ui .pos-btn--contact:hover{background:var(--pos-action-contact-hover)}
 .pos-ui .pos-btn--secondary{background:var(--pos-surface-card);color:var(--pos-text-1);border-color:var(--pos-border-strong)}
 .pos-ui .pos-btn--secondary:hover{background:var(--pos-surface-inset)}
 .pos-ui .pos-btn--quiet{background:transparent;color:var(--pos-text-2);padding:0 var(--pos-space-2)}

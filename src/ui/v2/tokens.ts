@@ -13,7 +13,7 @@ export const palette={
  indigo:{800:'#3730A3',700:'#4338CA',600:'#4F46E5',500:'#6366F1',400:'#818CF8',300:'#A5B4FC'},
  violet:{700:'#6D28D9',600:'#7C3AED',500:'#8B5CF6',400:'#A78BFA'},
  cyan:{800:'#085E78',500:'#06B6D4',400:'#22D3EE',300:'#4FE0F5'},
- green:{800:'#166534',600:'#16A34A',400:'#4ADE80'},
+ green:{900:'#14532D',800:'#166534',600:'#16A34A',400:'#4ADE80',300:'#86EFAC'},
  amber:{900:'#8A3C0B',600:'#D97706',500:'#F59E0B',400:'#FBBF24',300:'#FCD34D',50:'#FDF0D3'},
  slate:{600:'#475569',500:'#64748B',400:'#94A3B8',300:'#AEB9CC'},
  rose:{700:'#BE123C',600:'#E11D48',400:'#FB7185'},
@@ -32,6 +32,8 @@ export type ColorRoles={
  'text-1':string;'text-2':string;'text-3':string;
  accent:string;'accent-hover':string;'on-accent':string;'accent-soft':string;'accent-ring':string;
  ai:string;signal:string;'signal-dot':string;'signal-ring':string;
+ // CONTACT is the only action drawn in green (ZF-UI0 colour semantics); every other primary action is indigo.
+ 'action-contact':string;'action-contact-hover':string;'on-action-contact':string;
  scrim:string;'toast-bg':string;'toast-fg':string;
 }&StatusRoles;
 // Non-colour, theme-dependent values (shadows, gradients, halos).
@@ -69,6 +71,7 @@ export const light:Theme={name:'light',
   'text-1':ink[950],'text-2':ink[700],'text-3':ink[500],
   accent:indigo[700],'accent-hover':indigo[800],'on-accent':white,'accent-soft':alpha(indigo[700],0.09),'accent-ring':alpha(indigo[700],0.35),
   ai:violet[700],signal:cyan[800],'signal-dot':cyan[500],'signal-ring':alpha(cyan[500],0.16),
+  'action-contact':green[800],'action-contact-hover':green[900],'on-action-contact':white,
   scrim:alpha(ink[950],0.32),'toast-bg':ink[950],'toast-fg':mist[100],
   'status-contact-fg':green[800],'status-contact-bg':alpha(green[600],0.12),'status-contact-dot':green[600],
   'status-verify-fg':amber[900],'status-verify-bg':amber[50],'status-verify-dot':amber[600],
@@ -102,6 +105,7 @@ export const dark:Theme={name:'dark',
   'text-1':frost[100],'text-2':frost[300],'text-3':frost[400],
   accent:indigo[400],'accent-hover':indigo[300],'on-accent':night[925],'accent-soft':alpha(indigo[400],0.14),'accent-ring':alpha(indigo[400],0.45),
   ai:violet[400],signal:cyan[300],'signal-dot':cyan[400],'signal-ring':alpha(cyan[400],0.14),
+  'action-contact':green[400],'action-contact-hover':green[300],'on-action-contact':night[925],
   scrim:alpha(night[950],0.6),'toast-bg':frost[100],'toast-fg':night[925],
   'status-contact-fg':green[400],'status-contact-bg':alpha(green[400],0.14),'status-contact-dot':green[400],
   'status-verify-fg':amber[300],'status-verify-bg':alpha(amber[400],0.13),'status-verify-dot':amber[500],

@@ -165,7 +165,7 @@ test('10 — only trusted user clicks/submits count; automatic events, renders a
  assert.equal(s.observe({isTrusted:true,type:'click',target:button}),true);
  t=4500;assert.equal(s.emit('ZF_FIRST_MEANINGFUL_ACTION'),true);assert.equal(s.emit('ZF_FIRST_MEANINGFUL_ACTION'),false,'once per session');
  assert.deepEqual(sent,[['ZF_TODAY_VIEWED',1200,0],['ZF_FIRST_MEANINGFUL_ACTION',4500,1]]);
- assert.deepEqual([...ZF_KINDS],['ZF_SESSION_STARTED','ZF_TODAY_VIEWED','ZF_FIRST_RECOMMENDATION_VISIBLE','ZF_FIRST_MEANINGFUL_ACTION','ZF_ADVANCED_DETAILS_OPENED']);
+ assert.deepEqual([...ZF_KINDS],['ZF_SESSION_STARTED','ZF_TODAY_VIEWED','ZF_FIRST_RECOMMENDATION_VISIBLE','ZF_FIRST_MEANINGFUL_ACTION','ZF_ADVANCED_DETAILS_OPENED','ZF_WHY_OPENED']);
  const p=zfPayload({kind:'ZF_TODAY_VIEWED',sessionId:'00000000-0000-4000-8000-0000000000aa',elapsedMs:1200,interactions:0,userId:'00000000-0000-4000-8000-000000000001'});
  assert.deepEqual(Object.keys(p!).sort(),['elapsed_ms','experiment','interactions','schema','session_id','user_id'],'closed numeric payload, no text');
  assert.equal(zfPayload({kind:'ZF_HACK',sessionId:'00000000-0000-4000-8000-0000000000aa',elapsedMs:1,interactions:0,userId:'00000000-0000-4000-8000-000000000001'}),null);

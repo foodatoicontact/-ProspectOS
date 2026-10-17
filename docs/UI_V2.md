@@ -127,10 +127,45 @@ contracts, styles). Browser checks (Playwright, local build, demo mode): mobile 
 switching and creation, account menu, theme switch and persistence, language, keyboard, Esc / focus return, sign-out,
 320 px, tablet, reduced motion, forced colours; DOM parity with `main` when the flag is off.
 
+## UI-3 — Today 2.0
+
+**Gate.** Rendered by the v2 shell (`screen` slot) only when `UI_V2_ENABLED` (shell loaded) **and**
+`ZERO_FRICTION_TODAY_ENABLED` (live account, `zfOn`) are on; otherwise the legacy `TodayPanel` is unchanged. Code:
+`src/ui/v2/today/` (`model.ts`, `TodayV2.tsx`, `today.css`), loaded with the shell's dynamic import.
+
+**Data.** Same calls as `TodayPanel` (`ensure-fresh` then `home`, recomputation only when stale or after a data change),
+same ZF1 model (`buildTodayModel` / `cardOf`), same engine order (sections contact → verify → engage → watch, engine
+ranking inside). WAIT / DISMISS never take a card. No change to the NBA engine, scores or thresholds.
+
+**Level 1 card** (in this order): company · signal (cyan dot + TYPE, then place · age) · status badge · one short
+explanation (+ how many pieces of information are missing) · one action · "Voir pourquoi". Summary = compact filter
+chips `n à contacter · n à vérifier · n en veille` (ZF1.1 counts), not KPI cards.
+
+**Colours.** Indigo = primary action; green = CONTACT only ("Préparer le message", `--pos-action-contact`, badge);
+amber = to verify; blue-grey = watch; cyan = signal.
+
+**Actions (ZF1.1).** CONTACT → Préparer le message (record); ENGAGE → Voir la conversation (record); WATCH + signal not
+reviewed → Vérifier le signal (panel: source, confirm / reject → existing `signals/{id}/review`); WATCH + FIT incomplete
+→ Compléter les informations (panel); WATCH with nothing to do → "aucune action nécessaire".
+
+**Level 2** ("Voir pourquoi", Sheet on mobile / ContextDrawer on desktop): signal, source (link), freshness (age), place,
+what the source says, favourable criteria (verified), missing information — never a score. **Level 3** ("Détails
+avancés", inside level 2): scores (opportunity, FIT, coverage, INTENT, TIMING, freshness, evidence quality), rule,
+evidence states (signal, FIT profile, FIT basis), statements with their provenance, raw place.
+
+**Completion.** Lists what is verified and what is missing, explains that information counts once a source documents
+it, and opens the company record to add evidence with the existing workflow. "Déclarer une information sans source" is
+shown disabled: "Cette option sera disponible prochainement." No migration, no Evidence change, no DECLARED status
+(USER_DECLARED is UI-4).
+
+**Observability.** New `ZF_WHY_OPENED` (level 2). `ZF_ADVANCED_DETAILS_OPENED` is emitted from level 3 only. ZF event
+payloads now carry `project_id` (the organization stays the row column). The legacy TodayPanel is unchanged.
+
+**Bench.** `/ui-v2/today?set=canary|all|empty` (404 unless `UI_V2_ENABLED`): Today 2.0 in the real shell with frozen
+NBA rows (the 3 stored 6XPOS recommendations; synthetic rows for the other actions), events listed instead of sent.
+
 ## Notes for UI-2 / UI-3
 
 - Mounting v2 in the app means moving the token `<style>`, `foundations.css` and `ThemeProvider` to where the shell
   renders, still behind `UI_V2_ENABLED` (decided per request, like `/api/public/ux-config`; never in the static layout).
-- UI-3 copy: the secondary card action is **« Voir pourquoi »** (not « Pourquoi ? »).
-- UI-3 desktop card: avoid over-wide horizontal cards — keep the action close to the content within the 760 px reading
-  width.
+- UI-3: done ("Voir pourquoi", 720 px reading column, actions right under the content).

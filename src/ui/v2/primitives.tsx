@@ -15,7 +15,8 @@ export function Icon({name,size=20,label,className}:{name:IconName;size?:number;
  </svg>;
 }
 
-export type ButtonVariant='primary'|'secondary'|'quiet'|'danger';
+// `contact`: the green action reserved to CONTACT ("Préparer le message"); never a generic button colour.
+export type ButtonVariant='primary'|'contact'|'secondary'|'quiet'|'danger';
 export type ButtonSize='sm'|'md'|'lg';
 type ButtonProps=Omit<ButtonHTMLAttributes<HTMLButtonElement>,'children'>&{
  variant?:ButtonVariant;size?:ButtonSize;iconStart?:IconName;iconEnd?:IconName;loading?:boolean;fullWidth?:boolean;

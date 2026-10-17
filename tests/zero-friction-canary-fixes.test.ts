@@ -74,7 +74,8 @@ test('2 — authenticated route: writes on the Preview even when VERCEL_ENV is n
  assert.equal(out,'recorded');
  const ins=w.calls.find(c=>c.op==='insert:events')!;
  assert.deepEqual({...ins.row,payload:undefined},{organization_id:ORG,prospect_id:null,actor_id:null,kind:'ux.zf_today_viewed',payload:undefined});
- assert.deepEqual(ins.row.payload,{schema:1,experiment:'zero_friction_today',session_id:SESSION,elapsed_ms:1200,interactions:0,user_id:USER});
+ // UI-3: the project travels in the payload, distinct from the organization (row column).
+ assert.deepEqual(ins.row.payload,{schema:1,experiment:'zero_friction_today',session_id:SESSION,elapsed_ms:1200,interactions:0,user_id:USER,project_id:PROJECT});
  assert.deepEqual(logs,[{component:'zf-events',kind:'ZF_TODAY_VIEWED',outcome:'recorded'}],'outcome logged, no personal data');
  const prod=writer();
  assert.equal(await handleZfEvent(body('ZF_TODAY_VIEWED'),rls,{id:USER},{admin:()=>prod.admin,env:{VERCEL_ENV:'production'},enabled:true,log:()=>{}}),'production');

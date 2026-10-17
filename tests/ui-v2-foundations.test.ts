@@ -241,6 +241,8 @@ test('flag OFF parity — the existing app does not load, import or reference th
 test('flag OFF parity — /ui-v2 is decided per request and 404s unless UI_V2_ENABLED; never indexed',()=>{
  const src=read('../app/ui-v2/layout.tsx');
  assert.match(src,/await connection\(\);\s*if\(!uiV2Enabled\(process\.env\)\)notFound\(\);/);
- assert.match(src,/robots:\{index:false,follow:false\}/);
+ assert.match(src,/return uiV2Enabled\(process\.env\)\?\{title:'Fondations UI v2 \(Preview\)',robots:\{index:false,follow:false\}\}:\{\};/,
+  'flag OFF: not even the title reveals the page');
+ assert.doesNotMatch(src,/export const metadata/);
  assert.ok(src.indexOf('notFound()')<src.indexOf('tokensCss()'),'nothing is rendered before the flag check');
 });

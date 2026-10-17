@@ -7,8 +7,11 @@ import '../../src/ui/v2/foundations.css';
 import './gallery.css';
 
 // UI-1 Preview surface. Decided per request (connection(): never prerendered, so the flag is read at runtime, not frozen
-// with the build environment). Flag OFF → the same 404 as any unknown URL; the root layout and "/" are untouched.
-export const metadata:Metadata={title:'Fondations UI v2 (Preview)',robots:{index:false,follow:false}};
+// with the build environment). Flag OFF → the same 404 as any unknown URL (no v2 title either: metadata is resolved even
+// for a 404); the root layout and "/" are untouched.
+export function generateMetadata():Metadata{
+ return uiV2Enabled(process.env)?{title:'Fondations UI v2 (Preview)',robots:{index:false,follow:false}}:{};
+}
 
 export default async function UiV2Layout({children}:{children:React.ReactNode}){
  await connection();

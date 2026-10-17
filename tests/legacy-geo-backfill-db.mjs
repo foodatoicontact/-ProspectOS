@@ -19,7 +19,7 @@ try{
   grant usage on schema auth,public to anon,authenticated,service_role;grant execute on function auth.uid() to anon,authenticated,service_role;`);
  await db.exec(await readFile(new URL('../db/schema.sql',import.meta.url),'utf8'));
  const files=(await readdir(new URL('../db/migrations/',import.meta.url))).filter(f=>f.endsWith('.sql')).sort();
- assert.equal(files.at(-1),'032_signal_legacy_geo.sql');
+ assert.ok(files.includes('032_signal_legacy_geo.sql'));
  for(const f of files)await db.exec(await readFile(new URL(`../db/migrations/${f}`,import.meta.url),'utf8'));
  await db.exec(await readFile(new URL('../db/migrations/checks/032_signal_legacy_geo.sql',import.meta.url),'utf8'));
  const A='00000000-0000-4000-8000-000000000001';

@@ -264,8 +264,8 @@ test('17 — no external translation API/service is referenced anywhere in the i
 // ------------------------------------------------------------
 test('18 — package.json introduces no new runtime or dev dependency for i18n (no translation library, static dictionaries only)',async()=>{
  const pkg=JSON.parse(await readFile(new URL('../package.json',import.meta.url),'utf8'));
- assert.deepEqual(Object.keys(pkg.dependencies).sort(),['@supabase/supabase-js','cheerio','ipaddr.js','jszip','next','react','react-dom','robots-parser','tldts','zod']);
- assert.deepEqual(Object.keys(pkg.devDependencies).sort(),['@electric-sql/pglite','@types/node','@types/react','@types/react-dom','typescript']);
+ assert.deepEqual(Object.keys(pkg.dependencies).sort(),['@supabase/supabase-js','cheerio','imapflow','ipaddr.js','jszip','mailparser','next','nodemailer','react','react-dom','robots-parser','tldts','zod']);
+ assert.deepEqual(Object.keys(pkg.devDependencies).sort(),['@electric-sql/pglite','@types/mailparser','@types/node','@types/nodemailer','@types/react','@types/react-dom','typescript']);
 });
 test('18 — no new environment variable / API key is referenced by the i18n module',async()=>{
  const files=['../src/i18n/fr.ts','../src/i18n/en.ts','../src/i18n/format.ts','../src/i18n/labels.ts','../src/i18n/useLocale.ts','../src/i18n/errors.ts','../src/i18n/locale.ts'];

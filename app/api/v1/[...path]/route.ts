@@ -34,6 +34,8 @@ import {DEFAULT_CRITERIA,OUTREACH_STATUSES,validateCriteria,generateOutreach,sco
 import {STATUSES} from '../../../../src/domain/statuses';
 import {handleOutreachIntelligence,PUBLIC_CONTENT_COLUMNS} from '../../../../src/outreach/api';
 import {handleNextBestActions,nextBestActionEnabled} from '../../../../src/nba/api';
+import {handleSelfOutreach} from '../../../../src/self-outreach/api';
+import {selfOutreachEnabled} from '../../../../src/self-outreach/config';
 import {composeRuleBased} from '../../../../src/outreach/compose';
 import {generateOutreachWithAi,type AiGenerateResult} from '../../../../src/outreach/ai-generate';
 import {aiOutreachEnabled,withAiOutreachUsage} from '../../../../src/outreach/ai-switch';
@@ -99,6 +101,7 @@ async function handler(request:Request,context:{params:Promise<{path:string[]}>}
  const outreachResponse=await handleOutreachIntelligence(request,path,body,db,json,{requireEntitlement:()=>requireActiveEntitlement(db,user.id)});if(outreachResponse)return outreachResponse;
  // Next Best Action (src/nba/api.ts, migration 031): decisions and drafts only — nothing is sent. Flag off = 404.
  const nbaResponse=await handleNextBestActions(request,path,body,db,json,{enabled:nextBestActionEnabled(process.env),now:()=>new Date(),requireEntitlement:()=>requireActiveEntitlement(db,user.id)});if(nbaResponse)return nbaResponse;
+ const selfOutreachResponse=await handleSelfOutreach(request,path,body,db,json,{env:process.env,now:()=>new Date(),requireEntitlement:()=>requireActiveEntitlement(db,user.id)});if(selfOutreachResponse)return selfOutreachResponse;
  const checked=async(query:PromiseLike<any>)=>{const {data,error}=await query;if(error)throw Error('DATABASE_REQUEST_FAILED');return data};
  if(resource==='organizations'){
  if(request.method==='GET')return json(await checked(db.from('organizations').select('*')));
@@ -368,6 +371,7 @@ async function handler(request:Request,context:{params:Promise<{path:string[]}>}
   // AI outreach kill switch: only a boolean, never the variable itself. Off = the browser offers no AI outreach.
   ai_outreach_enabled:aiOutreachEnabled(process.env),
   next_best_action_enabled:nextBestActionEnabled(process.env),
+  self_outreach_enabled:selfOutreachEnabled(process.env),
   billing:billingAnswer.error?null:billingAnswer.data??null,
   billing_offers:checkoutAvailability(billingConfig()),
  });

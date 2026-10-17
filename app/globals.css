@@ -623,7 +623,7 @@ button,.button{transition:background-color .18s ease,border-color .18s ease,colo
 .today-card{overflow-wrap:anywhere}
 .today-card.today-contact{border-left-color:#207b60}.today-card.today-verify{border-left-color:#c58b1b}.today-card.today-engage{border-left-color:#3b6fb6}.today-card.today-watch{border-left-color:#9fb3aa}
 .today-why-now{font-weight:600;margin:4px 0}
-.today-to-verify ul{margin:4px 0 8px 18px;padding:0}
+.today-missing{margin:4px 0 8px}
 .today-verify{background:#f7faf8;border-radius:8px;padding:10px 12px;margin:8px 0}
 .today-card details{margin-top:8px}.today-card summary{cursor:pointer;min-height:44px;display:flex;align-items:center}
 .today-card summary:focus-visible,.today-card button:focus-visible{outline:2px solid #207b60;outline-offset:2px}

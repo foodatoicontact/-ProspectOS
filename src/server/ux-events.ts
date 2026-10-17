@@ -6,6 +6,7 @@
 // - Closed payload, no text: no message, prompt, source, key or credential. Production writes nothing. Best-effort: a
 //   failure never breaks the user's request.
 import type {SupabaseClient} from '@supabase/supabase-js';
+import {z} from 'zod';
 import {uxAbEnabledFromEnv,UX_EXPERIMENT} from '../ux/variant.ts';
 
 export const UX_KINDS=['prospect_detail_viewed','outreach_generated','outreach_edited','outreach_approved','outreach_copied'] as const;
@@ -60,11 +61,22 @@ export function zfPayload(i:Pick<ZfEventInput,'kind'|'sessionId'|'elapsedMs'|'in
  if(!Number.isInteger(i.elapsedMs)||i.elapsedMs<0||i.elapsedMs>86400000||!Number.isInteger(i.interactions)||i.interactions<0||i.interactions>10000)return null;
  return {schema:1,experiment:'zero_friction_today',session_id:i.sessionId,elapsed_ms:i.elapsedMs,interactions:i.interactions,user_id:i.userId};
 }
-export async function recordZfEvent(i:ZfEventInput):Promise<'recorded'|'skipped'|'duplicate'|'failed'>{
- if(!i.enabled||!uxAbEnabledFromEnv(i.env)||!UUID.test(i.organizationId))return 'skipped';
- const payload=zfPayload(i);if(!payload)return 'skipped';
+// Why a ZF event was not written — logged (no personal data) so a silent 202 can never hide a broken measurement again.
+export type ZfOutcome='recorded'|'duplicate'|'flag_off'|'production'|'invalid'|'no_writer'|'failed';
+// ZF1.1 (interactive canary): the gate is the ZF flag itself, set only on the Preview that runs the experiment, and an
+// explicit Production never writes. It no longer depends on VERCEL_ENV being visible at runtime: on this project the
+// Preview function does not see VERCEL_ENV (/api/public/ux-config answers "unknown"), so the former UX A/B gate
+// (uxAbEnabledFromEnv) skipped every ZF event while the route still answered 202.
+export function zfWritesAllowed(enabled:boolean,env:{VERCEL_ENV?:string}):'ok'|'flag_off'|'production'{
+ if(!enabled)return 'flag_off';
+ return env.VERCEL_ENV==='production'?'production':'ok';
+}
+export async function recordZfEvent(i:ZfEventInput):Promise<ZfOutcome>{
+ const gate=zfWritesAllowed(i.enabled,i.env);if(gate!=='ok')return gate;
+ if(!UUID.test(i.organizationId))return 'invalid';
+ const payload=zfPayload(i);if(!payload)return 'invalid';
  try{
-  if(!i.admin)return 'failed';
+  if(!i.admin)return 'no_writer';
   const kind=`ux.${i.kind.toLowerCase()}`;
   const {data,error}=await i.admin.from('events').select('id').eq('kind',kind).is('actor_id',null).eq('payload->>session_id',i.sessionId).limit(1);
   if(error)return 'failed';
@@ -72,4 +84,23 @@ export async function recordZfEvent(i:ZfEventInput):Promise<'recorded'|'skipped'
   const r=await i.admin.from('events').insert({organization_id:i.organizationId,prospect_id:null,actor_id:null,kind,payload});
   return r.error?'failed':'recorded';
  }catch{return 'failed'}
+}
+
+// POST /zf-events (app/api/v1/[...path]/route.ts). The body is exactly what the browser's ZfSession sends (zfEventRequest,
+// src/ux/zf-session.ts); the organization comes from a project the user can read with its own RLS client, the user from
+// the session. Always answered 202 (measurement never fails the page); the outcome is logged, never returned.
+export const ZfEventBody=z.object({kind:z.enum(ZF_KINDS),project_id:z.string().uuid(),session_id:z.string().uuid(),
+ elapsed_ms:z.number().int().min(0),interactions:z.number().int().min(0)}).strict();
+export async function handleZfEvent(body:unknown,db:SupabaseClient,user:{id:string},deps:{admin:()=>SupabaseClient|null;env:ZfEventInput['env'];enabled:boolean;
+ log:(line:Record<string,unknown>)=>void}):Promise<ZfOutcome>{
+ const parsed=ZfEventBody.safeParse(body);
+ const outcome:ZfOutcome=!parsed.success?'invalid':await (async()=>{
+  const b=parsed.data;
+  const {data:proj}=await db.from('projects').select('organization_id').eq('id',b.project_id).maybeSingle();
+  if(!proj)return 'invalid';
+  return recordZfEvent({admin:deps.admin(),env:deps.env,enabled:deps.enabled,userId:user.id,organizationId:proj.organization_id,kind:b.kind,
+   sessionId:b.session_id,elapsedMs:b.elapsed_ms,interactions:b.interactions});
+ })();
+ deps.log({component:'zf-events',kind:parsed.success?parsed.data.kind:null,outcome});
+ return outcome;
 }

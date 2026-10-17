@@ -1,16 +1,17 @@
 'use client';
 import {useEffect,useRef,useState} from 'react';
-import {translate,type Locale,type TKey} from '../i18n';
+import {translate,todaySummary,type Locale,type TKey} from '../i18n';
 import {buildTodayModel,SECTION_ORDER,type TodayCard,type TodayModel,type TodayRow,type TodaySection} from '../nba/today';
 import type {ZfKind} from '../server/ux-events';
 // Zero-Friction ZF1 — "Aujourd'hui". Answers "what deserves my attention today?" without asking the user to know
-// Discovery, Evidence, Signals or NBA. Level 1: action + reason; "Voir pourquoi": favourable / missing / timing /
-// place; "Détails avancés": scores, rule, statements with their sources. The engine is recomputed automatically and
+// Discovery, Evidence, Signals or NBA. Level 1 (≈3 s): status, why now, why this company, what is missing, one action;
+// "Voir pourquoi": favourable / complete missing list / timing / place / proof; "Détails avancés": scores, rule,
+// statements with their sources. The engine is recomputed automatically and
 // only when needed (ensure-fresh); nothing here sends, posts or contacts anyone.
 type Api=(path:string,method?:string,body?:unknown)=>Promise<any>;
 const href=(u:string|null|undefined)=>{if(!u)return null;try{const x=new URL(u);return x.protocol==='https:'||x.protocol==='http:'?x.href:null}catch{return null}};
 const SECTION_TITLE:Record<TodaySection,TKey>={contact:'today.section.contact',verify:'today.section.verify',engage:'today.section.engage',watch:'today.section.watch'};
-const ACTION_LABEL:Record<string,TKey>={PREPARE_MESSAGE:'today.action.prepare',OPEN_CONVERSATION:'today.action.conversation',VERIFY_SIGNAL:'today.action.verifySignal',VERIFY_INFORMATION:'today.action.verify'};
+const ACTION_LABEL:Record<string,TKey>={PREPARE_MESSAGE:'today.action.prepare',OPEN_CONVERSATION:'today.action.conversation',VERIFY_SIGNAL:'today.action.verifySignal',VERIFY_INFORMATION:'today.action.completeInfo'};
 
 function Card({card,locale,busy,onPrimary,onVerifySignal,track}:{card:TodayCard;locale:Locale;busy:boolean;onPrimary:(c:TodayCard)=>void;
  onVerifySignal:(c:TodayCard,decision:'verify'|'reject')=>void;track:(k:ZfKind)=>void}){
@@ -21,7 +22,7 @@ function Card({card,locale,busy,onPrimary,onVerifySignal,track}:{card:TodayCard;
   <div className="nba-card-head"><h3 id={`today-${card.id}`}>{card.name}</h3><span className="pill">{tr(SECTION_TITLE[card.section])}</span></div>
   {card.whyNow&&<p className="today-why-now">{card.whyNow}</p>}
   <p>{card.whyCompany}</p>
-  {card.toVerify.length>0&&<div className="today-to-verify"><b>{tr('today.moreInfo')}</b><ul>{card.toVerify.map(v=><li key={v}>{v}</li>)}</ul></div>}
+  {card.missingSummary&&<p className="today-missing">{card.missingSummary}</p>}
   {card.primary.kind!=='NONE'&&!verifying&&<div className="actions"><button className="primary" disabled={busy}
    onClick={()=>{if(card.primary.kind==='VERIFY_SIGNAL'&&card.primary.signalId)setVerifying(true);else onPrimary(card)}}>{tr(ACTION_LABEL[card.primary.kind]!)}</button></div>}
   {card.primary.kind==='NONE'&&<p className="muted">{tr('today.noActionNeeded')}</p>}
@@ -73,16 +74,14 @@ export function TodayPanel({projectId,api,locale,dirty,onCleaned,onOpenProspect,
   try{await api(`signals/${c.primary.signalId}/review`,'POST',{decision});track('ZF_FIRST_MEANINGFUL_ACTION');setNote(tr(decision==='verify'?'today.verified':'today.rejected'))}
   catch(e){setNote(String((e as Error).message))}finally{setBusy(false)}
  };
- const counts=model?{contact:model.sections.contact.length,verify:model.sections.verify.length,engage:model.sections.engage.length}:null;
+ const counts=model?{contact:model.sections.contact.length,verify:model.sections.verify.length}:null;
  return <section className="panel today-panel" data-testid="today" aria-busy={status==='loading'}>
   <div className="section-title"><h2>{tr('today.title')}</h2><button className="link" onClick={onAdvanced}>{tr('today.advancedView')}</button></div>
   {note&&<p className="notice" role="status">{note}</p>}
   {status==='loading'&&!model&&<p role="status">{tr('today.loading')}</p>}
   {status==='error'&&<p className="error" role="alert">{tr('today.error')} <button onClick={()=>void load('open')}>{tr('today.retry')}</button></p>}
   {model&&<>
-   <p className="today-summary" role="status">{counts!.contact===0?tr('today.noContact'):tr('today.contactCount').replace('{n}',String(counts!.contact))}
-    {counts!.verify>0?` ${tr('today.verifyCount').replace('{n}',String(counts!.verify))}`:''}
-    {model.watched>0?` ${tr('today.watchedCount').replace('{n}',String(model.watched))}`:''}</p>
+   <p className="today-summary" role="status">{todaySummary(locale,{contact:counts!.contact,verify:counts!.verify,watched:model.watched}).join(' ')}</p>
    {model.total===0&&<p className="muted">{tr('today.nothingRecent')}</p>}
    {SECTION_ORDER.filter(s=>model.sections[s].length>0).map(s=><div key={s} className="today-section">
     <h3>{tr(SECTION_TITLE[s])} ({model.sections[s].length})</h3>

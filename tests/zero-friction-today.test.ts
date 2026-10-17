@@ -12,6 +12,7 @@ import {handleNextBestActions,dropClosedUnchanged} from '../src/nba/api.ts';
 import {ZfSession} from '../src/ux/zf-session.ts';
 import {zfPayload,ZF_KINDS} from '../src/server/ux-events.ts';
 import {fr} from '../src/i18n/fr.ts';
+import {todaySummary} from '../src/i18n/format.ts';
 import {en} from '../src/i18n/en.ts';
 import {getSeoPage} from '../src/domain/seo.ts';
 
@@ -94,7 +95,7 @@ test('4 — 0 CONTACT is a valid day: honest summary, no forced urgency',()=>{
  const m=buildTodayModel([MOJO,PENDING_SIG,NOTHING]);
  assert.equal(m.sections.contact.length,0);assert.ok(m.total>0);
  const empty=buildTodayModel([NOTHING]);assert.equal(empty.total,0);assert.equal(empty.hidden.dismiss,1);
- assert.equal(fr['today.noContact'],'Aucune entreprise à contacter aujourd’hui.');assert.equal(fr['today.nothingRecent'],'Aucun signal suffisamment récent aujourd’hui.');
+ assert.equal(todaySummary('fr',{contact:0,verify:0,watched:0})[0],'Aucune entreprise à contacter aujourd’hui.');assert.equal(fr['today.nothingRecent'],'Aucun signal suffisamment récent aujourd’hui.');
 });
 test('5 — WATCH is never presented as CONTACT; the engine’s CONTACT is',()=>{
  assert.equal(MOJO.recommended_action,'WATCH');assert.equal(STRONG.recommended_action,'CONTACT');
@@ -116,15 +117,15 @@ test('6b — one primary action, derived from the engine state',()=>{
  assert.equal(primaryActionOf(MOJO).kind,'VERIFY_INFORMATION','INCOMPLETE FIT: missing ICP information');
  assert.equal(primaryActionOf({...MOJO,scores:{fit:{profile:{state:'SUFFICIENT',supporting:['x'],missing:[]}}}}).kind,'NONE','nothing useful to verify → just watched');
 });
-test('7 — level 1 speaks human: who, why now, why this company, what is left to verify — no score, no rule, no jargon',()=>{
+test('7 — level 1 speaks human: who, why now, why this company, what is missing — no score, no rule, no jargon',()=>{
  const c=cardOf(MOJO);
  assert.equal(c.name,'Mojo');assert.equal(c.section,'verify');
  assert.equal(c.whyNow,'Nouvelle implantation à Toulouse, il y a 6 jours.');
- assert.equal(c.whyCompany,'Correspond à votre cible : Restauration en Occitanie.');
- assert.deepEqual(c.toVerify,['Décision d’achat locale','Besoin d’un canal direct','Canal de contact documenté'],'the engine’s missing criteria, not a guessed "blocking" fact');
- const level1=[c.name,c.whyNow,c.whyCompany,...c.toVerify].join(' ');
+ assert.equal(c.whyCompany,'Correspond à votre cible sur les critères déjà vérifiés.','a partial FIT is never a full match');
+ assert.equal(c.missingSummary,'Des informations manquent encore avant de décider si ce compte doit être contacté.','never a guessed "blocking" fact');
+ assert.deepEqual(c.details.missing,['Décision d’achat locale','Besoin d’un canal direct','Canal de contact documenté'],'the engine’s missing criteria, in level 2');
+ const level1=[c.name,c.whyNow,c.whyCompany,c.missingSummary].join(' ');
  assert.doesNotMatch(level1,/\bFIT\b|INTENT|TIMING|INCOMPLETE|WATCH|VERIFIED|INFERRED|\/100|score|règle/i);
- assert.equal(fr['today.moreInfo'],'Informations supplémentaires nécessaires :','never claimed as "the one blocking fact"');
 });
 test('7b — the panel renders scores only inside "Détails avancés"',async()=>{
  const panel=await read('src/components/TodayPanel.tsx');

@@ -19,17 +19,21 @@ Flag: `ZERO_FRICTION_TODAY_ENABLED` (server, OFF by default). With it OFF nothin
 - **Cards** (`src/nba/today.ts`, pure, from the stored NBA row — engine, scoring, thresholds unchanged):
   - sections: À contacter (CONTACT) · À vérifier (WATCH with something a person can check) · Conversations à rejoindre
     (ENGAGE) · À surveiller (WATCH with nothing to check). WAIT and DISMISS are counted, never shown as cards;
-  - level 1: who · why now (signal type, place in the zone, age) · why this company (verified / documented ICP
-    criteria) · what is left to verify · one primary action;
-  - level 2 « Voir pourquoi »: favourable elements, missing information, timing, place, the proof with its source;
+  - level 1 (readable in ~3 s): who · status · why now (signal type, place worded naturally — « à Toulouse », « dans
+    l’Hérault », « en Occitanie », `src/ux/place-phrase.ts`, presentation only) · why this company (one sentence) · what is
+    missing (one short, non-causal sentence) · one primary action;
+  - level 2 « Voir pourquoi »: favourable elements, the complete missing information, timing, place, the proof with its
+    source;
   - level 3 « Détails avancés »: opportunity, FIT and its basis, ICP coverage, INTENT, TIMING, freshness, evidence
     quality, rule, every explanation statement with its source.
 - **Primary action**: CONTACT → prepare the message (prospect detail, existing workflow) · ENGAGE → the conversation ·
-  WATCH driven by an unreviewed signal → verify that signal in the card (source shown; « Le fait est exact » / « faux ou
-  hors sujet »; then one recomputation) · WATCH with missing ICP information → « Vérifier » (prospect detail) · WATCH
+  WATCH driven by an unreviewed signal → « Vérifier le signal » in the card (source shown; « Le fait est exact » / « faux ou
+  hors sujet »; then one recomputation) · WATCH with missing ICP information → « Compléter les informations » (prospect detail, where evidence is added) · WATCH
   otherwise → « Surveillé — aucune action nécessaire ».
-- **Empty states**: « Aucune entreprise à contacter aujourd'hui. » / « N reste(nt) à vérifier. » / « Nous surveillons
-  N entreprise(s). » / « Aucun signal suffisamment récent aujourd'hui. » — 0 CONTACT is a valid day; no threshold moves.
+- **Summary** (`todaySummary`, real singular/plural): « Aucune entreprise à contacter aujourd'hui. » · « 3 entreprises sont
+  à vérifier. » · « Nous surveillons 1 entreprise. » — each company counted once: « surveillé » is only WATCH with nothing
+  to check and WAIT, never the cards « à vérifier ». « Aucun signal suffisamment récent aujourd'hui. » when nothing is
+  shown — 0 CONTACT is a valid day; no threshold moves.
 
 ### What ZF1 does not claim (ZF5)
 
@@ -41,7 +45,15 @@ WATCH into CONTACT) is a ZF5 item.
 ## Measurement
 
 `POST /zf-events` → `public.events` (`ux.zf_*`, `actor_id` null, closed numeric payload: session id, elapsed ms,
-interactions, user id; nothing written in Production — same rule as the UX A/B events). Kinds: ZF_SESSION_STARTED,
+interactions, user id). Written when `ZERO_FRICTION_TODAY_ENABLED` is on and the runtime is not explicitly Production
+(`zfWritesAllowed`); each request logs `{component:'zf-events',kind,outcome}` (no personal data).
+
+**ZF1.1 root cause (interactive canary, 17/10).** No `ux.zf_*` was written: the route gated writes with the UX A/B rule
+`uxAbEnabledFromEnv`, which needs `VERCEL_ENV=preview`, and this project's Preview functions do not see `VERCEL_ENV`
+(`/api/public/ux-config` → `environment:"unknown"`). Every event was skipped while the route answered 202, silently.
+Fixed by gating on the ZF flag (set only on this Preview) + never explicit Production, and by logging the outcome.
+Also fixed on the same path: the long-lived client session kept the `api` of its first render, i.e. a stale access
+token after a refresh (a later event would have answered 401 → logout); it now reads the latest `api`. Kinds: ZF_SESSION_STARTED,
 ZF_TODAY_VIEWED, ZF_FIRST_RECOMMENDATION_VISIBLE, ZF_FIRST_MEANINGFUL_ACTION, ZF_ADVANCED_DETAILS_OPENED, each once per
 page-load session. `elapsed_ms` runs from the app's opening; `interactions` counts trusted clicks on interactive
 elements and form submits only (`ZfSession.observe`: renders, loads, polling and automatic recomputations never count).
@@ -54,6 +66,13 @@ elements and form submits only (`ZfSession.observe`: renders, loads, polling and
 select payload->>'session_id' s, kind, (payload->>'elapsed_ms')::int ms, (payload->>'interactions')::int n
 from public.events where kind like 'ux.zf_%' order by created_at;
 ```
+
+## Finding accepted for ZF1: the freshness cliff
+
+A WATCH whose only reason is a fresh signal leaves Today the day that signal's freshness drops below the WATCH threshold
+(0.5), with no data change: on the canary, Groupe Bertrand (expansion, half-life 45 days) was WATCH at 45 days and
+DISMISS at 46. Engine, half-lives and thresholds are unchanged; history / transition notice / hysteresis to be evaluated
+separately.
 
 ## Free-trial copy removed (presentation only — no pricing, Stripe or entitlement change)
 

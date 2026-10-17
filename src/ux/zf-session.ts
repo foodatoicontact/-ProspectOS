@@ -24,3 +24,9 @@ export class ZfSession{
  }
  has(kind:ZfKind){return this.sent.has(kind)}
 }
+// The exact request the browser sends for one ZF event (POST /api/v1/zf-events, body checked by ZfEventBody on the
+// server). No project yet → nothing is sent (a session before any project has nothing to attach the event to).
+export function zfEventRequest(kind:ZfKind,elapsedMs:number,interactions:number,sessionId:string,projectId:string):{path:'zf-events';method:'POST';body:Record<string,unknown>}|null{
+ if(!projectId)return null;
+ return {path:'zf-events',method:'POST',body:{kind,project_id:projectId,session_id:sessionId,elapsed_ms:elapsedMs,interactions}};
+}

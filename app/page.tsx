@@ -9,7 +9,7 @@ import {ObservationsReview} from '../src/components/ObservationsReview';
 import {SignalsPanel} from '../src/components/SignalsPanel';
 import {ActionsPanel} from '../src/components/ActionsPanel';
 import {TodayPanel} from '../src/components/TodayPanel';
-import {ZfSession} from '../src/ux/zf-session';
+import {ZfSession,zfEventRequest} from '../src/ux/zf-session';
 import {changesNbaInputs} from '../src/ux/zero-friction';
 import {AngleSummary,StyleProfilePanel,PublicContentPanel,type PublicContentRow} from '../src/components/OutreachIntelligence';
 import {DecisionHero,DecisionStack,EvidenceTimeline,NextBestActionHead,UxJustifications} from '../src/components/ProspectDetailB';
@@ -317,9 +317,11 @@ export default function Home(){
  // ZF1 — "Aujourd'hui" becomes the destination once per session for a project that has prospects; every other view stays reachable.
  useEffect(()=>{if(mode==='live'&&zfOn&&project&&prospects.length>0&&!zfLanded.current&&view==='prospects'&&!selected&&!showQuickStart){zfLanded.current=true;setView('today')}},[mode,zfOn,project,prospects.length,view,selected,showQuickStart]);// eslint-disable-line react-hooks/exhaustive-deps
  // ZF1 measurement: one session per page load, timed from the app's opening; only trusted clicks / submits count.
- const zfProject=useRef('');zfProject.current=projectId;
+ const zfProject=useRef('');zfProject.current=projectId;const zfApi=useRef(api);zfApi.current=api;
  useEffect(()=>{if(mode!=='live'||!zfOn)return;
-  if(!zfSession.current)zfSession.current=new ZfSession((kind,elapsed_ms,interactions,session_id)=>{if(zfProject.current)void api('zf-events','POST',{kind,project_id:zfProject.current,session_id,elapsed_ms,interactions}).catch(()=>{})},
+  // The sender reads the LATEST api (zfApi ref): the session outlives renders, and the api of its first render would keep a
+  // stale access token after a refresh (401 → logout).
+  if(!zfSession.current)zfSession.current=new ZfSession((kind,elapsed_ms,interactions,session_id)=>{const r=zfEventRequest(kind,elapsed_ms,interactions,session_id,zfProject.current);if(r)void zfApi.current(r.path,r.method,r.body).catch(()=>{})},
    crypto.randomUUID(),()=>performance.now(),0);
   const s=zfSession.current;const on=(e:Event)=>{s.observe(e)};
   document.addEventListener('click',on,true);document.addEventListener('submit',on,true);

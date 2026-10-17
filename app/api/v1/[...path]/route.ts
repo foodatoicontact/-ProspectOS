@@ -14,7 +14,7 @@ import {recordApiUsage} from '../../../../src/server/usage';
 import {releaseCommercialUse} from '../../../../src/server/commercial-usage';
 import {newInviteToken,inviteTokenHash,isInviteToken,inviteLink,teamError,TEAM_ERRORS} from '../../../../src/server/team';
 import {createAdminClient} from '../../../../src/server/admin-client';
-import {recordUxEvent,recordZfEvent,UX_KIND_BY_ACTION} from '../../../../src/server/ux-events';
+import {recordUxEvent,handleZfEvent,UX_KIND_BY_ACTION} from '../../../../src/server/ux-events';
 import {zeroFrictionTodayEnabled} from '../../../../src/ux/zero-friction';
 import {parseUxHeader,UX_HEADER} from '../../../../src/ux/variant';
 import {createHash} from 'node:crypto';
@@ -249,10 +249,9 @@ async function handler(request:Request,context:{params:Promise<{path:string[]}>}
  }
  if(resource==='events'&&request.method==='GET'){const pid=new URL(request.url).searchParams.get('prospect_id');return json(await checked(db.from('events').select('*').eq('prospect_id',pid??'').not('kind','like','ux.%').order('created_at',{ascending:false}).limit(100)))}
  if(resource==='zf-events'&&request.method==='POST'){
- // ZF1 measurement: a closed numeric payload; the organization comes from a project the user can read (RLS). Always 202.
- const b=z.object({kind:z.string().max(40),project_id:z.string().uuid(),session_id:z.string().uuid(),elapsed_ms:z.number().int(),interactions:z.number().int()}).strict().parse(body);
- const {data:proj}=await db.from('projects').select('organization_id').eq('id',b.project_id).maybeSingle();
- if(proj)await recordZfEvent({admin:uxAdmin(),env:process.env,enabled:zeroFrictionTodayEnabled(process.env),userId:user.id,organizationId:proj.organization_id,kind:b.kind,sessionId:b.session_id,elapsedMs:b.elapsed_ms,interactions:b.interactions});
+ // ZF1 measurement (src/server/ux-events.ts handleZfEvent): closed numeric payload, organization from a project the user
+ // can read (RLS), outcome logged. Always 202.
+ await handleZfEvent(body,db,user,{admin:uxAdmin,env:process.env,enabled:zeroFrictionTodayEnabled(process.env),log:line=>console.info(JSON.stringify(line))});
  return json({accepted:true},202);
  }
  if(resource==='ux-events'&&request.method==='POST'){

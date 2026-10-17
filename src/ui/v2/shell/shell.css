@@ -1,0 +1,119 @@
+/* UI-2 app shell (docs/UI_V2.md). Scoped to .pos-ui, tokens only. Three layouts from one markup:
+   ≤ 1023 px TopBar + BottomNav (touch first; 641–1023 px only widens the workspace), ≥ 1024 px SideNav + workspace. */
+
+.pos-ui.pos-app{min-height:100vh;min-height:100dvh;background:var(--pos-halo),var(--pos-bg);background-attachment:fixed;
+ --pos-topbar-h:56px;--pos-bottomnav-h:64px;--pos-shell-gap:12px}
+
+/* Skip link: visible only when focused. */
+.pos-ui .pos-skip{position:absolute;left:var(--pos-space-3);top:-100px;z-index:var(--pos-z-toast);padding:var(--pos-space-2) var(--pos-space-4);
+ border-radius:var(--pos-radius-md);background:var(--pos-accent);color:var(--pos-on-accent);font-weight:var(--pos-weight-semibold);text-decoration:none}
+.pos-ui .pos-skip:focus{top:var(--pos-space-3)}
+
+/* Brand */
+.pos-ui .pos-brand{display:inline-flex;align-items:center;gap:var(--pos-space-2);min-width:0;flex-shrink:0}
+.pos-ui .pos-brand__name{font-family:var(--pos-font-display);font-weight:var(--pos-weight-heavy);font-size:var(--pos-text-lg);letter-spacing:-.03em;color:var(--pos-text-1)}
+.pos-ui .pos-mark{width:30px;height:30px;border-radius:9px;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;background:var(--pos-mark-bg);box-shadow:var(--pos-mark-shadow)}
+.pos-ui .pos-mark svg{fill:none;stroke:var(--pos-mark-fg);stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round}
+.pos-ui .pos-mark circle{fill:var(--pos-signal-dot);stroke:none}
+
+/* ── TopBar (mobile, tablet) ─────────────────────────────────────────────────────────────────────────── */
+.pos-ui .pos-topbar{position:fixed;inset:0 0 auto 0;z-index:var(--pos-z-shell);display:flex;align-items:center;gap:var(--pos-space-2);
+ height:calc(var(--pos-topbar-h) + env(safe-area-inset-top,0px));padding:env(safe-area-inset-top,0px) var(--pos-space-3) 0;
+ border-width:0 0 1px;border-radius:0;background:var(--pos-surface-sheet)}
+.pos-ui .pos-project{display:inline-flex;align-items:center;justify-content:flex-start;gap:6px;min-width:0;min-height:var(--pos-size-target);padding:0 var(--pos-space-3);
+ border:1px solid var(--pos-glass-border);border-radius:var(--pos-radius-md);background:var(--pos-accent-soft);color:var(--pos-text-1);
+ font:inherit;font-size:var(--pos-text-sm);font-weight:var(--pos-weight-semibold);cursor:pointer}
+.pos-ui .pos-project:hover{background:var(--pos-surface-inset)}
+.pos-ui .pos-project__name{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pos-ui .pos-project--top{flex:1 1 auto;justify-content:space-between;margin-left:auto;max-width:min(360px,100%)}
+.pos-ui .pos-avatar{width:var(--pos-size-target);height:var(--pos-size-target);flex-shrink:0;border-radius:50%;border:0;padding:0;cursor:pointer;
+ display:inline-flex;align-items:center;justify-content:center;background:var(--pos-accent-soft);color:var(--pos-accent);
+ font:inherit;font-size:var(--pos-text-sm);font-weight:var(--pos-weight-bold)}
+.pos-ui .pos-avatar:hover{background:var(--pos-surface-inset)}
+.pos-ui .pos-avatar--static{width:32px;height:32px;cursor:inherit}
+@media (max-width:380px){.pos-ui .pos-brand__name{display:none}}
+
+/* ── BottomNav (mobile, tablet) ──────────────────────────────────────────────────────────────────────── */
+.pos-ui .pos-bottomnav{position:fixed;inset:auto 0 0 0;z-index:var(--pos-z-shell);display:grid;grid-template-columns:repeat(4,minmax(0,1fr));
+ height:calc(var(--pos-bottomnav-h) + env(safe-area-inset-bottom,0px));padding:0 var(--pos-space-1) env(safe-area-inset-bottom,0px);
+ border-width:1px 0 0;border-radius:0;background:var(--pos-surface-sheet)}
+.pos-ui .pos-nav__item{position:relative;display:flex;align-items:center;justify-content:flex-start;gap:var(--pos-space-3);min-width:0;padding:0;border:0;border-radius:0;background:transparent;
+ color:var(--pos-text-2);font:inherit;font-weight:var(--pos-weight-semibold);cursor:pointer;-webkit-tap-highlight-color:transparent}
+.pos-ui .pos-nav__item--bottom{flex-direction:column;justify-content:center;align-items:center;gap:3px;min-height:var(--pos-bottomnav-h);font-size:11.5px;border-radius:var(--pos-radius-md)}
+.pos-ui .pos-nav__label{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%}
+.pos-ui .pos-nav__item:hover{color:var(--pos-text-1);background:transparent}
+.pos-ui .pos-nav__item[aria-current="page"]{color:var(--pos-accent)}
+.pos-ui .pos-nav__item--bottom[aria-current="page"]::before{content:'';position:absolute;top:6px;left:50%;width:36px;height:30px;margin-left:-18px;border-radius:var(--pos-radius-pill);background:var(--pos-accent-soft);z-index:-1}
+
+/* ── Workspace ───────────────────────────────────────────────────────────────────────────────────────── */
+.pos-ui .pos-app__main{display:block;min-width:0;padding:calc(var(--pos-topbar-h) + env(safe-area-inset-top,0px)) 0 calc(var(--pos-bottomnav-h) + env(safe-area-inset-bottom,0px))}
+.pos-ui .pos-app__main:focus{outline:none}
+.pos-ui .pos-app__toolbar{display:flex;flex-wrap:wrap;justify-content:flex-end;gap:var(--pos-space-2);padding:var(--pos-space-3) var(--pos-space-4) 0}
+/* The existing screens keep their own look in every theme until they are migrated (UI-3 / UI-5): their legacy paper,
+   ink and type, never the v2 colours (the base rules of foundations.css skip .pos-legacy). */
+.pos-ui .pos-legacy{color:var(--ink);background:var(--paper);font-family:'DM Sans',sans-serif;font-size:14px;line-height:normal;
+ -webkit-font-smoothing:auto;-moz-osx-font-smoothing:auto;min-width:0}
+
+/* Tablet: a bit more air around the workspace. */
+@media (min-width:641px) and (max-width:1023px){
+ .pos-ui .pos-legacy{margin:var(--pos-space-3);border-radius:var(--pos-radius-xl);overflow:hidden;box-shadow:var(--pos-shadow-card)}
+}
+
+/* ── SideNav + workspace (desktop) ───────────────────────────────────────────────────────────────────── */
+.pos-ui .pos-sidenav{display:none}
+@media (min-width:1024px){
+ .pos-ui.pos-app{display:grid;grid-template-columns:var(--pos-size-sidenav) minmax(0,1fr);gap:var(--pos-shell-gap);padding:var(--pos-shell-gap)}
+ .pos-ui .pos-topbar,.pos-ui .pos-bottomnav{display:none}
+ .pos-ui .pos-sidenav{position:sticky;top:var(--pos-shell-gap);z-index:var(--pos-z-shell);display:flex;flex-direction:column;gap:2px;
+  height:calc(100vh - 2 * var(--pos-shell-gap));height:calc(100dvh - 2 * var(--pos-shell-gap));padding:var(--pos-space-4) var(--pos-space-3) var(--pos-space-3);
+  border-radius:22px;box-shadow:var(--pos-glass-highlight),var(--pos-shadow-float)}
+ .pos-ui .pos-sidenav .pos-brand{padding:0 var(--pos-space-2) var(--pos-space-4)}
+ .pos-ui .pos-sidenav__anchor{position:relative}
+ .pos-ui .pos-project--side{width:100%;justify-content:flex-start;margin-bottom:var(--pos-space-4);background:var(--pos-surface-card)}
+ .pos-ui .pos-project--side .pos-project__name{flex:1;text-align:left}
+ .pos-ui .pos-sidenav__nav{display:flex;flex-direction:column;gap:2px}
+ .pos-ui .pos-nav__item--side{min-height:42px;padding:0 var(--pos-space-3);border-radius:11px;font-size:var(--pos-text-base);text-align:left}
+ .pos-ui .pos-nav__item--side:hover{background:var(--pos-accent-soft)}
+ .pos-ui .pos-nav__item--side[aria-current="page"]{background:var(--pos-accent-soft);color:var(--pos-accent)}
+ .pos-ui .pos-nav__item--side::after{content:'';position:absolute;inset:-1px 0}
+ .pos-ui .pos-sidenav__sep{height:1px;background:var(--pos-hairline);margin:var(--pos-space-3) var(--pos-space-3)}
+ .pos-ui .pos-sidenav__account{margin-top:auto}
+ .pos-ui .pos-account{display:flex;align-items:center;justify-content:flex-start;gap:var(--pos-space-3);width:100%;min-height:52px;padding:0 var(--pos-space-2);border:0;
+  border-radius:var(--pos-radius-lg);background:transparent;color:var(--pos-text-1);font:inherit;font-size:var(--pos-text-base);font-weight:var(--pos-weight-semibold);cursor:pointer;text-align:left}
+ .pos-ui .pos-account:hover{background:var(--pos-accent-soft)}
+ .pos-ui .pos-account__name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+ .pos-ui .pos-app__main{padding:0;min-height:calc(100dvh - 2 * var(--pos-shell-gap))}
+ .pos-ui .pos-app__toolbar{padding:0 0 var(--pos-space-3)}
+ .pos-ui .pos-legacy{border-radius:26px;overflow:hidden;min-height:calc(100dvh - 2 * var(--pos-shell-gap));box-shadow:var(--pos-shadow-float)}
+}
+
+/* ── Popover (desktop menus) ─────────────────────────────────────────────────────────────────────────── */
+.pos-ui .pos-popover{position:absolute;left:0;right:0;z-index:var(--pos-z-popover);padding:var(--pos-space-2);border-radius:var(--pos-radius-lg);
+ background:var(--pos-surface-sheet);box-shadow:var(--pos-glass-highlight),var(--pos-shadow-float);max-height:min(70vh,560px);overflow-y:auto;
+ animation:pos-fade var(--pos-dur-base) var(--pos-ease-standard)}
+.pos-ui .pos-popover--below{top:calc(100% - var(--pos-space-3))}
+.pos-ui .pos-popover--above{bottom:calc(100% + var(--pos-space-2));min-width:280px}
+
+/* ── Menu content (shared by Sheet and Popover) ──────────────────────────────────────────────────────── */
+.pos-ui .pos-menu__list{list-style:none;margin:0;padding:0;display:grid;gap:2px}
+.pos-ui .pos-menu__item{display:flex;align-items:center;justify-content:flex-start;gap:var(--pos-space-3);width:100%;min-height:var(--pos-size-target);padding:0 var(--pos-space-3);
+ border:0;border-radius:var(--pos-radius-md);background:transparent;color:var(--pos-text-1);font:inherit;font-size:var(--pos-text-base);
+ font-weight:var(--pos-weight-medium);text-align:left;cursor:pointer}
+.pos-ui .pos-menu__item:hover{background:var(--pos-accent-soft)}
+.pos-ui .pos-menu__item:disabled{opacity:.55;cursor:not-allowed;background:transparent}
+.pos-ui .pos-menu__item[aria-current="true"]{font-weight:var(--pos-weight-bold);color:var(--pos-accent)}
+.pos-ui .pos-menu__item--danger{color:var(--pos-status-excluded-fg)}
+.pos-ui .pos-menu__label{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pos-ui .pos-menu__check{color:var(--pos-accent)}
+.pos-ui .pos-menu__sep{height:1px;background:var(--pos-hairline);margin:var(--pos-space-2) var(--pos-space-2)}
+.pos-ui .pos-menu__who{margin:0 var(--pos-space-3) var(--pos-space-2);font-size:var(--pos-text-sm);color:var(--pos-text-3);overflow-wrap:anywhere}
+.pos-ui .pos-menu__group{margin:var(--pos-space-3) var(--pos-space-3) 0}
+.pos-ui .pos-menu__heading{margin:0 0 var(--pos-space-2);font-size:var(--pos-text-xs);font-weight:var(--pos-weight-bold);letter-spacing:.06em;text-transform:uppercase;color:var(--pos-text-3)}
+.pos-ui .pos-menu__note{margin:var(--pos-space-3) var(--pos-space-3) 0;font-size:var(--pos-text-sm);color:var(--pos-text-2)}
+.pos-ui .pos-menu__note a{color:var(--pos-accent)}
+
+@media (prefers-reduced-motion:reduce){.pos-ui .pos-popover{animation-duration:var(--pos-dur-fast)}}
+@media (forced-colors:active){
+ .pos-ui .pos-nav__item[aria-current="page"],.pos-ui .pos-menu__item[aria-current="true"]{outline:2px solid Highlight;outline-offset:-2px}
+ .pos-ui .pos-project,.pos-ui .pos-avatar,.pos-ui .pos-account{border:1px solid ButtonText}
+}

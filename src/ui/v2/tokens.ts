@@ -140,7 +140,8 @@ export const scales={
  ease:{standard:'cubic-bezier(.2,0,0,1)',emphasized:'cubic-bezier(.3,0,0,1.2)',exit:'cubic-bezier(.4,0,1,1)'},
  blur:{glass:'20px','glass-compact':'12px'},
  size:{target:'44px','reading':'760px','drawer':'448px','sidenav':'224px'},
- z:{drawer:'20',popover:'30',sheet:'50',toast:'60'},
+ // shell stays under the legacy dialogs of app/page.tsx (z-index 10) while they remain in use.
+ z:{shell:'5',drawer:'20',popover:'30',sheet:'50',toast:'60'},
 } as const;
 
 const decl=(prefix:string,obj:Record<string,string>)=>Object.entries(obj).map(([k,v])=>`--pos-${prefix}${k}:${v};`).join('');

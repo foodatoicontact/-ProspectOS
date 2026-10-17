@@ -83,6 +83,50 @@ primary ≥ 4.5:1 — in both themes.
   errors, persistence, Sheet/Drawer keyboard behaviour, adaptive panel at 1440/390, reduced motion, 320 px without
   horizontal scroll, forced colours, flag OFF → 404.
 
+## UI-2 — App shell
+
+**Activation.** `app/page.tsx` asks `GET /api/public/ui-v2` (dynamic, `no-store`, `{enabled:boolean}`) once on load. Only
+when it answers `true` does it `import()` the shell (`src/ui/v2/shell/AppShell.tsx`, with `foundations.css` and
+`shell.css`). Otherwise the page renders exactly as before: same DOM (verified against `main` on 12 states, demo
+mode, 390 and 1440 px), same CSS file for `/`. **The real Production guard is the absence of `UI_V2_ENABLED` there**:
+the runtime does not reliably expose `VERCEL_ENV` (P0 debt), so the `VERCEL_ENV==="production"` check in `flag.ts` is
+defence in depth only.
+
+**Layouts.** ≤ 640 px and 641–1023 px: fixed TopBar (`ProspectOS · [Projet ▼] · [Avatar]`, safe-area top) and fixed
+BottomNav (Aujourd’hui · Prospects · Recherche · Activité, safe-area bottom); the tablet range only adds margin around
+the workspace. ≥ 1024 px: SideNav (project on top; 4 primary entries; Sources, Paramètres; account at the bottom) and the
+workspace. Removed from the v2 envelope: legacy sidebar, breadcrumb, "Espace connecté" pill, marketing page titles,
+global Export CSV / Add prospect (now actions of the Prospects entry), "Vous gardez la main" box.
+
+**Navigation → existing screens** (`src/ui/v2/shell/nav.ts`, no new screen):
+
+| Entry | Screen |
+|---|---|
+| Aujourd’hui | ZF1 Today if enabled; else NBA "À faire"; else the prospects list (demo) |
+| Prospects | prospects list / detail |
+| Recherche | Discovery (same history behaviour as "Trouver des prospects") |
+| Activité | "À faire" when Today exists (advanced mode); else the overview |
+| Sources | Discovery (its source choice is the only sources screen that exists) |
+| Paramètres | Offer & ICP |
+
+Two entries leading to the same screen: the one chosen stays `aria-current`. Without a project, Recherche/Sources open
+the existing project creation. A v2 session opens on Aujourd’hui (or its closest screen).
+
+**Account menu** (Sheet on mobile, Popover on desktop): Compte, Organisation et équipe, Données et confidentialité
+(the existing account dialog, scrolled to the part), Offre et cible, Sources, Langue, Thème (UI-1 ThemeSwitcher),
+Se déconnecter; Bêta Analytics only for an INTERNAL plan. Demo: Offre et cible, Sources, Langue, Thème,
+Réinitialiser / Quitter la démo.
+
+**Existing screens inside the shell.** Rendered unchanged in `.pos-legacy`: their own paper, ink, type and focus in
+every theme (the base rules of `foundations.css` skip `.pos-legacy`). In the dark theme the shell is dark and the
+screens stay light until UI-3 / UI-5 migrate them. Legacy dialogs (account, project, prospect, pricing…) are rendered
+outside the shell, unchanged.
+
+**Tests.** `tests/ui-v2-shell.test.ts` (navigation model, flag route, flag-OFF parity of `page.tsx`, accessibility
+contracts, styles). Browser checks (Playwright, local build, demo mode): mobile and desktop navigation, project
+switching and creation, account menu, theme switch and persistence, language, keyboard, Esc / focus return, sign-out,
+320 px, tablet, reduced motion, forced colours; DOM parity with `main` when the flag is off.
+
 ## Notes for UI-2 / UI-3
 
 - Mounting v2 in the app means moving the token `<style>`, `foundations.css` and `ThemeProvider` to where the shell

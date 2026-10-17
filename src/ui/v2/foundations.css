@@ -9,13 +9,14 @@
 .pos-ui *,.pos-ui *::before,.pos-ui *::after{box-sizing:border-box}
 /* A full v2 surface: base colour + static halos (no animation, ZF-UI0 motion rule). */
 .pos-ui.pos-canvas{min-height:100vh;min-height:100dvh;background:var(--pos-halo),var(--pos-bg);background-attachment:fixed}
-.pos-ui :where(h1,h2,h3,h4){font-family:var(--pos-font-display);color:var(--pos-text-1);letter-spacing:-.03em;line-height:var(--pos-leading-tight)}
-.pos-ui :where(p){line-height:var(--pos-leading-normal)}
+.pos-ui :where(h1,h2,h3,h4):not(.pos-legacy *){font-family:var(--pos-font-display);color:var(--pos-text-1);letter-spacing:-.03em;line-height:var(--pos-leading-tight)}
+.pos-ui :where(p):not(.pos-legacy *){line-height:var(--pos-leading-normal)}
 .pos-ui .pos-visually-hidden{position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
 
-/* Focus: 2 px accent ring, 2 px offset, always visible, never removed (ZF-UI0 ACCESSIBILITY_RULES). */
-.pos-ui :focus-visible{outline:2px solid var(--pos-accent);outline-offset:2px}
-.pos-ui :focus:not(:focus-visible){outline:none}
+/* Focus: 2 px accent ring, 2 px offset, always visible, never removed (ZF-UI0 ACCESSIBILITY_RULES).
+   Base rules skip .pos-legacy: the existing screens rendered inside the v2 shell keep their own type, colours and focus. */
+.pos-ui :focus-visible:not(.pos-legacy *){outline:2px solid var(--pos-accent);outline-offset:2px}
+.pos-ui :focus:not(:focus-visible):not(.pos-legacy *){outline:none}
 
 /* ── Surfaces ─────────────────────────────────────────────────────────────────────────────────────────── */
 .pos-ui .pos-glass{background:var(--pos-glass);border:1px solid var(--pos-glass-border);box-shadow:var(--pos-glass-highlight);

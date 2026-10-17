@@ -170,7 +170,7 @@ test('styles — reduced motion, reduced transparency, no-backdrop-filter, more 
  assert.match(css,/@supports not \(\(backdrop-filter:blur\(1px\)\) or \(-webkit-backdrop-filter:blur\(1px\)\)\)\{[^]*var\(--pos-glass-solid\)/);
  assert.match(css,/@media \(prefers-contrast:more\)/);
  assert.match(css,/@media \(forced-colors:active\)/);
- assert.match(css,/\.pos-ui :focus-visible\{outline:2px solid var\(--pos-accent\);outline-offset:2px\}/);
+ assert.match(css,/\.pos-ui :focus-visible:not\(\.pos-legacy \*\)\{outline:2px solid var\(--pos-accent\);outline-offset:2px\}/);
  assert.match(css,/min-height:var\(--pos-size-target\)/,'44 px targets');
  assert.doesNotMatch(css,/!important/);
  assert.doesNotMatch(css,/animation:[^;]*infinite[^;]*;[^}]*\}\s*\.pos-ui \.pos-canvas/,'halos are static');
@@ -235,7 +235,12 @@ test('flag OFF parity — the existing app does not load, import or reference th
  const layout=read('../app/layout.tsx');
  assert.doesNotMatch(layout,/ui\/v2|pos-ui|data-theme|pos-theme|foundations\.css/);
  assert.doesNotMatch(read('../app/globals.css'),/--pos-|\.pos-ui|pos-theme/);
- for(const f of ['../app/page.tsx','../src/components/TodayPanel.tsx'])assert.doesNotMatch(read(f),/ui\/v2|UI_V2/);
+ assert.doesNotMatch(read('../src/components/TodayPanel.tsx'),/ui\/v2|UI_V2/);
+ // UI-2: the page only knows the pure navigation model statically; the shell (and its CSS) is a dynamic import made
+ // after the server said UI_V2_ENABLED is on (tests/ui-v2-shell.test.ts).
+ const page=read('../app/page.tsx');
+ assert.doesNotMatch(page,/^import[^;]*ui\/v2\/(?!shell\/nav\.ts)/m);
+ assert.doesNotMatch(page,/\.css'/);
  assert.doesNotMatch(read('../app/sitemap.ts'),/ui-v2/);
 });
 test('flag OFF parity — /ui-v2 is decided per request and 404s unless UI_V2_ENABLED; never indexed',()=>{

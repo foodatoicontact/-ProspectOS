@@ -1,0 +1,164 @@
+/* ProspectOS 2.0 — UI-1 Fondations (docs/UI_V2.md).
+   Every rule is scoped to .pos-ui and reads only --pos-* tokens (src/ui/v2/tokens.ts): no literal colour lives here.
+   Selectors are `.pos-ui .x` (specificity 0,2,0) so they win over the legacy element rules of app/globals.css
+   (`button`, `button:hover`, `h2`…) without !important, and the legacy UI is never affected. */
+
+/* ── Root ─────────────────────────────────────────────────────────────────────────────────────────────── */
+.pos-ui{font-family:var(--pos-font-ui);font-size:var(--pos-text-base);line-height:var(--pos-leading-normal);color:var(--pos-text-1);
+ -webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;--pos-icon-stroke:1.8;--pos-enter-y:8px;--pos-enter-x:20px}
+.pos-ui *,.pos-ui *::before,.pos-ui *::after{box-sizing:border-box}
+/* A full v2 surface: base colour + static halos (no animation, ZF-UI0 motion rule). */
+.pos-ui.pos-canvas{min-height:100vh;min-height:100dvh;background:var(--pos-halo),var(--pos-bg);background-attachment:fixed}
+.pos-ui :where(h1,h2,h3,h4){font-family:var(--pos-font-display);color:var(--pos-text-1);letter-spacing:-.03em;line-height:var(--pos-leading-tight)}
+.pos-ui :where(p){line-height:var(--pos-leading-normal)}
+.pos-ui .pos-visually-hidden{position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
+
+/* Focus: 2 px accent ring, 2 px offset, always visible, never removed (ZF-UI0 ACCESSIBILITY_RULES). */
+.pos-ui :focus-visible{outline:2px solid var(--pos-accent);outline-offset:2px}
+.pos-ui :focus:not(:focus-visible){outline:none}
+
+/* ── Surfaces ─────────────────────────────────────────────────────────────────────────────────────────── */
+.pos-ui .pos-glass{background:var(--pos-glass);border:1px solid var(--pos-glass-border);box-shadow:var(--pos-glass-highlight);
+ -webkit-backdrop-filter:blur(var(--pos-blur-glass)) saturate(150%);backdrop-filter:blur(var(--pos-blur-glass)) saturate(150%)}
+.pos-ui .pos-card{background:var(--pos-surface-card);border:1px solid var(--pos-border);border-radius:var(--pos-radius-xl);box-shadow:var(--pos-shadow-card)}
+.pos-ui .pos-inset{background:var(--pos-surface-inset);border:1px solid var(--pos-border);border-radius:var(--pos-radius-lg)}
+@media (max-width:640px){.pos-ui{--pos-blur-glass:var(--pos-blur-glass-compact)}}
+
+/* ── Icon ─────────────────────────────────────────────────────────────────────────────────────────────── */
+.pos-ui .pos-icon{flex-shrink:0;fill:none;stroke:currentColor;stroke-width:var(--pos-icon-stroke);stroke-linecap:round;stroke-linejoin:round}
+
+/* ── Button ───────────────────────────────────────────────────────────────────────────────────────────── */
+.pos-ui .pos-btn{position:relative;display:inline-flex;align-items:center;justify-content:center;gap:var(--pos-space-2);
+ min-height:var(--pos-size-target);padding:0 var(--pos-space-4);border:1px solid transparent;border-radius:var(--pos-radius-md);
+ font:inherit;font-weight:var(--pos-weight-semibold);font-size:var(--pos-text-base);line-height:1.2;text-decoration:none;white-space:nowrap;
+ cursor:pointer;-webkit-tap-highlight-color:transparent;touch-action:manipulation;
+ transition:background-color var(--pos-dur-fast) var(--pos-ease-standard),border-color var(--pos-dur-fast) var(--pos-ease-standard),color var(--pos-dur-fast) var(--pos-ease-standard),box-shadow var(--pos-dur-fast) var(--pos-ease-standard)}
+.pos-ui .pos-btn--sm{min-height:40px;padding:0 var(--pos-space-3);font-size:var(--pos-text-sm);border-radius:var(--pos-radius-sm)}
+.pos-ui .pos-btn--sm::after{content:'';position:absolute;inset:-2px 0}/* keeps a 44 px hit area */
+.pos-ui .pos-btn--lg{min-height:48px;padding:0 var(--pos-space-5);font-size:var(--pos-text-md)}
+.pos-ui .pos-btn--full{display:flex;width:100%}
+.pos-ui .pos-btn--primary{background:var(--pos-accent);color:var(--pos-on-accent);box-shadow:var(--pos-shadow-accent)}
+.pos-ui .pos-btn--primary:hover{background:var(--pos-accent-hover)}
+.pos-ui .pos-btn--secondary{background:var(--pos-surface-card);color:var(--pos-text-1);border-color:var(--pos-border-strong)}
+.pos-ui .pos-btn--secondary:hover{background:var(--pos-surface-inset)}
+.pos-ui .pos-btn--quiet{background:transparent;color:var(--pos-text-2);padding:0 var(--pos-space-2)}
+.pos-ui .pos-btn--quiet:hover{background:var(--pos-accent-soft);color:var(--pos-text-1)}
+.pos-ui .pos-btn--danger{background:transparent;color:var(--pos-status-excluded-fg);border-color:currentColor}
+.pos-ui .pos-btn--danger:hover{background:var(--pos-status-excluded-bg)}
+.pos-ui .pos-btn:disabled{cursor:not-allowed;opacity:.55;box-shadow:none}
+.pos-ui .pos-btn.is-loading{cursor:progress;opacity:1}
+.pos-ui .pos-btn__spinner{width:16px;height:16px;border-radius:50%;border:2px solid currentColor;border-right-color:transparent;animation:pos-spin .8s linear infinite}
+@keyframes pos-spin{to{transform:rotate(360deg)}}
+
+/* Icon-only button (panel close…): label via aria-label, 44 × 44 target. */
+.pos-ui .pos-iconbtn{display:inline-flex;align-items:center;justify-content:center;width:var(--pos-size-target);height:var(--pos-size-target);flex-shrink:0;
+ padding:0;border:0;border-radius:var(--pos-radius-md);background:transparent;color:var(--pos-text-2);cursor:pointer}
+.pos-ui .pos-iconbtn:hover{background:var(--pos-accent-soft);color:var(--pos-text-1)}
+
+/* ── StatusBadge ──────────────────────────────────────────────────────────────────────────────────────── */
+.pos-ui .pos-badge{display:inline-flex;align-items:center;gap:5px;min-height:24px;padding:2px 9px 2px 7px;border-radius:var(--pos-radius-pill);
+ border:1px solid transparent;font-size:var(--pos-text-xs);font-weight:var(--pos-weight-bold);line-height:1.2;white-space:nowrap;
+ --pos-icon-stroke:2.1;color:var(--pos-badge-fg);background:var(--pos-badge-bg)}
+.pos-ui .pos-badge--contact{--pos-badge-fg:var(--pos-status-contact-fg);--pos-badge-bg:var(--pos-status-contact-bg)}
+.pos-ui .pos-badge--verify{--pos-badge-fg:var(--pos-status-verify-fg);--pos-badge-bg:var(--pos-status-verify-bg)}
+.pos-ui .pos-badge--engage{--pos-badge-fg:var(--pos-status-engage-fg);--pos-badge-bg:var(--pos-status-engage-bg)}
+.pos-ui .pos-badge--watch{--pos-badge-fg:var(--pos-status-watch-fg);--pos-badge-bg:var(--pos-status-watch-bg)}
+.pos-ui .pos-badge--excluded{--pos-badge-fg:var(--pos-status-excluded-fg);--pos-badge-bg:var(--pos-status-excluded-bg)}
+.pos-ui .pos-badge--verified{--pos-badge-fg:var(--pos-status-verified-fg);--pos-badge-bg:var(--pos-status-verified-bg)}
+/* A declaration is visibly NOT a verification: no fill, dashed outline, its own icon. */
+.pos-ui .pos-badge--declared{--pos-badge-fg:var(--pos-status-declared-fg);--pos-badge-bg:var(--pos-status-declared-bg);border:1px dashed var(--pos-border-strong)}
+
+/* ── Chip / ChipGroup ─────────────────────────────────────────────────────────────────────────────────── */
+.pos-ui .pos-chip{display:inline-flex;align-items:center;gap:6px;min-height:40px;padding:0 var(--pos-space-3);border-radius:11px;
+ border:1px solid var(--pos-border);background:var(--pos-surface-card);color:var(--pos-text-2);font:inherit;font-size:var(--pos-text-sm);
+ font-weight:var(--pos-weight-semibold);white-space:nowrap;cursor:pointer;position:relative;touch-action:manipulation;
+ transition:background-color var(--pos-dur-fast) var(--pos-ease-standard),color var(--pos-dur-fast) var(--pos-ease-standard),box-shadow var(--pos-dur-fast) var(--pos-ease-standard)}
+.pos-ui .pos-chip::after{content:'';position:absolute;inset:-2px 0}
+.pos-ui .pos-chip:hover{color:var(--pos-text-1);background:var(--pos-surface-inset)}
+.pos-ui .pos-chip[aria-pressed="true"]{color:var(--pos-text-1);background:var(--pos-surface-card);box-shadow:inset 0 0 0 1.5px var(--pos-accent),var(--pos-shadow-card)}
+.pos-ui .pos-chip__count{font-weight:var(--pos-weight-heavy);color:var(--pos-text-1)}
+.pos-ui .pos-chip__dot{width:7px;height:7px;border-radius:50%;background:var(--pos-chip-dot,var(--pos-text-3))}
+.pos-ui .pos-chip--contact{--pos-chip-dot:var(--pos-status-contact-dot)}
+.pos-ui .pos-chip--verify{--pos-chip-dot:var(--pos-status-verify-dot)}
+.pos-ui .pos-chip--engage{--pos-chip-dot:var(--pos-status-engage-dot)}
+.pos-ui .pos-chip--watch{--pos-chip-dot:var(--pos-status-watch-dot)}
+.pos-ui .pos-chip--signal{--pos-chip-dot:var(--pos-signal-dot)}
+.pos-ui .pos-chips--wrap{display:flex;flex-wrap:wrap;gap:var(--pos-space-2)}
+.pos-ui .pos-chips--segmented{display:inline-grid;grid-auto-flow:column;grid-auto-columns:auto;gap:2px;padding:3px;border-radius:14px;
+ max-width:100%;overflow-x:auto;scrollbar-width:none}
+.pos-ui .pos-chips--segmented::-webkit-scrollbar{display:none}
+.pos-ui .pos-chips--segmented .pos-chip{border-color:transparent;background:transparent;padding:0 10px}
+.pos-ui .pos-chips--segmented .pos-chip:hover{background:var(--pos-accent-soft)}
+.pos-ui .pos-chips--segmented .pos-chip[aria-pressed="true"]{background:var(--pos-surface-card)}
+
+/* ── Signal signature (the v2 visual signature: cyan dot + TYPE, then place · age) ─────────────────────── */
+.pos-ui .pos-sigdot{display:inline-block;width:9px;height:9px;border-radius:50%;flex-shrink:0;background:var(--pos-signal-dot);
+ box-shadow:0 0 0 4px var(--pos-signal-ring),var(--pos-signal-glow)}
+
+/* ── Panels: shared header/body/footer ────────────────────────────────────────────────────────────────── */
+.pos-ui .pos-panel__header{display:flex;align-items:center;gap:var(--pos-space-2);min-height:60px;padding:0 var(--pos-space-3) 0 var(--pos-space-6);border-bottom:1px solid var(--pos-hairline)}
+.pos-ui .pos-panel__title{flex:1;min-width:0;margin:0;font-size:var(--pos-text-lg);font-weight:var(--pos-weight-heavy);letter-spacing:-.02em}
+.pos-ui .pos-panel__title:focus{outline:none}
+.pos-ui .pos-panel__title:focus-visible{outline:2px solid var(--pos-accent);outline-offset:2px}
+.pos-ui .pos-panel__desc{margin:var(--pos-space-3) var(--pos-space-6) 0;color:var(--pos-text-2);font-size:var(--pos-text-sm)}
+.pos-ui .pos-panel__body{flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;padding:var(--pos-space-5) var(--pos-space-6) var(--pos-space-7)}
+.pos-ui .pos-panel__footer{padding:var(--pos-space-3) var(--pos-space-6) var(--pos-space-4);border-top:1px solid var(--pos-hairline)}
+
+/* ── Sheet (mobile, modal <dialog>) ───────────────────────────────────────────────────────────────────── */
+.pos-ui .pos-sheet{position:fixed;inset:auto 0 0 0;margin:0;padding:0;border:0;width:100%;max-width:100%;max-height:none;background:transparent;color:inherit;overflow:visible}
+.pos-ui .pos-sheet::backdrop{background:var(--pos-scrim);animation:pos-fade var(--pos-dur-base) var(--pos-ease-standard)}
+.pos-ui .pos-sheet__panel{display:flex;flex-direction:column;max-height:92vh;max-height:92dvh;background:var(--pos-surface-sheet);
+ border-radius:var(--pos-radius-sheet) var(--pos-radius-sheet) 0 0;border-bottom:0;box-shadow:var(--pos-glass-highlight),var(--pos-shadow-sheet);
+ padding-bottom:env(safe-area-inset-bottom,0px);animation:pos-sheet-in var(--pos-dur-slow) var(--pos-ease-standard);transition:transform var(--pos-dur-fast) var(--pos-ease-standard)}
+.pos-ui .pos-sheet.is-closing .pos-sheet__panel{animation:pos-sheet-out var(--pos-dur-base) var(--pos-ease-exit) forwards}
+.pos-ui .pos-sheet.is-closing::backdrop{animation:pos-fade-out var(--pos-dur-base) var(--pos-ease-exit) forwards}
+.pos-ui .pos-sheet__grab{display:flex;justify-content:center;padding:10px 0 2px;cursor:grab;touch-action:none}
+.pos-ui .pos-sheet__handle{width:40px;height:5px;border-radius:3px;background:var(--pos-border-strong)}
+.pos-ui .pos-sheet .pos-panel__header{min-height:52px;padding-left:var(--pos-space-5)}
+.pos-ui .pos-sheet .pos-panel__body{padding:var(--pos-space-4) var(--pos-space-5) var(--pos-space-6)}
+@media (min-width:641px){.pos-ui .pos-sheet{inset:auto 0 0 0;margin:0 auto;max-width:560px}}
+html:has(.pos-ui .pos-sheet[open]){overflow:hidden}
+
+/* ── ContextDrawer (desktop, part of the workspace, not an overlay) ───────────────────────────────────── */
+.pos-ui .pos-drawer{display:flex;flex-direction:column;width:var(--pos-size-drawer);max-width:100%;flex-shrink:0;min-height:0;
+ background:var(--pos-surface-drawer);border-left:1px solid var(--pos-hairline);animation:pos-drawer-in var(--pos-dur-slow) var(--pos-ease-standard)}
+.pos-ui .pos-drawer .pos-panel__title{font-size:var(--pos-text-md)}
+
+/* ── Motion ───────────────────────────────────────────────────────────────────────────────────────────── */
+@keyframes pos-fade{from{opacity:0}to{opacity:1}}
+@keyframes pos-fade-out{from{opacity:1}to{opacity:0}}
+@keyframes pos-sheet-in{from{transform:translateY(32px);opacity:0}to{transform:none;opacity:1}}
+@keyframes pos-sheet-out{to{transform:translateY(32px);opacity:0}}
+@keyframes pos-drawer-in{from{transform:translateX(var(--pos-enter-x));opacity:0}to{transform:none;opacity:1}}
+@keyframes pos-enter{from{transform:translateY(var(--pos-enter-y));opacity:0}to{transform:none;opacity:1}}
+.pos-ui .pos-enter{animation:pos-enter var(--pos-dur-base) var(--pos-ease-standard)}
+/* Reduced motion: fades only, ≤ 120 ms, no displacement (ZF-UI0 MOTION_STRATEGY). */
+@media (prefers-reduced-motion:reduce){
+ .pos-ui{--pos-dur-base:120ms;--pos-dur-slow:120ms;--pos-enter-y:0px;--pos-enter-x:0px}
+ .pos-ui .pos-sheet__panel{animation-name:pos-fade;transition:none}
+ .pos-ui .pos-sheet.is-closing .pos-sheet__panel{animation-name:pos-fade-out}
+ .pos-ui .pos-btn__spinner{animation:none;border-right-color:currentColor;opacity:.5}
+ .pos-ui .pos-btn,.pos-ui .pos-chip{transition:none}
+}
+
+/* ── Transparency fallbacks: glass becomes opaque, never less readable ────────────────────────────────── */
+@supports not ((backdrop-filter:blur(1px)) or (-webkit-backdrop-filter:blur(1px))){
+ .pos-ui .pos-glass{background:var(--pos-glass-solid)}
+ .pos-ui .pos-sheet__panel,.pos-ui .pos-drawer{background:var(--pos-glass-solid)}
+}
+@media (prefers-reduced-transparency:reduce){
+ .pos-ui .pos-glass{background:var(--pos-glass-solid);-webkit-backdrop-filter:none;backdrop-filter:none}
+ .pos-ui .pos-sheet__panel,.pos-ui .pos-drawer{background:var(--pos-glass-solid)}
+}
+/* More contrast requested: opaque surfaces and stronger outlines. */
+@media (prefers-contrast:more){
+ .pos-ui{--pos-border:var(--pos-border-strong);--pos-hairline:var(--pos-border-strong);--pos-text-3:var(--pos-text-2)}
+ .pos-ui .pos-glass,.pos-ui .pos-sheet__panel,.pos-ui .pos-drawer{background:var(--pos-glass-solid);-webkit-backdrop-filter:none;backdrop-filter:none}
+}
+/* Windows High Contrast / forced colours: system colours, visible boundaries, pressed state not carried by colour. */
+@media (forced-colors:active){
+ .pos-ui .pos-btn,.pos-ui .pos-chip,.pos-ui .pos-badge,.pos-ui .pos-iconbtn{border:1px solid ButtonText}
+ .pos-ui .pos-chip[aria-pressed="true"]{outline:2px solid Highlight;outline-offset:1px}
+ .pos-ui .pos-sigdot,.pos-ui .pos-chip__dot{forced-color-adjust:none;background:CanvasText;box-shadow:none}
+ .pos-ui :focus-visible{outline-color:Highlight}
+}

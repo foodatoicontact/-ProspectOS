@@ -80,7 +80,7 @@ test('UI: signup CTA is framed as a free trial with the required subtext',async(
  const source=await readFile(new URL('../app/page.tsx',import.meta.url),'utf8');
  assert.match(source,/tr\(trialFull\?'landing\.createAccountCta':'landing\.trialCta'\)/);
  assert.match(source,/tr\('landing\.trialSub'\)/);
- assert.equal(fr['landing.trialCta'],'Créer mon compte','ZF1: no free-trial promise in the CTA');
+ assert.equal(fr['landing.trialCta'],'Démarrer mon essai gratuit — 7 jours');
  assert.equal(fr['landing.trialSub'],'Aucune carte bancaire requise pour commencer.');
 });
 test('UI: trial countdown is computed from the real expires_at, not a hardcoded number',async()=>{

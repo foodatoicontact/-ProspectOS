@@ -74,24 +74,21 @@ A WATCH whose only reason is a fresh signal leaves Today the day that signal's f
 DISMISS at 46. Engine, half-lives and thresholds are unchanged; history / transition notice / hysteresis to be evaluated
 separately.
 
-## Free-trial copy removed (presentation only — no pricing, Stripe or entitlement change)
+## Commercial copy: unchanged by ZF1 (decision « option C »)
 
-| Where | Before | After |
-|---|---|---|
-| `landing.trialCta` fr / en | « Démarrer mon essai gratuit — 7 jours » / « Start my free trial — 7 days » | « Créer mon compte » / « Create my account » |
-| `landing.trialFullSub` fr | « Les places d'essai gratuit sont épuisées : choisissez… » | « Choisissez votre offre : la page de paiement s'ouvrira… » |
-| `pricing.trialLimits` fr / en | « Essai 7 jours : 20 recherches… » | « Démarrage du compte : 20 recherches… » |
-| `icp.demoAnalyzeNote` fr / en | « …une fois votre compte créé (essai gratuit de 7 jours)… » | « …une fois votre compte créé… » |
-| `demoBanner.trial` fr / en | « …pendant 7 jours gratuitement. » / « …free for 7 days. » | « Créez votre compte pour lancer de vraies recherches. » |
-| `demoBanner.full` fr | « Les places d'essai gratuit sont épuisées : choisissez une offre… » | « Choisissez une offre pour lancer de vraies recherches. » |
-| `PricingPage.tsx` | block « Essai gratuit de 7 jours, sans carte bancaire » + « Démarrer mon essai gratuit » + 2 × « Essayer gratuitement » | « Créer votre compte » (account created without a card, starting volumes, no automatic subscription) + « Créer mon compte » ×3 |
-| `/tarifs` (`seo-content.ts`) | title, description, H1, intro, trial list item, FAQ answer and « fin de l'essai gratuit » question, CTA, « Offres et premiers pas » paragraph, « Où sont décrits les prix ? » | neutral: offers, monthly prices, account created without a card with its starting volumes; CTA « Créer mon compte » |
-| `llms.txt` (`geo.ts`) | « Essai gratuit de 7 jours, sans carte bancaire : … » | « Création du compte, sans carte bancaire : … pour démarrer. » |
+ProspectOS will stop offering a free trial, but not in ZF1: the Production Stripe payment is not verified end to end
+yet. ZF1 therefore merges WITHOUT any commercial change — landing, PricingPage, /tarifs, llms.txt, demo banners and
+the demo ICP note are exactly main's (an earlier ZF1 rewrite was reverted before the merge), and the trial backend
+(`activate_trial`, 7 days, BETA, `trial_available`, quotas, account UI, CGU/CGV, Supabase emails) is untouched.
+The removal is a separate release, **NO_TRIAL_RELEASE**, prerequisite: Production Stripe verified by a real purchase.
 
-**Not changed, on purpose (decision for the owner):** the backend still grants a 7-day starting access at sign-up
-(`activate-trial`, plan BETA); the **CGU, CGV and privacy policy** describe that contract and are legal documents; the
-account status labels (« Essai gratuit · N jours restants », « Essai gratuit non activé ») and capacity errors
-describe the user's actual state. Changing them requires changing the offer itself.
+## P0 debt: VERCEL_ENV not visible at runtime
+
+`/api/public/ux-config` answers `environment:"unknown"` on the Preview AND on Production: the functions do not see
+`VERCEL_ENV`. Every environment guard that reads it is inactive — notably the Stripe locks (`billingConfig`: a TEST key
+is not refused on Production, a LIVE key is always refused) and the « never explicit Production » part of
+`zfWritesAllowed` (Production stays protected only by the ZF flag being absent). Not fixed here; must be resolved in
+its own change BEFORE Stripe LIVE, BEFORE any ZF activation in Production, and before relying on any environment guard.
 
 ## Baseline and target
 

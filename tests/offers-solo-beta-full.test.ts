@@ -50,7 +50,7 @@ test('seats gone: sign-up becomes “Créer mon compte” + the subscription cho
  assert.match(page,/\{trialFull\?<><small className="muted">\{tr\('landing\.trialFullSub'\)\}<\/small><PricingPlans locale=\{locale\} context="public" availability=\{null\} busy=\{busy\} selected=\{planIntent\} onChoose=\{choosePlan\} layout="stack"\/><\/>:<>/);
  assert.match(page,/const trialFull=trialAvailable===false;/,'only an explicit "false" switches the copy');
  assert.equal(fr['landing.createAccountCta'],'Créer mon compte');
- assert.match(fr['landing.trialFullSub'],/^Choisissez votre offre/);assert.ok(en['landing.trialFullSub']);
+ assert.match(fr['landing.trialFullSub'],/places d’essai gratuit sont épuisées/);assert.ok(en['landing.trialFullSub']);
 });
 
 test('seats gone: the demo banner points to the offers instead of promising a trial',async()=>{
@@ -59,7 +59,7 @@ test('seats gone: the demo banner points to the offers instead of promising a tr
  assert.match(banner,/onClick=\{trialFull\?onSeeOffers:onTryReal\}>\{tr\(trialFull\?'demoBanner\.ctaOffers':'demoBanner\.cta'\)\}<\/button>/);
  const page=await read('../app/page.tsx');
  assert.match(page,/<DemoModeBanner locale=\{locale\} trialFull=\{trialFull\} onTryReal=\{tryRealProspects\} onSeeOffers=\{\(\)=>setModal\('pricing'\)\}\/>/);
- assert.equal(fr['demoBanner.full'],'Choisissez une offre pour lancer de vraies recherches.');
+ assert.equal(fr['demoBanner.full'],'Les places d’essai gratuit sont épuisées : choisissez une offre pour lancer de vraies recherches.');
  assert.equal(fr['demoBanner.ctaOffers'],'Voir les offres');assert.ok(en['demoBanner.full']&&en['demoBanner.ctaOffers']);
 });
 

@@ -12,10 +12,10 @@ const read=(p:string)=>readFile(new URL(p,import.meta.url),'utf8');
 test('demo banner: the exact, explicit French copy and its English counterpart',()=>{
  assert.equal(fr['demoBanner.title'],'Vous êtes en mode démo');
  assert.equal(fr['demoBanner.synthetic'],'Les résultats de recherche affichés sont synthétiques.');
- assert.equal(fr['demoBanner.trial'],'Créez votre compte pour lancer de vraies recherches.');
+ assert.equal(fr['demoBanner.trial'],'Créez votre compte pour lancer de vraies recherches pendant 7 jours gratuitement.');
  assert.equal(fr['demoBanner.cta'],'Tester avec de vrais prospects');
  for(const k of ['demoBanner.title','demoBanner.synthetic','demoBanner.trial','demoBanner.cta'] as const)assert.ok(en[k],k);
- assert.doesNotMatch(en['demoBanner.trial'],/free|7 days/i,'ZF1: no free-trial promise');
+ assert.match(en['demoBanner.trial'],/7 days/);
 });
 
 test('demo banner: static, accessible, one button that only calls its handler',async()=>{

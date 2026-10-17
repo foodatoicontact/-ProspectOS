@@ -14,7 +14,6 @@ import {zfPayload,ZF_KINDS} from '../src/server/ux-events.ts';
 import {fr} from '../src/i18n/fr.ts';
 import {todaySummary} from '../src/i18n/format.ts';
 import {en} from '../src/i18n/en.ts';
-import {getSeoPage} from '../src/domain/seo.ts';
 
 const read=(p:string)=>readFile(new URL(`../${p}`,import.meta.url),'utf8');
 const NOW=new Date('2026-10-17T12:00:00Z');const daysAgo=(d:number)=>new Date(NOW.getTime()-d*86400000).toISOString();
@@ -173,13 +172,20 @@ test('10 — only trusted user clicks/submits count; automatic events, renders a
 });
 
 // ------------------------------------------------------------ 11 copy
-test('11 — no "essai gratuit / 7 jours gratuits / free trial" promise in the modified journey',async()=>{
- const FREE=/essai gratuit|jours gratuit|gratuitement|free trial|free for 7|7-day trial|7 days/i;
- for(const k of ['landing.trialCta','landing.trialFullSub','pricing.trialLimits','demoBanner.trial','demoBanner.full','icp.demoAnalyzeNote'] as const){
-  assert.doesNotMatch(fr[k],FREE,`fr ${k}`);if(en[k as keyof typeof en])assert.doesNotMatch(en[k as keyof typeof en],FREE,`en ${k}`);
+test('11 — commercial copy is NOT changed by ZF1 (the trial stays as on main until the separate NO_TRIAL_RELEASE)',async()=>{
+ // Option C (owner decision): ZF1 merges without any commercial change; Production copy, flag OFF, stays exactly main's.
+ for(const f of ['src/components/PricingPage.tsx','src/domain/seo-content.ts','src/domain/geo.ts','src/components/DemoModeBanner.tsx']){
+  const main=execSync(`git show cca808c:${f}`,{cwd:new URL('..',import.meta.url),encoding:'utf8'});
+  assert.equal(await read(f),main,f);
  }
- const t=getSeoPage('tarifs')!;assert.doesNotMatch(JSON.stringify(t),FREE);
- assert.doesNotMatch(await read('src/components/PricingPage.tsx'),/Essai gratuit|Essayer gratuitement|essai gratuit/);
+ for(const [lang,dict] of [['fr',fr],['en',en]] as const){
+  const main=execSync(`git show cca808c:src/i18n/${lang}.ts`,{cwd:new URL('..',import.meta.url),encoding:'utf8'});
+  for(const k of ['landing.trialCta','landing.trialSub','landing.trialFullSub','pricing.trialLimits','pricing.afterTrial','icp.demoAnalyzeNote','demoBanner.trial','demoBanner.full'] as const){
+   const line=main.split('\n').find(l=>l.startsWith(` '${k}':`));
+   if(line)assert.ok(line.includes(JSON.stringify((dict as Record<string,string>)[k]).slice(1,-1).replace(/\\'/g,"'"))||line.includes((dict as Record<string,string>)[k]),`${lang} ${k} identical to main`);
+  }
+ }
+ const FREE=/essai gratuit|jours gratuit|gratuitement|free trial|free for 7|7-day trial|7 days/i;
  for(const k of Object.keys(fr).filter(k=>k.startsWith('today.')))assert.doesNotMatch(fr[k as keyof typeof fr],FREE,k);
 });
 

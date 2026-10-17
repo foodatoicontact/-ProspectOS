@@ -48,7 +48,9 @@ export type NbaConfig={
 export const NBA_DEFAULT_CONFIG:NbaConfig={
  // v1.1 (canary fix 1): UNKNOWN_FIT_FRESH_SIGNAL, state-derived WHY_THIS_ACTION, signal geographic relevance.
  // v1.2: generic geography (src/geo/), France and international.
- version:'nba-v1.2-2026-10',
+ // v1.3 (canary 2): FIT semantics — UNKNOWN is not NEGATIVE (FitProfile, monotonic rules); a signal whose place is
+ // UNKNOWN under a geographic ICP never drives CONTACT. Weights, thresholds and half-lives unchanged.
+ version:'nba-v1.3-2026-10',
  weights:{fit:0.35,timing:0.30,intent:0.15,evidence_quality:0.10,freshness:0.10},
  fit:{contactMin:60,engageMin:50,watchMin:50,dismissBelow:30},
  timing:{contactMin:50,watchMin:15},
@@ -190,8 +192,28 @@ export function relevantConversation(items:NbaPublicContent[],profile:IntentProf
 // 3. Scores — each 0–100, each with the lines it was made of.
 // ------------------------------------------------------------
 export type ScoreLine={label:string;value:number;ref?:{kind:'signal'|'public_content'|'evidence';id:string}};
+// FIT semantics (v1.3) — what is known about the ICP, criterion by criterion, never a single number read as a verdict:
+//   positive  criteria a person verified TRUE, or estimated TRUE from unverified observations (estimateFit);
+//   negative  criteria a person verified FALSE — the only "unfavourable information";
+//   unknown   everything else (no evidence, contradiction to review, an unverified FALSE observation).
+// level = estimateFit's merged score (verified points + estimated points): it decides WATCH / WAIT and never decreases
+// when a criterion goes from UNKNOWN to TRUE. verified_score = scoreProspect's score: it alone decides CONTACT.
+//   UNKNOWN     nothing observed;
+//   INCOMPLETE  no unfavourable information, level under the WATCH threshold: more information is needed;
+//   SUFFICIENT  level at or above the WATCH threshold;
+//   KNOWN_LOW   unfavourable information AND level under the WATCH threshold: a low FIT shown by evidence.
+export type FitState='UNKNOWN'|'INCOMPLETE'|'SUFFICIENT'|'KNOWN_LOW';
+export type FitProfile={
+ total_weight:number;positive_weight:number;verified_positive_weight:number;negative_weight:number;unknown_weight:number;observed_weight:number;
+ // Shares of the ICP's weight, 0–100.
+ coverage:number;verified_coverage:number;
+ level:number;verified_score:number;direction:'POSITIVE'|'NEGATIVE'|'MIXED'|'NONE';state:FitState;
+ // Criterion labels, to explain without a number: what supports, what goes against (verified), what nobody knows.
+ supporting:string[];against:string[];missing:string[];
+};
 export type Scores={
- fit:{score:number|null;basis:'verified'|'estimated'|'unknown';coverage:number;lines:ScoreLine[]};
+ // score / basis / coverage: unchanged since v1 (stored, shown); profile: what the decision reads.
+ fit:{score:number|null;basis:'verified'|'estimated'|'unknown';coverage:number;lines:ScoreLine[];profile:FitProfile};
  intent:{score:number;estimated:number;lines:ScoreLine[]};
  timing:{score:number;lines:ScoreLine[]};
  freshness:{score:number;lines:ScoreLine[]};
@@ -200,13 +222,32 @@ export type Scores={
 };
 export type Driver={kind:'signal';signal:ClassifiedSignal}|{kind:'conversation';conversation:Conversation};
 
-function fitOf(input:NbaInput):Scores['fit']{
+export function fitProfileOf(f:ReturnType<typeof estimateFit>,config:NbaConfig):FitProfile{
+ const p:FitProfile={total_weight:0,positive_weight:0,verified_positive_weight:0,negative_weight:0,unknown_weight:0,observed_weight:0,coverage:0,verified_coverage:0,
+  level:f.estimated.score,verified_score:f.verified.score,direction:'NONE',state:'UNKNOWN',supporting:[],against:[],missing:[]};
+ for(const line of f.estimated.breakdown){
+  const verified=f.verified.breakdown.find(b=>b.key===line.key)!;
+  p.total_weight+=line.weight;
+  if(verified.state==='TRUE'){p.positive_weight+=line.weight;p.verified_positive_weight+=line.weight;p.supporting.push(line.label)}
+  else if(verified.state==='FALSE'){p.negative_weight+=line.weight;p.against.push(line.label)}
+  else if(line.state==='ESTIMATED'){p.positive_weight+=line.weight;p.supporting.push(line.label)}
+  else{p.unknown_weight+=line.weight;p.missing.push(line.label)}
+ }
+ p.observed_weight=p.positive_weight+p.negative_weight;
+ const share=(w:number)=>p.total_weight>0?Math.round(100*w/p.total_weight):0;
+ p.coverage=share(p.observed_weight);p.verified_coverage=share(p.verified_positive_weight+p.negative_weight);
+ p.direction=p.positive_weight>0&&p.negative_weight>0?'MIXED':p.positive_weight>0?'POSITIVE':p.negative_weight>0?'NEGATIVE':'NONE';
+ p.state=p.level>=config.fit.watchMin?'SUFFICIENT':p.negative_weight>0?'KNOWN_LOW':p.observed_weight>0?'INCOMPLETE':'UNKNOWN';
+ return p;
+}
+function fitOf(input:NbaInput,config:NbaConfig):Scores['fit']{
  const f=estimateFit(input.criteria,input.evidence,input.now);
+ const profile=fitProfileOf(f,config);
  const verifiedLines=f.verified.breakdown.filter(b=>b.state==='TRUE').map(b=>({label:b.label,value:b.points,ref:b.evidence_ids[0]?{kind:'evidence' as const,id:b.evidence_ids[0]}:undefined}));
- if(f.verified.coverage>0)return {score:f.verified.score,basis:'verified',coverage:f.verified.coverage,lines:verifiedLines};
+ if(f.verified.coverage>0)return {score:f.verified.score,basis:'verified',coverage:f.verified.coverage,lines:verifiedLines,profile};
  const est=f.estimated.breakdown.filter(b=>b.points>0);
- if(est.length)return {score:f.estimated.score,basis:'estimated',coverage:0,lines:est.map(b=>({label:b.label,value:b.points,ref:b.evidence_ids[0]?{kind:'evidence' as const,id:b.evidence_ids[0]}:undefined}))};
- return {score:null,basis:'unknown',coverage:0,lines:[]};
+ if(est.length)return {score:f.estimated.score,basis:'estimated',coverage:0,lines:est.map(b=>({label:b.label,value:b.points,ref:b.evidence_ids[0]?{kind:'evidence' as const,id:b.evidence_ids[0]}:undefined})),profile};
+ return {score:null,basis:'unknown',coverage:0,lines:[],profile};
 }
 
 // One line per commercial type (the best signal of that type); duplicates and weaker signals of the same type are
@@ -228,7 +269,7 @@ export function timingOf(signals:ClassifiedSignal[],conversation:Conversation|nu
 }
 
 export function scoresOf(input:NbaInput,classified:ClassifiedSignal[],conversation:Conversation|null,config:NbaConfig){
- const fit=fitOf(input);
+ const fit=fitOf(input,config);
  const intentRaw=scoreIntent(input.signals,input.profile,input.now);
  const intent={score:intentRaw.score,estimated:intentRaw.estimated.score,lines:intentRaw.lines.filter(l=>l.points>0).map(l=>({label:l.title,value:l.points,ref:{kind:'signal' as const,id:l.signal_id}}))};
  const timing=timingOf(classified,conversation,config);
@@ -256,25 +297,39 @@ export function scoresOf(input:NbaInput,classified:ClassifiedSignal[],conversati
 // is always traceable to one written rule. OPPORTUNITY never decides alone.
 // ------------------------------------------------------------
 export type RuleId='CLOSED_PROSPECT'|'OFF_TARGET'|'EXPLICIT_RECENT_NEED'|'RELEVANT_CONVERSATION'|'CONTACT_SIGNAL'|'SIGNAL_TO_VERIFY'
- |'SOME_TIMING'|'FIT_WITHOUT_TIMING'|'UNKNOWN_FIT_FRESH_SIGNAL'|'NOT_ENOUGH';
+ |'SOME_TIMING'|'FIT_FRESH_SIGNAL'|'FIT_WITHOUT_TIMING'|'UNKNOWN_FIT_FRESH_SIGNAL'|'INCOMPLETE_FIT_FRESH_SIGNAL'|'NOT_ENOUGH';
 type Ctx={input:NbaInput;scores:Scores;primary:Driver|null;signals:ClassifiedSignal[];conversation:Conversation|null;config:NbaConfig;zone:IcpZone|null};
-const fitAtLeast=(c:Ctx,min:number)=>c.scores.fit.score!==null&&c.scores.fit.score>=min;
+// v1.3: WATCH / WAIT / ENGAGE read the FIT level (verified + estimated: it only grows when a criterion becomes TRUE);
+// CONTACT reads the VERIFIED score alone. Neither ever reads a missing criterion as a failed one.
+const fitAtLeast=(c:Ctx,min:number)=>c.scores.fit.profile.level>=min;
+const verifiedFitAtLeast=(c:Ctx,min:number)=>c.scores.fit.profile.verified_score>=min;
+const fitState=(c:Ctx)=>c.scores.fit.profile.state;
+// A signal may drive CONTACT only when its place is known to be inside the ICP's zone (when the ICP has one): an
+// UNKNOWN place can still make an account worth a check (WATCH), never a contact on its own.
+const contactEligible=(c:Ctx,s:ClassifiedSignal)=>!c.zone||s.geo.relevance==='MATCH';
+const contactTiming=(c:Ctx)=>timingOf(c.signals.filter(s=>contactEligible(c,s)),c.conversation,c.config).score;
 // The best signal that still says "now" for this ICP: fresh enough to be checked (the existing inferred-watch
 // freshness threshold), not outside the zone.
 const freshSignal=(c:Ctx)=>c.signals.filter(s=>s.freshness>=c.config.freshness.inferredWatchMin&&s.geo.relevance!=='MISMATCH').sort((a,b)=>b.timing-a.timing||a.signal_id.localeCompare(b.signal_id))[0]??null;
-const bestContact=(c:Ctx,status:EvidenceStatus)=>c.signals.filter(s=>s.affinity==='contact'&&s.evidence_status===status&&s.timing>0).sort((a,b)=>b.timing-a.timing)[0]??null;
+const bestContact=(c:Ctx,status:EvidenceStatus)=>c.signals.filter(s=>s.affinity==='contact'&&s.evidence_status===status&&s.timing>0&&(status!=='VERIFIED'||contactEligible(c,s))).sort((a,b)=>b.timing-a.timing)[0]??null;
 export const RULES:readonly {id:RuleId;action:NbaAction;when:(c:Ctx)=>boolean}[]=[
  {id:'CLOSED_PROSPECT',action:'DISMISS',when:c=>c.config.closedStatuses.includes(c.input.prospect.status)},
- {id:'OFF_TARGET',action:'DISMISS',when:c=>c.scores.fit.score!==null&&c.scores.fit.score<c.config.fit.dismissBelow},
- {id:'EXPLICIT_RECENT_NEED',action:'CONTACT',when:c=>{const s=bestContact(c,'VERIFIED');return !!s&&s.need==='explicit'&&s.freshness>=c.config.freshness.explicitNeedMin&&fitAtLeast(c,c.config.fit.contactMin)}},
+ // v1.3: off target only when unfavourable evidence says so — never because criteria are missing.
+ {id:'OFF_TARGET',action:'DISMISS',when:c=>fitState(c)==='KNOWN_LOW'&&c.scores.fit.profile.level<c.config.fit.dismissBelow},
+ {id:'EXPLICIT_RECENT_NEED',action:'CONTACT',when:c=>{const s=bestContact(c,'VERIFIED');return !!s&&s.need==='explicit'&&s.freshness>=c.config.freshness.explicitNeedMin&&verifiedFitAtLeast(c,c.config.fit.contactMin)}},
  {id:'RELEVANT_CONVERSATION',action:'ENGAGE',when:c=>!!c.conversation&&c.conversation.age_days<=c.config.engage.maxAgeDays&&fitAtLeast(c,c.config.fit.engageMin)},
- {id:'CONTACT_SIGNAL',action:'CONTACT',when:c=>{const s=bestContact(c,'VERIFIED');return !!s&&s.freshness>=c.config.freshness.contactMin&&fitAtLeast(c,c.config.fit.contactMin)&&c.scores.timing.score>=c.config.timing.contactMin}},
+ {id:'CONTACT_SIGNAL',action:'CONTACT',when:c=>{const s=bestContact(c,'VERIFIED');return !!s&&s.freshness>=c.config.freshness.contactMin&&verifiedFitAtLeast(c,c.config.fit.contactMin)&&contactTiming(c)>=c.config.timing.contactMin}},
  {id:'SIGNAL_TO_VERIFY',action:'WATCH',when:c=>{const s=bestContact(c,'INFERRED');return !!s&&s.freshness>=c.config.freshness.inferredWatchMin&&fitAtLeast(c,c.config.fit.watchMin)}},
  {id:'SOME_TIMING',action:'WATCH',when:c=>c.scores.timing.score>=c.config.timing.watchMin&&fitAtLeast(c,c.config.fit.watchMin)},
+ // v1.3 (monotonicity): a fresh signal still to check keeps a good account in WATCH; without this rule, a criterion
+ // becoming TRUE could move an account from INCOMPLETE_FIT_FRESH_SIGNAL (WATCH) to FIT_WITHOUT_TIMING (WAIT).
+ {id:'FIT_FRESH_SIGNAL',action:'WATCH',when:c=>fitAtLeast(c,c.config.fit.watchMin)&&!!freshSignal(c)},
  {id:'FIT_WITHOUT_TIMING',action:'WAIT',when:c=>fitAtLeast(c,c.config.fit.watchMin)},
  // Canary fix 1 (FIX 1): an UNKNOWN FIT is not a low FIT. A fresh, non-rejected signal that is not outside the ICP's
- // zone makes the account worth a human check (WATCH) — never CONTACT: every CONTACT rule needs a known FIT.
- {id:'UNKNOWN_FIT_FRESH_SIGNAL',action:'WATCH',when:c=>c.scores.fit.basis==='unknown'&&!!freshSignal(c)},
+ // zone makes the account worth a human check (WATCH) — never CONTACT: every CONTACT rule needs a verified FIT.
+ {id:'UNKNOWN_FIT_FRESH_SIGNAL',action:'WATCH',when:c=>fitState(c)==='UNKNOWN'&&!!freshSignal(c)},
+ // v1.3: a partly documented FIT with nothing against it is INCOMPLETE, not low — same check as an unknown one.
+ {id:'INCOMPLETE_FIT_FRESH_SIGNAL',action:'WATCH',when:c=>fitState(c)==='INCOMPLETE'&&!!freshSignal(c)},
  {id:'NOT_ENOUGH',action:'DISMISS',when:()=>true},
 ];
 
@@ -297,8 +352,12 @@ const ago=(d:number)=>d<=0?'aujourd’hui':d===1?'il y a 1 jour':`il y a ${d} jo
 // (canary fix 1, FIX 2: "ni un signal récent" was written next to a 5-day-old signal).
 const named=(x:ClassifiedSignal)=>`${entryOf(x.commercial_type).label.fr}, ${ago(x.age_days)}`;
 const zoneName=(z:IcpZone|null)=>z?.labels.join(', ')||'la zone de l’ICP';
+// v1.3: the FIT said as what is known — never "insufficient" when the rest is simply not documented.
+const fitLevel=(p:FitProfile)=>p.level>p.verified_score?`FIT ${p.level}/100, dont ${p.level-p.verified_score} points estimés à vérifier`:`FIT ${p.level}/100`;
+const incompleteFit=(p:FitProfile)=>`Le compte correspond aux critères ${p.verified_positive_weight===p.positive_weight?'vérifiés':'documentés'} disponibles, mais seulement ${p.coverage} % de l’ICP est documenté`;
+const lowFit=(p:FitProfile)=>`Des éléments vérifiés indiquent que le compte ne correspond pas suffisamment à la cible (défavorable : ${p.against.join(', ')} ; ${fitLevel(p)})`;
 function actionReason(c:Ctx,rule:RuleId):string{
- const {scores,config,input}=c;const fit=scores.fit.score;
+ const {scores,input}=c;const fp=scores.fit.profile;const fit=fitLevel(fp);
  const counting=[...c.signals].filter(x=>x.timing>0).sort((a,b)=>b.timing-a.timing||a.signal_id.localeCompare(b.signal_id))[0]??null;
  const fresh=freshSignal(c);
  const outside=c.signals.filter(x=>x.geo.relevance==='MISMATCH'&&x.freshness>0).sort((a,b)=>a.age_days-b.age_days)[0]??null;
@@ -308,23 +367,24 @@ function actionReason(c:Ctx,rule:RuleId):string{
  const fresh_=(x:ClassifiedSignal)=>Math.round(x.freshness*100);
  switch(rule){
   case 'CLOSED_PROSPECT':return `Le prospect est déjà clos dans le pipeline (statut ${input.prospect.status}) : aucune nouvelle action.`;
-  case 'OFF_TARGET':return counting
-   ?`Un signal récent existe (${named(counting)}), mais le compte ne correspond pas suffisamment à l’ICP (FIT ${fit}/100, sous le seuil de ${config.fit.dismissBelow}/100).`
-   :`Le compte ne correspond pas suffisamment à l’ICP (FIT ${fit}/100, sous le seuil de ${config.fit.dismissBelow}/100).${tooOld}${offZone}`;
+  case 'OFF_TARGET':return counting?`Un signal récent existe (${named(counting)}), mais ${lowFit(fp).replace(/^D/,'d')}.`:`${lowFit(fp)}.${tooOld}${offZone}`;
   case 'EXPLICIT_RECENT_NEED':{const x=bestContact(c,'VERIFIED')!;return `Le besoin est écrit dans une source vérifiée et récent (${named(x)}, fraîcheur ${fresh_(x)} %) : une prise de contact directe est plus pertinente qu’une surveillance.`}
   case 'RELEVANT_CONVERSATION':return `Une conversation publique pertinente a été publiée ${ago(c.conversation!.age_days)} : intervenir sur le fond avant toute approche commerciale.`;
   case 'CONTACT_SIGNAL':{const x=bestContact(c,'VERIFIED')!;return `Un signal vérifié et encore frais (${named(x)}, TIMING ${scores.timing.score}/100) donne une raison datée de contacter maintenant.`}
   case 'SIGNAL_TO_VERIFY':{const x=bestContact(c,'INFERRED')!;return `Un signal récent existe (${named(x)}) mais n’a pas encore été vérifié par une personne : le vérifier avant toute prise de contact.`}
-  case 'SOME_TIMING':return `Le compte correspond à l’ICP (FIT ${fit}/100) et un signal existe${counting?` (${named(counting)})`:''}, mais il n’est pas assez fort ou récent pour une approche (TIMING ${scores.timing.score}/100).`;
+  case 'SOME_TIMING':return `Le compte correspond à l’ICP (${fit}) et un signal existe${counting?` (${named(counting)})`:''}, mais il n’est pas assez fort ou récent pour une approche (TIMING ${scores.timing.score}/100).`;
+  case 'FIT_FRESH_SIGNAL':return `Le compte correspond à l’ICP (${fit}) et un signal récent existe (${named(fresh!)}), mais il doit encore être vérifié ou renforcé avant une prise de contact (TIMING ${scores.timing.score}/100).`;
   case 'FIT_WITHOUT_TIMING':return counting
-   ?`Le compte correspond à l’ICP (FIT ${fit}/100), mais le signal récent (${named(counting)}) est trop faible pour justifier une prise de contact maintenant (TIMING ${scores.timing.score}/100).`
-   :`Le compte correspond à l’ICP (FIT ${fit}/100), mais aucun élément récent${c.zone?` dans ${zoneName(c.zone)}`:''} ne justifie une prise de contact maintenant.${tooOld}${offZone}`;
+   ?`Le compte correspond à l’ICP (${fit}), mais le signal récent (${named(counting)}) est trop faible pour justifier une prise de contact maintenant (TIMING ${scores.timing.score}/100).`
+   :`Le compte correspond à l’ICP (${fit}), mais aucun élément récent${c.zone?` dans ${zoneName(c.zone)}`:''} ne justifie une prise de contact maintenant.${tooOld}${offZone}`;
   case 'UNKNOWN_FIT_FRESH_SIGNAL':return `Un signal récent existe (${named(fresh!)}), mais l’adéquation à l’ICP et/ou le signal doivent encore être vérifiés avant toute prise de contact.`;
+  case 'INCOMPLETE_FIT_FRESH_SIGNAL':return `Un signal récent existe (${named(fresh!)}). ${incompleteFit(fp)} : des informations supplémentaires sont nécessaires avant une prise de contact.`;
   case 'NOT_ENOUGH':
-   if(fit!==null)return counting
-    ?`Un signal récent existe (${named(counting)}), mais le compte ne correspond pas suffisamment à l’ICP (FIT ${fit}/100, sous le seuil de ${config.fit.watchMin}/100).`
-    :`Le compte ne correspond pas suffisamment à l’ICP (FIT ${fit}/100) et aucun élément récent ne justifie une action.${tooOld}${offZone}`;
-   if(counting)return `Adéquation à l’ICP inconnue, et le signal le plus récent (${named(counting)}) a perdu l’essentiel de sa fraîcheur (${fresh_(counting)} %) : pas assez pour justifier une vérification.`;
+   if(fp.state==='KNOWN_LOW')return counting?`Un signal récent existe (${named(counting)}), mais ${lowFit(fp).replace(/^D/,'d')}.`:`${lowFit(fp)}, et aucun élément récent ne justifie une action.${tooOld}${offZone}`;
+   if(fp.state==='INCOMPLETE')return counting
+    ?`${incompleteFit(fp)}, et le meilleur signal encore pris en compte (${named(counting)}) a perdu l’essentiel de sa fraîcheur (${fresh_(counting)} %) : pas assez pour justifier une vérification.${offZone}`
+    :`${incompleteFit(fp)}, et aucun élément récent ne justifie une action.${tooOld}${offZone}`;
+   if(counting)return `Adéquation à l’ICP inconnue, et le meilleur signal encore pris en compte (${named(counting)}) a perdu l’essentiel de sa fraîcheur (${fresh_(counting)} %) : pas assez pour justifier une vérification.${offZone}`;
    if(outside||expired)return `Adéquation à l’ICP inconnue.${offZone}${tooOld}`;
    return 'Les informations disponibles sont insuffisantes pour recommander une action.';
  }
@@ -336,11 +396,15 @@ function explain(c:Ctx,rule:RuleId,target:Target):Explanation{
  const why_this_account:Statement[]=[];const unknown:Statement[]=[];const inferred:Statement[]=[];
  if(scores.fit.basis==='verified'){
   const labels=scores.fit.lines.map(l=>l.label);
-  why_this_account.push({kind:'fact',text:labels.length?`Critères ICP étayés par des preuves vérifiées : ${labels.join(', ')} (FIT ${scores.fit.score}/100).`:`Aucun critère ICP vérifié n’est satisfait (FIT ${scores.fit.score}/100).`,
+  const fp=scores.fit.profile;
+  if(labels.length)why_this_account.push({kind:'fact',text:`Critères ICP étayés par des preuves vérifiées : ${labels.join(', ')} (FIT vérifié ${scores.fit.score}/100, ${fp.verified_coverage} % de l’ICP vérifié).`,
    refs:scores.fit.lines.flatMap(l=>l.ref?[evidenceRef(l.ref.id)]:[])});
+  if(fp.against.length)why_this_account.push({kind:'fact',text:`Critères ICP vérifiés non satisfaits : ${fp.against.join(', ')}.`,refs:[]});
  }else if(scores.fit.basis==='estimated'){
   why_this_account.push({kind:'inference',text:`FIT estimé à ${scores.fit.score}/100 à partir de preuves non vérifiées : ${scores.fit.lines.map(l=>l.label).join(', ')}.`,refs:scores.fit.lines.flatMap(l=>l.ref?[evidenceRef(l.ref.id)]:[])});
  }else unknown.push({kind:'unknown',text:'Adéquation à l’ICP inconnue : aucune preuve sur ce compte.',refs:[]});
+ if(scores.fit.profile.observed_weight>0&&scores.fit.profile.missing.length)
+  unknown.push({kind:'unknown',text:`Critères ICP non documentés (${100-scores.fit.profile.coverage} % de l’ICP) : ${scores.fit.profile.missing.join(', ')}.`,refs:[]});
  const why_now:Statement[]=[];
  if(primary?.kind==='signal'){
   const s=primary.signal,e=entryOf(s.commercial_type),ref:Ref={kind:'signal',id:s.signal_id,source_url:s.source_url};

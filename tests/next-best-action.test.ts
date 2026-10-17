@@ -152,7 +152,8 @@ test('why now: every fact carries the proof to open; the opportunity score shows
 
 test('rules: closed prospects and off-target accounts are dismissed; OPPORTUNITY never decides alone',()=>{
  assert.equal(buildOpportunity(input(95,{prospect:{id:'pc',project_id:'proj',name:'ACME',status:'Perdu'},signals:[signal()]})).rule,'CLOSED_PROSPECT');
- assert.equal(buildOpportunity(input(20,{signals:[signal()]})).rule,'OFF_TARGET');
+ // Off target: unfavourable verified evidence (v1.3 — a missing criterion is never read as a failed one).
+ assert.equal(buildOpportunity(input(20,{signals:[signal()],evidence:[verifiedEvidence(),{...verifiedEvidence('e2'),criterion:'other',value:false}]})).rule,'OFF_TARGET');
  // A high opportunity from FIT + INTENT alone (old signals) is still WAIT without TIMING.
  const old=buildOpportunity(input(100,{signals:[signal({signal_type:'funding',title:'Levée',excerpt:'Levée.',published_at:daysAgo(400)})]}));
  assert.equal(old.recommended_action,'WAIT');

@@ -55,12 +55,15 @@ test('CASE 4 — high FIT + no timing → WAIT, "corresponds but nothing recent"
  assert.equal(action(o),'Le compte correspond à l’ICP (FIT 90/100), mais aucun élément récent ne justifie une prise de contact maintenant.');
 });
 
+// v1.3: a low FIT is shown by unfavourable evidence (the other criterion verified FALSE) — a missing criterion is
+// INCOMPLETE, not low (tests/next-best-action-v13.test.ts).
+const against=():Evidence=>({...ev(false),criterion:'other'});
 test('CASE 5 — low verified FIT + strong fresh signal → never CONTACT; the sentence says the signal exists and the fit is insufficient',()=>{
- const low=run({criteria:crit(40),evidence:[ev()],signals:[sdr()]});
+ const low=run({criteria:crit(40),evidence:[ev(),against()],signals:[sdr()]});
  assert.notEqual(low.recommended_action,'CONTACT');assert.equal(low.rule,'NOT_ENOUGH');
- assert.match(action(low),/^Un signal récent existe \(Recrutement SDR, il y a 2 jours\), mais le compte ne correspond pas suffisamment à l’ICP \(FIT 40\/100/);
- const off=run({criteria:crit(20),evidence:[ev()],signals:[sdr()]});
- assert.equal(off.rule,'OFF_TARGET');assert.match(action(off),/^Un signal récent existe .* ne correspond pas suffisamment à l’ICP \(FIT 20\/100/);
+ assert.match(action(low),/^Un signal récent existe \(Recrutement SDR, il y a 2 jours\), mais des éléments vérifiés indiquent que le compte ne correspond pas suffisamment à la cible \(défavorable : Autre critère ; FIT 40\/100/);
+ const off=run({criteria:crit(20),evidence:[ev(),against()],signals:[sdr()]});
+ assert.equal(off.rule,'OFF_TARGET');assert.match(action(off),/^Un signal récent existe .* ne correspond pas suffisamment à la cible \(défavorable : Autre critère ; FIT 20\/100/);
 });
 
 test('CASE 6 — high FIT + fresh VERIFIED explicit signal → CONTACT, unchanged',()=>{

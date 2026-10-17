@@ -75,13 +75,13 @@ référence (signal, contenu, preuve) appartient au prospect et au tenant.
 - Les seuils V1 sont des choix explicites, documentés et versionnés (`config_version`), pas des valeurs apprises.
 - Dépendance de branche : la PR NBA contient la PR Signal-first (#31) tant que celle-ci n'est pas fusionnée.
 
-## 5. Modèle de score (config `nba-v1.2-2026-10`, `src/nba/engine.ts` `NBA_DEFAULT_CONFIG`)
+## 5. Modèle de score (config `nba-v1.3-2026-10`, `src/nba/engine.ts` `NBA_DEFAULT_CONFIG`)
 
 Chaque score va de 0 à 100 et garde ses lignes (`scores.*.lines`) ; aucun n'est masqué derrière le total.
 
 | Score | Calcul |
 |---|---|
-| FIT | `scoreProspect` (preuves vérifiées). Sans couverture vérifiée : `estimateFit`, marqué `estimated` (inférence). Sans preuve : `null` (`unknown`). |
+| FIT | `scoreProspect` (preuves vérifiées). Sans couverture vérifiée : `estimateFit`, marqué `estimated` (inférence). Sans preuve : `null` (`unknown`). Inchangé, stocké et affiché. **v1.3 : la décision lit `scores.fit.profile`** (§ 6, FIT semantics). |
 | INTENT | `scoreIntent` inchangé (signaux VERIFIED uniquement). |
 | FRESHNESS | `100 × 0,5^(âge / demi-vie)` du signal moteur, 0 au-delà de l'âge max. Décroissance par type (registre ; sinon celle de l'Intent Engine). Conversation : demi-vie 3 j, âge max 14 j. |
 | TIMING | Par type commercial, seul le meilleur signal compte (les doublons corroborent, n'ajoutent rien) : `poids_timing(type) × fraîcheur × facteur_statut` (VERIFIED 1, INFERRED 0,5). Entre types : rendements décroissants 1, ½, ¼, plafond 100. Une conversation pertinente compte `0,7 × fraîcheur`. |
@@ -97,15 +97,64 @@ fonds, nouveau dirigeant, implantation… reprennent celles de l'Intent Engine (
 | # | Règle | Action | Condition |
 |---|---|---|---|
 | 1 | CLOSED_PROSPECT | DISMISS | statut Gagné / Perdu / Ignoré |
-| 2 | OFF_TARGET | DISMISS | FIT connu < 30 |
-| 3 | EXPLICIT_RECENT_NEED | CONTACT | signal « contact » **VERIFIED**, besoin explicite, fraîcheur ≥ 70 %, FIT ≥ 60 |
-| 4 | RELEVANT_CONVERSATION | ENGAGE | contenu public VERIFIED, daté, pertinent, ≤ 7 j, FIT ≥ 50 |
-| 5 | CONTACT_SIGNAL | CONTACT | signal « contact » VERIFIED, fraîcheur ≥ 50 %, FIT ≥ 60, TIMING ≥ 50 |
-| 6 | SIGNAL_TO_VERIFY | WATCH | meilleur signal « contact » **INFERRED** (non revu), fraîcheur ≥ 50 %, FIT ≥ 50 |
-| 7 | SOME_TIMING | WATCH | TIMING ≥ 15, FIT ≥ 50 |
-| 8 | FIT_WITHOUT_TIMING | WAIT | FIT ≥ 50 |
-| 9 | UNKNOWN_FIT_FRESH_SIGNAL | WATCH | FIT **inconnu** + signal non rejeté, fraîcheur ≥ 50 %, pas hors zone (v1.1) |
-| 10 | NOT_ENOUGH | DISMISS | sinon (FIT faible ou inconnu sans signal frais) |
+| 2 | OFF_TARGET | DISMISS | FIT **KNOWN_LOW** (information défavorable vérifiée) et niveau < 30 (v1.3) |
+| 3 | EXPLICIT_RECENT_NEED | CONTACT | signal « contact » **VERIFIED** dans la zone (si l'ICP en a une), besoin explicite, fraîcheur ≥ 70 %, FIT **vérifié** ≥ 60 |
+| 4 | RELEVANT_CONVERSATION | ENGAGE | contenu public VERIFIED, daté, pertinent, ≤ 7 j, niveau FIT ≥ 50 |
+| 5 | CONTACT_SIGNAL | CONTACT | signal « contact » VERIFIED dans la zone, fraîcheur ≥ 50 %, FIT **vérifié** ≥ 60, TIMING des seuls signaux de la zone ≥ 50 |
+| 6 | SIGNAL_TO_VERIFY | WATCH | meilleur signal « contact » **INFERRED** (non revu), fraîcheur ≥ 50 %, niveau FIT ≥ 50 |
+| 7 | SOME_TIMING | WATCH | TIMING ≥ 15, niveau FIT ≥ 50 |
+| 8 | FIT_FRESH_SIGNAL | WATCH | niveau FIT ≥ 50 + signal frais pas hors zone (v1.3, monotonie) |
+| 9 | FIT_WITHOUT_TIMING | WAIT | niveau FIT ≥ 50 |
+| 10 | UNKNOWN_FIT_FRESH_SIGNAL | WATCH | FIT **UNKNOWN** + signal non rejeté, fraîcheur ≥ 50 %, pas hors zone (v1.1) |
+| 11 | INCOMPLETE_FIT_FRESH_SIGNAL | WATCH | FIT **INCOMPLETE** (rien de défavorable) + même signal frais (v1.3) |
+| 12 | NOT_ENOUGH | DISMISS | sinon (FIT KNOWN_LOW, ou rien de frais) |
+
+### NBA v1.3 — FIT semantics + GEO data quality (canary 2, 2026-10-17)
+
+Canary 2 6XPOS (verdict FAIL) : Mojo et O’Crousti Poulet (restaurants ouverts il y a 6 jours dans la zone, `target_fit`
+vérifié) → DISMISS « FIT 35/100 insuffisant », alors que 65 % de l'ICP était simplement **non documenté** ; Popeyes (Les
+Ulis), Tasty Crousty (Vannes), McDonald's (Connerré) → WATCH, leurs anciens signaux n'ayant pas de lieu structuré.
+
+**Cause FIT.** Les règles comparaient `scores.fit.score` (somme des critères TRUE) aux seuils : un critère inconnu valait
+0, comme un critère faux. Ajouter une preuve vraie faisait passer un compte du FIT `unknown` (règle UNKNOWN_FIT_FRESH_SIGNAL,
+WATCH) au FIT `verified` 35 (NOT_ENOUGH, DISMISS) : le moteur punissait la vérification.
+
+**Modèle (`FitProfile`, `fitProfileOf`).** Par critère : *positif* (vérifié TRUE, ou estimé TRUE), *négatif* (vérifié
+FALSE — la seule « information défavorable »), *inconnu* (sans preuve, contradiction à revoir, observation FALSE non
+vérifiée). On en tire `positive_weight`, `negative_weight`, `unknown_weight`, `observed_weight`, `coverage` (= observé /
+total), `verified_coverage`, `direction` (POSITIVE / NEGATIVE / MIXED / NONE), `level` (= score `estimateFit` fusionné :
+points vérifiés + points estimés) et `verified_score` (= `scoreProspect`). État : UNKNOWN (rien d'observé), INCOMPLETE
+(rien de défavorable, niveau < 50), SUFFICIENT (niveau ≥ 50), KNOWN_LOW (défavorable vérifié **et** niveau < 50). Le score
+historique `scores.fit.score` / `basis` / `coverage` est inchangé (stocké, affiché, OPPORTUNITY).
+
+**Décision.** WATCH / WAIT / ENGAGE lisent le niveau ; **CONTACT lit le seul score vérifié** (≥ 60, inchangé : un FIT
+estimé n'atteint plus jamais CONTACT) ; OFF_TARGET et le refus de WATCH exigent une information défavorable vérifiée.
+Seuils, poids, demi-vies, expirations : inchangés.
+
+**Invariant de monotonie** (`tests/next-best-action-v13.test.ts`, exhaustif : 4 critères × 4 états × 9 situations) : un
+critère qui passe de UNKNOWN à TRUE vérifié, toutes choses égales par ailleurs, ne rend jamais l'action moins favorable
+(CONTACT > ENGAGE > WATCH > WAIT > DISMISS). La règle FIT_FRESH_SIGNAL existe pour lui : sans elle, un compte INCOMPLETE
+avec un signal frais (WATCH) passait en WAIT en devenant SUFFISANT.
+
+**Explications.** INCOMPLETE : « Le compte correspond aux critères vérifiés disponibles, mais seulement 35 % de l’ICP est
+documenté : des informations supplémentaires sont nécessaires avant une prise de contact », et la liste des critères non
+documentés (UNKNOWN). KNOWN_LOW : « Des éléments vérifiés indiquent que le compte ne correspond pas suffisamment à la cible
+(défavorable : …) ». « Insuffisant » n'est plus jamais écrit pour une absence d'information.
+
+**Garde-fou GEO.** Avec un ICP géographique, un signal de lieu UNKNOWN ne fait jamais CONTACT : les règles CONTACT ne
+retiennent que les signaux MATCH, et le TIMING qu'elles comparent ne compte que ces signaux. Il peut au plus faire WATCH.
+NBA ne lit toujours aucun texte de lieu.
+
+**LEGACY_GEO_BACKFILL** (`src/signal-discovery/legacy-geo.ts`, `scripts/legacy-geo-backfill.ts`, migration 032). Le
+pipeline Signal-first actuel (P4, `places.ts` `eventPlacesIn` : préfectures, départements, communes de ≥ 2 000 habitants
+introduites comme lieu) enregistre déjà un lieu structuré (`raw_metadata.location` : départements, régions), traduit par
+l'adaptateur France (`src/geo/fr.ts`) en pays / admin_area_level_1 / admin_area_level_2 / locality : rien à dupliquer. Les
+signaux antérieurs à P4 n'en ont pas. Le backfill relit **avec le même lecteur**, sur le texte déjà stocké (phrase de
+l'événement, puis titre), ne touche que les signaux Signal-first sans lieu structuré, garde tout lieu ambigu tel quel
+(plusieurs départements → UNKNOWN par le modèle), écrit la provenance (`raw_metadata.location_backfill` : version, source,
+lecteur, lieu précédent, date) et est idempotent. Les signaux étant immuables (`guard_signal`, 024), la migration 032 ajoute
+une seule exception au garde-fou : ce backfill, une fois, sur un signal sans lieu structuré, sans toucher aucune autre clé
+ni colonne (`tests/legacy-geo-backfill-db.mjs`). Aucun droit client ajouté.
 
 ### Correctif canary 1 (v1.1, 2026-10-17)
 

@@ -82,14 +82,15 @@ try {
   const migrations = (await readdir(new URL('../db/migrations/', import.meta.url))).filter(f => f.endsWith('.sql')).sort();
   // 017 is this bloc's migration; 018 (deleted accounts release their beta seat) only re-creates account/trial functions.
   // 019 (Discovery register provider) only widens the Discovery provider checks and start_discovery: no billing object.
-  assert.deepEqual(migrations.slice(migrations.indexOf('017_stripe_billing.sql')), ['017_stripe_billing.sql', '018_deleted_accounts_release_beta_capacity.sql', '019_discovery_registry_provider.sql', '020_public_trial_availability.sql', '021_discovery_failed_run_not_billed.sql', '022_team_pro.sql', '023_team_offer.sql', '024_signals.sql', '025_pipeline_feedback.sql', '026_signal_monitoring.sql', '027_outreach_intelligence.sql', '028_outreach_ai_generation.sql', '029_outreach_provenance_revalidation.sql', '030_signal_discovery.sql', '031_next_best_action.sql']);
+  assert.deepEqual(migrations.slice(migrations.indexOf('017_stripe_billing.sql')), ['017_stripe_billing.sql', '018_deleted_accounts_release_beta_capacity.sql', '019_discovery_registry_provider.sql', '020_public_trial_availability.sql', '021_discovery_failed_run_not_billed.sql', '022_team_pro.sql', '023_team_offer.sql', '024_signals.sql', '025_pipeline_feedback.sql', '026_signal_monitoring.sql', '027_outreach_intelligence.sql', '028_outreach_ai_generation.sql', '029_outreach_provenance_revalidation.sql', '030_signal_discovery.sql', '031_next_best_action.sql', '032_signal_legacy_geo.sql']);
   // 028 (AI outreach units) READS the caller's entitlement period to count units; it never writes an entitlement nor any Stripe state.
   assert.doesNotMatch((await readFile(new URL('../db/migrations/028_outreach_ai_generation.sql', import.meta.url), 'utf8')).split('\n').filter(l => !l.trim().startsWith('--')).join('\n'), /stripe|billing|(insert into|update|delete from) public\.account_entitlements/i);
   // 029 (outreach provenance at the moment of use: one refusing trigger) has no billing object.
   assert.doesNotMatch((await readFile(new URL('../db/migrations/029_outreach_provenance_revalidation.sql', import.meta.url), 'utf8')).split('\n').filter(l => !l.trim().startsWith('--')).join('\n'), /stripe|billing|entitlement/i);
   // 030 (Signal-first Discovery) reuses the existing Discovery reservation; it has no billing object of its own.
   assert.doesNotMatch((await readFile(new URL('../db/migrations/030_signal_discovery.sql', import.meta.url), 'utf8')).split('\n').filter(l => !l.trim().startsWith('--')).join('\n'), /stripe|billing|entitlement/i);
-  // 031 (Next Best Action: recommendations and human decisions) has no billing object.
+  // 031 (Next Best Action: recommendations and human decisions) and 032 (legacy place backfill) have no billing object.
+  assert.doesNotMatch((await readFile(new URL('../db/migrations/032_signal_legacy_geo.sql', import.meta.url), 'utf8')).split('\n').filter(l => !l.trim().startsWith('--')).join('\n'), /stripe|billing|entitlement/i);
   assert.doesNotMatch((await readFile(new URL('../db/migrations/031_next_best_action.sql', import.meta.url), 'utf8')).split('\n').filter(l => !l.trim().startsWith('--')).join('\n'), /stripe|billing|entitlement/i);
   // 027 (outreach intelligence: style profiles, public content) has no billing object.
   assert.doesNotMatch((await readFile(new URL('../db/migrations/027_outreach_intelligence.sql', import.meta.url), 'utf8')).split('\n').filter(l => !l.trim().startsWith('--')).join('\n'), /stripe|billing|entitlement/i);

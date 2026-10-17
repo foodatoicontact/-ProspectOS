@@ -22,6 +22,7 @@
     "test:signal-monitoring-db": "node tests/signal-monitoring-db.mjs",
     "test:signal-discovery-db": "node --experimental-strip-types tests/signal-discovery-db.mjs",
     "test:signal-discovery-service-db": "node --experimental-strip-types tests/signal-discovery-service-db.mjs",
+    "test:nba-db": "node --experimental-strip-types tests/next-best-action-db.mjs",
     "test:outreach-intelligence-db": "node tests/outreach-intelligence-db.mjs",
     "test:outreach-ai-db": "node tests/outreach-ai-db.mjs",
     "test:outreach-ai-quota-db": "node tests/outreach-ai-quota-db.mjs",

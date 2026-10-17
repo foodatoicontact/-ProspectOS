@@ -596,3 +596,24 @@ button,.button{transition:background-color .18s ease,border-color .18s ease,colo
 .pricing-page a.primary{color:#fff;text-decoration:none;font-weight:700}
 .pricing-page a.button{display:flex;align-items:center;justify-content:center;text-decoration:none}
 .pricing-page .pricing-trial a.primary{display:inline-flex;align-items:center;justify-content:center;min-height:48px;padding:0 22px}
+
+/* Next Best Action — "À faire maintenant": one readable card per action, no dashboard noise. */
+.nba-panel h3{margin-top:18px}
+.nba-filters{display:flex;flex-wrap:wrap;gap:12px;margin:12px 0}
+.nba-filters label{display:flex;flex-direction:column;font-size:13px;min-width:150px}
+.nba-card{border:1px solid #dfe7e3;border-left:4px solid #9fb3aa;border-radius:10px;padding:14px 16px;margin:12px 0;background:#fff}
+.nba-card.nba-contact{border-left-color:#207b60}
+.nba-card.nba-engage{border-left-color:#3b6fb6}
+.nba-card.nba-watch{border-left-color:#c58b1b}
+.nba-card-head{display:flex;justify-content:space-between;gap:12px;align-items:flex-start}
+.nba-card-head h3{margin:2px 0}
+.nba-score{text-align:right;white-space:nowrap}
+.nba-score b{font-size:24px}
+.nba-statements{list-style:none;padding:0;margin:6px 0}
+.nba-statements li{margin:4px 0;line-height:1.45}
+.nba-statements .pill{font-size:11px;margin-right:4px}
+.nba-unknown{color:#6b7a74}
+.nba-chips .pill{margin:0 6px 6px 0;display:inline-block}
+.nba-draft{white-space:pre-wrap;background:#f5f8f6;border-radius:8px;padding:10px;margin:6px 0}
+.nba-human{font-size:12px}
+@media (max-width:640px){.nba-card{padding:12px}.nba-filters label{min-width:100%}}

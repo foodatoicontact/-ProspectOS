@@ -219,7 +219,7 @@ test('14 — no migration was added by this bloc: the RPCs, RLS and evidence_gua
  // evidence RLS change (tests/outreach-intelligence-db.mjs checks evidence rows stay untouched). 028 (AI outreach units
  // and cost operation) touches neither. 029 (provenance at the moment of use) only adds a trigger refusing APPROVED/USED
  // while a cited public content or signal is no longer verified: no evidence, observation or policy change (checked below).
- assert.deepEqual(files.slice(files.indexOf('015_dynamic_safe_analysis.sql')),['015_dynamic_safe_analysis.sql','016_beta_commercial_quotas.sql','017_stripe_billing.sql','018_deleted_accounts_release_beta_capacity.sql','019_discovery_registry_provider.sql','020_public_trial_availability.sql','021_discovery_failed_run_not_billed.sql','022_team_pro.sql','023_team_offer.sql','024_signals.sql','025_pipeline_feedback.sql','026_signal_monitoring.sql','027_outreach_intelligence.sql','028_outreach_ai_generation.sql','029_outreach_provenance_revalidation.sql','030_signal_discovery.sql']);
+ assert.deepEqual(files.slice(files.indexOf('015_dynamic_safe_analysis.sql')),['015_dynamic_safe_analysis.sql','016_beta_commercial_quotas.sql','017_stripe_billing.sql','018_deleted_accounts_release_beta_capacity.sql','019_discovery_registry_provider.sql','020_public_trial_availability.sql','021_discovery_failed_run_not_billed.sql','022_team_pro.sql','023_team_offer.sql','024_signals.sql','025_pipeline_feedback.sql','026_signal_monitoring.sql','027_outreach_intelligence.sql','028_outreach_ai_generation.sql','029_outreach_provenance_revalidation.sql','030_signal_discovery.sql','031_next_best_action.sql']);
  // 019 (register provider) only widens the provider checks and start_discovery's provider list.
  // 020 (public trial availability) only adds a boolean read of the beta seats; 021 ties a Discovery unit to its run.
  for(const f of ['016_beta_commercial_quotas.sql','017_stripe_billing.sql','018_deleted_accounts_release_beta_capacity.sql','019_discovery_registry_provider.sql','020_public_trial_availability.sql','021_discovery_failed_run_not_billed.sql','022_team_pro.sql','023_team_offer.sql','029_outreach_provenance_revalidation.sql']){
@@ -244,6 +244,12 @@ test('14 — no migration was added by this bloc: the RPCs, RLS and evidence_gua
  const m030=(await readFile(new URL('../db/migrations/030_signal_discovery.sql',import.meta.url),'utf8')).split('\n').filter(l=>!l.trim().startsWith('--')).join('\n');
  assert.doesNotMatch(m030,/public\.(evidence|prospect_observations)|alter policy|drop policy/i);
  assert.deepEqual(m030.match(/create policy \w+ on public\.\w+/g),['create policy signal_discovery_runs_read on public.signal_discovery_runs','create policy signal_discovery_candidates_read on public.signal_discovery_candidates']);
+ // 031 (Next Best Action) READS evidence only to check that a recommendation's references belong to the prospect; it
+ // never writes evidence nor observations, and adds its own tables with their read policies only.
+ const m031=(await readFile(new URL('../db/migrations/031_next_best_action.sql',import.meta.url),'utf8')).split('\n').filter(l=>!l.trim().startsWith('--')).join('\n');
+ assert.doesNotMatch(m031,/(insert into|update|delete from) public\.(evidence|prospect_observations)|alter policy/i);
+ assert.deepEqual(m031.match(/drop policy if exists \w+/g),['drop policy if exists nba_actions_read','drop policy if exists nba_action_events_read']);
+ assert.deepEqual(m031.match(/create policy \w+ on public\.\w+/g),['create policy nba_actions_read on public.nba_actions','create policy nba_action_events_read on public.nba_action_events']);
  const client=await readFile(new URL('../src/components/evidence-presentation.ts',import.meta.url),'utf8');
  assert.doesNotMatch(client,/service_role|SUPABASE_SERVICE|process\.env/);
 });

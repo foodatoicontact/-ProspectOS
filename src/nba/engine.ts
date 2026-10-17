@@ -10,6 +10,7 @@ import {estimateFit,type EstimateEvidence} from '../domain/fit-estimate.ts';
 import {scoreIntent,type IntentSignal,type IntentProfileInput} from '../domain/intent.ts';
 import type {Criterion} from '../domain/core.ts';
 import type {SignalType} from '../signals/types.ts';
+import {DEPARTMENTS,placesIn} from '../discovery/geo-fr.ts';
 import {REGISTRY,entryOf,decayOf,fold,CONVERSATION_DECAY,CONVERSATION_TIMING_WEIGHT,CONVERSATION_TOPICS,
  type CommercialSignalType,type Decay,type RegistryEntry,type ConversationTopic} from './registry.ts';
 
@@ -43,7 +44,8 @@ export type NbaConfig={
  today:{defaultLimit:number;maxLimit:number};
 };
 export const NBA_DEFAULT_CONFIG:NbaConfig={
- version:'nba-v1-2026-10',
+ // v1.1 (canary fix 1): UNKNOWN_FIT_FRESH_SIGNAL, state-derived WHY_THIS_ACTION, signal geographic relevance.
+ version:'nba-v1.1-2026-10',
  weights:{fit:0.35,timing:0.30,intent:0.15,evidence_quality:0.10,freshness:0.10},
  fit:{contactMin:60,engageMin:50,watchMin:50,dismissBelow:30},
  timing:{contactMin:50,watchMin:15},
@@ -65,11 +67,59 @@ export function validateConfig(c:NbaConfig):void{
 // ------------------------------------------------------------
 // Inputs
 // ------------------------------------------------------------
-export type NbaSignal=IntentSignal&{source_type:string;provider?:string|null;event_key?:string|null};
+// raw_metadata.location: the place Signal-first read in the article (department codes, region names) — the only
+// structured place a signal carries today (migration 030, add_signal_candidate_to_project).
+export type NbaSignal=IntentSignal&{source_type:string;provider?:string|null;event_key?:string|null;raw_metadata?:Record<string,unknown>|null};
 export type NbaPublicContent={id:string;status:string;source_url:string;source_domain:string|null;author:string|null;content:string;published_at:string|null;observed_at:string};
 export type NbaProspect={id:string;project_id:string;name:string;status:string};
 export type NbaInput={prospect:NbaProspect;criteria:Criterion[];evidence:EstimateEvidence[];signals:NbaSignal[];publicContent:NbaPublicContent[];
  profile:IntentProfileInput;now:Date;config?:NbaConfig};
+
+// ------------------------------------------------------------
+// 0. Geographic relevance of a signal (canary fix 1, FIX 3). Structured data only: the ICP's own target_fit locations
+// resolved to department codes / region names by the shared Discovery gazetteer (geo-fr: regions, departments,
+// prefectures — a smaller commune typed in the ICP is not resolved, so it adds no zone), and the
+// signal's structured place (department codes / region names). Never a text comparison.
+//   MATCH     the signal's department is in the zone, or its region is one the ICP names as a whole region.
+//   MISMATCH  every region the signal names is outside the zone's regions: it adds nothing to TIMING for this ICP.
+//   UNKNOWN   no zone in the ICP, no structured place on the signal, or same region but another department and the
+//             ICP does not name that whole region: never presumed relevant, never presumed irrelevant — said so.
+// ------------------------------------------------------------
+export type GeoRelevance='MATCH'|'MISMATCH'|'UNKNOWN';
+// regions: every region the zone touches (named, or of a named department/city); wholeRegions: regions named as such.
+export type IcpZone={departments:Set<string>;regions:Set<string>;wholeRegions:Set<string>;labels:string[]};
+export type SignalGeo={relevance:GeoRelevance;place:string|null;reason:'in_zone'|'outside_zone'|'icp_zone_undefined'|'signal_place_unknown'|'same_region_other_department'};
+const REGION_OF=new Map(DEPARTMENTS.map(d=>[d.code,d.region]));
+export function icpZoneOf(criteria:Criterion[]):IcpZone|null{
+ const labels=criteria.flatMap(c=>c.rules?.type==='target_fit'?c.rules.config.locations??[]:[]).map(l=>l.trim()).filter(Boolean);
+ const zone:IcpZone={departments:new Set(),regions:new Set(),wholeRegions:new Set(),labels};
+ for(const l of labels){
+  const p=placesIn(l);
+  const departments=new Set(p.departments);
+  departments.forEach(d=>{zone.departments.add(d);const r=REGION_OF.get(d);if(r)zone.regions.add(r)});
+  p.regions.forEach(r=>zone.regions.add(r));
+  // A label that names a region and no department or city is the whole region ("Occitanie").
+  if(!departments.size)p.regions.forEach(r=>zone.wholeRegions.add(r));
+ }
+ return zone.departments.size||zone.regions.size?zone:null;
+}
+function locationOf(s:NbaSignal):{text:string|null;departments:string[];regions:string[]}|null{
+ const loc=s.raw_metadata&&typeof s.raw_metadata==='object'?(s.raw_metadata as Record<string,any>).location:null;
+ if(!loc||typeof loc!=='object')return null;
+ const departments=Array.isArray(loc.departments)?loc.departments.filter((d:unknown):d is string=>typeof d==='string'):[];
+ const regions=new Set<string>(Array.isArray(loc.regions)?loc.regions.filter((r:unknown):r is string=>typeof r==='string'):[]);
+ for(const d of departments){const r=REGION_OF.get(d);if(r)regions.add(r)}
+ return {text:typeof loc.text==='string'?loc.text:null,departments,regions:[...regions]};
+}
+export function geoRelevance(s:NbaSignal,zone:IcpZone|null):SignalGeo{
+ const loc=locationOf(s);const place=loc?.text??null;
+ if(!zone)return {relevance:'UNKNOWN',place,reason:'icp_zone_undefined'};
+ if(!loc||(!loc.departments.length&&!loc.regions.length))return {relevance:'UNKNOWN',place,reason:'signal_place_unknown'};
+ if(loc.departments.some(d=>zone.departments.has(d)))return {relevance:'MATCH',place,reason:'in_zone'};
+ if(loc.regions.some(r=>zone.wholeRegions.has(r)))return {relevance:'MATCH',place,reason:'in_zone'};
+ if(loc.regions.length&&loc.regions.every(r=>!zone.regions.has(r)))return {relevance:'MISMATCH',place,reason:'outside_zone'};
+ return {relevance:'UNKNOWN',place,reason:'same_region_other_department'};
+}
 
 // ------------------------------------------------------------
 // 1. Classification
@@ -81,6 +131,8 @@ export type ClassifiedSignal={
  evidence_status:EvidenceStatus;confidence:number;date_basis:'event'|'published'|'observed_only';age_days:number;
  decay:Decay;freshness:number;timing:number;quality:number;affinity:RegistryEntry['affinity'];need:RegistryEntry['need'];
  source_url:string;source_domain:string|null;title:string;excerpt:string;
+ // MISMATCH: timing is 0 for this ICP (freshness kept, to say what the signal was).
+ geo:SignalGeo;
 };
 const DAY=86400000;
 const round=(v:number,d=3)=>Math.round(v*10**d)/10**d;
@@ -95,7 +147,7 @@ function dateOf(s:NbaSignal,now:Date):{basis:ClassifiedSignal['date_basis'];age:
 }
 export function evidenceStatusOf(status:string):EvidenceStatus{return status==='VERIFIED'?'VERIFIED':status==='PENDING_REVIEW'?'INFERRED':'UNKNOWN'}
 
-export function classifySignal(s:NbaSignal,now:Date,config:NbaConfig=NBA_DEFAULT_CONFIG):ClassifiedSignal|null{
+export function classifySignal(s:NbaSignal,now:Date,config:NbaConfig=NBA_DEFAULT_CONFIG,zone:IcpZone|null=null):ClassifiedSignal|null{
  const evidence_status=evidenceStatusOf(s.status);
  if(evidence_status==='UNKNOWN')return null; // REJECTED (or unknown status): never a reason
  const text=fold(`${s.title} ${s.excerpt} ${s.matched_terms.join(' ')}`);
@@ -113,9 +165,10 @@ export function classifySignal(s:NbaSignal,now:Date,config:NbaConfig=NBA_DEFAULT
  const decay=decayOf(entry,s.signal_type);
  const freshness=freshnessOf(age,decay);
  const factor=config.statusFactor[evidence_status];
+ const geo=geoRelevance(s,zone);
  return {signal_id:s.id,commercial_type:entry.type,base_type:s.signal_type,basis,matched,evidence_status,confidence:s.confidence,date_basis,age_days:age,decay,
-  freshness:round(freshness),timing:round(entry.timingWeight*freshness*factor),quality:round(Math.min(1,s.confidence)*factor),
-  affinity:entry.affinity,need:entry.need,source_url:s.source_url,source_domain:s.source_domain,title:s.title,excerpt:s.excerpt};
+  freshness:round(freshness),timing:geo.relevance==='MISMATCH'?0:round(entry.timingWeight*freshness*factor),quality:round(Math.min(1,s.confidence)*factor),
+  affinity:entry.affinity,need:entry.need,source_url:s.source_url,source_domain:s.source_domain,title:s.title,excerpt:s.excerpt,geo};
 }
 
 // ------------------------------------------------------------
@@ -211,9 +264,12 @@ export function scoresOf(input:NbaInput,classified:ClassifiedSignal[],conversati
 // is always traceable to one written rule. OPPORTUNITY never decides alone.
 // ------------------------------------------------------------
 export type RuleId='CLOSED_PROSPECT'|'OFF_TARGET'|'EXPLICIT_RECENT_NEED'|'RELEVANT_CONVERSATION'|'CONTACT_SIGNAL'|'SIGNAL_TO_VERIFY'
- |'SOME_TIMING'|'FIT_WITHOUT_TIMING'|'NOT_ENOUGH';
-type Ctx={input:NbaInput;scores:Scores;primary:Driver|null;signals:ClassifiedSignal[];conversation:Conversation|null;config:NbaConfig};
+ |'SOME_TIMING'|'FIT_WITHOUT_TIMING'|'UNKNOWN_FIT_FRESH_SIGNAL'|'NOT_ENOUGH';
+type Ctx={input:NbaInput;scores:Scores;primary:Driver|null;signals:ClassifiedSignal[];conversation:Conversation|null;config:NbaConfig;zone:IcpZone|null};
 const fitAtLeast=(c:Ctx,min:number)=>c.scores.fit.score!==null&&c.scores.fit.score>=min;
+// The best signal that still says "now" for this ICP: fresh enough to be checked (the existing inferred-watch
+// freshness threshold), not outside the zone.
+const freshSignal=(c:Ctx)=>c.signals.filter(s=>s.freshness>=c.config.freshness.inferredWatchMin&&s.geo.relevance!=='MISMATCH').sort((a,b)=>b.timing-a.timing||a.signal_id.localeCompare(b.signal_id))[0]??null;
 const bestContact=(c:Ctx,status:EvidenceStatus)=>c.signals.filter(s=>s.affinity==='contact'&&s.evidence_status===status&&s.timing>0).sort((a,b)=>b.timing-a.timing)[0]??null;
 export const RULES:readonly {id:RuleId;action:NbaAction;when:(c:Ctx)=>boolean}[]=[
  {id:'CLOSED_PROSPECT',action:'DISMISS',when:c=>c.config.closedStatuses.includes(c.input.prospect.status)},
@@ -224,6 +280,9 @@ export const RULES:readonly {id:RuleId;action:NbaAction;when:(c:Ctx)=>boolean}[]
  {id:'SIGNAL_TO_VERIFY',action:'WATCH',when:c=>{const s=bestContact(c,'INFERRED');return !!s&&s.freshness>=c.config.freshness.inferredWatchMin&&fitAtLeast(c,c.config.fit.watchMin)}},
  {id:'SOME_TIMING',action:'WATCH',when:c=>c.scores.timing.score>=c.config.timing.watchMin&&fitAtLeast(c,c.config.fit.watchMin)},
  {id:'FIT_WITHOUT_TIMING',action:'WAIT',when:c=>fitAtLeast(c,c.config.fit.watchMin)},
+ // Canary fix 1 (FIX 1): an UNKNOWN FIT is not a low FIT. A fresh, non-rejected signal that is not outside the ICP's
+ // zone makes the account worth a human check (WATCH) — never CONTACT: every CONTACT rule needs a known FIT.
+ {id:'UNKNOWN_FIT_FRESH_SIGNAL',action:'WATCH',when:c=>c.scores.fit.basis==='unknown'&&!!freshSignal(c)},
  {id:'NOT_ENOUGH',action:'DISMISS',when:()=>true},
 ];
 
@@ -242,18 +301,42 @@ const clip=(s:string)=>{const t=s.replace(/\s+/g,' ').trim().replace(/[.!?]+$/,'
 const day=(iso:string)=>new Date(`${iso.slice(0,10)}T12:00:00Z`).toLocaleDateString('fr-FR',{day:'numeric',month:'long',year:'numeric',timeZone:'UTC'});
 const ago=(d:number)=>d<=0?'aujourd’hui':d===1?'il y a 1 jour':`il y a ${d} jours`;
 
-const ACTION_REASON:Record<RuleId,string>={
- CLOSED_PROSPECT:'Le prospect est déjà clos dans le pipeline (statut {status}) : aucune nouvelle action.',
- OFF_TARGET:'FIT {fit}/100, sous le seuil de {min}/100 : le compte est hors cible.',
- EXPLICIT_RECENT_NEED:'Le besoin est écrit dans une source vérifiée et récent (fraîcheur {fresh} %) : une prise de contact directe est plus pertinente qu’une surveillance.',
- RELEVANT_CONVERSATION:'Une conversation publique pertinente a été publiée {age} : intervenir sur le fond avant toute approche commerciale.',
- CONTACT_SIGNAL:'Un signal vérifié et encore frais (TIMING {timing}/100) donne une raison datée de contacter maintenant.',
- SIGNAL_TO_VERIFY:'Le signal n’a pas encore été vérifié par une personne : le vérifier avant d’agir.',
- SOME_TIMING:'Le compte correspond et un signal existe, mais il n’est pas assez fort ou récent pour une approche (TIMING {timing}/100).',
- FIT_WITHOUT_TIMING:'Bon compte (FIT {fit}/100) mais aucune raison datée d’agir maintenant (TIMING {timing}/100).',
- NOT_ENOUGH:'Ni l’adéquation à l’ICP ni un signal récent ne justifient une action.',
-};
-const fill=(t:string,v:Record<string,string|number>)=>t.replace(/\{(\w+)\}/g,(_,k)=>String(v[k]??''));
+// WHY_THIS_ACTION is written from the state the rule saw — never a generic sentence that the data could contradict
+// (canary fix 1, FIX 2: "ni un signal récent" was written next to a 5-day-old signal).
+const named=(x:ClassifiedSignal)=>`${entryOf(x.commercial_type).label.fr}, ${ago(x.age_days)}`;
+const zoneName=(z:IcpZone|null)=>z?.labels.join(', ')||'la zone de l’ICP';
+function actionReason(c:Ctx,rule:RuleId):string{
+ const {scores,config,input}=c;const fit=scores.fit.score;
+ const counting=[...c.signals].filter(x=>x.timing>0).sort((a,b)=>b.timing-a.timing||a.signal_id.localeCompare(b.signal_id))[0]??null;
+ const fresh=freshSignal(c);
+ const outside=c.signals.filter(x=>x.geo.relevance==='MISMATCH'&&x.freshness>0).sort((a,b)=>a.age_days-b.age_days)[0]??null;
+ const expired=c.signals.filter(x=>x.freshness===0).sort((a,b)=>a.age_days-b.age_days)[0]??null;
+ const tooOld=expired?` Le signal le plus récent (${named(expired)}) est trop ancien pour compter : sa durée de vie est de ${expired.decay.maxAgeDays} jours.`:'';
+ const offZone=outside?` Le signal récent (${named(outside)}) concerne ${outside.geo.place??'un lieu'}, hors de ${zoneName(c.zone)} : il ne compte pas pour cet ICP.`:'';
+ const fresh_=(x:ClassifiedSignal)=>Math.round(x.freshness*100);
+ switch(rule){
+  case 'CLOSED_PROSPECT':return `Le prospect est déjà clos dans le pipeline (statut ${input.prospect.status}) : aucune nouvelle action.`;
+  case 'OFF_TARGET':return counting
+   ?`Un signal récent existe (${named(counting)}), mais le compte ne correspond pas suffisamment à l’ICP (FIT ${fit}/100, sous le seuil de ${config.fit.dismissBelow}/100).`
+   :`Le compte ne correspond pas suffisamment à l’ICP (FIT ${fit}/100, sous le seuil de ${config.fit.dismissBelow}/100).${tooOld}${offZone}`;
+  case 'EXPLICIT_RECENT_NEED':{const x=bestContact(c,'VERIFIED')!;return `Le besoin est écrit dans une source vérifiée et récent (${named(x)}, fraîcheur ${fresh_(x)} %) : une prise de contact directe est plus pertinente qu’une surveillance.`}
+  case 'RELEVANT_CONVERSATION':return `Une conversation publique pertinente a été publiée ${ago(c.conversation!.age_days)} : intervenir sur le fond avant toute approche commerciale.`;
+  case 'CONTACT_SIGNAL':{const x=bestContact(c,'VERIFIED')!;return `Un signal vérifié et encore frais (${named(x)}, TIMING ${scores.timing.score}/100) donne une raison datée de contacter maintenant.`}
+  case 'SIGNAL_TO_VERIFY':{const x=bestContact(c,'INFERRED')!;return `Un signal récent existe (${named(x)}) mais n’a pas encore été vérifié par une personne : le vérifier avant toute prise de contact.`}
+  case 'SOME_TIMING':return `Le compte correspond à l’ICP (FIT ${fit}/100) et un signal existe${counting?` (${named(counting)})`:''}, mais il n’est pas assez fort ou récent pour une approche (TIMING ${scores.timing.score}/100).`;
+  case 'FIT_WITHOUT_TIMING':return counting
+   ?`Le compte correspond à l’ICP (FIT ${fit}/100), mais le signal récent (${named(counting)}) est trop faible pour justifier une prise de contact maintenant (TIMING ${scores.timing.score}/100).`
+   :`Le compte correspond à l’ICP (FIT ${fit}/100), mais aucun élément récent${c.zone?` dans ${zoneName(c.zone)}`:''} ne justifie une prise de contact maintenant.${tooOld}${offZone}`;
+  case 'UNKNOWN_FIT_FRESH_SIGNAL':return `Un signal récent existe (${named(fresh!)}), mais l’adéquation à l’ICP et/ou le signal doivent encore être vérifiés avant toute prise de contact.`;
+  case 'NOT_ENOUGH':
+   if(fit!==null)return counting
+    ?`Un signal récent existe (${named(counting)}), mais le compte ne correspond pas suffisamment à l’ICP (FIT ${fit}/100, sous le seuil de ${config.fit.watchMin}/100).`
+    :`Le compte ne correspond pas suffisamment à l’ICP (FIT ${fit}/100) et aucun élément récent ne justifie une action.${tooOld}${offZone}`;
+   if(counting)return `Adéquation à l’ICP inconnue, et le signal le plus récent (${named(counting)}) a perdu l’essentiel de sa fraîcheur (${fresh_(counting)} %) : pas assez pour justifier une vérification.`;
+   if(outside||expired)return `Adéquation à l’ICP inconnue.${offZone}${tooOld}`;
+   return 'Les informations disponibles sont insuffisantes pour recommander une action.';
+ }
+}
 
 function explain(c:Ctx,rule:RuleId,target:Target):Explanation{
  const {scores,primary,input}=c;
@@ -274,6 +357,10 @@ function explain(c:Ctx,rule:RuleId,target:Target):Explanation{
   if(s.basis==='explicit_terms')inferred.push({kind:'inference',text:`Type « ${e.label.fr} » déduit des mots « ${s.matched} » écrits dans la source.`,refs:[ref]});
   else inferred.push({kind:'inference',text:`Type « ${e.label.fr} » déduit du type de signal « ${s.base_type} ».`,refs:[ref]});
   if(s.date_basis==='observed_only')unknown.push({kind:'unknown',text:'Date du fait inconnue : seule la date de relevé est connue.',refs:[ref]});
+  if(s.geo.relevance==='MATCH')why_now.push({kind:'fact',text:`Lieu du signal : ${s.geo.place??'—'}, dans ${zoneName(c.zone)}.`,refs:[ref]});
+  else unknown.push({kind:'unknown',text:s.geo.reason==='icp_zone_undefined'?'Pertinence géographique non établie : l’ICP ne définit pas de zone.'
+   :s.geo.reason==='signal_place_unknown'?'Pertinence géographique non établie : le lieu du signal n’est pas connu.'
+   :`Pertinence géographique non établie : ${s.geo.place??'le lieu du signal'} est dans la même région mais hors des départements de ${zoneName(c.zone)}.`,refs:[ref]});
  }else if(primary?.kind==='conversation'){
   const v=primary.conversation,ref:Ref={kind:'public_content',id:v.content_id,source_url:v.source_url};
   why_now.push({kind:'fact',text:`${v.author??'Publication'} ${v.published_at?`le ${day(v.published_at)}`:''} : « ${clip(v.excerpt)} » (${[v.source_domain,ago(v.age_days)].filter(Boolean).join(', ')}).`,refs:[ref]});
@@ -281,16 +368,17 @@ function explain(c:Ctx,rule:RuleId,target:Target):Explanation{
  }else{
   // No reason now — but if a signal exists, say which one and why it no longer counts, with its proof.
   const last=[...c.signals].sort((a,b)=>a.age_days-b.age_days)[0];
-  if(last)why_now.push({kind:last.evidence_status==='VERIFIED'?'fact':'inference',text:`Le signal le plus récent (${entryOf(last.commercial_type).label.fr}, ${ago(last.age_days)}) ne compte plus : sa durée de vie est de ${last.decay.maxAgeDays} jours.`,
-   refs:[{kind:'signal',id:last.signal_id,source_url:last.source_url}]});
-  else why_now.push({kind:'unknown',text:'Aucun signal récent : rien ne justifie d’agir maintenant.',refs:[]});
+  const lastRef=last?[{kind:'signal' as const,id:last.signal_id,source_url:last.source_url}]:[];
+  if(last&&last.freshness===0)why_now.push({kind:last.evidence_status==='VERIFIED'?'fact':'inference',text:`Le signal le plus récent (${named(last)}) ne compte plus : sa durée de vie est de ${last.decay.maxAgeDays} jours.`,refs:lastRef});
+  else if(last&&last.geo.relevance==='MISMATCH')why_now.push({kind:'fact',text:`Le signal le plus récent (${named(last)}) concerne ${last.geo.place??'un lieu'}, hors de ${zoneName(c.zone)} : il ne compte pas pour cet ICP.`,refs:lastRef});
+  else if(last)why_now.push({kind:last.evidence_status==='VERIFIED'?'fact':'inference',text:`Le signal le plus récent (${named(last)}) ne compte pas pour le moment.`,refs:lastRef});
+  else why_now.push({kind:'unknown',text:'Aucun signal sur ce compte.',refs:[]});
  }
+ for(const x of c.signals.filter(x=>x.geo.relevance==='MISMATCH'&&x.freshness>0&&!(primary?.kind==='signal'&&primary.signal.signal_id===x.signal_id)&&why_now.every(w=>w.refs.every(r=>r.id!==x.signal_id))))
+  why_now.push({kind:'fact',text:`Signal non compté : ${named(x)}, à ${x.geo.place??'un lieu'}, hors de ${zoneName(c.zone)}.`,refs:[{kind:'signal',id:x.signal_id,source_url:x.source_url}]});
  if(target.role)inferred.push({kind:'inference',text:`Rôle cible recommandé : ${target.role} (règle du type de signal, aucune personne identifiée par ce moyen).`,refs:[]});
  if(!target.person)unknown.push({kind:'unknown',text:'Personne cible inconnue : aucune source fiable ne la nomme.',refs:[]});
- const fresh=primary?.kind==='signal'?Math.round(primary.signal.freshness*100):primary?.kind==='conversation'?Math.round(primary.conversation.freshness*100):0;
- const reason=fill(ACTION_REASON[rule],{status:input.prospect.status,fit:scores.fit.score??'—',min:c.config.fit.dismissBelow,fresh,timing:scores.timing.score,
-  age:primary?.kind==='conversation'?ago(primary.conversation.age_days):''});
- return {why_this_account,why_now,why_this_action:[{kind:'rule',text:reason,refs:[]}],inferred,unknown};
+ return {why_this_account,why_now,why_this_action:[{kind:'rule',text:actionReason(c,rule),refs:[]}],inferred,unknown};
 }
 
 // ------------------------------------------------------------
@@ -298,7 +386,7 @@ function explain(c:Ctx,rule:RuleId,target:Target):Explanation{
 // ------------------------------------------------------------
 export type Opportunity={
  prospect_id:string;project_id:string;recommended_action:NbaAction;rule:RuleId;scores:Scores;
- primary:{kind:'signal';signal_id:string;commercial_type:CommercialSignalType;evidence_status:EvidenceStatus;age_days:number}
+ primary:{kind:'signal';signal_id:string;commercial_type:CommercialSignalType;evidence_status:EvidenceStatus;age_days:number;geo_relevance:GeoRelevance;place:string|null}
   |{kind:'conversation';content_id:string;age_days:number;relevance_reason:string;suggested_angle:string}|null;
  signal_ids:string[];public_content_ids:string[];evidence_ids:string[];
  target:Target;explanation:Explanation;expires_at:string;fingerprint:string;config_version:string;computed_at:string;
@@ -306,15 +394,17 @@ export type Opportunity={
 
 export function buildOpportunity(input:NbaInput):Opportunity{
  const config=input.config??NBA_DEFAULT_CONFIG;validateConfig(config);
- const classified=input.signals.map(s=>classifySignal(s,input.now,config)).filter((x):x is ClassifiedSignal=>!!x);
+ const zone=icpZoneOf(input.criteria);
+ const classified=input.signals.map(s=>classifySignal(s,input.now,config,zone)).filter((x):x is ClassifiedSignal=>!!x);
  const conversation=relevantConversation(input.publicContent,input.profile,input.now);
  const {scores,primary,corroborating}=scoresOf(input,classified,conversation,config);
- const ctx:Ctx={input,scores,primary,signals:classified,conversation,config};
+ const ctx:Ctx={input,scores,primary,signals:classified,conversation,config,zone};
  const rule=RULES.find(r=>r.when(ctx))!;
  // The driver the decision rests on: for ENGAGE the conversation, for CONTACT the best verified contact signal.
  const driver:Driver|null=rule.action==='ENGAGE'&&conversation?{kind:'conversation',conversation}
   :rule.action==='CONTACT'?(()=>{const s=bestContact(ctx,'VERIFIED');return s?{kind:'signal' as const,signal:s}:primary})()
-  :rule.id==='SIGNAL_TO_VERIFY'?(()=>{const s=bestContact(ctx,'INFERRED');return s?{kind:'signal' as const,signal:s}:primary})():primary;
+  :rule.id==='SIGNAL_TO_VERIFY'?(()=>{const s=bestContact(ctx,'INFERRED');return s?{kind:'signal' as const,signal:s}:primary})()
+  :rule.id==='UNKNOWN_FIT_FRESH_SIGNAL'?(()=>{const s=freshSignal(ctx);return s?{kind:'signal' as const,signal:s}:primary})():primary;
  const roles=driver?.kind==='signal'?[...entryOf(driver.signal.commercial_type).targetRoles]:[];
  const target:Target={role:roles[0]??null,role_alternatives:roles.slice(1),role_basis:roles.length?'signal_type_rule':null,
   person:driver?.kind==='conversation'&&driver.conversation.author?{name:driver.conversation.author,basis:'public_content_author',ref:{kind:'public_content',id:driver.conversation.content_id,source_url:driver.conversation.source_url}}:null};
@@ -329,11 +419,13 @@ export function buildOpportunity(input:NbaInput):Opportunity{
  const public_content_ids=conversation&&(driver?.kind==='conversation'||conversation.timing>0)?[conversation.content_id]:[];
  const evidence_ids=[...new Set(scores.fit.lines.flatMap(l=>l.ref?[l.ref.id]:[]))].slice(0,50);
  const primaryOut:Opportunity['primary']=driver?.kind==='signal'
-  ?{kind:'signal',signal_id:driver.signal.signal_id,commercial_type:driver.signal.commercial_type,evidence_status:driver.signal.evidence_status,age_days:driver.signal.age_days}
+  ?{kind:'signal',signal_id:driver.signal.signal_id,commercial_type:driver.signal.commercial_type,evidence_status:driver.signal.evidence_status,age_days:driver.signal.age_days,
+   geo_relevance:driver.signal.geo.relevance,place:driver.signal.geo.place}
   :driver?.kind==='conversation'?{kind:'conversation',content_id:driver.conversation.content_id,age_days:driver.conversation.age_days,
    relevance_reason:`Le contenu mentionne « ${driver.conversation.matched} »${driver.conversation.topic?` (${driver.conversation.topic.label.fr})`:''}.`,
    suggested_angle:driver.conversation.topic?.angle.fr??`Intervenir sur « ${driver.conversation.matched} », un sujet de votre offre.`}:null;
- const fingerprint=[rule.action,primaryOut?.kind==='signal'?primaryOut.signal_id:primaryOut?.kind==='conversation'?primaryOut.content_id:'none'].join(':');
+ // The engine version is part of the identity: a new version always re-states its reasons, even for the same action.
+ const fingerprint=[config.version,rule.action,primaryOut?.kind==='signal'?primaryOut.signal_id:primaryOut?.kind==='conversation'?primaryOut.content_id:'none'].join(':');
  void corroborating;
  return {prospect_id:input.prospect.id,project_id:input.prospect.project_id,recommended_action:rule.action,rule:rule.id,scores,primary:primaryOut,
   signal_ids,public_content_ids,evidence_ids,target,explanation,expires_at:new Date(expires).toISOString(),fingerprint,config_version:config.version,computed_at:input.now.toISOString()};

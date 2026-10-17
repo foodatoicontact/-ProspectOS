@@ -79,8 +79,8 @@ async function loadProject(db:SupabaseClient,projectId:string){
  const signals:NbaSignal[]=[];const content:(NbaPublicContent&{prospect_id:string})[]=[];
  for(let i=0;i<ids.length;i+=CHUNK){
   const slice=ids.slice(i,i+CHUNK);
-  for(const r of await checked(db.from('signals').select('id,prospect_id,provider,signal_type,status,title,excerpt,source_url,source_domain,source_type,confidence,event_date,published_at,observed_at,matched_terms,event_key')
-   .in('prospect_id',slice).in('status',['VERIFIED','PENDING_REVIEW']).limit(2000)))signals.push({...signalRow(r),provider:r.provider,event_key:r.event_key,prospect_id:r.prospect_id} as NbaSignal&{prospect_id:string});
+  for(const r of await checked(db.from('signals').select('id,prospect_id,provider,signal_type,status,title,excerpt,source_url,source_domain,source_type,confidence,event_date,published_at,observed_at,matched_terms,event_key,raw_metadata')
+   .in('prospect_id',slice).in('status',['VERIFIED','PENDING_REVIEW']).limit(2000)))signals.push({...signalRow(r),provider:r.provider,event_key:r.event_key,raw_metadata:r.raw_metadata??null,prospect_id:r.prospect_id} as NbaSignal&{prospect_id:string});
   for(const r of await checked(db.from('prospect_public_content').select('id,prospect_id,status,source_url,source_domain,author,content,published_at,observed_at')
    .in('prospect_id',slice).eq('status','VERIFIED').limit(2000)))content.push(r);
  }

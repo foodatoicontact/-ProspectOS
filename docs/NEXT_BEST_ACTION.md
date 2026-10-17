@@ -75,7 +75,7 @@ référence (signal, contenu, preuve) appartient au prospect et au tenant.
 - Les seuils V1 sont des choix explicites, documentés et versionnés (`config_version`), pas des valeurs apprises.
 - Dépendance de branche : la PR NBA contient la PR Signal-first (#31) tant que celle-ci n'est pas fusionnée.
 
-## 5. Modèle de score (config `nba-v1-2026-10`, `src/nba/engine.ts` `NBA_DEFAULT_CONFIG`)
+## 5. Modèle de score (config `nba-v1.1-2026-10`, `src/nba/engine.ts` `NBA_DEFAULT_CONFIG`)
 
 Chaque score va de 0 à 100 et garde ses lignes (`scores.*.lines`) ; aucun n'est masqué derrière le total.
 
@@ -104,7 +104,28 @@ fonds, nouveau dirigeant, implantation… reprennent celles de l'Intent Engine (
 | 6 | SIGNAL_TO_VERIFY | WATCH | meilleur signal « contact » **INFERRED** (non revu), fraîcheur ≥ 50 %, FIT ≥ 50 |
 | 7 | SOME_TIMING | WATCH | TIMING ≥ 15, FIT ≥ 50 |
 | 8 | FIT_WITHOUT_TIMING | WAIT | FIT ≥ 50 |
-| 9 | NOT_ENOUGH | DISMISS | sinon (FIT inconnu ou faible, aucun moment) |
+| 9 | UNKNOWN_FIT_FRESH_SIGNAL | WATCH | FIT **inconnu** + signal non rejeté, fraîcheur ≥ 50 %, pas hors zone (v1.1) |
+| 10 | NOT_ENOUGH | DISMISS | sinon (FIT faible ou inconnu sans signal frais) |
+
+### Correctif canary 1 (v1.1, 2026-10-17)
+
+Canary 6XPOS sur staging : 10 DISMISS sur 10 et une explication fausse (« ni un signal récent » à côté d'un signal de
+5 jours). Trois corrections, rien d'autre (poids, seuils FIT, demi-vies, expirations, règles CONTACT / ENGAGE inchangés) :
+
+- **FIT inconnu ≠ FIT faible ≠ hors ICP** : un signal frais non rejeté donne WATCH (« à vérifier par une personne »), jamais
+  CONTACT (toutes les règles CONTACT exigent un FIT connu).
+- **WHY_THIS_ACTION dérivé de l'état réel** (`actionReason`) : signal récent présent, signal trop ancien (nommé, avec sa
+  durée de vie), signal hors zone (nommé, avec son lieu), FIT faible, ou informations insuffisantes — jamais une phrase
+  générique.
+- **SIGNAL_GEO_RELEVANCE** (`geoRelevance`) : zone = localisations `target_fit` de l'ICP résolues en codes de département /
+  régions (geo-fr : régions, départements, préfectures — une commune plus petite saisie dans l'ICP n'est pas résolue, donc pas de zone) ; lieu du signal = `raw_metadata.location` structuré de Signal-first. MATCH (département de la
+  zone, ou région nommée en entier), MISMATCH (toutes ses régions hors zone : TIMING 0 pour cet ICP), UNKNOWN (pas de zone,
+  lieu non structuré, ou même région mais autre département) : compté comme avant, l'incertitude est écrite. Aucune
+  comparaison de texte.
+- La version de configuration fait partie de l'empreinte : un recalcul par une nouvelle version réécrit ses raisons.
+
+Restent pour une phase suivante (documentés, non traités) : rôle cible CHR (gérant / franchisé plutôt que CEO) et
+distinction enseigne / établissement local.
 
 Conséquences voulues : FIT 95 sans signal → WAIT ; un signal non vérifié ne déclenche jamais CONTACT ; un besoin explicite
 frais l'emporte sur une conversation ; un signal de 6 mois → WAIT, et l'explication le nomme, avec sa source.

@@ -24,7 +24,7 @@ test('llms.txt: the llmstxt.org shape — title, summary, sections of absolute l
  assert.match(t,/ProspectOS Équipe[^\n]*jusqu’à 5 comptes/);
  assert.match(t,/Entreprise[^\n]*sur devis/);
  for(const [plan,q] of [['Solo',PLAN_QUOTAS.BETA],['Pro',PLAN_QUOTAS.PRO]] as const)assert.ok(t.includes(`${q.discovery} recherches`)&&t.includes(`${q.analysis} analyses de prospects`),plan);
- assert.ok(t.includes(`essai gratuit de 7 jours`)&&t.includes(`${PLAN_QUOTAS.TRIAL.discovery} recherches`),'trial');
+ assert.ok(!/essai gratuit/i.test(t)&&t.includes(`${PLAN_QUOTAS.TRIAL.discovery} recherches`),'starting volumes stated, no free-trial promise (ZF1)');
  for(const p of seoPages)assert.ok(t.includes(`(${SITE_URL}/${p.slug})`),`link to ${p.slug}`);
  for(const re of FORBIDDEN)assert.doesNotMatch(t,re);
 });

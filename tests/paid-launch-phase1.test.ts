@@ -30,7 +30,7 @@ const welcome=page.match(/if\(mode==='welcome'\)return <main className="welcome"
 test('pricing — /tarifs states Solo 49 € and Pro 99 € per month, the trial, Team second, all read from plans.ts',()=>{
  const t=getSeoPage('tarifs');const all=JSON.stringify(t);
  assert.equal(CHECKOUT_PRICES.BETA.unitAmount,4900);assert.equal(CHECKOUT_PRICES.PRO.unitAmount,9900);
- assert.match(t.h1,/7 jours gratuitement, puis choisissez Solo ou Pro/);
+ assert.doesNotMatch(`${t.h1} ${t.title} ${t.description}`,/gratuit/i,'ZF1: no free-trial promise');
  assert.ok(all.includes('ProspectOS Solo — 49 € par mois')&&all.includes('ProspectOS Pro — 99 € par mois'));
  assert.ok(all.includes(`${PLAN_QUOTAS.BETA.discovery} recherches de prospects`)&&all.includes(`${PLAN_QUOTAS.PRO.discovery} recherches de prospects`));
  assert.doesNotMatch(t.title,/Entreprise/,'the Enterprise offer is not promoted in the title');
@@ -57,12 +57,12 @@ test('pricing — no annual price, no fake scarcity, no unsupported ranking or "
 
 // ---------------------------------------------------------------- trial copy
 test('trial — 7 days, no card, said on the home page, /tarifs and the CGV; no subscription starts by itself',async()=>{
- assert.equal(fr['landing.trialCta'],'Démarrer mon essai gratuit — 7 jours');
+ assert.equal(fr['landing.trialCta'],'Créer mon compte');
  assert.equal(fr['landing.trialSub'],'Aucune carte bancaire requise pour commencer.');
- assert.match(pricingPage,/Essai gratuit de 7 jours, sans carte bancaire/);
- assert.match(pricingPage,/Aucun abonnement n’est souscrit automatiquement à la fin de l’essai\./);
+ assert.match(pricingPage,/Le compte se crée sans carte bancaire/);
+ assert.match(pricingPage,/Aucun abonnement n’est souscrit automatiquement/);
  assert.match(await read('../app/cgv/page.tsx'),/À la fin de l’essai, aucun abonnement n’est souscrit automatiquement et aucune somme n’est due/);
- assert.equal(fr['pricing.trialLimits'],`Essai 7 jours : ${PLAN_QUOTAS.TRIAL.discovery} recherches de prospects · ${PLAN_QUOTAS.TRIAL.analysis} analyses de prospects · ${PLAN_QUOTAS.TRIAL.aiOffer} analyses d’offre IA`);
+ assert.equal(fr['pricing.trialLimits'],`Démarrage du compte : ${PLAN_QUOTAS.TRIAL.discovery} recherches de prospects · ${PLAN_QUOTAS.TRIAL.analysis} analyses de prospects · ${PLAN_QUOTAS.TRIAL.aiOffer} analyses d’offre IA`);
 });
 
 // ---------------------------------------------------------------- "bêta" removed from user-facing text
@@ -126,7 +126,7 @@ test('/tarifs — every call to action leads to the free trial (sign-up), never 
  assert.match(pricingPage,/export const TRIAL_SIGNUP_HREF='\/#inscription';/);
  const code=pricingPage.replace(/^\s*\/\/.*$/gm,'');
  assert.doesNotMatch(code,/startCheckout|billing\/checkout|onClick|'use client'|fetch\(/,'a static page: no payment call, no script');
- const t=getSeoPage('tarifs');assert.equal(t.cta.href,'/#inscription');assert.equal(t.cta.label,'Démarrer mon essai gratuit — 7 jours');
+ const t=getSeoPage('tarifs');assert.equal(t.cta.href,'/#inscription');assert.equal(t.cta.label,'Créer mon compte');
  assert.match(welcome,/<section className="login card" id="inscription">/,'the anchor exists on the home page');
 });
 

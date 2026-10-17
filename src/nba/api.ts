@@ -19,6 +19,7 @@ import {intentProfileOf,signalRow} from '../signals/context.ts';
 import {buildOpportunity,todayOf,byPriority,NBA_ACTIONS,NBA_DEFAULT_CONFIG,NBA_OUTCOMES,type NbaPublicContent,type NbaSignal,type Opportunity,type QueueItem} from './engine.ts';
 import {prepareContent} from './content.ts';
 import {COMMERCIAL_SIGNAL_TYPES} from './registry.ts';
+import {shouldRecompute,type RecomputeReason} from '../ux/zero-friction.ts';
 
 export function nextBestActionEnabled(env:Record<string,string|undefined>):boolean{
  const v=(env.NEXT_BEST_ACTION_ENABLED??'').trim().toLowerCase();
@@ -68,6 +69,8 @@ async function rpc(query:PromiseLike<any>){
   if(msg.includes('not found'))throw Error('NOT_FOUND');throw Error('DATABASE_REQUEST_FAILED')}
  return data;
 }
+// "Aujourd'hui" (ZF1) also reads the stored scores (the FIT profile: what supports, what is missing).
+const HOME_COLUMNS_EXTRA=',scores,computed_at';
 const QUEUE_COLUMNS='id,project_id,prospect_id,recommended_action,rule,state,opportunity_score,fit_score,fit_basis,intent_score,timing_score,freshness_score,evidence_quality_score,primary_kind,primary_signal_type,primary_evidence_status,signal_age_days,primary_detail,target,explanation,prepared_content,computed_at,expires_at,snoozed_until,human_action,outcome,prospects(name,city,website,status)';
 
 // Everything the engine needs for the project's prospects, read as the member (RLS).
@@ -102,6 +105,31 @@ export function computeProject(data:Awaited<ReturnType<typeof loadProject>>,now:
  return {opportunities,items};
 }
 
+// A recommendation identical (same fingerprint) to the prospect's LATEST one, which a person closed (REJECTED / DONE),
+// is not proposed again by the automatic recomputation. Pure: history = that prospect's rows, any order.
+export function dropClosedUnchanged<T extends Record<string,unknown>>(items:T[],history:{prospect_id:string;fingerprint:string;state:string;created_at:string}[]):T[]{
+ const latest=new Map<string,{fingerprint:string;state:string;created_at:string}>();
+ for(const r of history){const cur=latest.get(r.prospect_id);if(!cur||r.created_at>cur.created_at)latest.set(r.prospect_id,r)}
+ return items.filter(i=>{const l=latest.get(String(i.prospect_id));return !(l&&(l.state==='REJECTED'||l.state==='DONE')&&l.fingerprint===i.fingerprint)});
+}
+// The computation behind "Recalculer" and the ZF1 automatic recomputation. skipClosed: drop a recommendation whose
+// fingerprint equals the prospect's latest one that a person closed (REJECTED / DONE) — never re-proposed unchanged.
+async function computeAndSave(db:SupabaseClient,project_id:string,now:Date,skipClosed:boolean){
+ await rpc(db.rpc('refresh_nba_states',{p_project_id:project_id}));
+ const data=await loadProject(db,project_id);
+ const {opportunities,items:all}=computeProject(data,now);
+ let items=all;
+ if(skipClosed&&all.length){
+  const ids=all.map(i=>String(i.prospect_id));const history:{prospect_id:string;fingerprint:string;state:string;created_at:string}[]=[];
+  for(let i=0;i<ids.length;i+=CHUNK)history.push(...(await checked(db.from('nba_actions').select('prospect_id,fingerprint,state,created_at').in('prospect_id',ids.slice(i,i+CHUNK)).order('created_at',{ascending:false}).limit(2000))??[]));
+  items=dropClosedUnchanged(all,history);
+ }
+ const totals={created:0,unchanged:0,superseded:0,kept_approved:0,skipped_closed:all.length-items.length};
+ for(let i=0;i<items.length;i+=CHUNK){const r=await rpc(db.rpc('save_nba_actions',{p_project_id:project_id,p_items:items.slice(i,i+CHUNK)}));for(const k of ['created','unchanged','superseded','kept_approved'] as const)totals[k]+=Number(r?.[k]??0)}
+ const byAction=Object.fromEntries(NBA_ACTIONS.map(a=>[a,opportunities.filter(o=>o.recommended_action===a).length]));
+ return {prospects:opportunities.length,by_action:byAction,...totals,config_version:NBA_DEFAULT_CONFIG.version};
+}
+
 export async function handleNextBestActions(request:Request,path:string[],body:unknown,db:SupabaseClient,json:Json,deps:NbaDeps):Promise<Response|null>{
  if(!isNbaPath(path))return null;
  if(!deps.enabled)return json(NOT_AVAILABLE,404);
@@ -112,14 +140,25 @@ export async function handleNextBestActions(request:Request,path:string[],body:u
    if(method==='POST'&&sub==='compute'){
     z.object({}).strict().parse(body??{});
     await deps.requireEntitlement();
+    return json(await computeAndSave(db,project_id,deps.now(),false),201);
+   }
+   // ZF1 — the automatic recomputation of "Aujourd'hui": the same computation as the manual button, run only when
+   // nothing was computed yet, the newest computation is older than the TTL, or the user just changed what NBA reads.
+   // Never on a timer. A recommendation a person already closed (REJECTED / DONE) is not re-proposed unchanged.
+   if(method==='POST'&&sub==='ensure-fresh'){
+    const {reason}=z.object({reason:z.enum(['open','data_changed'])}).strict().parse(body??{});
     const now=deps.now();
+    const newest=await checked(db.from('nba_actions').select('computed_at').eq('project_id',project_id).order('computed_at',{ascending:false}).limit(1));
+    const last=(newest??[])[0]?.computed_at??null;
+    if(!shouldRecompute(reason as RecomputeReason,last,now))return json({recomputed:false,reason:'FRESH',computed_at:last});
+    try{await deps.requireEntitlement()}catch{return json({recomputed:false,reason:'ENTITLEMENT_REQUIRED',computed_at:last})}
+    return json({recomputed:true,...await computeAndSave(db,project_id,now,true)});
+   }
+   if(method==='GET'&&sub==='home'){
     await rpc(db.rpc('refresh_nba_states',{p_project_id:project_id}));
-    const data=await loadProject(db,project_id);
-    const {opportunities,items}=computeProject(data,now);
-    const totals={created:0,unchanged:0,superseded:0,kept_approved:0};
-    for(let i=0;i<items.length;i+=CHUNK){const r=await rpc(db.rpc('save_nba_actions',{p_project_id:project_id,p_items:items.slice(i,i+CHUNK)}));for(const k of Object.keys(totals) as (keyof typeof totals)[])totals[k]+=Number(r?.[k]??0)}
-    const byAction=Object.fromEntries(NBA_ACTIONS.map(a=>[a,opportunities.filter(o=>o.recommended_action===a).length]));
-    return json({prospects:opportunities.length,by_action:byAction,...totals,config_version:NBA_DEFAULT_CONFIG.version},201);
+    const rows=await checked(db.from('nba_actions').select(QUEUE_COLUMNS+HOME_COLUMNS_EXTRA).eq('project_id',project_id).eq('state','PENDING')
+     .order('opportunity_score',{ascending:false}).limit(500));
+    return json({items:rows??[]});
    }
    if(method==='GET'&&!sub){
     const url=new URL(request.url);const q=QueueQuery.parse(Object.fromEntries(url.searchParams));

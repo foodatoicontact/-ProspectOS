@@ -47,3 +47,29 @@ export async function recordUxEvent(i:UxEventInput):Promise<'recorded'|'skipped'
   return error?'failed':'recorded';
  }catch{return 'failed'}
 }
+
+// Zero-Friction ZF1 measurement (docs/ZERO_FRICTION.md). Same table, same rules: no actor (not business activity),
+// closed numeric payload, no text, nothing written in Production. One event per kind per client session; the client
+// counts only trusted user clicks/submits (never renders, loads, polling or automatic recomputations).
+export const ZF_KINDS=['ZF_SESSION_STARTED','ZF_TODAY_VIEWED','ZF_FIRST_RECOMMENDATION_VISIBLE','ZF_FIRST_MEANINGFUL_ACTION','ZF_ADVANCED_DETAILS_OPENED'] as const;
+export type ZfKind=typeof ZF_KINDS[number];
+export type ZfEventInput={admin:SupabaseClient|null;env:{VERCEL_ENV?:string;NODE_ENV?:string;UX_AB_ENABLED?:string};enabled:boolean;userId:string;organizationId:string;
+ kind:string;sessionId:string;elapsedMs:number;interactions:number};
+export function zfPayload(i:Pick<ZfEventInput,'kind'|'sessionId'|'elapsedMs'|'interactions'|'userId'>):Record<string,unknown>|null{
+ if(!(ZF_KINDS as readonly string[]).includes(i.kind)||!UUID.test(i.sessionId)||!UUID.test(i.userId))return null;
+ if(!Number.isInteger(i.elapsedMs)||i.elapsedMs<0||i.elapsedMs>86400000||!Number.isInteger(i.interactions)||i.interactions<0||i.interactions>10000)return null;
+ return {schema:1,experiment:'zero_friction_today',session_id:i.sessionId,elapsed_ms:i.elapsedMs,interactions:i.interactions,user_id:i.userId};
+}
+export async function recordZfEvent(i:ZfEventInput):Promise<'recorded'|'skipped'|'duplicate'|'failed'>{
+ if(!i.enabled||!uxAbEnabledFromEnv(i.env)||!UUID.test(i.organizationId))return 'skipped';
+ const payload=zfPayload(i);if(!payload)return 'skipped';
+ try{
+  if(!i.admin)return 'failed';
+  const kind=`ux.${i.kind.toLowerCase()}`;
+  const {data,error}=await i.admin.from('events').select('id').eq('kind',kind).is('actor_id',null).eq('payload->>session_id',i.sessionId).limit(1);
+  if(error)return 'failed';
+  if(data&&data.length)return 'duplicate';
+  const r=await i.admin.from('events').insert({organization_id:i.organizationId,prospect_id:null,actor_id:null,kind,payload});
+  return r.error?'failed':'recorded';
+ }catch{return 'failed'}
+}

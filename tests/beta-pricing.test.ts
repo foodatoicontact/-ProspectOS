@@ -40,7 +40,7 @@ test('Offer — 49 €, 7 days, 20/50/5 in trial and 100/250/25 per paid period 
  assert.match(migration,/trial_analysis_limit int not null default 50/);
  assert.match(migration,/paid_discovery_limit int not null default 100/);
  assert.match(migration,/paid_analysis_limit int not null default 250/);
- assert.equal(fr['pricing.trialLimits'],'Essai 7 jours : 20 recherches de prospects · 50 analyses de prospects · 5 analyses d’offre IA');
+ assert.equal(fr['pricing.trialLimits'],'Démarrage du compte : 20 recherches de prospects · 50 analyses de prospects · 5 analyses d’offre IA');
  assert.equal(fr['pricing.afterTrial'],'Ensuite : ProspectOS Solo à 49 €/mois ou ProspectOS Pro à 99 €/mois.');
 });
 
@@ -51,9 +51,9 @@ test('N — the sign-up card: the trial volumes, then Solo 49 € / Pro 99 € p
  assert.match(page,/<div className="pricing-offer"><ul><li>\{tr\('pricing\.trialLimits'\)\}<\/li><li>\{tr\('pricing\.afterTrial'\)\}<\/li><\/ul><p className="muted">\{tr\('pricing\.terms'\)\}<\/p><a className="text-button see-offers" href="\/tarifs">\{tr\('pricing\.seePricing'\)\} →<\/a><\/div>/);
 });
 test('O — the CTA announces the 7 free days, no card, and that the beta needs one\'s own account',()=>{
- assert.equal(fr['landing.trialCta'],'Démarrer mon essai gratuit — 7 jours');
+ assert.equal(fr['landing.trialCta'],'Créer mon compte','ZF1: no free-trial promise in the CTA');
  assert.equal(fr['landing.trialSub'],'Aucune carte bancaire requise pour commencer.');
- assert.equal(en['landing.trialCta'],'Start my free trial — 7 days');
+ assert.equal(en['landing.trialCta'],'Create my account');
  // While free-trial seats are open (or unknown) the sign-up promises the trial; once they are gone it offers the plans.
  assert.match(page,/onClick=\{\(\)=>login\(true\)\}>\{tr\(trialFull\?'landing\.createAccountCta':'landing\.trialCta'\)\}<\/button>\{trialFull\?<>[\s\S]*?<\/>:<><small className="muted">\{tr\('landing\.trialSub'\)\}<\/small><div className="pricing-offer">/);
 });

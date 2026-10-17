@@ -14,7 +14,8 @@ import {recordApiUsage} from '../../../../src/server/usage';
 import {releaseCommercialUse} from '../../../../src/server/commercial-usage';
 import {newInviteToken,inviteTokenHash,isInviteToken,inviteLink,teamError,TEAM_ERRORS} from '../../../../src/server/team';
 import {createAdminClient} from '../../../../src/server/admin-client';
-import {recordUxEvent,UX_KIND_BY_ACTION} from '../../../../src/server/ux-events';
+import {recordUxEvent,recordZfEvent,UX_KIND_BY_ACTION} from '../../../../src/server/ux-events';
+import {zeroFrictionTodayEnabled} from '../../../../src/ux/zero-friction';
 import {parseUxHeader,UX_HEADER} from '../../../../src/ux/variant';
 import {createHash} from 'node:crypto';
 import {handleSignals} from '../../../../src/signals/api';
@@ -98,7 +99,7 @@ async function handler(request:Request,context:{params:Promise<{path:string[]}>}
  // O1/O2 (src/outreach/api.ts): the caller's own style profile, and public content (pasted by a person, reviewed by a person).
  const outreachResponse=await handleOutreachIntelligence(request,path,body,db,json,{requireEntitlement:()=>requireActiveEntitlement(db,user.id)});if(outreachResponse)return outreachResponse;
  // Next Best Action (src/nba/api.ts, migration 031): decisions and drafts only — nothing is sent. Flag off = 404.
- const nbaResponse=await handleNextBestActions(request,path,body,db,json,{enabled:nextBestActionEnabled(process.env),now:()=>new Date(),requireEntitlement:()=>requireActiveEntitlement(db,user.id)});if(nbaResponse)return nbaResponse;
+ const nbaResponse=await handleNextBestActions(request,path,body,db,json,{enabled:nextBestActionEnabled(process.env)||zeroFrictionTodayEnabled(process.env),now:()=>new Date(),requireEntitlement:()=>requireActiveEntitlement(db,user.id)});if(nbaResponse)return nbaResponse;
  const checked=async(query:PromiseLike<any>)=>{const {data,error}=await query;if(error)throw Error('DATABASE_REQUEST_FAILED');return data};
  if(resource==='organizations'){
  if(request.method==='GET')return json(await checked(db.from('organizations').select('*')));
@@ -247,6 +248,13 @@ async function handler(request:Request,context:{params:Promise<{path:string[]}>}
  return json(changed);
  }
  if(resource==='events'&&request.method==='GET'){const pid=new URL(request.url).searchParams.get('prospect_id');return json(await checked(db.from('events').select('*').eq('prospect_id',pid??'').not('kind','like','ux.%').order('created_at',{ascending:false}).limit(100)))}
+ if(resource==='zf-events'&&request.method==='POST'){
+ // ZF1 measurement: a closed numeric payload; the organization comes from a project the user can read (RLS). Always 202.
+ const b=z.object({kind:z.string().max(40),project_id:z.string().uuid(),session_id:z.string().uuid(),elapsed_ms:z.number().int(),interactions:z.number().int()}).strict().parse(body);
+ const {data:proj}=await db.from('projects').select('organization_id').eq('id',b.project_id).maybeSingle();
+ if(proj)await recordZfEvent({admin:uxAdmin(),env:process.env,enabled:zeroFrictionTodayEnabled(process.env),userId:user.id,organizationId:proj.organization_id,kind:b.kind,sessionId:b.session_id,elapsedMs:b.elapsed_ms,interactions:b.interactions});
+ return json({accepted:true},202);
+ }
  if(resource==='ux-events'&&request.method==='POST'){
  // UX A/B: the only event a browser may ask for is a view, of a prospect the user can read (RLS decides). The organization
  // comes from that row, the user from the session; nothing else from the body is used. Always answered 202: analytics never
@@ -368,6 +376,7 @@ async function handler(request:Request,context:{params:Promise<{path:string[]}>}
   // AI outreach kill switch: only a boolean, never the variable itself. Off = the browser offers no AI outreach.
   ai_outreach_enabled:aiOutreachEnabled(process.env),
   next_best_action_enabled:nextBestActionEnabled(process.env),
+  zero_friction_today_enabled:zeroFrictionTodayEnabled(process.env),
   billing:billingAnswer.error?null:billingAnswer.data??null,
   billing_offers:checkoutAvailability(billingConfig()),
  });

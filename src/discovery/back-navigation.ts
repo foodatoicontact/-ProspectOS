@@ -10,7 +10,7 @@
 //
 // Pure: states in, history operations out. The page applies them to window.history (Next.js keeps its own
 // fields on each entry) and restores its view from the state on popstate. No network, no search, no run.
-export const APP_VIEWS = ['prospects', 'dashboard', 'icp', 'discovery', 'beta-analytics', 'actions'] as const;
+export const APP_VIEWS = ['prospects', 'dashboard', 'icp', 'discovery', 'beta-analytics', 'actions', 'today'] as const;
 export type AppView = typeof APP_VIEWS[number];
 export type AppHistoryState = {
  prospectosView: AppView; projectId: string; runId: string | null; prospectId: string | null; fromDiscovery: boolean;

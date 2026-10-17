@@ -336,16 +336,16 @@ export const seoPages:SeoPage[]=[
     slug:'tarifs',
     navLabel:'Tarifs et offres',
     updated:'2026-10-11',
-    keywords:{primary:'tarif logiciel de prospection B2B',secondary:['prix ProspectOS','abonnement prospection','essai gratuit prospection']},
-    title:'Tarifs ProspectOS : essai gratuit de 7 jours, Solo et Pro',
-    description:`Solo à ${SOLO_EUR} € ou Pro à ${PRO_EUR} € par mois, sans engagement, après un essai gratuit de 7 jours sans carte bancaire. Équipe dès ${TEAM_EUR} € par mois. Quotas et décompte.`,
+    keywords:{primary:'tarif logiciel de prospection B2B',secondary:['prix ProspectOS','abonnement prospection','offres prospection B2B']},
+    title:'Tarifs ProspectOS : Solo, Pro et Équipe',
+    description:`Solo à ${SOLO_EUR} € ou Pro à ${PRO_EUR} € par mois, sans engagement. Équipe dès ${TEAM_EUR} € par mois. Compte créé sans carte bancaire ; quotas et décompte détaillés.`,
     eyebrow:'TARIFS · OFFRES',
-    h1:'Tarifs ProspectOS : essayez 7 jours gratuitement, puis choisissez Solo ou Pro',
-    intro:'ProspectOS vous aide à décider quelles entreprises contacter, pourquoi maintenant, et sur la base de quelles preuves. Commencez par 7 jours d’essai gratuit, sans carte bancaire, puis choisissez un abonnement mensuel sans engagement. Les principes sont identiques dans chaque offre : sources visibles, vérification humaine des preuves, aucun envoi automatique de message. Seuls les volumes changent.',
+    h1:'Les offres ProspectOS : Solo, Pro et Équipe',
+    intro:'ProspectOS vous aide à décider quelles entreprises contacter, pourquoi maintenant, et sur la base de quelles preuves. Chaque offre est un abonnement mensuel sans engagement. Les principes sont identiques dans chaque offre : sources visibles, vérification humaine des preuves, aucun envoi automatique de message. Seuls les volumes changent.',
     sections:[
       {h2:'Les offres et leurs prix mensuels',blocks:[
         {type:'ul',items:[
-          `Essai gratuit — 7 jours, sans carte bancaire : ${TRIAL.discovery} recherches de prospects, ${TRIAL.analysis} analyses de prospects et ${TRIAL.aiOffer} analyses d’offre IA pour toute la durée de l’essai.`,
+          `Création du compte, sans carte bancaire : ${TRIAL.discovery} recherches de prospects, ${TRIAL.analysis} analyses de prospects et ${TRIAL.aiOffer} analyses d’offre IA pour démarrer.`,
           `ProspectOS Solo — ${SOLO_EUR} € par mois, 1 compte : ${SOLO.discovery} recherches de prospects, ${SOLO.analysis} analyses de prospects et ${SOLO.aiOffer} analyses d’offre IA par mois.`,
           `ProspectOS Pro — ${PRO_EUR} € par mois, 1 compte : ${PRO.discovery} recherches de prospects, ${PRO.analysis} analyses de prospects et ${PRO.aiOffer} analyses d’offre IA par mois.`,
           `ProspectOS Équipe — ${TEAM_EUR} € par mois pour ${TEAM_INCL} comptes, + ${TEAM_EXTRA_EUR} € par compte supplémentaire, jusqu’à ${TEAM_MAX} comptes : par compte, ${PRO.discovery} recherches de prospects, ${PRO.analysis} analyses de prospects et ${PRO.aiOffer} analyses d’offre IA par mois, en pot commun pour toute l’équipe.`,
@@ -376,12 +376,11 @@ export const seoPages:SeoPage[]=[
       ]},
     ],
     faq:[
-      {q:'Combien coûte ProspectOS ?',a:`ProspectOS Solo coûte ${SOLO_EUR} € par mois et ProspectOS Pro ${PRO_EUR} € par mois, pour 1 compte. ProspectOS Équipe coûte ${TEAM_EUR} € par mois pour ${TEAM_INCL} comptes, + ${TEAM_EXTRA_EUR} € par compte supplémentaire, jusqu’à ${TEAM_MAX} comptes. Chaque compte commence par un essai gratuit de 7 jours, sans carte bancaire.`},
-      {q:'Que se passe-t-il à la fin de l’essai gratuit ?',a:'Aucun abonnement n’est souscrit automatiquement et rien ne vous est facturé. Vos données restent consultables et exportables ; pour relancer des recherches et des analyses, vous choisissez une offre depuis votre compte.'},
+      {q:'Combien coûte ProspectOS ?',a:`ProspectOS Solo coûte ${SOLO_EUR} € par mois et ProspectOS Pro ${PRO_EUR} € par mois, pour 1 compte. ProspectOS Équipe coûte ${TEAM_EUR} € par mois pour ${TEAM_INCL} comptes, + ${TEAM_EXTRA_EUR} € par compte supplémentaire, jusqu’à ${TEAM_MAX} comptes.`},
       {q:'Que se passe-t-il quand un quota est atteint ?',a:'L’action concernée est refusée jusqu’au renouvellement mensuel ou jusqu’au passage à une offre supérieure. Vos prospects, vos preuves et vos exports restent accessibles.'},
       {q:'Puis-je exporter mes données ?',a:'Oui, dans toutes les offres : export CSV des prospects et export complet des données du compte. La suppression du compte se fait aussi en libre-service.'},
     ],
-    cta:{title:'Essayez ProspectOS sur vos vrais prospects',text:'7 jours gratuits, sans carte bancaire. Vous choisissez votre offre ensuite, depuis votre compte.',href:'/#inscription',label:'Démarrer mon essai gratuit — 7 jours'},
+    cta:{title:'Utilisez ProspectOS sur vos vrais prospects',text:'Créez votre compte, puis choisissez votre offre depuis votre compte.',href:'/#inscription',label:'Créer mon compte'},
     related:['logiciel-prospection-b2b','prospection-ia','a-propos'],
   },
   {
@@ -421,7 +420,7 @@ export const seoPages:SeoPage[]=[
         {type:'callout',title:'Ce que ProspectOS ne fait pas',text:'Il n’envoie aucun message automatiquement, ne vend pas de fichier de contacts, ne déduit pas d’information personnelle à partir de connaissances externes et ne transforme pas une supposition en preuve. Les décisions de contact restent humaines.'},
       ]},
       {h2:'Offres et premiers pas',blocks:[
-        {type:'p',text:`L’essai gratuit dure 7 jours, sans carte bancaire. Ensuite, ProspectOS Solo coûte ${SOLO_EUR} € par mois et ProspectOS Pro ${PRO_EUR} € par mois pour 1 compte ; ProspectOS Équipe coûte ${TEAM_EUR} € par mois pour ${TEAM_INCL} comptes, + ${TEAM_EXTRA_EUR} € par compte supplémentaire, jusqu’à ${TEAM_MAX} comptes. Les quotas et les règles de décompte sont détaillés sur la page des [tarifs](/tarifs). Une démonstration publique avec des données de test est accessible sans compte.`},
+        {type:'p',text:`ProspectOS Solo coûte ${SOLO_EUR} € par mois et ProspectOS Pro ${PRO_EUR} € par mois pour 1 compte ; ProspectOS Équipe coûte ${TEAM_EUR} € par mois pour ${TEAM_INCL} comptes, + ${TEAM_EXTRA_EUR} € par compte supplémentaire, jusqu’à ${TEAM_MAX} comptes. Les quotas et les règles de décompte sont détaillés sur la page des [tarifs](/tarifs). Une démonstration publique avec des données de test est accessible sans compte.`},
       ]},
     ],
     faq:[
@@ -477,7 +476,7 @@ export const seoPages:SeoPage[]=[
     faq:[
       {q:'Qui édite ProspectOS ?',a:'Kevin Cardia, entrepreneur individuel basé à Toulouse. Les informations légales complètes sont dans les [mentions légales](/mentions-legales).'},
       {q:'Comment contacter ProspectOS ?',a:'Par e-mail à prospectos.contact@gmail.com, y compris pour l’offre Entreprise / White Label.'},
-      {q:'Où sont décrits les prix ?',a:'Sur la page des [tarifs](/tarifs) : essai gratuit de 7 jours, offres Solo, Pro et Équipe, offre Entreprise sur devis.'},
+      {q:'Où sont décrits les prix ?',a:'Sur la page des [tarifs](/tarifs) : offres Solo, Pro et Équipe, offre Entreprise sur devis.'},
     ],
     cta:{title:'Découvrir ProspectOS',text:'La démonstration publique est accessible sans compte, avec des données de test.'},
     related:['logiciel-prospection-b2b','tarifs','prospection-b2b'],

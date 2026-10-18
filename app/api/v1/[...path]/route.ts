@@ -15,7 +15,7 @@ import {releaseCommercialUse} from '../../../../src/server/commercial-usage';
 import {newInviteToken,inviteTokenHash,isInviteToken,inviteLink,teamError,TEAM_ERRORS} from '../../../../src/server/team';
 import {createAdminClient} from '../../../../src/server/admin-client';
 import {recordUxEvent,handleZfEvent,UX_KIND_BY_ACTION} from '../../../../src/server/ux-events';
-import {zeroFrictionTodayEnabled} from '../../../../src/ux/zero-friction';
+import {zeroFrictionTodayEnabledFor,zeroFrictionTodayGate} from '../../../../src/ux/zero-friction';
 import {parseUxHeader,UX_HEADER} from '../../../../src/ux/variant';
 import {createHash} from 'node:crypto';
 import {handleSignals} from '../../../../src/signals/api';
@@ -99,7 +99,7 @@ async function handler(request:Request,context:{params:Promise<{path:string[]}>}
  // O1/O2 (src/outreach/api.ts): the caller's own style profile, and public content (pasted by a person, reviewed by a person).
  const outreachResponse=await handleOutreachIntelligence(request,path,body,db,json,{requireEntitlement:()=>requireActiveEntitlement(db,user.id)});if(outreachResponse)return outreachResponse;
  // Next Best Action (src/nba/api.ts, migration 031): decisions and drafts only — nothing is sent. Flag off = 404.
- const nbaResponse=await handleNextBestActions(request,path,body,db,json,{enabled:nextBestActionEnabled(process.env)||zeroFrictionTodayEnabled(process.env),now:()=>new Date(),requireEntitlement:()=>requireActiveEntitlement(db,user.id)});if(nbaResponse)return nbaResponse;
+ const nbaResponse=await handleNextBestActions(request,path,body,db,json,{enabled:nextBestActionEnabled(process.env)||zeroFrictionTodayGate(process.env),now:()=>new Date(),requireEntitlement:()=>requireActiveEntitlement(db,user.id)});if(nbaResponse)return nbaResponse;
  const checked=async(query:PromiseLike<any>)=>{const {data,error}=await query;if(error)throw Error('DATABASE_REQUEST_FAILED');return data};
  if(resource==='organizations'){
  if(request.method==='GET')return json(await checked(db.from('organizations').select('*')));
@@ -251,7 +251,7 @@ async function handler(request:Request,context:{params:Promise<{path:string[]}>}
  if(resource==='zf-events'&&request.method==='POST'){
  // ZF1 measurement (src/server/ux-events.ts handleZfEvent): closed numeric payload, organization from a project the user
  // can read (RLS), outcome logged. Always 202.
- await handleZfEvent(body,db,user,{admin:uxAdmin,env:process.env,enabled:zeroFrictionTodayEnabled(process.env),log:line=>console.info(JSON.stringify(line))});
+ await handleZfEvent(body,db,user,{admin:uxAdmin,env:process.env,enabled:zeroFrictionTodayGate(process.env),log:line=>console.info(JSON.stringify(line))});
  return json({accepted:true},202);
  }
  if(resource==='ux-events'&&request.method==='POST'){
@@ -375,7 +375,8 @@ async function handler(request:Request,context:{params:Promise<{path:string[]}>}
   // AI outreach kill switch: only a boolean, never the variable itself. Off = the browser offers no AI outreach.
   ai_outreach_enabled:aiOutreachEnabled(process.env),
   next_best_action_enabled:nextBestActionEnabled(process.env),
-  zero_friction_today_enabled:zeroFrictionTodayEnabled(process.env),
+  // ZF org canary: the organization of the account's own membership (resolved above), never one the client sends.
+  zero_friction_today_enabled:zeroFrictionTodayEnabledFor(process.env,membership?.organization_id??null),
   billing:billingAnswer.error?null:billingAnswer.data??null,
   billing_offers:checkoutAvailability(billingConfig()),
  });

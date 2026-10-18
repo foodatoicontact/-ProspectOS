@@ -96,14 +96,16 @@ export async function recordZfEvent(i:ZfEventInput):Promise<ZfOutcome>{
 // the session. Always answered 202 (measurement never fails the page); the outcome is logged, never returned.
 export const ZfEventBody=z.object({kind:z.enum(ZF_KINDS),project_id:z.string().uuid(),session_id:z.string().uuid(),
  elapsed_ms:z.number().int().min(0),interactions:z.number().int().min(0)}).strict();
-export async function handleZfEvent(body:unknown,db:SupabaseClient,user:{id:string},deps:{admin:()=>SupabaseClient|null;env:ZfEventInput['env'];enabled:boolean;
+// enabled: a boolean, or (ZF org canary) a test of the project's organization resolved here under the caller's RLS.
+export async function handleZfEvent(body:unknown,db:SupabaseClient,user:{id:string},deps:{admin:()=>SupabaseClient|null;env:ZfEventInput['env'];enabled:boolean|((organizationId:string)=>boolean);
  log:(line:Record<string,unknown>)=>void}):Promise<ZfOutcome>{
  const parsed=ZfEventBody.safeParse(body);
  const outcome:ZfOutcome=!parsed.success?'invalid':await (async()=>{
   const b=parsed.data;
   const {data:proj}=await db.from('projects').select('organization_id').eq('id',b.project_id).maybeSingle();
   if(!proj)return 'invalid';
-  return recordZfEvent({admin:deps.admin(),env:deps.env,enabled:deps.enabled,userId:user.id,organizationId:proj.organization_id,projectId:b.project_id,kind:b.kind,
+  const enabled=typeof deps.enabled==='function'?deps.enabled(proj.organization_id):deps.enabled;
+  return recordZfEvent({admin:deps.admin(),env:deps.env,enabled,userId:user.id,organizationId:proj.organization_id,projectId:b.project_id,kind:b.kind,
    sessionId:b.session_id,elapsedMs:b.elapsed_ms,interactions:b.interactions});
  })();
  deps.log({component:'zf-events',kind:parsed.success?parsed.data.kind:null,outcome});

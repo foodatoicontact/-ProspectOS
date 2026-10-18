@@ -49,7 +49,7 @@ test('1 — flag OFF: everything as before (no Today, NBA routes only with their
  assert.match(page,/\{view==='today'&&mode==='live'&&zfOn&&project&&<TodayPanel/);
  assert.match(page,/const \[view,setView\]=useState\('prospects'\)/,'the historical default view is unchanged');
  const route=await read('app/api/v1/[...path]/route.ts');
- assert.match(route,/enabled:nextBestActionEnabled\(process\.env\)\|\|zeroFrictionTodayEnabled\(process\.env\)/);
+ assert.match(route,/enabled:nextBestActionEnabled\(process\.env\)\|\|zeroFrictionTodayGate\(process\.env\)/);
  const off=await handleNextBestActions(new Request('http://x',{method:'POST'}),['projects','00000000-0000-4000-8000-000000000001','next-best-actions','ensure-fresh'],{reason:'open'},{} as any,
   (v,s=200)=>new Response(JSON.stringify(v),{status:s}),{enabled:false,now:()=>NOW,requireEntitlement:async()=>{}});
  assert.equal(off!.status,404);

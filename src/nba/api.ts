@@ -31,7 +31,15 @@ export function isNbaPath(path:readonly string[]):boolean{
 }
 export const NOT_AVAILABLE={error:'Route ou action non disponible'};
 type Json=(value:unknown,status?:number)=>Response;
-export type NbaDeps={enabled:boolean;now:()=>Date;requireEntitlement:()=>Promise<void>};
+// enabled: true / false, or (ZF org canary, src/ux/zero-friction.ts) a test of the organization this route resolves itself:
+// the project's, or the recommendation's, read under the caller's RLS. Out of scope = the same 404 as a disabled feature.
+export type NbaDeps={enabled:boolean|((organizationId:string)=>boolean);now:()=>Date;requireEntitlement:()=>Promise<void>};
+async function nbaScopeAllows(db:SupabaseClient,path:string[],allowed:(organizationId:string)=>boolean):Promise<boolean>{
+ const [resource,id]=path;
+ if(!uuid.safeParse(id).success)return false;
+ const {data,error}=await db.from(resource==='projects'?'projects':'nba_actions').select('organization_id').eq('id',id!).maybeSingle();
+ return !error&&typeof data?.organization_id==='string'&&allowed(data.organization_id);
+}
 
 const uuid=z.string().uuid();
 const MAX_PROSPECTS=500;
@@ -133,6 +141,7 @@ async function computeAndSave(db:SupabaseClient,project_id:string,now:Date,skipC
 export async function handleNextBestActions(request:Request,path:string[],body:unknown,db:SupabaseClient,json:Json,deps:NbaDeps):Promise<Response|null>{
  if(!isNbaPath(path))return null;
  if(!deps.enabled)return json(NOT_AVAILABLE,404);
+ if(typeof deps.enabled==='function'&&!await nbaScopeAllows(db,path,deps.enabled))return json(NOT_AVAILABLE,404);
  const [resource,id,action,sub]=path;const method=request.method;
  try{
   if(resource==='projects'){

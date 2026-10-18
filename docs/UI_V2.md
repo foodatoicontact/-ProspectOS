@@ -196,26 +196,35 @@ was checked with Playwright: 320 px, 390 px dark, 1440 px, keyboard, reduced mot
 
 ## UI-5B — Recherche 2.0
 
-`src/ui/v2/search/` (`SearchV2.tsx`, `search.css`), rendered by the v2 shell for the Recherche entry when `UI_V2_ENABLED`
-is on. Flag off, `app/page.tsx` renders the legacy Discovery screen unchanged (`tests/ui-v2-search.test.ts` compares
-everything before the v2 branch, and the legacy return, with main byte for byte).
+`src/ui/v2/search/` (`SearchV2.tsx` is the envelope, `SearchNative.tsx` the composition, `model.ts` the words, `search.css`).
+It is rendered by the v2 shell for the Recherche entry when `UI_V2_ENABLED` is on. Flag off, the legacy Discovery screen
+is unchanged. `tests/ui-v2-search.test.ts` compares the legacy markup with main byte for byte. A Playwright run of the
+same demo search, flag off, on main and on this branch gave identical DOM at 390 and 1440 px.
 
-**What it is.** The v2 envelope of the search: the title "Recherche", its purpose in one sentence (each result is to be
-checked at its source before it becomes a prospect), the notice and paywall banners, and the existing `DiscoveryPanel`.
-The panel is the same element with the same props as on the legacy screen, mounted once. That covers the form,
-providers, runs, quotas, novelty, review priority, add / ignore, history and replay. It is restyled with tokens only
-(`.pos-ui .pos-search`), in light and dark. Its markup, its responsive grid and its logic are unchanged.
+**One logic, two compositions.** DiscoveryPanel keeps its state, effects, search, add / ignore, history, novelty, runs
+and quotas exactly as they were. It gains two things:
+- `factsOf(r)`: the per-result facts (class, resolution, state, novelty, already a prospect, score). The expressions moved
+  verbatim out of the legacy card, which now reads them from there too.
+- An optional `view` prop. With it, the panel hands its own state, derived lists and handlers to a v2 composition
+  (`DiscoveryView`). Without it, the legacy markup is rendered as before.
 
-**What does not change.** Nothing in `src/components/DiscoveryPanel.tsx`, `src/discovery/**`, the providers, scoring,
-quotas, NBA / ZF, Stripe or pricing. Every state stays written (Candidat, Nouveau, Ajouté…), never shown by colour alone.
+The v2 view calls no API, no provider and no quota. No rule, payload or poll changed.
 
-**Limit.** The panel's form and results are restyled, not rewritten. Rewriting them natively means extracting
-DiscoveryPanel's logic (runs, polling, add / ignore, history) out of its markup. That is a refactor of the Discovery
-screen, outside this phase.
+**Hierarchy.** Recherche → résultats → pourquoi cette entreprise → source / contexte → action humaine.
+- **Form:** what to look for and where, then one button. The categories, maximum, search mode, target, source and
+  headcount are in "Plus de réglages", all kept. After a search the form folds into one line ("Modifier la recherche").
+- **Results:** they lead. One card per company: name, place, novelty and state, "Pourquoi elle correspond" (the review
+  priority and its reasons), "Source" (host, source type, third party, resolution), "Vérification" in words, then the
+  legacy actions with the same conditions and handlers. A discovered company carries no proof: it is "À documenter".
+  An added one shows its prospect's FIT in words (Vérifié / Estimé / À documenter). A source that names no company stays
+  "Entreprise non identifiée", never a signal or a proof. The numbers (current score, confidence) are in "Détails avancés".
+- **Novelty filter:** toggle buttons with counts. **History:** the runs with "Voir les résultats" / "Rejouer la recherche".
+  ≥ 1200 px it sits beside the results.
 
-**Bench.** `/ui-v2/search` (Preview, same flag): the real panel in demo mode (synthetic TEST companies, local storage
-only, no network). The browser was checked with Playwright at 320 px, 390 px dark and 1440 px light and dark (run, add,
-ignore, history).
+**Bench.** `/ui-v2/search?state=results|empty|loading|error|quota|start|demo` (Preview, same flag). The first six are
+frozen DiscoveryView states (fictitious data, every action only listed on the page). `demo` is the real DiscoveryPanel in
+demo mode (synthetic TEST companies, local storage only). The browser was checked with Playwright at 320 px, 390 px dark
+and 1440 px light and dark, with keyboard and reduced motion, covering every state and a real demo search.
 
 ## WEB-1 / WEB-2 — Public site 2.0
 

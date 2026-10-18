@@ -2,10 +2,8 @@
 // Recherche 2.0 (UI-5B, docs/UI_V2.md) — the v2 "Recherche" entry. Rendered by the v2 shell only (UI_V2_ENABLED); flag
 // OFF, app/page.tsx renders the legacy Discovery screen exactly as before.
 // The search itself — form, providers, runs, quotas, novelty, review priority, add / ignore, history, replay — is the
-// existing DiscoveryPanel, passed in by app/page.tsx with the very props of the legacy screen and rendered unchanged
-// inside a v2-themed island (.pos-island--discovery, search.css). Nothing here calls the API, starts a search or
-// decides: this screen only gives the search the v2 envelope (title, purpose, banners, light / dark, mobile). The active
-// project, its offer and its ICP stay in the panel's own "Projet actif" block.
+// existing DiscoveryPanel, passed in by app/page.tsx with the very props of the legacy screen plus `view`: its state and
+// actions composed natively by SearchNative.tsx. Nothing here calls the API, starts a search or decides.
 import type {ReactNode} from 'react';
 import './search.css';
 import type {Locale} from '../../../i18n/locale.ts';
@@ -20,7 +18,7 @@ export const SEARCH_TEXT:Record<Locale,{title:string;intro:string;dismiss:string
 
 export type SearchV2Props={locale:Locale;
  top:ReactNode;notice:string;onDismissNotice:()=>void;paywall:{text:string;action:string;onAction:()=>void;onDismiss:()=>void}|null;
- // The legacy DiscoveryPanel element, with the legacy props.
+ // The legacy DiscoveryPanel element, with the legacy props and view={SearchNative}.
  panel:ReactNode};
 
 export function SearchV2(p:SearchV2Props){
@@ -37,7 +35,7 @@ export function SearchV2(p:SearchV2Props){
     <h2 className="pos-search__title">{t.title}</h2>
     <p className="pos-search__intro">{t.intro}</p>
    </header>
-   <div className="pos-island pos-island--discovery">{p.panel}</div>
+   {p.panel}
   </div>
  </div>;
 }

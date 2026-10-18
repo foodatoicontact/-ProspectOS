@@ -100,7 +100,7 @@ test('10 — Discovery unchanged: the form is pre-filled once, never launched; t
  const effect=panel.slice(panel.indexOf('const prefillApplied'),panel.indexOf('const prefillApplied')+400);
  assert.match(effect,/useEffect\(\(\)=>\{if\(!prefill\|\|activeRunId\)return;setFields\(f=>\(\{\.\.\.f,query:f\.query\|\|prefill\.query,location:f\.location\|\|prefill\.location,categories:f\.categories\|\|prefill\.categories\.join\(', '\)\}\)\);/);
  assert.doesNotMatch(effect,/search\(|api\(/,'pre-filling never searches');
- assert.match(panel,/prefill=null,onPrefillUsed\}/,'absent by default: the panel behaves as before');
+ assert.match(panel,/prefill=null,onPrefillUsed,view\}/,'absent by default: the panel behaves as before (view: UI-5B, optional)');
  assert.match(page,/prefill=\{discoveryPrefill\?\.projectId===projectId\?discoveryPrefill:discoveryPrefillFromIcp\(criteria\)\} onPrefillUsed=\{\(\)=>setDiscoveryPrefill\(null\)\}/);
 });
 test('11, 12 — auth and billing untouched by the quick start',()=>{

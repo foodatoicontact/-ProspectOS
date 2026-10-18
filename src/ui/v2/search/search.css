@@ -1,6 +1,6 @@
-/* Recherche 2.0 (UI-5B). Scoped to .pos-ui .pos-search, tokens only. The DiscoveryPanel keeps its markup and its
-   responsive layout (app/globals.css: grid areas per breakpoint); this file only re-says its look in v2 — surfaces,
-   type, borders, pills, fields, buttons — so it reads as one product in light and dark, on a phone and on a desktop. */
+/* Recherche 2.0 (UI-5B). Scoped to .pos-ui .pos-search, tokens only. Mobile first: a compact form (what to look for,
+   where, one button), then the results as the main content, one card per company; history after them. ≥ 1200 px: the
+   results column and the history side by side. No score leads: a result says how it is verified in words. */
 
 .pos-ui .pos-search{min-width:0}
 .pos-ui .pos-search__main{padding:var(--pos-space-4) var(--pos-space-4) var(--pos-space-7);min-width:0}
@@ -8,87 +8,149 @@
 .pos-ui .pos-search__title{margin:0;font-size:var(--pos-text-3xl);font-weight:var(--pos-weight-heavy);letter-spacing:-.04em}
 .pos-ui .pos-search__intro{margin:var(--pos-space-1) 0 0;max-width:62ch;font-size:var(--pos-text-base);color:var(--pos-text-2)}
 
-/* ── Island: the DiscoveryPanel in v2 colours ─────────────────────────────────────────────────────────────────────── */
-.pos-ui .pos-search .pos-island{min-width:0;color:var(--pos-text-1);font-size:var(--pos-text-sm)}
-/* The screen title replaces the panel's own heading and process eyebrow (kept for assistive technology). */
-.pos-ui .pos-search .card.discovery>.eyebrow,.pos-ui .pos-search .card.discovery>h2{position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
-.pos-ui .pos-search .card.discovery{padding:0;background:transparent;border:0;border-radius:0;box-shadow:none;color:var(--pos-text-1)}
-.pos-ui .pos-search .pos-island :where(p,li){color:var(--pos-text-2);line-height:var(--pos-leading-normal)}
-.pos-ui .pos-search .pos-island :where(h3,h4){font-family:var(--pos-font-display);color:var(--pos-text-1);letter-spacing:-.02em}
-.pos-ui .pos-search .pos-island b{color:var(--pos-text-1)}
-.pos-ui .pos-search .pos-island a{color:var(--pos-signal);font-weight:var(--pos-weight-semibold);text-decoration:none}
-.pos-ui .pos-search .pos-island a:hover{text-decoration:underline}
-.pos-ui .pos-search .pos-island .muted,.pos-ui .pos-search .pos-island small{color:var(--pos-text-3)}
-.pos-ui .pos-search .pos-island .eyebrow{font-size:var(--pos-text-xs);font-weight:var(--pos-weight-bold);letter-spacing:.06em;text-transform:uppercase;color:var(--pos-text-3)}
-.pos-ui .pos-search .pos-island .note{background:var(--pos-surface-inset);border:1px solid var(--pos-border);border-radius:var(--pos-radius-md);color:var(--pos-text-2);font-size:var(--pos-text-sm)}
-.pos-ui .pos-search .pos-island .pill{background:var(--pos-surface-muted);color:var(--pos-text-2);border-radius:var(--pos-radius-pill);font-size:var(--pos-text-xs);letter-spacing:.02em}
-.pos-ui .pos-search .pos-island :focus-visible{outline:2px solid var(--pos-accent);outline-offset:2px}
+.pos-ui .pos-search .pos-snative{display:grid;gap:var(--pos-space-3);min-width:0}
+.pos-ui .pos-search .pos-snative__layout{display:grid;gap:var(--pos-space-5);min-width:0;margin-top:var(--pos-space-2)}
+.pos-ui .pos-search .pos-snative__main,.pos-ui .pos-search .pos-snative__side{min-width:0}
+.pos-ui .pos-search .pos-snote{margin:0;padding:var(--pos-space-2) var(--pos-space-3);border-radius:var(--pos-radius-md);background:var(--pos-surface-inset);
+ border:1px solid var(--pos-border);color:var(--pos-text-2);font-size:var(--pos-text-sm);overflow-wrap:anywhere}
+.pos-ui .pos-search .pos-snote p{margin:0}
+.pos-ui .pos-search .pos-snote--warn{background:var(--pos-status-verify-bg);border-color:transparent;color:var(--pos-status-verify-fg)}
+.pos-ui .pos-search .pos-snote--error{border-color:var(--pos-status-excluded-fg);color:var(--pos-status-excluded-fg)}
+.pos-ui .pos-search .pos-sres__muted{color:var(--pos-text-3)}
+.pos-ui .pos-search a{color:var(--pos-signal);font-weight:var(--pos-weight-semibold);text-decoration:none;display:inline-flex;align-items:center;gap:3px;overflow-wrap:anywhere}
+.pos-ui .pos-search a:hover{text-decoration:underline}
 
-/* Fields and buttons. */
-.pos-ui .pos-search .pos-island label{color:var(--pos-text-1);font-size:var(--pos-text-sm);font-weight:var(--pos-weight-semibold)}
-.pos-ui .pos-search .pos-island :where(input,select,textarea){min-height:var(--pos-size-target);border:1px solid var(--pos-border-strong);border-radius:var(--pos-radius-md);
- background:var(--pos-surface-card);color:var(--pos-text-1);font-size:var(--pos-text-base)}
-.pos-ui .pos-search .pos-island :where(input,select,textarea):focus-visible{outline:2px solid var(--pos-accent);outline-offset:1px}
-.pos-ui .pos-search .pos-island :where(input,select)::placeholder{color:var(--pos-text-3)}
-.pos-ui .pos-search .pos-island button{min-height:var(--pos-size-target);border:1px solid var(--pos-border-strong);background:var(--pos-surface-card);color:var(--pos-text-1);
- border-radius:var(--pos-radius-md);font-size:var(--pos-text-sm);font-weight:var(--pos-weight-semibold)}
-.pos-ui .pos-search .pos-island button:hover{background:var(--pos-accent-soft)}
-.pos-ui .pos-search .pos-island button.primary{background:var(--pos-accent);border-color:var(--pos-accent);color:var(--pos-on-accent)}
-.pos-ui .pos-search .pos-island button.primary:hover{background:var(--pos-accent-hover)}
-.pos-ui .pos-search .pos-island button.text-button{border-color:transparent;background:transparent;color:var(--pos-accent)}
-.pos-ui .pos-search .pos-island button:disabled{opacity:.55}
-.pos-ui .pos-search .pos-island .more-button{background:transparent;border-style:dashed;color:var(--pos-text-2)}
+/* ── Form: what and where first; the rest in "Plus de réglages" ───────────────────────────────────────────────────── */
+.pos-ui .pos-search .pos-sform{display:grid;gap:var(--pos-space-2);padding:var(--pos-space-4);background:var(--pos-surface-card);border:1px solid var(--pos-border);
+ border-radius:var(--pos-radius-xl);box-shadow:var(--pos-shadow-card);min-width:0}
+.pos-ui .pos-search .pos-sform label{margin:0}
+.pos-ui .pos-search .pos-sform__main{display:grid;gap:var(--pos-space-3);min-width:0}
+.pos-ui .pos-search .pos-sfield{display:grid;gap:6px;min-width:0;margin:0;padding:0;border:0}
+.pos-ui .pos-search .pos-sfield>span,.pos-ui .pos-search .pos-sfield legend{font-size:var(--pos-text-sm);font-weight:var(--pos-weight-semibold);color:var(--pos-text-1);padding:0}
+.pos-ui .pos-search .pos-sfield small{font-size:var(--pos-text-xs);color:var(--pos-text-3)}
+.pos-ui .pos-search .pos-sfield :where(input,select){width:100%;min-height:var(--pos-size-target);margin:0;padding:0 var(--pos-space-3);border:1px solid var(--pos-border-strong);
+ border-radius:var(--pos-radius-md);background:var(--pos-surface-card);color:var(--pos-text-1);font:inherit;font-size:var(--pos-text-base)}
+.pos-ui .pos-search .pos-sfield :where(input,select):focus-visible{outline:2px solid var(--pos-accent);outline-offset:1px}
+.pos-ui .pos-search .pos-sfield input::placeholder{color:var(--pos-text-3)}
+.pos-ui .pos-search .pos-sfield--range{display:flex;flex-wrap:wrap;align-items:flex-end;gap:var(--pos-space-2) var(--pos-space-3)}
+.pos-ui .pos-search .pos-sfield--range legend{width:100%;margin-bottom:6px}
+.pos-ui .pos-search .pos-sfield--range label{display:grid;gap:6px;flex:1 1 120px}
+.pos-ui .pos-search .pos-sfield--range label>span{font-size:var(--pos-text-xs);color:var(--pos-text-2)}
+.pos-ui .pos-search .pos-sform__submit{width:100%}
+.pos-ui .pos-search .pos-sform__more>summary,.pos-ui .pos-search .pos-sdetails>summary{display:flex;align-items:center;justify-content:space-between;gap:var(--pos-space-2);
+ min-height:var(--pos-size-target);cursor:pointer;list-style:none;font-size:var(--pos-text-sm);font-weight:var(--pos-weight-semibold);color:var(--pos-text-2)}
+.pos-ui .pos-search :is(.pos-sform__more,.pos-sdetails)>summary::-webkit-details-marker{display:none}
+.pos-ui .pos-search :is(.pos-sform__more,.pos-sdetails)>summary .pos-icon{flex:none;transition:transform var(--pos-dur-base) var(--pos-ease-standard)}
+.pos-ui .pos-search :is(.pos-sform__more,.pos-sdetails)[open]>summary .pos-icon{transform:rotate(180deg)}
+.pos-ui .pos-search .pos-sform__more{border-top:1px solid var(--pos-hairline)}
+.pos-ui .pos-search .pos-sform__more[open]{display:grid;gap:var(--pos-space-3);padding-bottom:var(--pos-space-2)}
+.pos-ui .pos-search .pos-sform__grid{display:grid;gap:var(--pos-space-3);min-width:0}
+.pos-ui .pos-search .pos-sform--folded{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:var(--pos-space-2);padding:var(--pos-space-2) var(--pos-space-2) var(--pos-space-2) var(--pos-space-4)}
+.pos-ui .pos-search .pos-sform__summary{display:flex;align-items:center;gap:var(--pos-space-2);margin:0;min-width:0;color:var(--pos-text-1);font-size:var(--pos-text-base);overflow-wrap:anywhere}
+.pos-ui .pos-search .pos-sform__summary .pos-icon{flex:none;color:var(--pos-text-3)}
+.pos-ui .pos-search .pos-sdetails{border-radius:var(--pos-radius-lg);min-width:0}
+.pos-ui .pos-search .pos-sdetails--context,.pos-ui .pos-search .pos-sdetails--run{padding:0 var(--pos-space-3);background:var(--pos-surface-inset);border:1px solid var(--pos-border)}
+.pos-ui .pos-search .pos-sdetails[open]{padding-bottom:var(--pos-space-3)}
+.pos-ui .pos-search .pos-sdetails p,.pos-ui .pos-search .pos-sdetails li{margin:var(--pos-space-1) 0;font-size:var(--pos-text-sm);color:var(--pos-text-2);overflow-wrap:anywhere}
+.pos-ui .pos-search .pos-sdetails ul{margin:var(--pos-space-1) 0;padding-left:var(--pos-space-5)}
 
-/* Form, context and run summaries. */
-.pos-ui .pos-search .search-form{padding:var(--pos-space-4);background:var(--pos-surface-card);border:1px solid var(--pos-border);border-radius:var(--pos-radius-xl);box-shadow:var(--pos-shadow-card)}
-.pos-ui .pos-search .search-form>summary{color:var(--pos-text-1);font-size:var(--pos-text-base)}
-.pos-ui .pos-search .search-form form>button.primary{margin-top:var(--pos-space-2)}
-.pos-ui .pos-search .registry-headcount legend{color:var(--pos-text-1)}
-.pos-ui .pos-search .discovery-context{margin:0 0 var(--pos-space-3)}
-.pos-ui .pos-search .discovery-context>summary,.pos-ui .pos-search .discovery-discarded>summary,.pos-ui .pos-search .result-detail>summary,.pos-ui .pos-search .deep-detail>summary{
- color:var(--pos-text-2);font-weight:var(--pos-weight-semibold)}
-.pos-ui .pos-search .run-last,.pos-ui .pos-search .run-current{background:var(--pos-surface-inset);border:1px solid var(--pos-border);border-radius:var(--pos-radius-lg)}
-.pos-ui .pos-search .results-summary{margin:var(--pos-space-4) 0 0;font-size:var(--pos-text-sm)}
+/* ── Results ─────────────────────────────────────────────────────────────────────────────────────────────────────── */
+.pos-ui .pos-search .pos-sresults{display:grid;gap:var(--pos-space-3);min-width:0}
+.pos-ui .pos-search .pos-sresults__head{display:grid;gap:2px}
+.pos-ui .pos-search .pos-sresults__title{margin:0;font-size:var(--pos-text-2xl);font-weight:var(--pos-weight-heavy);letter-spacing:-.03em}
+.pos-ui .pos-search .pos-sresults__head p{margin:0;font-size:var(--pos-text-sm)}
+.pos-ui .pos-search .pos-sresults__list{list-style:none;margin:0;padding:0;display:grid;gap:var(--pos-space-3)}
+.pos-ui .pos-search .pos-sstatus{display:flex;align-items:center;gap:var(--pos-space-2);margin:0;padding:var(--pos-space-4);color:var(--pos-text-2)}
+.pos-ui .pos-search .pos-sspinner{width:16px;height:16px;border-radius:50%;border:2px solid var(--pos-border-strong);border-top-color:var(--pos-accent);animation:pos-sspin .8s linear infinite}
+@keyframes pos-sspin{to{transform:rotate(360deg)}}
 
-/* Results: one card per company. A candidate to review is the default; added / ignored are quieter. */
-.pos-ui .pos-search .discovery-results{margin-top:var(--pos-space-3);gap:var(--pos-space-2)}
-.pos-ui .pos-search .discovery-result{background:var(--pos-surface-card);border:1px solid var(--pos-border);border-radius:var(--pos-radius-lg);box-shadow:var(--pos-shadow-card)}
-.pos-ui .pos-search .discovery-result h3{font-size:var(--pos-text-md);color:var(--pos-text-1)}
-.pos-ui .pos-search .discovery-result p,.pos-ui .pos-search .discovery-result a{font-size:var(--pos-text-sm)}
-.pos-ui .pos-search .discovery-result.state-added,.pos-ui .pos-search .discovery-result.state-ignored{box-shadow:none;background:var(--pos-surface-inset)}
-.pos-ui .pos-search .results-head,.pos-ui .pos-search .history-head{color:var(--pos-text-3);border-color:var(--pos-border)}
+/* Novelty filter: label + count, aria-pressed; scrolls inside itself at 320 px, never the page. */
+.pos-ui .pos-search .pos-snovelty{display:grid;gap:var(--pos-space-2);min-width:0}
+.pos-ui .pos-search .pos-snovelty p{margin:0;font-size:var(--pos-text-sm)}
+.pos-ui .pos-search .pos-snovelty__note{font-size:var(--pos-text-xs)}
+.pos-ui .pos-search .pos-stabs{display:flex;gap:var(--pos-space-2);overflow-x:auto;padding-bottom:2px;-webkit-overflow-scrolling:touch;scrollbar-width:thin}
+.pos-ui .pos-search .pos-stab{flex:none;display:inline-flex;align-items:center;gap:6px;min-height:var(--pos-size-target);padding:0 var(--pos-space-3);border-radius:var(--pos-radius-pill);
+ border:1px solid var(--pos-border-strong);background:var(--pos-surface-card);color:var(--pos-text-2);font:inherit;font-size:var(--pos-text-sm);font-weight:var(--pos-weight-semibold);cursor:pointer}
+.pos-ui .pos-search .pos-stab[aria-pressed="true"]{background:var(--pos-text-1);border-color:var(--pos-text-1);color:var(--pos-bg)}
+.pos-ui .pos-search .pos-stab:focus-visible{outline:2px solid var(--pos-accent);outline-offset:2px}
 
-/* States and novelty: label + tone, never colour alone (the label is always written). Green stays for CONTACT. */
-.pos-ui .pos-search .pill.result-state.state-candidate{background:var(--pos-status-verify-bg);color:var(--pos-status-verify-fg)}
-.pos-ui .pos-search .pill.result-state.state-added{background:var(--pos-status-engage-bg);color:var(--pos-status-engage-fg)}
-.pos-ui .pos-search .pill.result-state.state-ignored,.pos-ui .pos-search .pill.result-state.state-unresolved{background:var(--pos-surface-muted);color:var(--pos-text-2)}
-.pos-ui .pos-search .pill.novelty-new{background:var(--pos-accent);color:var(--pos-on-accent)}
-.pos-ui .pos-search .pill.novelty-seen,.pos-ui .pos-search .pill.novelty-current_run_duplicate{background:var(--pos-surface-muted);color:var(--pos-text-2)}
-.pos-ui .pos-search .pill.novelty-added{background:var(--pos-status-engage-bg);color:var(--pos-status-engage-fg)}
-.pos-ui .pos-search .pill.novelty-ignored{background:var(--pos-status-excluded-bg);color:var(--pos-status-excluded-fg)}
-.pos-ui .pos-search .review-priority.priority-high .pill{background:var(--pos-status-verify-bg);color:var(--pos-status-verify-fg)}
-.pos-ui .pos-search .review-priority.priority-medium .pill,.pos-ui .pos-search .review-priority.priority-low .pill{background:var(--pos-surface-muted);color:var(--pos-text-2)}
-.pos-ui .pos-search .novelty-tab{border:1px solid var(--pos-border-strong);background:var(--pos-surface-card);color:var(--pos-text-2);border-radius:var(--pos-radius-pill)}
-.pos-ui .pos-search .novelty-tab.active{background:var(--pos-text-1);border-color:var(--pos-text-1);color:var(--pos-bg)}
+/* One card per company: name and place, then why / source / verification, then the human action. */
+.pos-ui .pos-search .pos-sres{display:grid;gap:var(--pos-space-3);padding:var(--pos-space-4);background:var(--pos-surface-card);border:1px solid var(--pos-border);
+ border-radius:var(--pos-radius-xl);box-shadow:var(--pos-shadow-card);min-width:0}
+.pos-ui .pos-search .pos-sres--added,.pos-ui .pos-search .pos-sres--ignored{background:var(--pos-surface-inset);box-shadow:none}
+.pos-ui .pos-search .pos-sres__head{display:grid;gap:4px;min-width:0;align-content:start;align-self:start}
+.pos-ui .pos-search .pos-sres__name{margin:0;font-size:var(--pos-text-lg);font-weight:var(--pos-weight-heavy);letter-spacing:-.02em;overflow-wrap:anywhere}
+.pos-ui .pos-search .pos-sres__place{display:flex;align-items:center;gap:6px;margin:0;font-size:var(--pos-text-sm);color:var(--pos-text-2);overflow-wrap:anywhere}
+.pos-ui .pos-search .pos-sres__place .pos-icon{flex:none;color:var(--pos-text-3)}
+.pos-ui .pos-search .pos-sres__tags{display:flex;flex-wrap:wrap;align-items:flex-start;gap:6px;margin:2px 0 0}
+.pos-ui .pos-search .pos-stag{display:inline-flex;align-items:center;min-height:24px;padding:0 var(--pos-space-2);border-radius:var(--pos-radius-pill);background:var(--pos-surface-muted);
+ color:var(--pos-text-2);font-size:var(--pos-text-xs);font-weight:var(--pos-weight-semibold)}
+.pos-ui .pos-search .pos-stag--novelty-new{background:var(--pos-accent);color:var(--pos-on-accent)}
+.pos-ui .pos-search .pos-stag--novelty-added,.pos-ui .pos-search .pos-stag--state-added{background:var(--pos-status-engage-bg);color:var(--pos-status-engage-fg)}
+.pos-ui .pos-search .pos-stag--novelty-ignored{background:var(--pos-status-excluded-bg);color:var(--pos-status-excluded-fg)}
+.pos-ui .pos-search .pos-stag--state-candidate{background:var(--pos-status-verify-bg);color:var(--pos-status-verify-fg)}
+.pos-ui .pos-search .pos-stag--run-failed,.pos-ui .pos-search .pos-stag--run-interrupted{background:var(--pos-status-excluded-bg);color:var(--pos-status-excluded-fg)}
+.pos-ui .pos-search .pos-stag--run-running{background:var(--pos-status-verify-bg);color:var(--pos-status-verify-fg)}
+.pos-ui .pos-search .pos-sres__facts{display:grid;gap:var(--pos-space-2);margin:0;min-width:0;align-content:start}
+.pos-ui .pos-search .pos-sres__facts>div{display:grid;gap:2px;min-width:0}
+.pos-ui .pos-search .pos-sres__facts dt{font-size:var(--pos-text-xs);font-weight:var(--pos-weight-bold);letter-spacing:.05em;text-transform:uppercase;color:var(--pos-text-3)}
+.pos-ui .pos-search .pos-sres__facts dd{margin:0;font-size:var(--pos-text-sm);color:var(--pos-text-1);overflow-wrap:anywhere}
+.pos-ui .pos-search .pos-spriority{font-weight:var(--pos-weight-semibold)}
+.pos-ui .pos-search .pos-spriority--high{color:var(--pos-status-verify-fg)}
+.pos-ui .pos-search .pos-sres__reasons{color:var(--pos-text-2)}
+.pos-ui .pos-search .pos-sverify{display:inline-flex;align-items:center;gap:4px;font-weight:var(--pos-weight-semibold)}
+.pos-ui .pos-search .pos-sverify--verified{color:var(--pos-status-verified-fg)}
+.pos-ui .pos-search .pos-sverify--estimated{color:var(--pos-text-1)}
+.pos-ui .pos-search .pos-sverify--document{color:var(--pos-status-verify-fg)}
+.pos-ui .pos-search .pos-sverify--unknown{color:var(--pos-text-3)}
+.pos-ui .pos-search .pos-sres__actions{display:flex;flex-wrap:wrap;align-items:center;gap:var(--pos-space-2)}
+.pos-ui .pos-search .pos-sres__actions:empty{display:none}
+.pos-ui .pos-search .pos-sres .pos-sdetails{border-top:1px solid var(--pos-hairline);border-radius:0}
+.pos-ui .pos-search .pos-sdiscarded{list-style:none;padding:0}
 
-/* History. */
-.pos-ui .pos-search .run-history{border-color:var(--pos-border)}
-.pos-ui .pos-search .run-history>h3{font-size:var(--pos-text-base)}
-.pos-ui .pos-search .run-card{background:var(--pos-surface-card);border:1px solid var(--pos-border);border-radius:var(--pos-radius-lg)}
-.pos-ui .pos-search .run-card.selected{border-color:var(--pos-accent);background:var(--pos-accent-soft);box-shadow:inset 3px 0 0 var(--pos-accent)}
-.pos-ui .pos-search .run-card h4{color:var(--pos-text-1)}
-.pos-ui .pos-search .run-state-failed,.pos-ui .pos-search .run-state-interrupted{background:var(--pos-status-excluded-bg);color:var(--pos-status-excluded-fg)}
-.pos-ui .pos-search .run-state-running{background:var(--pos-status-verify-bg);color:var(--pos-status-verify-fg)}
-.pos-ui .pos-search .run-novelty{color:var(--pos-text-2)}
+/* ── History ─────────────────────────────────────────────────────────────────────────────────────────────────────── */
+.pos-ui .pos-search .pos-shistory{display:grid;gap:var(--pos-space-3);min-width:0}
+.pos-ui .pos-search .pos-shistory__title{margin:0;font-size:var(--pos-text-lg);font-weight:var(--pos-weight-heavy);letter-spacing:-.02em}
+.pos-ui .pos-search .pos-shistory p{margin:0;font-size:var(--pos-text-sm)}
+.pos-ui .pos-search .pos-slast{display:grid;gap:var(--pos-space-2);padding:var(--pos-space-3);border-radius:var(--pos-radius-lg);background:var(--pos-surface-inset);border:1px solid var(--pos-border)}
+.pos-ui .pos-search .pos-slast .pos-btn{justify-self:start}
+.pos-ui .pos-search .pos-sruns{list-style:none;margin:0;padding:0;display:grid;gap:var(--pos-space-2)}
+.pos-ui .pos-search .pos-srun{display:grid;gap:4px;padding:var(--pos-space-3);border-radius:var(--pos-radius-lg);background:var(--pos-surface-card);border:1px solid var(--pos-border);min-width:0}
+.pos-ui .pos-search .pos-srun.is-current{border-color:var(--pos-accent);box-shadow:inset 3px 0 0 var(--pos-accent)}
+.pos-ui .pos-search .pos-srun__top{display:flex;align-items:center;justify-content:space-between;gap:var(--pos-space-2);font-size:var(--pos-text-xs)}
+.pos-ui .pos-search .pos-srun__query{margin:0;font-family:var(--pos-font-ui);font-size:var(--pos-text-base);font-weight:var(--pos-weight-bold);letter-spacing:0;
+ display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;overflow-wrap:anywhere}
+.pos-ui .pos-search .pos-srun__actions{display:flex;flex-wrap:wrap;gap:var(--pos-space-1) var(--pos-space-2);margin-top:4px}
 
 /* ── Tablet / desktop ─────────────────────────────────────────────────────────────────────────────────────────────── */
 @media (min-width:641px){
  .pos-ui .pos-search__main{padding:var(--pos-space-6) var(--pos-space-6) var(--pos-space-8)}
- .pos-ui .pos-search .search-form{padding:var(--pos-space-5)}
+ .pos-ui .pos-search .pos-sform__main{grid-template-columns:minmax(0,1.6fr) minmax(0,1fr) auto;align-items:end}
+ .pos-ui .pos-search .pos-sform__submit{width:auto}
+ .pos-ui .pos-search .pos-sform__grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+ .pos-ui .pos-search .pos-sfield--range{grid-column:1/-1}
+ /* Dense card: identity on the left, facts in the middle, action on the right. */
+ .pos-ui .pos-search .pos-sres{grid-template-columns:minmax(0,1fr) minmax(0,1.4fr);grid-template-areas:"head facts" "actions actions" "details details";column-gap:var(--pos-space-5)}
+ .pos-ui .pos-search .pos-sres__head{grid-area:head}
+ .pos-ui .pos-search .pos-sres__facts{grid-area:facts}
+ .pos-ui .pos-search .pos-sres>.pos-snote{grid-column:1/-1}
+ .pos-ui .pos-search .pos-sres__actions{grid-area:actions}
+ .pos-ui .pos-search .pos-sres>.pos-sdetails{grid-area:details}
 }
 @media (min-width:1024px){
  .pos-ui .pos-search{min-height:calc(100dvh - 2 * var(--pos-shell-gap,12px));border-radius:26px;overflow:hidden;background:var(--pos-surface-shell);
   border:1px solid var(--pos-glass-border);box-shadow:var(--pos-glass-highlight),var(--pos-shadow-float)}
  .pos-ui .pos-search__main{max-width:1280px;margin:0 auto;padding:var(--pos-space-8)}
+ .pos-ui .pos-search .pos-sform__grid{grid-template-columns:repeat(3,minmax(0,1fr))}
+ .pos-ui .pos-search .pos-sres{grid-template-columns:minmax(0,1fr) minmax(0,1.5fr) auto;grid-template-areas:"head facts actions" "details details details"}
+ .pos-ui .pos-search .pos-sres__actions{flex-direction:column;align-items:stretch;justify-content:flex-start}
 }
-@media (forced-colors:active){.pos-ui .pos-search .discovery-result,.pos-ui .pos-search .run-card,.pos-ui .pos-search .search-form{border:1px solid CanvasText}}
+@media (min-width:1200px){
+ .pos-ui .pos-search .pos-snative__layout{grid-template-columns:minmax(0,1fr) 300px;align-items:start}
+ .pos-ui .pos-search .pos-snative__side{position:sticky;top:var(--pos-space-4)}
+}
+@media (prefers-reduced-motion:reduce){
+ .pos-ui .pos-search .pos-sspinner{animation:none}
+ .pos-ui .pos-search :is(.pos-sform__more,.pos-sdetails)>summary .pos-icon{transition:none}
+}
+@media (forced-colors:active){.pos-ui .pos-search :is(.pos-sres,.pos-srun,.pos-sform,.pos-stab){border:1px solid CanvasText}}

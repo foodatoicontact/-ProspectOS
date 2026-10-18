@@ -1,23 +1,20 @@
 'use client';
-// WEB-1 — the ProspectOS 2.0 public homepage (docs/UI_V2.md), shown by app/page.tsx in place of the legacy welcome screen only
-// when the server says WEB_V2_HOME_ENABLED (Preview). Presentation only: the sign-up / sign-in card, the trial CTA wording,
-// the demo link, the SEO links, the footer and the pricing dialog are the exact nodes and labels of app/page.tsx, passed in,
-// so nothing commercial (trial, prices, CTA destination, legal, signup backend) can differ from main.
-import {useRef,useState,type ReactNode} from 'react';
+// WEB-1 / WEB-2 — the ProspectOS 2.0 public homepage (docs/UI_V2.md), rendered by app/page.tsx in place of the legacy welcome
+// screen when the site is built with NEXT_PUBLIC_WEB_V2_ENABLED (Preview), inside the shared public envelope (same header and
+// footer as /tarifs, the SEO and the legal pages). Presentation only: the sign-up / sign-in card, the trial CTA wording, the
+// demo link and the pricing dialog are the exact nodes and labels of app/page.tsx, passed in, so nothing commercial (trial,
+// prices, CTA destination, legal, signup backend) can differ from main.
+import {useEffect,useRef,useState,type ReactNode} from 'react';
 import '../foundations.css';
 import '../today/today.css';
 import './home.css';
-import {tokensCss} from '../tokens.ts';
 import {Button,Icon,StatusBadge} from '../primitives.tsx';
+import {Mark,PublicFooter,PublicHeader,PublicSiteShell} from '../public/PublicSite.tsx';
 import type {Locale} from '../../../i18n/locale.ts';
 import {HOME_COPY,HERO_DEMO_ID,demoCompanies,type DemoCompany,type HomeCopy} from './copy.ts';
 
-export type HomeV2Props={locale:Locale;localeSwitch:ReactNode;authCard:ReactNode;seoLinks:ReactNode;footer:ReactNode;
- cta:{label:string;sub:string|null};demoLabel:string;onDemo:()=>void;loginLabel:string;onLogin:()=>void;children?:ReactNode};
-
-function Mark(){
- return <span className="pos-mark" aria-hidden="true"><svg viewBox="0 0 24 24" width="18" height="18"><path d="M8 19V5h5a4 4 0 0 1 0 8H8"/><circle cx="17.5" cy="17.5" r="1.6"/></svg></span>;
-}
+export type HomeV2Props={locale:Locale;localeSwitch:ReactNode;authCard:ReactNode;onLocale:(l:Locale)=>void;
+ cta:{label:string;sub:string|null};demoLabel:string;onDemo:()=>void;loginLabel:string;onLogin:()=>void;contactLabel:string;children?:ReactNode};
 
 function SignalLine({c,prefix}:{c:DemoCompany;prefix:string}){
  return <div className="pos-signal">
@@ -93,7 +90,7 @@ function TodayPreview({locale,copy,theme}:{locale:Locale;copy:HomeCopy;theme:'li
  </figure>;
 }
 
-export function HomeV2({locale,localeSwitch,authCard,seoLinks,footer,cta,demoLabel,onDemo,loginLabel,onLogin,children}:HomeV2Props){
+export function HomeV2({locale,localeSwitch,authCard,onLocale,cta,demoLabel,onDemo,loginLabel,onLogin,contactLabel,children}:HomeV2Props){
  const copy=HOME_COPY[locale];
  const [panel,setPanel]=useState<Panel>(null);
  const authRef=useRef<HTMLDivElement>(null);
@@ -102,18 +99,17 @@ export function HomeV2({locale,localeSwitch,authCard,seoLinks,footer,cta,demoLab
   onLogin();
   requestAnimationFrame(()=>{const el=authRef.current;if(!el)return;el.scrollIntoView({block:'start'});el.querySelector<HTMLInputElement>('input[type="email"]')?.focus({preventScroll:true})});
  }
- return <div className="pos-ui pos-canvas pos-home" data-theme="light" data-testid="home-v2">
-  <style href="pos-ui-tokens" precedence="default">{tokensCss()}</style>
-  <header className="pos-home__top">
-   <div className="pos-home__wrap pos-home__topbar">
-    <a className="pos-home__brand" href="/" aria-label={copy.nav.home}><Mark/><span>ProspectOS</span></a>
-    <nav className="pos-home__nav" aria-label={copy.nav.aria}>
-     <a className="pos-home__navlink" href="/tarifs">{copy.nav.pricing}</a>
-     <div className="pos-home__locale">{localeSwitch}</div>
-     <Button variant="secondary" size="sm" onClick={login}>{loginLabel}</Button>
-    </nav>
-   </div>
-  </header>
+ // Arrivals from the other public pages: "Me connecter" (/#connexion) and EN (/?lang=en), handled once, then the URL is cleaned.
+ const arrived=useRef(false);
+ useEffect(()=>{if(arrived.current)return;arrived.current=true;
+  const u=new URL(window.location.href);const lang=u.searchParams.get('lang');
+  if(lang==='fr'||lang==='en'){onLocale(lang);u.searchParams.delete('lang');window.history.replaceState(window.history.state,'',u.toString())}
+  if(u.hash==='#connexion')login();
+ },[]);// eslint-disable-line react-hooks/exhaustive-deps
+ const header=<PublicHeader labels={{...copy.nav,login:loginLabel}} locale={localeSwitch}
+  login={<button type="button" className="pos-pbtn pos-pbtn--secondary pos-pbtn--sm" onClick={login}>{loginLabel}</button>}/>;
+ return <PublicSiteShell className="pos-home" lang={locale} header={header} footer={<PublicFooter labels={{...copy.footer,contact:contactLabel}}/>}>
+  <div data-testid="home-v2">
 
   <main>
    <section className="pos-home__hero pos-home__wrap" aria-labelledby="pos-home-title">
@@ -168,8 +164,7 @@ export function HomeV2({locale,localeSwitch,authCard,seoLinks,footer,cta,demoLab
     <div className="pos-home__auth" ref={authRef}>{authCard}</div>
    </section>
   </main>
-
-  <div className="pos-home__wrap pos-home__bottom">{seoLinks}{footer}</div>
+  </div>
   <div className="pos-legacy">{children}</div>
- </div>;
+ </PublicSiteShell>;
 }

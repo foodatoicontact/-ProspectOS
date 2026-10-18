@@ -1,37 +1,13 @@
 /* WEB-1 — ProspectOS 2.0 public homepage (docs/UI_V2.md). Scoped to .pos-ui.pos-home, tokens only (no literal colour).
-   Mobile first, 16 px gutters; a cool light canvas with the static v2 halos; near-opaque cards; glass only for the depth
-   elements (sticky header, demo stage, preview frames). Legacy nodes passed in by app/page.tsx (sign-up card, locale switch,
-   SEO links, footer) are restyled here without touching their markup or behaviour. */
+   The header, footer and logo are the shared public envelope (src/ui/v2/public/styles.ts); this file holds the homepage
+   sections. Mobile first, 16 px gutters; near-opaque cards; glass only for the demo stage and the preview frames. The legacy
+   sign-up card passed in by app/page.tsx is restyled here without touching its markup or behaviour. */
 
 .pos-ui.pos-home{--pos-home-gutter:16px;--pos-home-max:1180px;overflow-x:clip}
 .pos-ui.pos-home .pos-home__wrap{width:100%;max-width:calc(var(--pos-home-max) + 2 * var(--pos-home-gutter));margin:0 auto;padding-inline:var(--pos-home-gutter)}
 @media (prefers-reduced-motion:no-preference){html:has(.pos-ui.pos-home){scroll-behavior:smooth}}
 .pos-ui.pos-home [id]{scroll-margin-top:84px}
 .pos-ui.pos-home h1,.pos-ui.pos-home h2,.pos-ui.pos-home h3,.pos-ui.pos-home h4{margin:0}
-
-/* ── Header ─────────────────────────────────────────────────────────────────────────────────────────── */
-.pos-ui .pos-home__top{position:sticky;top:0;z-index:var(--pos-z-shell);border-bottom:1px solid var(--pos-glass-border);
- background:var(--pos-glass);-webkit-backdrop-filter:blur(var(--pos-blur-glass)) saturate(150%);backdrop-filter:blur(var(--pos-blur-glass)) saturate(150%)}
-.pos-ui .pos-home__topbar{display:flex;align-items:center;justify-content:space-between;gap:var(--pos-space-2);min-height:64px}
-.pos-ui .pos-home__brand{display:inline-flex;align-items:center;gap:10px;min-height:44px;text-decoration:none;color:var(--pos-text-1);
- font-family:var(--pos-font-display);font-weight:var(--pos-weight-heavy);font-size:var(--pos-text-lg);letter-spacing:-.03em}
-.pos-ui.pos-home a.pos-home__brand{color:var(--pos-text-1)}
-.pos-ui .pos-mark{width:30px;height:30px;border-radius:9px;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;background:var(--pos-mark-bg);box-shadow:var(--pos-mark-shadow)}
-.pos-ui .pos-mark svg{fill:none;stroke:var(--pos-mark-fg);stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round}
-.pos-ui .pos-mark circle{fill:var(--pos-signal-dot);stroke:none}
-.pos-ui .pos-home__nav{display:flex;align-items:center;gap:var(--pos-space-1)}
-/* 320 px: the mark alone (the link keeps its accessible name), so FR | EN and sign-in stay in the bar. */
-@media (max-width:359px){.pos-ui .pos-home__brand>span:not(.pos-mark){position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}}
-.pos-ui.pos-home .pos-home__navlink{display:none;align-items:center;min-height:44px;padding:0 var(--pos-space-3);border-radius:var(--pos-radius-md);
- color:var(--pos-text-2);font-weight:var(--pos-weight-semibold);text-decoration:none}
-.pos-ui.pos-home .pos-home__navlink:hover{background:var(--pos-accent-soft);color:var(--pos-text-1)}
-/* The legacy FR | EN switch, same buttons, v2 look, 44 × 44 targets. */
-.pos-ui .pos-home__locale .locale-switch{display:inline-flex;border:1px solid var(--pos-border);border-radius:var(--pos-radius-md);overflow:hidden;background:var(--pos-surface-card)}
-.pos-ui .pos-home__locale .locale-switch button{min-width:40px;min-height:44px;padding:0 6px;border:0;border-radius:0;background:transparent;color:var(--pos-text-2);
- font:inherit;font-size:var(--pos-text-xs);font-weight:var(--pos-weight-bold);letter-spacing:.04em;cursor:pointer}
-.pos-ui .pos-home__locale .locale-switch button:hover{background:var(--pos-accent-soft);color:var(--pos-text-1)}
-.pos-ui .pos-home__locale .locale-switch button.active{background:var(--pos-accent-soft);color:var(--pos-accent);box-shadow:inset 0 -2px 0 var(--pos-accent)}
-.pos-ui .pos-home__locale .locale-switch button:focus-visible{outline-offset:-2px}
 
 /* ── Hero ───────────────────────────────────────────────────────────────────────────────────────────── */
 .pos-ui .pos-home__hero{display:grid;gap:var(--pos-space-7);padding-top:var(--pos-space-7);padding-bottom:var(--pos-space-9);align-items:start}
@@ -173,20 +149,9 @@
 .pos-ui .pos-home__auth .check-email ol{padding-left:20px;line-height:var(--pos-leading-normal)}
 .pos-ui .pos-home__auth .check-email-links{display:flex;flex-wrap:wrap;justify-content:space-between;gap:4px;margin:var(--pos-space-2) 0}
 
-/* SEO links and the legacy footer, same links. */
-.pos-ui .pos-home__bottom{padding-top:var(--pos-space-7);padding-bottom:var(--pos-space-7);border-top:1px solid var(--pos-hairline)}
-.pos-ui .pos-home__bottom .seo-home-links{display:flex;flex-wrap:wrap;gap:0 var(--pos-space-4);margin:0 0 var(--pos-space-4);font-size:var(--pos-text-sm)}
-.pos-ui .pos-home__bottom .seo-home-links a,.pos-ui .pos-home__bottom .site-footer a{display:inline-flex;align-items:center;min-height:44px;color:var(--pos-text-2);
- text-decoration:none;border:0;padding:0}
-.pos-ui .pos-home__bottom .seo-home-links a:hover,.pos-ui .pos-home__bottom .site-footer a:hover{color:var(--pos-accent);text-decoration:underline}
-.pos-ui .pos-home__bottom .site-footer{max-width:none;margin:0;padding:0;display:flex;flex-direction:column;align-items:flex-start;gap:var(--pos-space-2);border:0;
- font-size:var(--pos-text-sm);color:var(--pos-text-3)}
-.pos-ui .pos-home__bottom .site-footer nav{display:flex;flex-wrap:wrap;gap:0 var(--pos-space-4)}
-
 /* ── Tablet ─────────────────────────────────────────────────────────────────────────────────────────── */
 @media (min-width:480px){
  .pos-ui .pos-home__ctas{flex-direction:row;flex-wrap:wrap}
- .pos-ui.pos-home .pos-home__navlink{display:inline-flex}
 }
 @media (min-width:768px){
  .pos-ui.pos-home{--pos-home-gutter:32px}
@@ -195,7 +160,6 @@
  .pos-ui .pos-home__pillars{grid-template-columns:repeat(3,minmax(0,1fr))}
  .pos-ui .pos-home__stage{padding:var(--pos-space-4)}
  .pos-ui .pos-home__auth .login{padding:var(--pos-space-7)}
- .pos-ui .pos-home__bottom .site-footer{flex-direction:row;align-items:center;justify-content:space-between}
  .pos-ui .pos-home__frame .pos-tcard__why,.pos-ui .pos-home__frame .pos-tcard__actions,.pos-ui .pos-home__frame .pos-signal,.pos-ui .pos-home__frame .pos-tcard__status{margin-left:44px}
  .pos-ui.pos-home__dark{padding:var(--pos-space-10) 0}
 }
@@ -217,17 +181,17 @@
  .pos-ui .pos-home__why-btn .pos-icon{transition:none}
 }
 @supports not ((backdrop-filter:blur(1px)) or (-webkit-backdrop-filter:blur(1px))){
- .pos-ui .pos-home__top,.pos-ui .pos-home__frame{background:var(--pos-glass-solid)}
+ .pos-ui .pos-home__frame{background:var(--pos-glass-solid)}
 }
 @media (prefers-reduced-transparency:reduce){
- .pos-ui .pos-home__top,.pos-ui .pos-home__frame{background:var(--pos-glass-solid);-webkit-backdrop-filter:none;backdrop-filter:none}
+ .pos-ui .pos-home__frame{background:var(--pos-glass-solid);-webkit-backdrop-filter:none;backdrop-filter:none}
 }
 @media (prefers-contrast:more){
- .pos-ui .pos-home__top,.pos-ui .pos-home__frame{background:var(--pos-glass-solid);-webkit-backdrop-filter:none;backdrop-filter:none}
+ .pos-ui .pos-home__frame{background:var(--pos-glass-solid);-webkit-backdrop-filter:none;backdrop-filter:none}
 }
 @media (forced-colors:active){
  .pos-ui .pos-home__pillar,.pos-ui .pos-home__panel,.pos-ui .pos-home__frame,.pos-ui .pos-home__auth .login,.pos-ui .pos-home__guarantee{border:1px solid CanvasText}
  .pos-ui .pos-home__line::before,.pos-ui .pos-home__step:not(:last-child)::before{forced-color-adjust:none;background:CanvasText;box-shadow:none}
- .pos-ui .pos-home__auth .primary,.pos-ui .pos-home__auth .auth-switch button,.pos-ui .pos-home__locale .locale-switch button{border:1px solid ButtonText}
- .pos-ui .pos-home__auth .auth-switch button.active,.pos-ui .pos-home__locale .locale-switch button.active{outline:2px solid Highlight;outline-offset:-3px}
+ .pos-ui .pos-home__auth .primary,.pos-ui .pos-home__auth .auth-switch button{border:1px solid ButtonText}
+ .pos-ui .pos-home__auth .auth-switch button.active{outline:2px solid Highlight;outline-offset:-3px}
 }

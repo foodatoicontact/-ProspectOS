@@ -7,7 +7,8 @@ import type {UiStatus} from '../status.ts';
 export type DemoCompany={id:string;name:string;signal:string;meta:string;status:UiStatus;explanation:string;note?:string;
  action:{label:string;tone:'primary'|'contact'}|null};
 export type HomeCopy={
- nav:{aria:string;pricing:string;home:string};
+ nav:{nav:string;pricing:string;home:string;menu:string};
+ footer:{discover:string;legal:string};
  hero:{eyebrow:string;title:string;lines:[string,string,string];subtitle:string;how:string;human:string};
  demo:{label:string;why:string;whyTitle:string;now:string;nowText:string;source:string;sourceText:string;matching:string;
   matchingItems:string[];missing:string;missingItems:string[];completeTitle:string;completeText:string;caption:string;
@@ -17,12 +18,12 @@ export type HomeCopy={
  product:{title:string;body:string;darkTitle:string;darkBody:string;mockAria:string;mockDarkAria:string;today:string;project:string;
   filters:string;counts:{contact:string;verify:string;watch:string};none:string};
  signup:{title:string;body:string;points:string[]};
- seoAria:string;
 };
 
 export const HOME_COPY:Record<Locale,HomeCopy>={
  fr:{
-  nav:{aria:'Navigation principale',pricing:'Tarifs',home:'ProspectOS — accueil'},
+  nav:{nav:'Navigation principale',pricing:'Tarifs',home:'ProspectOS — accueil',menu:'Menu'},
+  footer:{discover:'Découvrir ProspectOS',legal:'Informations légales'},
   hero:{eyebrow:'Logiciel de prospection B2B',title:'Arrêtez de prospecter toute votre liste.',
    lines:['Qui contacter.','Pourquoi maintenant.','Avec quelles preuves.'],
    subtitle:'ProspectOS détecte les entreprises qui correspondent à votre cible et les signaux qui rendent le timing pertinent.',
@@ -60,10 +61,10 @@ export const HOME_COPY:Record<Locale,HomeCopy>={
    counts:{contact:'à contacter',verify:'à vérifier',watch:'en veille'},none:'Rien à faire pour l’instant.'},
   signup:{title:'Essayez ProspectOS sur votre cible.',body:'Créez votre compte, décrivez votre cible : vos premières recommandations arrivent avec leurs sources.',
    points:['Recommandations expliquées','Sources visibles','Décision humaine']},
-  seoAria:'Découvrir ProspectOS',
- },
+  },
  en:{
-  nav:{aria:'Main navigation',pricing:'Pricing',home:'ProspectOS — home'},
+  nav:{nav:'Main navigation',pricing:'Pricing',home:'ProspectOS — home',menu:'Menu'},
+  footer:{discover:'Discover ProspectOS',legal:'Legal information'},
   hero:{eyebrow:'B2B prospecting software',title:'Stop prospecting your whole list.',
    lines:['Who to contact.','Why now.','With what evidence.'],
    subtitle:'ProspectOS detects the companies that match your target and the signals that make the timing right.',
@@ -101,8 +102,7 @@ export const HOME_COPY:Record<Locale,HomeCopy>={
    counts:{contact:'to contact',verify:'to verify',watch:'watching'},none:'Nothing to do for now.'},
   signup:{title:'Try ProspectOS on your own target.',body:'Create your account, describe your target: your first recommendations come with their sources.',
    points:['Explained recommendations','Visible sources','Human decision']},
-  seoAria:'Discover ProspectOS',
- },
+  },
 };
 
 // The demo companies: invented names, no logo, no photo. "Maison Alba" is the hero card; the others only appear in the

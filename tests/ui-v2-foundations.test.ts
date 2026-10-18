@@ -237,9 +237,10 @@ test('flag OFF parity — the existing app does not load, import or reference th
  assert.doesNotMatch(read('../app/globals.css'),/--pos-|\.pos-ui|pos-theme/);
  assert.doesNotMatch(read('../src/components/TodayPanel.tsx'),/ui\/v2|UI_V2/);
  // UI-2: the page only knows the pure navigation model statically; the shell (and its CSS) is a dynamic import made
- // after the server said UI_V2_ENABLED is on (tests/ui-v2-shell.test.ts).
+ // after the server said UI_V2_ENABLED is on (tests/ui-v2-shell.test.ts). WEB-2: the build-time public-site flag (a boolean,
+ // no UI, no CSS) is the only other static import; the homepage itself is a next/dynamic import (tests/web-v2-home.test.ts).
  const page=read('../app/page.tsx');
- assert.doesNotMatch(page,/^import[^;]*ui\/v2\/(?!shell\/nav\.ts)/m);
+ assert.doesNotMatch(page,/^import[^;]*ui\/v2\/(?!shell\/nav\.ts|public\/flag\.ts)/m);
  assert.doesNotMatch(page,/\.css'/);
  assert.doesNotMatch(read('../app/sitemap.ts'),/ui-v2/);
 });

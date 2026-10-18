@@ -7,7 +7,6 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createHash} from 'node:crypto';
 import {readFileSync} from 'node:fs';
-import {webV2HomeEnabled} from '../src/ui/v2/home/flag.ts';
 import {HOME_COPY,demoCompanies,HERO_DEMO_ID} from '../src/ui/v2/home/copy.ts';
 import {light,dark} from '../src/ui/v2/tokens.ts';
 import {composite,contrastRatio} from '../src/ui/v2/color.ts';
@@ -20,44 +19,23 @@ const copySrc=read('../src/ui/v2/home/copy.ts');
 const css=read('../src/ui/v2/home/home.css');
 const allCopy=JSON.stringify([HOME_COPY,demoCompanies('fr'),demoCompanies('en')]);
 
-test('flag — off by default, only "1" / "true", hard off when the platform says Production',()=>{
- assert.equal(webV2HomeEnabled({}),false);
- assert.equal(webV2HomeEnabled({WEB_V2_HOME_ENABLED:'false'}),false);
- assert.equal(webV2HomeEnabled({WEB_V2_HOME_ENABLED:'0'}),false);
- assert.equal(webV2HomeEnabled({WEB_V2_HOME_ENABLED:'yes'}),false);
- assert.equal(webV2HomeEnabled({WEB_V2_HOME_ENABLED:'1'}),true);
- assert.equal(webV2HomeEnabled({WEB_V2_HOME_ENABLED:' TRUE '}),true);
- assert.equal(webV2HomeEnabled({WEB_V2_HOME_ENABLED:'1',VERCEL_ENV:'production'}),false);
- assert.equal(webV2HomeEnabled({UI_V2_ENABLED:'1'}),false,'independent from the app flag');
-});
-test('endpoint — per request, never cached, a boolean only',async()=>{
- const src=read('../app/api/public/web-v2-home/route.ts');
- assert.match(src,/export const dynamic='force-dynamic';/);
- assert.match(src,/'cache-control':'no-store'/);
- const saved=process.env.WEB_V2_HOME_ENABLED;
- try{
-  const {GET}=await import('../app/api/public/web-v2-home/route.ts');
-  delete process.env.WEB_V2_HOME_ENABLED;
-  let res=await GET();assert.equal(res.headers.get('cache-control'),'no-store');assert.deepEqual(await res.json(),{enabled:false});
-  process.env.WEB_V2_HOME_ENABLED='1';
-  res=await GET();assert.deepEqual(await res.json(),{enabled:true});
- }finally{if(saved===undefined)delete process.env.WEB_V2_HOME_ENABLED;else process.env.WEB_V2_HOME_ENABLED=saved}
-});
-test('page — the flag is read at runtime and the v2 homepage code is loaded only when it is on',()=>{
- assert.match(page,/fetch\('\/api\/public\/web-v2-home',\{cache:'no-store'\}\)\.then\(r=>r\.ok\?r\.json\(\):null\)\.then\(c=>c\?\.enabled===true\?import\('\.\.\/src\/ui\/v2\/home\/HomeV2\.tsx'\):null\)/);
- assert.doesNotMatch(page,/import \{HomeV2\}|from '\.\.\/src\/ui\/v2\/home/,'never a static import: flag OFF ships no v2 homepage code on "/"');
- assert.doesNotMatch(read('../app/layout.tsx'),/WEB_V2_HOME|process\.env/,'never frozen in a static file');
+test('page — a build-time choice: the v2 homepage is in the prerendered HTML when the flag is on, absent otherwise',()=>{
+ assert.match(page,/import \{WEB_V2\} from '\.\.\/src\/ui\/v2\/public\/flag\.ts';/);
+ assert.match(page,/const HomeV2=WEB_V2\?dynamic\(\(\)=>import\('\.\.\/src\/ui\/v2\/home\/HomeV2\.tsx'\)\.then\(m=>m\.HomeV2\)\):null;/,'server-rendered (next/dynamic keeps SSR): no client swap');
+ assert.doesNotMatch(page,/web-v2-home|fetch\('\/api\/public\/web/,'no runtime fetch of the flag any more');
+ assert.doesNotMatch(page,/import \{HomeV2\}|from '\.\.\/src\/ui\/v2\/home/,'never a static import: built without the flag, "/" ships no v2 homepage styles');
+ assert.doesNotMatch(read('../app/layout.tsx'),/WEB_V2|process\.env/);
 });
 test('flag OFF parity — the legacy welcome screen is byte-for-byte the one of main (119bb30)',()=>{
  const blk=page.slice(page.indexOf(" if(mode==='welcome'){"));
  assert.equal(createHash('sha256').update(legacyWelcome(page)).digest('hex'),'6e51c117bc0c9eed5ba4382d70ceb16446ec0675be672bacf1202f323a11405e');
- assert.match(blk,/\n  if\(home\)return <home\.HomeV2 /,'the v2 homepage only replaces the screen when the module was loaded');
+ assert.match(blk,/\n  if\(HomeV2\)return <HomeV2 /,'the v2 homepage replaces the screen only in a site built with the flag');
 });
 test('commercial behaviour — CTA, sign-up card, demo link and footer come unchanged from app/page.tsx',()=>{
  assert.match(page,/cta=\{\{label:tr\(trialFull\?'landing\.createAccountCta':'landing\.trialCta'\),sub:trialFull\?null:tr\('landing\.trialSub'\)\}\}/,'same CTA wording and trial sub-line rule as main');
- assert.match(page,/authCard=\{authCard\} seoLinks=\{seoLinks\} footer=\{footer\}/,'the very same sign-up card, SEO links and footer nodes');
+ assert.match(page,/authCard=\{authCard\} onLocale=\{setLocale\}/,'the very same sign-up card node');
  assert.match(page,/demoLabel=\{tr\('landing\.exploreDemo'\)\} onDemo=\{demo\}/);
- assert.match(page,/onLogin=\{\(\)=>switchAuthView\('login'\)\}>\{pricingModal\}<\/home\.HomeV2>/);
+ assert.match(page,/onLogin=\{\(\)=>switchAuthView\('login'\)\} contactLabel=\{tr\('landing\.footerContact'\)\}>\{pricingModal\}<\/HomeV2>/);
  assert.match(page,/const authCard=<section className="login card" id="inscription">/,'the CTA destination still exists');
  assert.match(home,/<a className="pos-btn pos-btn--primary pos-btn--lg" href="#inscription" data-testid="home-cta">\{cta\.label\}<\/a>/,'restyled, same destination, same label');
  assert.match(home,/\{cta\.sub&&<p className="pos-home__cta-sub">\{cta\.sub\}<\/p>\}/);
@@ -72,7 +50,8 @@ test('demo — invented companies only, labelled as such; no real brand, logo or
  assert.equal(demoCompanies('fr').find(c=>c.id===HERO_DEMO_ID)!.name,'Maison Alba');
  const REAL=/\b(Quick|Mojo|O.?Crousti|McDonald|Burger King|KFC|Starbucks|Subway|Domino|Five Guys|Paul|Brioche Dorée|Pizza Hut|Buffalo Grill|Hippopotamus|Courtepaille|Flunch|Del Arte|Big Fernand|Pret A Manger|Carrefour|Leclerc|Auchan|Decathlon|Fnac|Darty)\b/i;
  assert.doesNotMatch(allCopy+home,REAL);
- assert.doesNotMatch(home+css,/<img|<Image|\.png|\.jpe?g|\.webp|\.svg['"]|url\(/i,'no logo or photo');
+ assert.doesNotMatch(home+css,/<img|<Image|\.png|\.jpe?g|\.webp|\.svg['"]/i,'no logo or photo');
+ assert.doesNotMatch(css,/\burl\(/,'no background image either');
  assert.match(HOME_COPY.fr.demo.label,/fictif/i);assert.match(HOME_COPY.en.demo.label,/fictitious/i);
  assert.match(HOME_COPY.fr.demo.caption,/inventée/);
  assert.equal((home.match(/\{d\.label\}|\{copy\.demo\.label\}/g)??[]).length,2,'the hero card and every preview say "Exemple fictif"');
@@ -128,9 +107,9 @@ test('accessibility guards — reduced motion, reduced transparency, forced colo
  assert.match(css,/@media \(prefers-reduced-transparency:reduce\)\{[^@]*backdrop-filter:none/);
  assert.match(css,/@supports not \(\(backdrop-filter:blur\(1px\)\)/);
  assert.match(css,/@media \(forced-colors:active\)\{/);
- assert.match(css,/\.locale-switch button\{min-width:40px;min-height:44px/);
+ assert.match(read('../src/ui/v2/public/styles.ts'),/\.locale-switch>\*\{display:inline-flex;align-items:center;justify-content:center;min-width:40px;min-height:44px/,'shared header: 44 px language targets');
  assert.match(css,/input\[type="password"\]\{display:block;width:100%;min-height:var\(--pos-size-target\)/);
- assert.match(css,/@media \(max-width:359px\)/);
+ assert.match(read('../src/ui/v2/public/styles.ts'),/@media \(max-width:359px\)/,'320 px: the logo mark alone');
  assert.match(home,/aria-hidden="true" inert/,'the product previews are pictures, never focusable');
  assert.match(home,/role="img" aria-label=\{theme==='light'\?p\.mockAria:p\.mockDarkAria\}/);
  assert.match(home,/aria-expanded=\{panel==='why'\} aria-controls="pos-home-panel"/);

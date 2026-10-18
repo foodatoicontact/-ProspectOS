@@ -104,10 +104,10 @@ export const PUBLIC_CSS=String.raw`
 .pos-ui .pos-public__faq .pos-public__card p{margin:0}
 
 /* Closing call to action */
-.pos-ui .pos-public__cta{padding:var(--pos-space-7) 0}
+.pos-ui .pos-public__cta,.pos-ui.pos-public .seo-cta{padding:var(--pos-space-7) 0;background:transparent;border-radius:0}
 .pos-ui .pos-public__cta .pos-public__wrap{max-width:calc(var(--pos-public-reading) + 2 * var(--pos-public-gutter))}
 .pos-ui .pos-public__cta-panel{padding:var(--pos-space-6);border-radius:var(--pos-radius-sheet);background:var(--pos-surface-card);border:1px solid var(--pos-border);box-shadow:var(--pos-shadow-float)}
-.pos-ui .pos-public__cta-panel h2{font-size:clamp(22px,5vw,28px);font-weight:var(--pos-weight-heavy);letter-spacing:-.035em}
+.pos-ui .pos-public__cta-panel h2{margin:0;font-size:clamp(22px,5vw,28px);font-weight:var(--pos-weight-heavy);letter-spacing:-.035em}
 .pos-ui .pos-public__cta-panel p{margin:var(--pos-space-2) 0 var(--pos-space-5);color:var(--pos-text-2);font-size:var(--pos-text-md)}
 
 /* Related pages */

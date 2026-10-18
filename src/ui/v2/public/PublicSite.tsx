@@ -98,8 +98,8 @@ export function PublicCard({as:Tag='div',className,children}:{as?:'div'|'article
  return <Tag className={cx('pos-public__card',className)}>{children}</Tag>;
 }
 
-export function PublicCTA({title,text,href,label}:{title:string;text:string;href:string;label:string}){
- return <section className="pos-public__cta"><div className="pos-public__wrap"><div className="pos-public__cta-panel">
+export function PublicCTA({title,text,href,label,className}:{title:string;text:string;href:string;label:string;className?:string}){
+ return <section className={cx('pos-public__cta',className)}><div className="pos-public__wrap"><div className="pos-public__cta-panel">
   <h2>{title}</h2><p>{text}</p>
   <Link href={href} className="pos-pbtn pos-pbtn--primary pos-pbtn--lg">{label} <span aria-hidden="true">↗</span></Link>
  </div></div></section>;

@@ -88,7 +88,7 @@ function SeoPageV2({page,jsonLd,children}:{page:SeoPage;jsonLd:string;children?:
             <div className="pos-public__faq">{page.faq.map(item=><div key={item.q} className="pos-public__card"><h3>{item.q}</h3><p>{renderRich(item.a)}</p></div>)}</div>
           </section>}
         </div></div>
-        <PublicCTA title={page.cta.title} text={page.cta.text} href={page.cta.href??'/'} label={page.cta.label??'Explorer la démonstration'}/>
+        <PublicCTA title={page.cta.title} text={page.cta.text} href={page.cta.href??'/'} label={page.cta.label??'Explorer la démonstration'} className="seo-cta"/>
       </article>
       <nav className="pos-public__related" aria-label="Ressources liées"><div className="pos-public__wrap">
         <span className="pos-public__related-h">À découvrir</span>

@@ -194,6 +194,29 @@ another record starts without the previous record's draft.
 **Bench.** `/ui-v2/prospects` (Preview, same flag): the real screen and panels (demo mode) with frozen data. The browser
 was checked with Playwright: 320 px, 390 px dark, 1440 px, keyboard, reduced motion, actions.
 
+## UI-5B — Recherche 2.0
+
+`src/ui/v2/search/` (`SearchV2.tsx`, `search.css`), rendered by the v2 shell for the Recherche entry when `UI_V2_ENABLED`
+is on. Flag off, `app/page.tsx` renders the legacy Discovery screen unchanged (`tests/ui-v2-search.test.ts` compares
+everything before the v2 branch, and the legacy return, with main byte for byte).
+
+**What it is.** The v2 envelope of the search: the title "Recherche", its purpose in one sentence (each result is to be
+checked at its source before it becomes a prospect), the notice and paywall banners, and the existing `DiscoveryPanel`.
+The panel is the same element with the same props as on the legacy screen, mounted once. That covers the form,
+providers, runs, quotas, novelty, review priority, add / ignore, history and replay. It is restyled with tokens only
+(`.pos-ui .pos-search`), in light and dark. Its markup, its responsive grid and its logic are unchanged.
+
+**What does not change.** Nothing in `src/components/DiscoveryPanel.tsx`, `src/discovery/**`, the providers, scoring,
+quotas, NBA / ZF, Stripe or pricing. Every state stays written (Candidat, Nouveau, Ajouté…), never shown by colour alone.
+
+**Limit.** The panel's form and results are restyled, not rewritten. Rewriting them natively means extracting
+DiscoveryPanel's logic (runs, polling, add / ignore, history) out of its markup. That is a refactor of the Discovery
+screen, outside this phase.
+
+**Bench.** `/ui-v2/search` (Preview, same flag): the real panel in demo mode (synthetic TEST companies, local storage
+only, no network). The browser was checked with Playwright at 320 px, 390 px dark and 1440 px light and dark (run, add,
+ignore, history).
+
 ## WEB-1 / WEB-2 — Public site 2.0
 
 **One flag, chosen at build time.** `NEXT_PUBLIC_WEB_V2_ENABLED` ("1"/"true", `src/ui/v2/public/flag.ts`) covers the whole public

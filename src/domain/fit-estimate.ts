@@ -24,6 +24,10 @@ export type FitEstimate={
  verified:ReturnType<typeof scoreProspect>;
  estimated:{score:number;breakdown:EstimateLine[]};
  to_verify:{count:number;points:number};
+ // UI-4: what the person's declarations contribute to THIS estimate, as content — `criterion=T|F`, sorted, deduplicated:
+ // only USER_DECLARED rows of a criterion of this ICP, inside the 90-day window, that no verified fact already decides.
+ // Never an id, never the note (the engine reads neither): the identity changes exactly when the estimate's input does.
+ declarations:string[];
 };
 
 const SOURCE_CONFIDENCE:Record<string,number>={official_website:0.9,public_directory:0.8,search_result:0.6,test_fixture:0.5};
@@ -44,7 +48,7 @@ function usable(e:EstimateEvidence,now:Date):boolean{
 
 export function estimateFit(criteria:Criterion[],evidence:EstimateEvidence[],now:Date):FitEstimate{
  const verified=scoreProspect(criteria,evidence,now);
- const toVerify=new Set<string>();
+ const toVerify=new Set<string>();const declarations=new Set<string>();
  const breakdown=criteria.map((c):EstimateLine=>{
   const v=verified.breakdown.find(b=>b.key===c.key)!;
   const base={key:c.key,label:c.label,weight:c.weight,declared:null};
@@ -53,6 +57,7 @@ export function estimateFit(criteria:Criterion[],evidence:EstimateEvidence[],now
   if(v.state==='CONFLICT')return {...base,state:'TO_REVIEW',confidence:0,points:0,evidence_ids:v.evidence_ids};
   const rows=evidence.filter(e=>e.criterion===c.key&&(e.status==='NOT_VERIFIED'||e.status==='INFERRED_UNCONFIRMED'||e.status==='USER_DECLARED')&&usable(e,now));
   if(!rows.length)return {...base,state:'UNKNOWN',confidence:0,points:0,evidence_ids:[]};
+  for(const e of rows)if(e.status==='USER_DECLARED')declarations.add(`${c.key}=${e.value?'T':'F'}`);
   const ids=[...new Set(rows.map(e=>e.id))];
   const values=new Set(rows.map(e=>e.value));
   const declared=rows.every(e=>e.status==='USER_DECLARED')&&values.size===1?rows[0]!.value:null;
@@ -65,5 +70,5 @@ export function estimateFit(criteria:Criterion[],evidence:EstimateEvidence[],now
   return {...base,state:'ESTIMATED',confidence,points:Math.round(c.weight*confidence),evidence_ids:ids,declared};
  });
  const score=Math.min(100,breakdown.reduce((t,b)=>t+b.points,0));
- return {verified,estimated:{score,breakdown},to_verify:{count:toVerify.size,points:Math.max(0,score-verified.score)}};
+ return {verified,estimated:{score,breakdown},to_verify:{count:toVerify.size,points:Math.max(0,score-verified.score)},declarations:[...declarations].sort()};
 }

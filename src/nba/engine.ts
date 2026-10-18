@@ -478,6 +478,14 @@ export type Opportunity={
  target:Target;explanation:Explanation;expires_at:string;fingerprint:string;config_version:string;computed_at:string;
 };
 
+// UI-4: a short, deterministic digest of the declaration identity (two 32-bit FNV-1a passes, 16 hex characters) —
+// keeps the fingerprint within its 120-character bound however many criteria the ICP has.
+function declarationHash(entries:string[]):string{
+ const text=entries.join('|');
+ const fnv=(seed:number)=>{let h=seed>>>0;for(let i=0;i<text.length;i++){h^=text.charCodeAt(i);h=Math.imul(h,0x01000193)>>>0}return h.toString(16).padStart(8,'0')};
+ return fnv(0x811c9dc5)+fnv(0x01000193^0x5bd1e995);
+}
+
 export function buildOpportunity(input:NbaInput):Opportunity{
  const config=input.config??NBA_DEFAULT_CONFIG;validateConfig(config);
  const zone=icpZoneOf(input.criteria);
@@ -512,7 +520,12 @@ export function buildOpportunity(input:NbaInput):Opportunity{
    relevance_reason:`Le contenu mentionne « ${driver.conversation.matched} »${driver.conversation.topic?` (${driver.conversation.topic.label.fr})`:''}.`,
    suggested_angle:driver.conversation.topic?.angle.fr??`Intervenir sur « ${driver.conversation.matched} », un sujet de votre offre.`}:null;
  // The engine version is part of the identity: a new version always re-states its reasons, even for the same action.
- const fingerprint=[config.version,rule.action,primaryOut?.kind==='signal'?primaryOut.signal_id:primaryOut?.kind==='conversation'?primaryOut.content_id:'none'].join(':');
+ const baseFingerprint=[config.version,rule.action,primaryOut?.kind==='signal'?primaryOut.signal_id:primaryOut?.kind==='conversation'?primaryOut.content_id:'none'].join(':');
+ // UI-4: a person's declaration changes the FIT profile without necessarily changing the action or the driver; the
+ // recommendation must then be re-stated, not kept as "unchanged". Only when declarations feed the estimate: without any,
+ // the fingerprint is exactly the historical one.
+ const declared=estimateFit(input.criteria,input.evidence,input.now).declarations;
+ const fingerprint=declared.length?`${baseFingerprint}:ud${declarationHash(declared)}`:baseFingerprint;
  void corroborating;
  return {prospect_id:input.prospect.id,project_id:input.prospect.project_id,recommended_action:rule.action,rule:rule.id,scores,primary:primaryOut,
   signal_ids,public_content_ids,evidence_ids,target,explanation,expires_at:new Date(expires).toISOString(),fingerprint,config_version:config.version,computed_at:input.now.toISOString()};

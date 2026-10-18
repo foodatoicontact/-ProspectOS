@@ -182,13 +182,15 @@ async function mainModules(){
 }
 test('no regression — without any declaration, estimate and NBA outputs equal main (2f4dfa3) exactly (new label lists aside)',async()=>{
  const m=await mainModules();
- const strip=(o:any)=>JSON.parse(JSON.stringify(o,(k,v)=>['verified_supporting','declared','declared_false'].includes(k)?undefined:v));
+ const strip=(o:any)=>JSON.parse(JSON.stringify(o,(k,v)=>['verified_supporting','declared','declared_false','declarations'].includes(k)?undefined:v));
  const values=[undefined,true,false] as const;let cases=0;
  for(const a of values)for(const b of values)for(const c of values)for(const kind of ['VERIFIED','NOT_VERIFIED','INFERRED_UNCONFIRMED','CONTRADICTED'])for(const sig of [[],[sdr()],[sdr({status:'PENDING_REVIEW'})]]){
   const evidence=([['target_fit',a],['local_decision',b],['need_fit',c]] as const).filter(([,v])=>v!==undefined).map(([k,v])=>({...verified(k,v as boolean),status:kind,verified_by:kind==='VERIFIED'||kind==='CONTRADICTED'?'u':null}));
   const inp=input({evidence,signals:sig as NbaSignal[]});
   assert.deepEqual(strip(estimateFit(ICP,evidence,NOW)),strip(m.fit.estimateFit(ICP,evidence,NOW)));
+  assert.deepEqual(estimateFit(ICP,evidence,NOW).declarations,[],'no declaration: empty identity');
   assert.deepEqual(strip(buildOpportunity(inp)),strip(m.engine.buildOpportunity(inp)));
+  assert.equal(buildOpportunity(inp).fingerprint,m.engine.buildOpportunity(inp).fingerprint,'fingerprint strictly identical to main');
   cases++;
  }
  assert.equal(cases,27*4*3);

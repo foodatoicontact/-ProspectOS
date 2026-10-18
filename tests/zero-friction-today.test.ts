@@ -156,7 +156,9 @@ test('9 — NBA v1.3 decisions unchanged: registry, content and core identical t
  const cut=(t:string,from:string,to:string)=>t.slice(t.indexOf(from),t.indexOf(to));
  assert.equal(cut(now,'// Configuration','// 1. '),cut(before,'// Configuration','// 1. '),'configuration');
  assert.equal(cut(now,'type Ctx=',' // v1.3.x: the former terminal'),cut(before,'type Ctx='," {id:'NOT_ENOUGH'"),'rules 1–11');
- const tail=(t:string)=>t.slice(t.indexOf(' const driver:Driver|null='));
+ // UI-4: the only change after the rule lookup is the declaration suffix of the fingerprint (only when declarations
+ // feed the estimate; tests/user-declared.test.ts proves the fingerprint is main's without any).
+ const tail=(t:string)=>t.slice(t.indexOf(' const driver:Driver|null=')).replace(/ \/\/ UI-4: a person's declaration[\s\S]*?:baseFingerprint;\n/,'').replace(' const baseFingerprint=[',' const fingerprint=[');
  assert.equal(tail(now),tail(before),'everything after the rule lookup');
  assert.ok(now.includes("version:'nba-v1.3-2026-10'"),'config_version unchanged (docs: why no bump)');
  assert.equal(MOJO.rule,'INCOMPLETE_FIT_FRESH_SIGNAL');assert.equal(STRONG.rule,'EXPLICIT_RECENT_NEED');

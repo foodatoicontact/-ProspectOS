@@ -164,6 +164,51 @@ payloads now carry `project_id` (the organization stays the row column). The leg
 **Bench.** `/ui-v2/today?set=canary|all|empty` (404 unless `UI_V2_ENABLED`): Today 2.0 in the real shell with frozen
 NBA rows (the 3 stored 6XPOS recommendations; synthetic rows for the other actions), events listed instead of sent.
 
+## WEB-1 — Public homepage 2.0
+
+**Flag.** `WEB_V2_HOME_ENABLED` (`src/ui/v2/home/flag.ts`, "1"/"true"), independent from `UI_V2_ENABLED`. It is read per request
+through `GET /api/public/web-v2-home` (force-dynamic, `no-store`, a boolean). The variable is set only on the Preview of
+`feat/web-v2-home`, never in Production. The code of `src/ui/v2/home/` is loaded only when the server says yes. When the flag
+is off, the welcome screen of `app/page.tsx` is byte-for-byte the one of main (`tests/web-v2-home.test.ts` pins its hash), and
+"/" serves the same HTML, CSS and scripts.
+
+**What stays the same (commercial behaviour).** `app/page.tsx` passes these nodes and labels into `HomeV2`:
+- the sign-up / sign-in card `#inscription`, with its fields, legal checkbox, trial or offer choice, prices and the
+  "Voir les tarifs" link;
+- the trial CTA wording (`landing.trialCta` or `landing.createAccountCta`) and its sub-line;
+- the demo link, the SEO links, the footer and the pricing dialog.
+
+The homepage restyles these but never re-implements them. The hero CTA still points to `#inscription`. "Me connecter" opens
+the existing sign-in tab. Nothing in `src/ui/v2/home/` calls an API, opens a payment or stores anything.
+
+**Structure.**
+- **Header.** v2 logo, Tarifs, FR | EN, Me connecter.
+- **Hero.** "Arrêtez de prospecter toute votre liste.", the three lines, the subtitle, the trial CTA and
+  "Voir comment ça fonctionne". That link scrolls to the demo and opens its explanation.
+- **Demo card.** The Today 2.0 card (same markup and classes as `TodayV2.tsx`) for the invented company Maison Alba, labelled
+  "Exemple fictif". It has a level-2 detail inline.
+- **Positioning.** "Une liste vous dit qui existe…", with Fit, Timing and Preuve.
+- **Workflow.** Cible → Signaux publics → Preuves → Recommandation → Action humaine, then "L'IA propose. Vous vérifiez. Vous
+  décidez." and the no-automatic-sending guarantee.
+- **Today preview.** Shown in light, then in a dark band. It is a non-focusable picture made from the real components, with
+  invented companies.
+- **Sign-up.** The sign-up section, then the SEO links and the footer.
+
+**Rules.**
+- Tokens only.
+- Green only on the CONTACT action of the preview.
+- No gradient text.
+- Glass only on the sticky header, the demo stage and the preview frames.
+- Mobile first, with 16 px gutters. At 320 px the header shows the logo mark alone.
+- Smooth scrolling only without reduced motion.
+- Opaque surfaces under reduced transparency, prefers-contrast or without backdrop-filter.
+- Forced-colours boundaries.
+- 44 px targets.
+
+**Before Production (not WEB-1).** The decision comes from a client fetch, as for UI-2. With the flag on, "/" first paints the
+legacy screen and then swaps, which is acceptable for a Preview review. Shipping it means making it the static default of "/"
+(SEO, no swap) in a separate, validated step.
+
 ## Notes for UI-2 / UI-3
 
 - Mounting v2 in the app means moving the token `<style>`, `foundations.css` and `ThemeProvider` to where the shell

@@ -169,3 +169,14 @@ test('scope — no migration, NBA, ZF, Discovery, Stripe, pricing or public site
  const changed=execSync('git diff --name-only 8a927c4',{cwd:new URL('..',import.meta.url),encoding:'utf8'}).split('\n').filter(Boolean);
  for(const f of changed)assert.doesNotMatch(f,/^db\/|^src\/(nba|ux|discovery|signal-discovery|server|domain|outreach)\/|stripe|pricing|^src\/ui\/v2\/(public|home)\/|^app\/(api|tarifs)/,f);
 });
+test('mobile polish — export quieter than add, unknown place quieter, compact cards (320–390 px)',()=>{
+ const ui=read('../src/ui/v2/prospects/ProspectsV2.tsx'),css=read('../src/ui/v2/prospects/prospects.css');
+ assert.match(ui,/<Button variant="secondary" size="sm" className="pos-plist__export" onClick=\{p\.onExport\}>/);
+ assert.match(ui,/<Button variant="primary" size="sm" iconStart="plus" disabled=\{p\.busy\} onClick=\{p\.onAdd\}>/,'add stays the primary action');
+ assert.match(css,/@media \(max-width:640px\)\{[^]*\.pos-ui \.pos-btn\.pos-plist__export\{order:1;background:transparent;border-color:transparent;/);
+ assert.match(ui,/className=\{`pos-prow__meta\$\{row\.place\?'':' pos-prow__meta--unknown'\}`\}/);
+ assert.match(css,/\.pos-ui \.pos-prow__meta--unknown\{color:var\(--pos-text-3\);font-size:var\(--pos-text-xs\)\}/);
+ assert.match(css,/\.pos-ui \.pos-prow \.pos-fit__hint\{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap\}/);
+ assert.match(css,/@media \(max-width:359px\)\{\.pos-ui \.pos-prow \.pos-fit__hint\{display:none\}\}/);
+ assert.match(ui,/<small className="pos-fit__hint" title=\{hint\}>/,'the full hint stays available');
+});

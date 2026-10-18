@@ -36,6 +36,8 @@
 .pos-ui .pos-prow__meta{font-size:var(--pos-text-sm);color:var(--pos-text-2);overflow-wrap:anywhere}
 .pos-ui .pos-prow__facts{grid-area:facts;display:flex;flex-wrap:wrap;align-items:center;gap:var(--pos-space-1) var(--pos-space-2);min-width:0}
 .pos-ui .pos-prow__chevron{grid-area:chevron;color:var(--pos-text-3)}
+/* No known place: said, but quieter than a real one. */
+.pos-ui .pos-prow__meta--unknown{color:var(--pos-text-3);font-size:var(--pos-text-xs)}
 
 /* Commercial status: a neutral label (green stays for the CONTACT action). */
 .pos-ui .pos-pstatus{display:inline-flex;align-items:center;min-height:24px;padding:0 var(--pos-space-2);border-radius:var(--pos-radius-pill);
@@ -156,6 +158,23 @@
 .pos-ui .pos-island .evidence-card{background:var(--pos-surface-inset);border-color:var(--pos-border);color:var(--pos-text-1)}
 .pos-ui .pos-island .intent-pill{display:none} /* the INTENT score lives in "Détails avancés" */
 .pos-ui .pos-island :focus-visible{outline:2px solid var(--pos-accent);outline-offset:2px}
+
+/* ── Mobile polish (≤ 640 px) ──────────────────────────────────────────────────────────────────────────────────────
+   "Ajouter un prospect" leads; "Exporter en CSV" stays one tap away as a quiet action after it. Cards stay compact:
+   status and FIT on one line, the FIT hint on one line (full text in its title). */
+@media (max-width:640px){
+ .pos-ui .pos-plist__actions{align-items:center;gap:var(--pos-space-1) var(--pos-space-2)}
+ .pos-ui .pos-btn.pos-plist__export{order:1;background:transparent;border-color:transparent;color:var(--pos-text-2);font-weight:var(--pos-weight-medium)}
+ .pos-ui .pos-btn.pos-plist__export:hover{background:var(--pos-accent-soft);color:var(--pos-text-1)}
+ .pos-ui .pos-prow{padding:var(--pos-space-2) var(--pos-space-2) var(--pos-space-2) var(--pos-space-3);gap:2px var(--pos-space-3)}
+ .pos-ui .pos-prow__facts{flex-wrap:nowrap;min-width:0;overflow:hidden}
+ .pos-ui .pos-prow__facts .pos-pstatus{flex:none}
+ .pos-ui .pos-prow .pos-fit{flex-wrap:nowrap;min-width:0}
+ .pos-ui .pos-prow .pos-fit>span{flex:none}
+ .pos-ui .pos-prow .pos-fit__hint{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+}
+/* Below 360 px a truncated hint says nothing: the FIT word stays, its detail is in the title and in the record. */
+@media (max-width:359px){.pos-ui .pos-prow .pos-fit__hint{display:none}}
 
 /* ── Tablet / desktop ─────────────────────────────────────────────────────────────────────────────────────────────── */
 @media (min-width:641px){

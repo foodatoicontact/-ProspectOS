@@ -78,7 +78,7 @@ const FIT_ICON:Record<FitKind,'verified'|'info'|'verify'>={verified:'verified',e
 function FitTag({kind,label,hint,locale}:{kind:FitKind;label:string;hint:string|null;locale:Locale}){
  return <span className={`pos-fit pos-fit--${kind}`} data-fit={kind}>
   <Icon name={FIT_ICON[kind]} size={14}/><span><span className="pos-visually-hidden">{PROSPECTS_TEXT[locale].fitLabel} : </span>{label}</span>
-  {hint&&<small className="pos-fit__hint">{hint}</small>}
+  {hint&&<small className="pos-fit__hint" title={hint}>{hint}</small>}
  </span>;
 }
 
@@ -89,7 +89,7 @@ function Row({row,locale,busy,onOpen,refFor}:{row:ProspectRow;locale:Locale;busy
   <span className="pos-prow__initial" aria-hidden="true">{row.initial}</span>
   <span className="pos-prow__main">
    <span className="pos-prow__name">{row.name}</span>
-   <span className="pos-prow__meta">{row.place??t.placeUnknown}</span>
+   <span className={`pos-prow__meta${row.place?'':' pos-prow__meta--unknown'}`}>{row.place??t.placeUnknown}</span>
   </span>
   <span className="pos-prow__facts">
    <span className="pos-pstatus">{row.statusLabel}</span>
@@ -132,7 +132,7 @@ function List({p}:{p:ProspectsV2Props}){
    <div className="pos-plist__titles"><h2 id="pos-plist-title" className="pos-plist__title">{t.title}</h2>
     <p className="pos-plist__count" aria-live="polite">{t.count(rows.length,p.total)}</p></div>
    <div className="pos-plist__actions">
-    <Button variant="secondary" size="sm" onClick={p.onExport}>{t.export}</Button>
+    <Button variant="secondary" size="sm" className="pos-plist__export" onClick={p.onExport}>{t.export}</Button>
     <Button variant="primary" size="sm" iconStart="plus" disabled={p.busy} onClick={p.onAdd}>{p.hasProject?t.add:t.createProject}</Button>
    </div>
   </div>

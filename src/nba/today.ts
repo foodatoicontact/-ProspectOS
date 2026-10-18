@@ -15,7 +15,7 @@ export type TodayRow={id:string;prospect_id:string;recommended_action:'CONTACT'|
  opportunity_score:number;fit_score:number|null;fit_basis:string;intent_score:number;timing_score:number;freshness_score:number;evidence_quality_score:number;
  primary_kind:string|null;primary_signal_type:string|null;primary_evidence_status:string|null;signal_age_days:number|null;
  primary_detail:{signal_id?:string;geo_relevance?:string;place?:string|null;content_id?:string;relevance_reason?:string;suggested_angle?:string}|null;
- scores?:{fit?:{profile?:{state?:string;coverage?:number;supporting?:string[];missing?:string[];against?:string[];verified_supporting?:string[];declared?:string[];declared_false?:string[]};lines?:{label:string}[]}}|null;
+ scores?:{fit?:{profile?:{state?:string;coverage?:number;supporting?:string[];missing?:string[];against?:string[];verified_supporting?:string[];declared?:string[];declared_false?:string[];verified_score?:number};lines?:{label:string}[]}}|null;
  target?:{role:string|null;person:{name:string}|null}|null;
  explanation:{why_this_account:Statement[];why_now:Statement[];why_this_action:Statement[];inferred:Statement[];unknown:Statement[]};
  prepared_content?:{kind:string}|null;computed_at?:string;prospects?:{name:string}|null};
@@ -69,6 +69,14 @@ function missingOf(r:TodayRow):string[]{
  // Rows computed before v1.3 carry no profile: say only what the explanation says is unknown about the ICP.
  return r.explanation.unknown.filter(u=>/ICP/.test(u.text)).map(u=>clean(u.text));
 }
+// The verified FIT a CONTACT needs (NBA_DEFAULT_CONFIG.fit.contactMin, kept equal by tests/user-declared-guidance.test.ts):
+// a constant here so the client never loads the engine.
+export const CONTACT_VERIFIED_FIT_MIN=60;
+// UI-4: criteria still unknown — neither verified, nor declared by the person (a criterion declared NOT met is answered).
+export function undocumentedOf(r:TodayRow):string[]{
+ const p=r.scores?.fit?.profile;const answered=new Set(p?.declared_false??[]);
+ return (p?.missing??[]).filter(m=>!answered.has(m));
+}
 export function primaryActionOf(r:TodayRow):PrimaryAction{
  if(r.recommended_action==='CONTACT')return {kind:'PREPARE_MESSAGE'};
  if(r.recommended_action==='ENGAGE')return {kind:'OPEN_CONVERSATION'};
@@ -77,6 +85,11 @@ export function primaryActionOf(r:TodayRow):PrimaryAction{
  if(r.primary_kind==='signal'&&r.primary_evidence_status==='INFERRED')return {kind:'VERIFY_SIGNAL',signalId:r.primary_detail?.signal_id??null};
  const state=r.scores?.fit?.profile?.state;
  if(state==='UNKNOWN'||state==='INCOMPLETE'||(!state&&missingOf(r).length))return {kind:'VERIFY_INFORMATION'};
+ // UI-4: a FIT made SUFFICIENT by the person's own declarations is not a documented one. While criteria stay unknown and the
+ // verified FIT is below what CONTACT needs, keep asking to complete them — the only road to CONTACT is verified evidence.
+ // Without any declaration, or with a verified FIT already enough, nothing changes.
+ const p=r.scores?.fit?.profile;
+ if(state==='SUFFICIENT'&&p?.declared?.length&&undocumentedOf(r).length&&typeof p.verified_score==='number'&&p.verified_score<CONTACT_VERIFIED_FIT_MIN)return {kind:'VERIFY_INFORMATION'};
  return {kind:'NONE'};
 }
 export function cardOf(r:TodayRow):TodayCard{

@@ -62,7 +62,7 @@ export const seoPages:SeoPage[]=[
       {q:'Faut-il beaucoup de critères pour qualifier un prospect ?',a:'Non. Quatre à six critères bien choisis suffisent souvent. L’important est que chacun soit observable dans une source publique et que son poids reflète son importance réelle pour votre offre.'},
       {q:'Peut-on prospecter sans preuve ?',a:'On peut contacter sans preuve, mais on ne peut alors pas expliquer pourquoi ce prospect plutôt qu’un autre. La méthode décrite ici vise justement à pouvoir répondre à cette question.'},
     ],
-    cta:{title:'Voir la méthode appliquée',text:'La démonstration publique montre des prospects, leurs sources et un score expliqué, sans créer de compte.'},
+    cta:{title:'Voir la méthode appliquée',text:'La démonstration publique montre, sans créer de compte, des recommandations expliquées : pourquoi maintenant, sur quelles preuves, avec leurs sources visibles, et toujours sous votre validation.'},
     related:['qualifier-un-prospect-b2b','prioriser-liste-prospects','lead-scoring','prospection-ia'],
   },
   {
@@ -435,7 +435,7 @@ export const seoPages:SeoPage[]=[
   {
     slug:'a-propos',
     navLabel:'À propos de ProspectOS',
-    updated:'2026-10-06',
+    updated:'2026-10-18',
     keywords:{primary:'ProspectOS',secondary:['éditeur ProspectOS','logiciel de prospection français','ProspectOS avis']},
     title:'À propos de ProspectOS : éditeur, principes et sources',
     description:'Qui édite ProspectOS, logiciel français de prospection B2B : un entrepreneur individuel basé à Toulouse, des principes clairs et des sources publiques citées.',

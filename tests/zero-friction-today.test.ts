@@ -179,11 +179,13 @@ test('11 — commercial copy is NOT changed by ZF1 (the trial stays as on main u
   assert.equal(await read(f),main,f);
  }
 
- // WEB-2.1 (owner decision): only the /a-propos wording about the demo and the score changed. Every other page is main's text,
+ // WEB-2.1 / 2.2 (owner decision): only the /a-propos wording about the demo and the score (and its date) changed. Every other page is main's text,
  // and the commercial lines of /a-propos (trial, prices, offers) are main's too.
  {const main=execSync('git show cca808c:src/domain/seo-content.ts',{cwd:new URL('..',import.meta.url),encoding:'utf8'});const now=await read('src/domain/seo-content.ts');
   const ABOUT="slug:'a-propos'";
-  assert.equal(now.split(ABOUT)[0],main.split(ABOUT)[0],'seo-content.ts outside /a-propos');
+  // WEB-2.2: plus the closing call to action of /prospection-b2b ("score expliqué" → explained recommendation).
+  const outside=(t:string)=>t.split(ABOUT)[0]!.replace(/cta:\{title:'Voir la méthode appliquée',text:'[^']*'\}/,'CTA');
+  assert.equal(outside(now),outside(main),'seo-content.ts outside /a-propos and the /prospection-b2b call to action');
   const commercial=(t:string)=>t.split(ABOUT)[1]!.split('\n').filter(l=>/essai|€|_EUR|Solo|Pro |Équipe|tarifs|offre/.test(l)&&!/démonstration publique/.test(l));
   assert.deepEqual(commercial(now),commercial(main),'commercial lines of /a-propos');
   assert.ok(now.includes('Pour lancer de vraies recherches, l’essai gratuit dure 7 jours, sans carte bancaire, dans la limite des places ouvertes.'),'trial sentence of /a-propos');}

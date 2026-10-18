@@ -174,10 +174,19 @@ test('10 — only trusted user clicks/submits count; automatic events, renders a
 // ------------------------------------------------------------ 11 copy
 test('11 — commercial copy is NOT changed by ZF1 (the trial stays as on main until the separate NO_TRIAL_RELEASE)',async()=>{
  // Option C (owner decision): ZF1 merges without any commercial change; Production copy, flag OFF, stays exactly main's.
- for(const f of ['src/components/PricingPage.tsx','src/domain/seo-content.ts','src/domain/geo.ts','src/components/DemoModeBanner.tsx']){
+ for(const f of ['src/components/PricingPage.tsx','src/domain/geo.ts','src/components/DemoModeBanner.tsx']){
   const main=execSync(`git show cca808c:${f}`,{cwd:new URL('..',import.meta.url),encoding:'utf8'});
   assert.equal(await read(f),main,f);
  }
+
+ // WEB-2.1 (owner decision): only the /a-propos wording about the demo and the score changed. Every other page is main's text,
+ // and the commercial lines of /a-propos (trial, prices, offers) are main's too.
+ {const main=execSync('git show cca808c:src/domain/seo-content.ts',{cwd:new URL('..',import.meta.url),encoding:'utf8'});const now=await read('src/domain/seo-content.ts');
+  const ABOUT="slug:'a-propos'";
+  assert.equal(now.split(ABOUT)[0],main.split(ABOUT)[0],'seo-content.ts outside /a-propos');
+  const commercial=(t:string)=>t.split(ABOUT)[1]!.split('\n').filter(l=>/essai|€|_EUR|Solo|Pro |Équipe|tarifs|offre/.test(l)&&!/démonstration publique/.test(l));
+  assert.deepEqual(commercial(now),commercial(main),'commercial lines of /a-propos');
+  assert.ok(now.includes('Pour lancer de vraies recherches, l’essai gratuit dure 7 jours, sans carte bancaire, dans la limite des places ouvertes.'),'trial sentence of /a-propos');}
  for(const [lang,dict] of [['fr',fr],['en',en]] as const){
   const main=execSync(`git show cca808c:src/i18n/${lang}.ts`,{cwd:new URL('..',import.meta.url),encoding:'utf8'});
   for(const k of ['landing.trialCta','landing.trialSub','landing.trialFullSub','pricing.trialLimits','pricing.afterTrial','icp.demoAnalyzeNote','demoBanner.trial','demoBanner.full'] as const){

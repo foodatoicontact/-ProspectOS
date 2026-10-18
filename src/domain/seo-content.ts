@@ -451,13 +451,13 @@ export const seoPages:SeoPage[]=[
         {type:'ol',items:[
           'Prospection autonome, action humaine : le logiciel cherche, lit et prépare ; une personne vérifie, décide et envoie.',
           'Aucune preuve inventée : chaque observation garde son URL, son extrait exact et sa date d’observation.',
-          'Un score explicable : chaque point se rattache à un critère de l’ICP et à une source citée ; le score vérifié ne compte que les preuves confirmées, jamais une supposition.',
+          'Une recommandation expliquée : pour chaque entreprise, ProspectOS dit s’il faut contacter, vérifier ou attendre, pourquoi maintenant, et sur quelles preuves ; les preuves et leurs sources restent visibles, et rien n’est tenu pour acquis sans votre validation.',
           'Aucun envoi automatique : ProspectOS ne contacte personne à votre place.',
           'Aucune déduction depuis des connaissances externes : une information non trouvée dans une source reste inconnue.',
         ]},
       ]},
       {h2:'Les sources de données utilisées',blocks:[
-        {type:'p',text:'Pour trouver des entreprises françaises, ProspectOS interroge l’API Recherche d’entreprises, qui diffuse les données du registre public des entreprises sous Licence Ouverte. Ces données servent à découvrir des candidats ; elles ne deviennent jamais une preuve et ne modifient jamais un score.'},
+        {type:'p',text:'Pour trouver des entreprises françaises, ProspectOS interroge l’API Recherche d’entreprises, qui diffuse les données du registre public des entreprises sous Licence Ouverte. Ces données servent à découvrir des candidats ; elles ne deviennent jamais une preuve à elles seules.'},
         {type:'p',text:'Pour qualifier un prospect, ProspectOS lit le site officiel de l’entreprise en respectant son fichier robots.txt, et une recherche web peut compléter la découverte. La façon dont ces observations deviennent des preuves est détaillée dans la page sur la [prospection assistée par IA](/prospection-ia).'},
       ]},
       {h2:'Données, sécurité et contrôle du compte',blocks:[
@@ -467,10 +467,10 @@ export const seoPages:SeoPage[]=[
           'L’export complet des données du compte et sa suppression se font en libre-service.',
           'Une clé API Anthropic personnelle peut être enregistrée pour vos propres analyses ; elle n’est jamais réaffichée.',
         ]},
-        {type:'callout',title:'Ce que ProspectOS ne publie pas',text:'Aucun client, aucun avis, aucune note et aucun résultat chiffré ne sont annoncés sur ce site tant qu’ils ne sont pas vérifiables. Les exemples de la démonstration publique sont des données de test, présentées comme telles.'},
+        {type:'callout',title:'Ce que ProspectOS ne publie pas',text:'Aucun client, aucun avis, aucune note et aucun résultat chiffré ne sont annoncés sur ce site tant qu’ils ne sont pas vérifiables. La démonstration publique montre le produit sur des exemples d’entreprises construits à partir de données publiques ; ces entreprises ne sont ni des clientes ni des partenaires de ProspectOS.'},
       ]},
       {h2:'Essayer ProspectOS et choisir une offre',blocks:[
-        {type:'p',text:`La démonstration publique se parcourt sans compte : elle montre une mission de prospection, des prospects de test avec leurs sources, les statuts de chaque critère et un score expliqué. Pour lancer de vraies recherches, l’essai gratuit dure 7 jours, sans carte bancaire, dans la limite des places ouvertes.`},
+        {type:'p',text:`La démonstration publique se parcourt sans compte : elle montre une mission de prospection et des exemples d’entreprises issus de données publiques, avec pour chacune la recommandation expliquée, les preuves et leurs sources, et ce qui reste à vérifier. Pour lancer de vraies recherches, l’essai gratuit dure 7 jours, sans carte bancaire, dans la limite des places ouvertes.`},
         {type:'p',text:`Ensuite, ProspectOS Solo coûte ${SOLO_EUR} € par mois et ProspectOS Pro ${PRO_EUR} € par mois pour une personne ; ProspectOS Équipe coûte ${TEAM_EUR} € par mois pour ${TEAM_INCL} comptes, + ${TEAM_EXTRA_EUR} € par compte supplémentaire, jusqu’à ${TEAM_MAX} comptes, avec une base de prospects et des quotas partagés. Le détail des volumes et des règles de décompte figure sur la page des [tarifs](/tarifs).`},
       ]},
     ],
@@ -479,7 +479,7 @@ export const seoPages:SeoPage[]=[
       {q:'Comment contacter ProspectOS ?',a:'Par e-mail à prospectos.contact@gmail.com, y compris pour l’offre Entreprise / White Label.'},
       {q:'Où sont décrits les prix ?',a:'Sur la page des [tarifs](/tarifs) : essai gratuit de 7 jours, offres Solo, Pro et Équipe, offre Entreprise sur devis.'},
     ],
-    cta:{title:'Découvrir ProspectOS',text:'La démonstration publique est accessible sans compte, avec des données de test.'},
+    cta:{title:'Découvrir ProspectOS',text:'La démonstration publique est accessible sans compte, sur des exemples issus de données publiques.'},
     related:['logiciel-prospection-b2b','tarifs','prospection-b2b'],
   },
 ];

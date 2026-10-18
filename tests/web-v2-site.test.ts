@@ -64,7 +64,8 @@ test('freeze — legal text, SEO content, prices, quotas, trial, plans, i18n and
   'app/confidentialite/page.tsx':'67c9da27841bf6b5d676d2cdc5143fec596f1c9f73a35a31bb679a70c1150882',
   'app/mentions-legales/page.tsx':'2efbad023e459aa36de624415f119b61f8372d80cecd1c60722f1a9f23b0f65e',
   'src/domain/legal.ts':'5459dff4cf999b21c4b969d0a8d1479e3a3ece3e5b5e57bec2352b3f893bf937',
-  'src/domain/seo-content.ts':'f28be68c9bea402677d8c2fd6f41634c66ce90fd5092355674f5e2a6c02d9fa9',
+  // WEB-2.1: the /a-propos entry only (demo wording, recommendation instead of score); every other page is main's text.
+  'src/domain/seo-content.ts':'206be96fe5c0e585b7085b9b039f7e823c19cbc7ec78dd39a03734556cb4c1f8',
   'src/domain/seo.ts':'0dbabc3c3959c1bf11e814fbdd0ba89dca12c9e99c7b825fccf6c28fbabc7a01',
   'src/components/PricingPage.tsx':'ae1fc88997a3974738d90d9fd0097108dc1fbf246e9d2025656a59def966cc02',
   'src/components/PricingPlans.tsx':'fc49929e18df6b472f2b70bb36c80bd53dcfb4c85b9f86192b1e142ddb691773',

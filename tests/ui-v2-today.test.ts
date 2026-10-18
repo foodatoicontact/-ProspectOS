@@ -18,7 +18,7 @@ const SCORE_WORDS=/\bFIT\b|INTENT|TIMING|Opportunit|Couverture|Qualité de preuv
 test('model — 6XPOS canary: engine order, signal signature, status, short explanation, one action',()=>{
  const m=todayV2(CANARY_ROWS,'fr');
  assert.deepEqual(m.cards.map(c=>c.name),['Quick','Mojo','O’Crousti Poulet']);
- assert.deepEqual(m.counts,{contact:0,verify:3,engage:0,watched:0});
+ assert.deepEqual(m.counts,{contact:0,verify:3,engage:0,watched:0,document:0});
  const q=m.cards[0]!;
  assert.deepEqual(q.signal,{kind:'signal',type:'Expansion',place:'Hérault',age:'il y a 25 jours'});
  assert.equal(q.status,'verify');

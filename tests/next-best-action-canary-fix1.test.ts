@@ -45,8 +45,9 @@ test('CASE 2 — FIT UNKNOWN + fresh INFERRED signal (search snippet, unreviewed
 
 test('CASE 3 — FIT UNKNOWN + no signal → DISMISS, with the honest sentence',()=>{
  const o=run({});
- assert.equal(o.recommended_action,'DISMISS');assert.equal(o.rule,'NOT_ENOUGH');
- assert.equal(action(o),'Les informations disponibles sont insuffisantes pour recommander une action.');
+ assert.equal(o.recommended_action,'DISMISS');assert.equal(o.rule,'FIT_UNKNOWN_NO_TIMING','v1.3.x: to document, not rejected');
+ assert.equal(action(o),'L’adéquation à l’ICP n’est pas encore documentée : aucune information ne permet de dire si le compte correspond ou non à la cible, et aucun élément récent ne justifie une action : à documenter.');
+ assert.doesNotMatch(action(o),/hors cible|insuffisant/);
 });
 
 test('CASE 4 — high FIT + no timing → WAIT, "corresponds but nothing recent"',()=>{
@@ -60,8 +61,8 @@ test('CASE 4 — high FIT + no timing → WAIT, "corresponds but nothing recent"
 const against=():Evidence=>({...ev(false),criterion:'other'});
 test('CASE 5 — low verified FIT + strong fresh signal → never CONTACT; the sentence says the signal exists and the fit is insufficient',()=>{
  const low=run({criteria:crit(40),evidence:[ev(),against()],signals:[sdr()]});
- assert.notEqual(low.recommended_action,'CONTACT');assert.equal(low.rule,'NOT_ENOUGH');
- assert.match(action(low),/^Un signal récent existe \(Recrutement SDR, il y a 2 jours\), mais des éléments vérifiés indiquent que le compte ne correspond pas suffisamment à la cible \(défavorable : Autre critère ; FIT 40\/100/);
+ assert.notEqual(low.recommended_action,'CONTACT');assert.equal(low.rule,'LOW_FIT_NO_TIMING');
+ assert.match(action(low),/^Des éléments vérifiés sont défavorables \(Autre critère ; FIT 40\/100[^)]*\), sans atteindre le seuil qui écarte un compte comme hors cible, et le signal récent \(Recrutement SDR, il y a 2 jours\) ne suffit pas à justifier une action\./);
  const off=run({criteria:crit(20),evidence:[ev(),against()],signals:[sdr()]});
  assert.equal(off.rule,'OFF_TARGET');assert.match(action(off),/^Un signal récent existe .* ne correspond pas suffisamment à la cible \(défavorable : Autre critère ; FIT 20\/100/);
 });
@@ -77,7 +78,7 @@ test('CASE 7 — expired signal → never CONTACT; WHY_THIS_ACTION names it and 
  assert.match(action(high),/Le signal le plus récent \(Recrutement SDR, il y a 120 jours\) est trop ancien pour compter : sa durée de vie est de 60 jours\./);
  const unknownFit=run({signals:[opening({published_at:daysAgo(200)})]});
  assert.equal(unknownFit.recommended_action,'DISMISS');
- assert.match(action(unknownFit),/^Adéquation à l’ICP inconnue\. Le signal le plus récent \(Nouvelle implantation, il y a 200 jours\) est trop ancien pour compter/);
+ assert.match(action(unknownFit),/^L’adéquation à l’ICP n’est pas encore documentée[^.]*: à documenter\. Le signal le plus récent \(Nouvelle implantation, il y a 200 jours\) est trop ancien pour compter/);
 });
 
 test('CASE 8 — whenever a counting signal exists, WHY_THIS_ACTION never says there is none',()=>{

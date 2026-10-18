@@ -93,7 +93,7 @@ test('3b — the automatic recomputation never re-proposes, unchanged, what a pe
 test('4 — 0 CONTACT is a valid day: honest summary, no forced urgency',()=>{
  const m=buildTodayModel([MOJO,PENDING_SIG,NOTHING]);
  assert.equal(m.sections.contact.length,0);assert.ok(m.total>0);
- const empty=buildTodayModel([NOTHING]);assert.equal(empty.total,0);assert.equal(empty.hidden.dismiss,1);
+ const empty=buildTodayModel([NOTHING]);assert.equal(empty.total,0);assert.deepEqual(empty.hidden,{wait:0,dismiss:0,document:1},'v1.3.x: an unknown FIT is to document, not set aside');
  assert.equal(todaySummary('fr',{contact:0,verify:0,watched:0})[0],'Aucune entreprise à contacter aujourd’hui.');assert.equal(fr['today.nothingRecent'],'Aucun signal suffisamment récent aujourd’hui.');
 });
 test('5 — WATCH is never presented as CONTACT; the engine’s CONTACT is',()=>{
@@ -107,7 +107,7 @@ test('6 — DISMISS and WAIT do not take space on Today (counted only)',()=>{
  const m=buildTodayModel([NOTHING,LOW,MOJO]);
  assert.equal(LOW.recommended_action,'DISMISS');
  assert.ok(Object.values(m.sections).flat().every(c=>c.action!=='DISMISS'&&c.action!=='WAIT'));
- assert.equal(m.hidden.dismiss,2);
+ assert.equal(m.hidden.dismiss,1,'LOW only');assert.equal(m.hidden.document,1,'NOTHING: FIT unknown, to document');
 });
 test('6b — one primary action, derived from the engine state',()=>{
  assert.deepEqual(primaryActionOf(STRONG),{kind:'PREPARE_MESSAGE'});
@@ -144,12 +144,19 @@ test('8 — advanced details keep every explanation statement and its provenance
 });
 
 // ------------------------------------------------------------ 9 engine untouched
-test('9 — NBA v1.3 decisions unchanged: engine, registry and content identical to a54539d',()=>{
- for(const f of ['src/nba/engine.ts','src/nba/registry.ts','src/nba/content.ts','src/geo/model.ts','src/domain/fit-estimate.ts','src/domain/core.ts']){
-  const before=execSync(`git show a54539d:${f}`,{cwd:new URL('..',import.meta.url),encoding:'utf8'});
-  const now=execSync(`cat ${f}`,{cwd:new URL('..',import.meta.url),encoding:'utf8'});
-  assert.equal(now,before,f);
- }
+test('9 — NBA v1.3 decisions unchanged: registry and content identical to a54539d; engine identical but for the v1.3.x NOT_ENOUGH split',()=>{
+ const at=(f:string,rev?:string)=>execSync(rev?`git show ${rev}:${f}`:`cat ${f}`,{cwd:new URL('..',import.meta.url),encoding:'utf8'});
+ for(const f of ['src/nba/registry.ts','src/nba/content.ts','src/geo/model.ts','src/domain/fit-estimate.ts','src/domain/core.ts'])assert.equal(at(f),at(f,'a54539d'),f);
+ // v1.3.x (docs/NEXT_BEST_ACTION.md): only the terminal rule, its sentences and the rule lookup changed. Configuration,
+ // scoring, every other rule and everything after the decision are byte-identical.
+ const before=at('src/nba/engine.ts','a54539d'),now=at('src/nba/engine.ts');
+ const cut=(t:string,from:string,to:string)=>t.slice(t.indexOf(from),t.indexOf(to));
+ assert.equal(cut(now,'// Configuration','export type RuleId'),cut(before,'// Configuration','export type RuleId'),'config + scoring');
+ assert.equal(cut(now,'type Ctx=',' // v1.3.x: the former terminal'),cut(before,'type Ctx='," {id:'NOT_ENOUGH'"),'rules 1–11');
+ assert.equal(cut(now,'function explain(','export function buildOpportunity'),cut(before,'function explain(','export function buildOpportunity'),'explanation + opportunity type');
+ const tail=(t:string)=>t.slice(t.indexOf(' const driver:Driver|null='));
+ assert.equal(tail(now),tail(before),'everything after the rule lookup');
+ assert.ok(now.includes("version:'nba-v1.3-2026-10'"),'config_version unchanged (docs: why no bump)');
  assert.equal(MOJO.rule,'INCOMPLETE_FIT_FRESH_SIGNAL');assert.equal(STRONG.rule,'EXPLICIT_RECENT_NEED');
 });
 

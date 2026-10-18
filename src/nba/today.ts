@@ -5,7 +5,8 @@
 //            readable in about 3 seconds (ZF1.1: the full list of missing criteria moved to level 2).
 //   Level 2  favourable elements, the complete missing information, timing, place, proof and source.
 //   Level 3  scores, coverage, rule, statements with their provenance (advanced).
-// WAIT and DISMISS never take space: they are counted. 0 CONTACT is a valid day.
+// WAIT and DISMISS never take space: they are counted. 0 CONTACT is a valid day. A DISMISS whose FIT is not documented
+// (v1.3.x FIT_UNKNOWN_NO_TIMING / FIT_INCOMPLETE_NO_TIMING) is counted apart, "à documenter": not rejected.
 import {REGISTRY} from './registry.ts';
 import {placeName,placePhrase} from '../ux/place-phrase.ts';
 import type {Statement} from './engine.ts';
@@ -27,7 +28,20 @@ export type TodayCard={id:string;prospectId:string;name:string;section:TodaySect
  advanced:{rule:string;scores:{label:string;value:string}[];statements:Statement[]}};
 // watched = companies we keep an eye on WITHOUT asking anything of the user (WATCH with nothing to check, WAIT): never the
 // cards already counted "à vérifier" — each company appears once in the summary.
-export type TodayModel={sections:Record<TodaySection,TodayCard[]>;hidden:{wait:number;dismiss:number};watched:number;total:number};
+// hidden.document: accounts the engine cannot judge yet (FIT not documented, nothing fresh) — never a card, never "en veille",
+// never counted with the accounts really set aside (hidden.dismiss).
+export type TodayModel={sections:Record<TodaySection,TodayCard[]>;hidden:{wait:number;dismiss:number;document:number};watched:number;total:number};
+export type HiddenKind='wait'|'dismiss'|'document';
+const DOCUMENT_RULES=new Set(['FIT_UNKNOWN_NO_TIMING','FIT_INCOMPLETE_NO_TIMING']);
+// Where a row that takes no card is counted. Rows stored before v1.3.x carry rule NOT_ENOUGH (never rewritten): their
+// stored FIT state says which it was — UNKNOWN / INCOMPLETE to document, KNOWN_LOW (or no state) set aside.
+export function hiddenKindOf(r:Pick<TodayRow,'recommended_action'|'rule'|'scores'>):HiddenKind|null{
+ if(r.recommended_action==='WAIT')return 'wait';
+ if(r.recommended_action!=='DISMISS')return null;
+ if(DOCUMENT_RULES.has(r.rule))return 'document';
+ if(r.rule==='NOT_ENOUGH'){const st=r.scores?.fit?.profile?.state;return st==='UNKNOWN'||st==='INCOMPLETE'?'document':'dismiss'}
+ return 'dismiss';
+}
 
 const SECTION_ORDER:TodaySection[]=['contact','verify','engage','watch'];
 const label=(t:string|null)=>t?REGISTRY.find(e=>e.type===t)?.label.fr??null:null;
@@ -93,7 +107,8 @@ export function buildTodayModel(rows:TodayRow[]):TodayModel{
   if(r.recommended_action==='WAIT'||r.recommended_action==='DISMISS')continue;
   const c=cardOf(r);sections[c.section].push(c);
  }
- const wait=pending.filter(r=>r.recommended_action==='WAIT').length,dismiss=pending.filter(r=>r.recommended_action==='DISMISS').length;
- return {sections,hidden:{wait,dismiss},watched:sections.watch.length+wait,total:SECTION_ORDER.reduce((t,s)=>t+sections[s].length,0)};
+ const hidden={wait:0,dismiss:0,document:0};
+ for(const r of pending){const k=hiddenKindOf(r);if(k)hidden[k]++}
+ return {sections,hidden,watched:sections.watch.length+hidden.wait,total:SECTION_ORDER.reduce((t,s)=>t+sections[s].length,0)};
 }
 export {SECTION_ORDER};

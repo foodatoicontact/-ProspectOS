@@ -25,7 +25,7 @@ export const TODAY_TEXT:Record<Locale,{
  source:string;freshness:string;place:string;sourceSays:string;favourable:string;missing:string;verified:string;undocumented:string;
  nothingVerified:string;nothingMissing:string;advanced:string;advancedNote:string;scores:string;rule:string;evidence:string;provenance:string;
  completeIntro:string;openRecord:string;declare:string;declareSoon:string;emptyTitle:string;emptyBody:string;search:string;
- filteredEmpty:Record<Filter,string>;showAll:string;signalPrefix:string;close:string;dismiss:string}>={
+ filteredEmpty:Record<Filter,string>;showAll:string;signalPrefix:string;close:string;dismiss:string;toDocument:string}>={
  fr:{filters:'Filtrer les recommandations',contact:'à contacter',verify:'à vérifier',watch:'en veille',why:'Voir pourquoi',
   whyTitle:'Pourquoi cette recommandation ?',completeTitle:'Que manque-t-il pour décider ?',verifyTitle:'Vérifier le signal',
   source:'Source',freshness:'Fraîcheur',place:'Localisation',sourceSays:'Ce que dit la source',favourable:'Ce qui correspond déjà',
@@ -36,7 +36,7 @@ export const TODAY_TEXT:Record<Locale,{
   openRecord:'Ouvrir la fiche pour ajouter une preuve',declare:'Déclarer une information sans source',declareSoon:'Cette option sera disponible prochainement.',
   emptyTitle:'Aucune entreprise à contacter aujourd’hui.',emptyBody:'Une journée normale : rien n’est forcé. Une nouvelle recherche peut faire apparaître de nouveaux signaux.',
   search:'Lancer une recherche',filteredEmpty:{contact:'Aucune entreprise à contacter aujourd’hui.',verify:'Aucune entreprise à vérifier.',watch:'Aucune entreprise en veille à afficher.'},
-  showAll:'Tout afficher',signalPrefix:'Signal : ',close:'Fermer',dismiss:'Fermer le message'},
+  showAll:'Tout afficher',signalPrefix:'Signal : ',close:'Fermer',dismiss:'Fermer le message',toDocument:'À documenter'},
  en:{filters:'Filter recommendations',contact:'to contact',verify:'to verify',watch:'watching',why:'See why',
   whyTitle:'Why this recommendation?',completeTitle:'What is missing to decide?',verifyTitle:'Check the signal',
   source:'Source',freshness:'Freshness',place:'Location',sourceSays:'What the source says',favourable:'Already matching',
@@ -47,7 +47,7 @@ export const TODAY_TEXT:Record<Locale,{
   openRecord:'Open the record to add evidence',declare:'Declare information without a source',declareSoon:'This option will be available soon.',
   emptyTitle:'No company to contact today.',emptyBody:'A normal day: nothing is forced. A new search can bring new signals.',
   search:'Run a search',filteredEmpty:{contact:'No company to contact today.',verify:'No company to verify.',watch:'No watched company to show.'},
-  showAll:'Show all',signalPrefix:'Signal: ',close:'Close',dismiss:'Dismiss message'},
+  showAll:'Show all',signalPrefix:'Signal: ',close:'Close',dismiss:'Dismiss message',toDocument:'To document'},
 };
 
 function SignalLine({s,prefix,id}:{s:V2Signal;prefix:string;id?:string}){
@@ -166,6 +166,8 @@ export function TodayV2({projectId,api,locale,dirty,onCleaned,onOpenProspect,tra
      <Chip tone="verify" count={model.counts.verify} pressed={filter==='verify'} onPressedChange={toggle('verify')}>{t.verify}</Chip>
      <Chip tone="watch" count={model.counts.watched} pressed={filter==='watch'} onPressedChange={toggle('watch')}>{t.watch}</Chip>
     </ChipGroup>}
+    {/* v1.3.x: accounts whose FIT is not documented yet — counted apart from the ones set aside; no card, so no filter. */}
+    {model&&model.counts.document>0&&<p className="pos-today__document" data-testid="today-document">{t.toDocument} · {model.counts.document}</p>}
    </header>
    {model&&<p className="pos-visually-hidden" role="status">{todaySummary(locale,{contact:model.counts.contact,verify:model.counts.verify,watched:model.counts.watched}).join(' ')}</p>}
    {paywall&&<div className="pos-banner pos-banner--verify" role="status"><p>{paywall.text}</p><Button size="sm" variant="primary" onClick={paywall.onAction}>{paywall.action}</Button>

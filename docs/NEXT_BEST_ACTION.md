@@ -107,7 +107,30 @@ fonds, nouveau dirigeant, implantation… reprennent celles de l'Intent Engine (
 | 9 | FIT_WITHOUT_TIMING | WAIT | niveau FIT ≥ 50 |
 | 10 | UNKNOWN_FIT_FRESH_SIGNAL | WATCH | FIT **UNKNOWN** + signal non rejeté, fraîcheur ≥ 50 %, pas hors zone (v1.1) |
 | 11 | INCOMPLETE_FIT_FRESH_SIGNAL | WATCH | FIT **INCOMPLETE** (rien de défavorable) + même signal frais (v1.3) |
-| 12 | NOT_ENOUGH | DISMISS | sinon (FIT KNOWN_LOW, ou rien de frais) |
+| 12 | FIT_UNKNOWN_NO_TIMING | DISMISS | FIT **UNKNOWN**, rien de frais pour WATCH — **à documenter**, pas rejeté (v1.3.x) |
+| 13 | FIT_INCOMPLETE_NO_TIMING | DISMISS | FIT **INCOMPLETE**, rien de frais pour WATCH — **à documenter**, pas rejeté (v1.3.x) |
+| 14 | LOW_FIT_NO_TIMING | DISMISS | FIT **KNOWN_LOW** entre 30 et 49 (OFF_TARGET non atteint) — faible adéquation (v1.3.x) |
+
+### NBA v1.3.x — sémantique de l'ancien NOT_ENOUGH (2026-10-18)
+
+L'ancienne règle terminale NOT_ENOUGH (DISMISS) mélangeait trois états : FIT inconnu, FIT incomplet mais favorable, FIT
+faible vérifié. Elle est remplacée par les règles 12–14 ci-dessus, **mêmes actions, mêmes seuils** (contactMin 60,
+engageMin 50, watchMin 50, dismissBelow 30, fraîcheur inchangée) : aucune décision CONTACT / ENGAGE / WATCH / WAIT ne
+change. Les trois cas sont exhaustifs (SUFFISANT est toujours pris par FIT_WITHOUT_TIMING) ; un cas non couvert est une
+erreur, jamais une règle inventée. OFF_TARGET reste le seul rejet fort par inadéquation vérifiée.
+
+*Aujourd'hui* : `hidden.document` compte FIT_UNKNOWN_NO_TIMING et FIT_INCOMPLETE_NO_TIMING (« À documenter · N », compteur
+non interactif dans Today 2.0 : aucune carte, aucun filtre, jamais « en veille ») ; `hidden.dismiss` ne compte plus que
+LOW_FIT_NO_TIMING, OFF_TARGET, CLOSED_PROSPECT. Les recommandations déjà stockées avec `rule = NOT_ENOUGH` ne sont pas
+réécrites : *Aujourd'hui* les lit selon leur `scores.fit.profile.state` stocké (UNKNOWN / INCOMPLETE → à documenter,
+KNOWN_LOW ou absent → écarté).
+
+**Version.** `config_version` reste `nba-v1.3-2026-10`. Il entre dans l'empreinte (`version:action:primary`) qui décide si
+une recommandation ouverte est remplacée et si une recommandation close (REJECTED / DONE) peut être reproposée : le changer
+remplacerait au prochain calcul toutes les recommandations ouvertes (reports SNOOZED compris) et reproposerait celles
+qu'une personne a closes, alors qu'aucune action ni aucun paramètre ne change. La traçabilité est portée par `rule`, stocké
+sur chaque ligne ; l'action et l'empreinte étant identiques, les lignes NOT_ENOUGH existantes restent « inchangées » jusqu'à
+leur prochain vrai changement.
 
 ### NBA v1.3 — FIT semantics + GEO data quality (canary 2, 2026-10-17)
 

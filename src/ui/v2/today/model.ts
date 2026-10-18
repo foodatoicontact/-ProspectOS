@@ -22,7 +22,8 @@ export type V2Card={
  level3:{scores:{label:string;value:string}[];rule:string;evidence:{label:string;value:string}[];statements:Statement[]};
 };
 // watched: what the "en veille" chip counts (ZF1.1: WATCH with nothing to do + WAIT) — the cards that filter shows.
-export type V2Today={cards:V2Card[];watched:V2Card[];counts:{contact:number;verify:number;engage:number;watched:number};total:number};
+// counts.document: accounts "à documenter" (v1.3.x, hidden.document) — a plain count, never a card nor a filter.
+export type V2Today={cards:V2Card[];watched:V2Card[];counts:{contact:number;verify:number;engage:number;watched:number;document:number};total:number};
 
 const ACTION_KEY:Record<Exclude<PrimaryAction['kind'],'NONE'>,TKey>={PREPARE_MESSAGE:'today.action.prepare',OPEN_CONVERSATION:'today.action.conversation',
  VERIFY_SIGNAL:'today.action.verifySignal',VERIFY_INFORMATION:'today.action.completeInfo'};
@@ -83,5 +84,5 @@ export function todayV2(rows:TodayRow[],locale:Locale):V2Today{
  const waiting=rows.filter(r=>r.state==='PENDING'&&r.recommended_action==='WAIT')
   .sort((a,b)=>b.opportunity_score-a.opportunity_score||a.prospect_id.localeCompare(b.prospect_id)).map(r=>v2CardOf(cardOf(r),r,locale));
  const watched=[...cards.filter(c=>c.section==='watch'),...waiting];
- return {cards,watched,counts:{contact:m.sections.contact.length,verify:m.sections.verify.length,engage:m.sections.engage.length,watched:m.watched},total:m.total};
+ return {cards,watched,counts:{contact:m.sections.contact.length,verify:m.sections.verify.length,engage:m.sections.engage.length,watched:m.watched,document:m.hidden.document},total:m.total};
 }

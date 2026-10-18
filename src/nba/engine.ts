@@ -297,7 +297,10 @@ export function scoresOf(input:NbaInput,classified:ClassifiedSignal[],conversati
 // is always traceable to one written rule. OPPORTUNITY never decides alone.
 // ------------------------------------------------------------
 export type RuleId='CLOSED_PROSPECT'|'OFF_TARGET'|'EXPLICIT_RECENT_NEED'|'RELEVANT_CONVERSATION'|'CONTACT_SIGNAL'|'SIGNAL_TO_VERIFY'
- |'SOME_TIMING'|'FIT_FRESH_SIGNAL'|'FIT_WITHOUT_TIMING'|'UNKNOWN_FIT_FRESH_SIGNAL'|'INCOMPLETE_FIT_FRESH_SIGNAL'|'NOT_ENOUGH';
+ |'SOME_TIMING'|'FIT_FRESH_SIGNAL'|'FIT_WITHOUT_TIMING'|'UNKNOWN_FIT_FRESH_SIGNAL'|'INCOMPLETE_FIT_FRESH_SIGNAL'
+ |'FIT_UNKNOWN_NO_TIMING'|'FIT_INCOMPLETE_NO_TIMING'|'LOW_FIT_NO_TIMING';
+// v1.3.x: the former terminal rule, kept only to read recommendations stored before the split (never decided any more).
+export type LegacyRuleId='NOT_ENOUGH';
 type Ctx={input:NbaInput;scores:Scores;primary:Driver|null;signals:ClassifiedSignal[];conversation:Conversation|null;config:NbaConfig;zone:IcpZone|null};
 // v1.3: WATCH / WAIT / ENGAGE read the FIT level (verified + estimated: it only grows when a criterion becomes TRUE);
 // CONTACT reads the VERIFIED score alone. Neither ever reads a missing criterion as a failed one.
@@ -330,7 +333,13 @@ export const RULES:readonly {id:RuleId;action:NbaAction;when:(c:Ctx)=>boolean}[]
  {id:'UNKNOWN_FIT_FRESH_SIGNAL',action:'WATCH',when:c=>fitState(c)==='UNKNOWN'&&!!freshSignal(c)},
  // v1.3: a partly documented FIT with nothing against it is INCOMPLETE, not low — same check as an unknown one.
  {id:'INCOMPLETE_FIT_FRESH_SIGNAL',action:'WATCH',when:c=>fitState(c)==='INCOMPLETE'&&!!freshSignal(c)},
- {id:'NOT_ENOUGH',action:'DISMISS',when:()=>true},
+ // v1.3.x: the former terminal NOT_ENOUGH, split by FIT state. Same action (DISMISS), same thresholds: what reaches here
+ // has no fresh signal for WATCH and a level under the WATCH threshold (SUFFICIENT never does). UNKNOWN and INCOMPLETE are
+ // "to document", not rejected; KNOWN_LOW between dismissBelow and watchMin stays with the low-fit accounts. Exhaustive:
+ // buildOpportunity refuses a case none of the rules covers rather than invent one.
+ {id:'FIT_UNKNOWN_NO_TIMING',action:'DISMISS',when:c=>fitState(c)==='UNKNOWN'},
+ {id:'FIT_INCOMPLETE_NO_TIMING',action:'DISMISS',when:c=>fitState(c)==='INCOMPLETE'},
+ {id:'LOW_FIT_NO_TIMING',action:'DISMISS',when:c=>fitState(c)==='KNOWN_LOW'},
 ];
 
 // ------------------------------------------------------------
@@ -379,14 +388,22 @@ function actionReason(c:Ctx,rule:RuleId):string{
    :`Le compte correspond à l’ICP (${fit}), mais aucun élément récent${c.zone?` dans ${zoneName(c.zone)}`:''} ne justifie une prise de contact maintenant.${tooOld}${offZone}`;
   case 'UNKNOWN_FIT_FRESH_SIGNAL':return `Un signal récent existe (${named(fresh!)}), mais l’adéquation à l’ICP et/ou le signal doivent encore être vérifiés avant toute prise de contact.`;
   case 'INCOMPLETE_FIT_FRESH_SIGNAL':return `Un signal récent existe (${named(fresh!)}). ${incompleteFit(fp)} : des informations supplémentaires sont nécessaires avant une prise de contact.`;
-  case 'NOT_ENOUGH':
-   if(fp.state==='KNOWN_LOW')return counting?`Un signal récent existe (${named(counting)}), mais ${lowFit(fp).replace(/^D/,'d')}.`:`${lowFit(fp)}, et aucun élément récent ne justifie une action.${tooOld}${offZone}`;
-   if(fp.state==='INCOMPLETE')return counting
-    ?`${incompleteFit(fp)}, et le meilleur signal encore pris en compte (${named(counting)}) a perdu l’essentiel de sa fraîcheur (${fresh_(counting)} %) : pas assez pour justifier une vérification.${offZone}`
-    :`${incompleteFit(fp)}, et aucun élément récent ne justifie une action.${tooOld}${offZone}`;
-   if(counting)return `Adéquation à l’ICP inconnue, et le meilleur signal encore pris en compte (${named(counting)}) a perdu l’essentiel de sa fraîcheur (${fresh_(counting)} %) : pas assez pour justifier une vérification.${offZone}`;
-   if(outside||expired)return `Adéquation à l’ICP inconnue.${offZone}${tooOld}`;
-   return 'Les informations disponibles sont insuffisantes pour recommander une action.';
+  // v1.3.x: each says exactly the FIT state; an UNKNOWN or INCOMPLETE FIT is never called off target.
+  case 'FIT_UNKNOWN_NO_TIMING':{
+   const base='L’adéquation à l’ICP n’est pas encore documentée : aucune information ne permet de dire si le compte correspond ou non à la cible';
+   return counting?`${base}, et le meilleur signal encore pris en compte (${named(counting)}) a perdu l’essentiel de sa fraîcheur (${fresh_(counting)} %) : à documenter avant toute action.${offZone}`
+    :`${base}, et aucun élément récent ne justifie une action : à documenter.${tooOld}${offZone}`;
+  }
+  case 'FIT_INCOMPLETE_NO_TIMING':{
+   const base=`Les éléments disponibles sont favorables, mais une partie de l’ICP reste non documentée (${fp.coverage} % documenté${fp.missing.length?` ; à documenter : ${fp.missing.join(', ')}`:''})`;
+   return counting?`${base}, et le meilleur signal encore pris en compte (${named(counting)}) a perdu l’essentiel de sa fraîcheur (${fresh_(counting)} %) : pas assez pour justifier une vérification.${offZone}`
+    :`${base}, et aucun élément récent ne justifie une action.${tooOld}${offZone}`;
+  }
+  case 'LOW_FIT_NO_TIMING':{
+   const base=`Des éléments vérifiés sont défavorables (${fp.against.join(', ')} ; ${fit}), sans atteindre le seuil qui écarte un compte comme hors cible`;
+   return counting?`${base}, et le signal récent (${named(counting)}) ne suffit pas à justifier une action.${offZone}`
+    :`${base}, et aucun élément récent ne justifie une action.${tooOld}${offZone}`;
+  }
  }
 }
 
@@ -456,7 +473,8 @@ export function buildOpportunity(input:NbaInput):Opportunity{
  const conversation=relevantConversation(input.publicContent,input.profile,input.now);
  const {scores,primary,corroborating}=scoresOf(input,classified,conversation,config);
  const ctx:Ctx={input,scores,primary,signals:classified,conversation,config,zone};
- const rule=RULES.find(r=>r.when(ctx))!;
+ const rule=RULES.find(r=>r.when(ctx));
+ if(!rule)throw new Error(`NBA: no rule applies (FIT state ${scores.fit.profile.state}, level ${scores.fit.profile.level})`);
  // The driver the decision rests on: for ENGAGE the conversation, for CONTACT the best verified contact signal.
  const driver:Driver|null=rule.action==='ENGAGE'&&conversation?{kind:'conversation',conversation}
   :rule.action==='CONTACT'?(()=>{const s=bestContact(ctx,'VERIFIED');return s?{kind:'signal' as const,signal:s}:primary})()

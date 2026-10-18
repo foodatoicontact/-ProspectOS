@@ -6,6 +6,7 @@
 .pos-ui .pos-today__main{flex:1;min-width:0;padding:var(--pos-space-4) var(--pos-space-4) var(--pos-space-7)}
 .pos-ui .pos-today__head{display:flex;flex-direction:column;align-items:flex-start;gap:var(--pos-space-3);margin-bottom:var(--pos-space-4)}
 .pos-ui .pos-today__title{margin:0;font-size:var(--pos-text-3xl);font-weight:var(--pos-weight-heavy);letter-spacing:-.04em}
+.pos-ui .pos-today__document{margin:0;font-size:var(--pos-text-sm);color:var(--pos-text-2)}
 .pos-ui .pos-today__list{list-style:none;margin:0;padding:0;display:grid;gap:var(--pos-space-3)}
 
 /* ── RecommendationCard ─────────────────────────────────────────────────────────────────────────────── */

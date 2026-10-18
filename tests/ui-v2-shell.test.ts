@@ -98,7 +98,9 @@ test('flag ON — same screens, banners and dialogs; no sidebar, topbar, marketi
  assert.match(v2,/internal:entitlementPlan==='INTERNAL'/);
  assert.match(v2,/onSignOut:\(\)=>work\(logout\)/);
  assert.match(v2,/onSelect:selectProject/);
- assert.match(v2,/actions=\{navNow==='prospects'&&!showQuickStart\?/,'export / add live in Prospects, not in the envelope');
+ // UI-5A: export / add are actions of the Prospects 2.0 screen itself (same handlers as the legacy buttons), not of the envelope.
+ assert.doesNotMatch(v2,/\bactions=\{/);
+ assert.match(v2,/onAdd=\{\(\)=>\{setQuickResume\(null\);setModal\(project\?'prospect':mode==='live'\?'quickstart':'project'\)\}\} onExport=\{download\}/);
 });
 test('flag ON — Recherche keeps the Discovery history behaviour; nothing in the business screens changes',()=>{
  assert.match(page,/if\(target==='discovery'\)\{if\(projectId\)openDiscovery\(\);/);

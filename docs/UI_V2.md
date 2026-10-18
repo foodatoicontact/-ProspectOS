@@ -164,6 +164,36 @@ payloads now carry `project_id` (the organization stays the row column). The leg
 **Bench.** `/ui-v2/today?set=canary|all|empty` (404 unless `UI_V2_ENABLED`): Today 2.0 in the real shell with frozen
 NBA rows (the 3 stored 6XPOS recommendations; synthetic rows for the other actions), events listed instead of sent.
 
+## UI-5A — Prospects 2.0
+
+`src/ui/v2/prospects/` (`ProspectsV2.tsx`, `model.ts`, `prospects.css`), rendered by the v2 shell for the Prospects entry
+when `UI_V2_ENABLED` is on (outside the quick start). Flag off, `app/page.tsx` renders the legacy list and record unchanged
+(`tests/ui-v2-prospects.test.ts` compares that markup with main byte for byte). The legacy code stays until UI-5C.
+
+**Same data, same handlers.** The list receives the legacy `visible` array (same search, status filter and order). The
+record calls the legacy functions (status, evidence, verification, channels, analysis, message: prepare / save / approve /
+copy) and opens the legacy dialogs. The panels that load data themselves (observations, signals, public content, writing
+style, feedback) are the same components with the same props, in a v2-themed island (`.pos-island`). Export and add are
+actions of the screen itself, no longer of the envelope. Nothing is sent: a person prepares, approves and copies a message.
+
+**List.** Each row has the name, the place (or "Localisation à confirmer"), the human status, and the FIT said in words:
+Vérifié, Estimé or À documenter, with what is left ("1 source à vérifier", "déclaré par vous"). There is never a /100. On
+mobile each row is a touch card; from 641 px rows are dense, one line each. Keyboard: ↑ / ↓ move between rows, Enter opens.
+
+**Record.** The record goes company → situation (one sentence) → signals and context → evidence by criterion → message →
+commercial status and channels → session history → "Détails avancés", which is closed by default and is the only place
+with scores (FIT, coverage, INTENT). Evidence keeps three bases apart:
+- VERIFIED is a proof (green check, source link);
+- USER_DECLARED is "Déclaré par vous": person icon, slate colour, dashed border, never green, no source;
+- NOT_VERIFIED / INFERRED are to check (amber), with "J’ai vérifié la source : valider".
+
+**Navigation.** The legacy screen always selects a prospect; v2 shows the list until a record is opened (from the list,
+Today, To do, Search, or after adding one). "Retour aux prospects" brings the list back and focuses the row. Opening
+another record starts without the previous record's draft.
+
+**Bench.** `/ui-v2/prospects` (Preview, same flag): the real screen and panels (demo mode) with frozen data. The browser
+was checked with Playwright: 320 px, 390 px dark, 1440 px, keyboard, reduced motion, actions.
+
 ## WEB-1 / WEB-2 — Public site 2.0
 
 **One flag, chosen at build time.** `NEXT_PUBLIC_WEB_V2_ENABLED` ("1"/"true", `src/ui/v2/public/flag.ts`) covers the whole public

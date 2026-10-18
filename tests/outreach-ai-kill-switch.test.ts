@@ -107,5 +107,7 @@ test('7 — the browser offers AI outreach only when the server says the switch 
  assert.equal((page.match(/setAiOutreachOn\(acc\.ai_outreach_enabled===true\)/g)??[]).length,2,'set from the account answer (load + refresh), strict true');
  assert.match(page,/\{mode==='live'&&aiOutreachOn&&<label className="checkbox"><input type="checkbox" checked=\{useAi\}/);
  assert.match(page,/ai:useAi&&aiOutreachOn\}/);
- assert.equal((page.match(/tr\('outreach\.useAi'\)/g)??[]).length,1,'the only "use AI" option is the gated one');
+ // Legacy record + Prospects 2.0 record (UI-5A, only one is ever rendered): both behind the same server switch.
+ assert.equal((page.match(/tr\('outreach\.useAi'\)/g)??[]).length,2,'the only "use AI" options are the gated ones');
+ assert.match(page,/ai:mode==='live'&&aiOutreachOn\?\{checked:useAi,label:tr\('outreach\.useAi'\),onChange:setUseAi\}:null/);
 });

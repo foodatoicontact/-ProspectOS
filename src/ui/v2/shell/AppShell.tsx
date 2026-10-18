@@ -139,3 +139,4 @@ export function AppShell({locale,current,onNavigate,project,account,title,action
 }
 // Loaded with the shell (one dynamic import in app/page.tsx).
 export {TodayV2} from '../today/TodayV2.tsx';
+export {ProspectsV2} from '../prospects/ProspectsV2.tsx';

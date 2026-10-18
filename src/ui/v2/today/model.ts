@@ -18,7 +18,10 @@ export type V2Action={kind:PrimaryAction['kind'];label:string|null;tone:V2Action
 export type V2Card={
  id:string;prospectId:string;name:string;initial:string;section:TodaySection;status:UiStatus;
  signal:V2Signal|null;explanation:string;note:string|null;action:V2Action;
- level2:{source:{label:string;url:string|null}|null;proof:string|null;freshness:string|null;place:string|null;favourable:string[];missing:string[]};
+ // favourable / missing items carry how each is known (UI-4): verified with a source, declared by the person (no source),
+ // estimated from a source not yet checked, or not documented. `legacy` = a row stored before UI-4 (no such detail).
+ level2:{source:{label:string;url:string|null}|null;proof:string|null;freshness:string|null;place:string|null;favourable:string[];missing:string[];
+  favourableItems:{label:string;basis:'verified'|'declared'|'estimated'|'legacy'}[];missingItems:{label:string;basis:'declared_false'|'undocumented'}[]};
  level3:{scores:{label:string;value:string}[];rule:string;evidence:{label:string;value:string}[];statements:Statement[]};
 };
 // watched: what the "en veille" chip counts (ZF1.1: WATCH with nothing to do + WAIT) — the cards that filter shows.
@@ -51,7 +54,8 @@ function signalOf(r:TodayRow,locale:Locale):V2Signal|null{
 // The short line under the explanation: what is missing, in one sentence, never a list (the list is level 2).
 function noteOf(c:TodayCard,locale:Locale):string|null{
  if(c.primary.kind==='VERIFY_SIGNAL')return c.missingSummary;
- const fitMissing=c.details.missing.length;
+ // A criterion the person declared not met is answered, not "to document" (UI-4).
+ const fitMissing=c.details.missing.filter(m=>!c.details.declaredFalse.includes(m)).length;
  if(c.primary.kind!=='VERIFY_INFORMATION'||fitMissing===0)return null;
  if(locale==='fr')return fitMissing===1?'1 information à documenter.':`${fitMissing} informations à documenter.`;
  return fitMissing===1?'1 piece of information to document.':`${fitMissing} pieces of information to document.`;
@@ -67,9 +71,14 @@ export function v2CardOf(c:TodayCard,r:TodayRow,locale:Locale):V2Card{
   id:c.id,prospectId:c.prospectId,name:c.name,initial:(c.name.trim()[0]??'?').toUpperCase(),section:c.section,status:statusForSection(c.section),
   signal:signalOf(r,locale),explanation:c.whyCompany,note:noteOf(c,locale),action,
   level2:{source:src||c.proof?{label:sourceLabel(src)??(locale==='fr'?'source non liée':'no linked source'),url:safeUrl(src)}:null,proof:c.proof?.text??null,
-   freshness:c.details.timing,place:c.details.place,favourable:c.details.favourable,missing:c.details.missing},
+   freshness:c.details.timing,place:c.details.place,favourable:c.details.favourable,missing:c.details.missing,
+   favourableItems:c.details.favourable.map(label=>({label,basis:c.details.declared.includes(label)?'declared':c.details.verified===null?'legacy':c.details.verified.includes(label)?'verified':'estimated'})),
+   missingItems:c.details.missing.map(label=>({label,basis:c.details.declaredFalse.includes(label)?'declared_false':'undocumented'}))},
   level3:{scores:c.advanced.scores,rule:c.advanced.rule,
-   evidence:[['Signal',r.primary_evidence_status??'—'],['FIT',profile?.state??'—'],['Base FIT',r.fit_basis||'—']].map(([label,value])=>({label:label!,value:value!})),
+   // UI-4: the raw USER_DECLARED status, for audit (what the person declared, without a source).
+   evidence:[['Signal',r.primary_evidence_status??'—'],['FIT',profile?.state??'—'],['Base FIT',r.fit_basis||'—'],
+    ...(c.details.declared.length?[['USER_DECLARED true',c.details.declared.join(', ')]]:[]),
+    ...(c.details.declaredFalse.length?[['USER_DECLARED false',c.details.declaredFalse.join(', ')]]:[])].map(([label,value])=>({label:label!,value:value!})),
    statements:c.advanced.statements},
  };
 }

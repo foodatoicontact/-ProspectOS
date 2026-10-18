@@ -9,6 +9,7 @@ import {checked as checkedRpc} from '../../../../src/discovery/repository';
 import {CriterionContextSchema} from '../../../../src/discovery/types';
 import {requireActiveEntitlement,effectiveEntitlement} from '../../../../src/server/entitlement';
 import {attachEvidenceSources} from '../../../../src/server/evidence-sources';
+import {handleUserDeclared} from '../../../../src/server/user-declared';
 import {buildAccountExportZip,anonymizeAuthUser} from '../../../../src/server/account';
 import {recordApiUsage} from '../../../../src/server/usage';
 import {releaseCommercialUse} from '../../../../src/server/commercial-usage';
@@ -135,6 +136,8 @@ async function handler(request:Request,context:{params:Promise<{path:string[]}>}
  return json(updated)}
  }
  if(resource==='evidence'&&request.method==='POST'){
+ // UI-4: a declaration without a source has its own closed contract (src/server/user-declared.ts); the sourced path below is unchanged.
+ if(body?.status==='USER_DECLARED'){const r=await handleUserDeclared(body,db,user);return json(r.body,r.status)}
  if(typeof body.criterion!=='string'||typeof body.value!=='boolean'||!safeLink(String(body.source_url??''))||typeof body.excerpt!=='string'||!body.excerpt.trim()||body.excerpt.length>1500||!['VERIFIED','NOT_VERIFIED','CONTRADICTED','INFERRED_UNCONFIRMED'].includes(body.status))return json({error:'Preuve invalide'},400);
  const observed=new Date(body.observed_at);if(!Number.isFinite(+observed)||+observed>Date.now())return json({error:'Date invalide'},400);
  const p=await checked(db.from('prospects').select('*').eq('id',body.prospect_id).single());

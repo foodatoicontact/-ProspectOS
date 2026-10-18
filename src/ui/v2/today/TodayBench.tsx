@@ -5,7 +5,7 @@
 import {useState} from 'react';
 import {AppShell} from '../shell/AppShell.tsx';
 import {TodayV2} from './TodayV2.tsx';
-import {CANARY_ROWS,ALL_STATES_ROWS} from './fixture.ts';
+import {CANARY_ROWS,ALL_STATES_ROWS,BENCH_CRITERIA} from './fixture.ts';
 import type {ZfKind} from '../../../server/ux-events.ts';
 
 const SETS={canary:CANARY_ROWS,all:ALL_STATES_ROWS,empty:[]} as const;
@@ -24,7 +24,7 @@ export function TodayBench({initialSet}:{initialSet:SetKey}){
   account={{mode:'demo',email:'',internal:false,busy:false,onLocale:()=>{},onAccount:()=>{},onTeam:()=>{},onOfferTarget:()=>{},onSources:()=>{},onPrivacy:()=>{},
    onBetaAnalytics:()=>{},onSignOut:()=>{},onResetDemo:()=>{}}}
   screen={<>
-   <TodayV2 key={projectId} projectId={projectId} api={api} locale="fr" dirty={false} onCleaned={()=>{}} onOpenProspect={id=>setOpened(id)}
+   <TodayV2 key={projectId} projectId={projectId} api={api} locale="fr" dirty={false} onCleaned={()=>{}} onOpenProspect={id=>setOpened(id)} criteria={BENCH_CRITERIA}
     track={k=>setEvents(e=>e.includes(k)?e:[...e,k])} onSearch={()=>setOpened('search')} notice={opened?`Banc : ouverture de « ${opened} » (dans l’app, la fiche s’ouvre).`:''}
     onDismissNotice={()=>setOpened('')} paywall={null}/>
    <p className="pos-visually-hidden" data-testid="bench-events">{events.join(' ')}</p>

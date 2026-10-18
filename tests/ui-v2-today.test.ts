@@ -98,14 +98,17 @@ test('level 3 — FIT, TIMING, INTENT, opportunity, coverage, rule, evidence sta
  assert.deepEqual(q.level3.evidence,[{label:'Signal',value:'VERIFIED'},{label:'FIT',value:'INCOMPLETE'},{label:'Base FIT',value:'mixed'}]);
  assert.ok(q.level3.statements.length>0&&q.level3.statements.some(s=>s.refs.some(r=>r.source_url)));
 });
-test('completion — existing evidence workflow only; USER_DECLARED shown as coming soon, never persisted',()=>{
+test('completion — the evidence workflow, plus (UI-4) a declaration without a source in the same panel; no other new call',()=>{
  const src=read('../src/ui/v2/today/TodayV2.tsx');
- assert.match(src,/<Button variant="secondary" size="md" fullWidth disabled aria-describedby=\{`pos-declare-\$\{current\.id\}`\}>\{t\.declare\}<\/Button>/);
- assert.match(src,/declareSoon:'Cette option sera disponible prochainement\.'/);
- const code=src.replace(/^\s*\/\/.*$/gm,'');
- assert.doesNotMatch(code,/USER_DECLARED|DECLARED'|api\(`?evidence|'evidence'/,'no new evidence status, no evidence write from Today');
+ // UI-4: the button is live and opens the declaration form in the same ContextPanel (no new page).
+ assert.match(src,/<Button variant="secondary" size="md" fullWidth iconStart="declared" disabled=\{busy\|\|!criteria\.length\} onClick=\{\(\)=>openPanel\(current,'declare'\)\}>\{t\.declare\}<\/Button>/);
+ assert.doesNotMatch(src,/declareSoon|disponible prochainement/);
  assert.match(src,/onOpenProspect\(current\.prospectId\)\}\}>\{t\.openRecord\}/);
- // Only the calls Today already makes: ensure-fresh, home, signal review.
+ // The only write Today adds: POST evidence USER_DECLARED, with no source and no author (tests/user-declared.test.ts).
+ assert.match(src,/api\('evidence','POST',\{prospect_id:c\.prospectId,criterion:v\.criterion,value:v\.value,status:'USER_DECLARED',\.\.\.\(v\.note\?\{note:v\.note\}:\{\}\)\}\)/);
+ const write=src.slice(src.indexOf('const declare=async'),src.indexOf('const toggle='));
+ assert.doesNotMatch(write,/VERIFIED'|source_url|excerpt|verified_by|declared_by|organization_id/,'never a verified status, a source or an author from Today');
+ assert.doesNotMatch(src.replace(/^\s*\/\/.*$/gm,''),/'VERIFIED'|verified_by|declared_by/);
  const calls=[...src.matchAll(/api\(`([^`]+)`/g)].map(m=>m[1]);
  assert.deepEqual(calls,['projects/${projectId}/next-best-actions/ensure-fresh','projects/${projectId}/next-best-actions/home','signals/${c.action.signalId}/review']);
  const legacy=read('../src/components/TodayPanel.tsx');

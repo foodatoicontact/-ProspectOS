@@ -7,6 +7,8 @@ import type {Statement} from '../../../nba/engine.ts';
 const MISSING=['Indépendant ou petit réseau : décision d’achat locale (pas une grande chaîne aux achats centralisés)',
  'Commande directe, click & collect, fidélité, moindre dépendance aux plateformes','Un canal de contact professionnel documenté'];
 const SUPPORTING=['Restauration avec point de vente physique en Occitanie'];
+// The 6XPOS ICP behind these labels (UI-4: the criteria a declaration without a source can complete on the bench).
+export const BENCH_CRITERIA=[{key:'target_fit',label:SUPPORTING[0]!},{key:'local_decision',label:MISSING[0]!},{key:'need_fit',label:MISSING[1]!},{key:'contactability',label:MISSING[2]!}];
 const fact=(text:string,url:string|null=null,kind:'signal'|'evidence'='signal'):Statement=>({kind:'fact',text,refs:url?[{kind,id:`ref-${text.length}`,source_url:url}]:[]});
 
 function row(o:{id:string;name:string;action:TodayRow['recommended_action'];type:string|null;place:string|null;age:number|null;status?:string|null;

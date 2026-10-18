@@ -73,7 +73,6 @@
 .pos-ui .pos-statements a{color:var(--pos-signal)}
 .pos-ui .pos-statements__kind{font-size:var(--pos-text-xs);font-weight:var(--pos-weight-bold);color:var(--pos-text-3);text-transform:uppercase;letter-spacing:.04em}
 .pos-ui .pos-complete__intro{margin:var(--pos-space-3) 0 0;font-size:var(--pos-text-sm);color:var(--pos-text-2);line-height:var(--pos-leading-normal)}
-.pos-ui .pos-complete__soon{margin:0;font-size:var(--pos-text-sm);color:var(--pos-text-3);text-align:center}
 .pos-ui .pos-verify p a,.pos-ui .pos-complete p a{color:var(--pos-signal);font-weight:var(--pos-weight-semibold)}
 
 /* ── Tablet / desktop ──────────────────────────────────────────────────────────────────────────────── */
@@ -92,3 +91,20 @@
 }
 @media (prefers-reduced-motion:reduce){.pos-ui .pos-today__skeleton span{animation:none}}
 @media (forced-colors:active){.pos-ui .pos-tcard{border:1px solid CanvasText}}
+/* UI-4 — a declaration without a source: neutral "declared" tone (person icon, slate), never the verified green. */
+.pos-ui .pos-checks__declared{color:var(--pos-status-declared-fg);margin-top:1px}
+.pos-ui .pos-declare{display:grid;gap:var(--pos-space-4)}
+.pos-ui .pos-declare__warning{display:flex;gap:var(--pos-space-2);align-items:flex-start;margin:0;padding:var(--pos-space-3);border:1px dashed var(--pos-status-declared-dot);border-radius:var(--pos-radius-md);color:var(--pos-text-1);font-size:var(--pos-text-sm);line-height:var(--pos-leading-snug)}
+.pos-ui .pos-declare__warning svg{color:var(--pos-status-declared-fg);flex:none;margin-top:1px}
+.pos-ui .pos-field{display:grid;gap:var(--pos-space-2);margin:0;padding:0;border:0;min-width:0}
+.pos-ui .pos-field__label{font-size:var(--pos-text-sm);font-weight:var(--pos-weight-semibold);color:var(--pos-text-1);padding:0}
+.pos-ui .pos-field__hint{font-size:var(--pos-text-xs);color:var(--pos-text-3)}
+.pos-ui .pos-field select,.pos-ui .pos-field textarea{width:100%;min-height:var(--pos-size-target);padding:var(--pos-space-2) var(--pos-space-3);border:1px solid var(--pos-border-strong);border-radius:var(--pos-radius-md);background:var(--pos-surface-card);color:var(--pos-text-1);font:inherit;font-size:var(--pos-text-base)}
+.pos-ui .pos-field textarea{resize:vertical}
+.pos-ui .pos-field select:focus-visible,.pos-ui .pos-field textarea:focus-visible,.pos-ui .pos-radio input:focus-visible{outline:2px solid var(--pos-accent);outline-offset:1px}
+.pos-ui .pos-radio{display:flex;align-items:center;gap:var(--pos-space-2);min-height:var(--pos-size-target);font-size:var(--pos-text-base);color:var(--pos-text-1);cursor:pointer}
+.pos-ui .pos-radio input{width:20px;height:20px;margin:0;accent-color:var(--pos-accent);flex:none}
+.pos-ui .pos-declare__error{margin:0;color:var(--pos-status-excluded-fg);font-size:var(--pos-text-sm)}
+.pos-ui fieldset.pos-field{display:flex;flex-direction:column;gap:0}
+/* The legacy global label margin (app/globals.css) must not reach the v2 form. */
+.pos-ui .pos-declare label{margin:0}

@@ -219,7 +219,7 @@ test('14 — no migration was added by this bloc: the RPCs, RLS and evidence_gua
  // evidence RLS change (tests/outreach-intelligence-db.mjs checks evidence rows stay untouched). 028 (AI outreach units
  // and cost operation) touches neither. 029 (provenance at the moment of use) only adds a trigger refusing APPROVED/USED
  // while a cited public content or signal is no longer verified: no evidence, observation or policy change (checked below).
- assert.deepEqual(files.slice(files.indexOf('015_dynamic_safe_analysis.sql')),['015_dynamic_safe_analysis.sql','016_beta_commercial_quotas.sql','017_stripe_billing.sql','018_deleted_accounts_release_beta_capacity.sql','019_discovery_registry_provider.sql','020_public_trial_availability.sql','021_discovery_failed_run_not_billed.sql','022_team_pro.sql','023_team_offer.sql','024_signals.sql','025_pipeline_feedback.sql','026_signal_monitoring.sql','027_outreach_intelligence.sql','028_outreach_ai_generation.sql','029_outreach_provenance_revalidation.sql','030_signal_discovery.sql','031_next_best_action.sql','032_signal_legacy_geo.sql']);
+ assert.deepEqual(files.slice(files.indexOf('015_dynamic_safe_analysis.sql')),['015_dynamic_safe_analysis.sql','016_beta_commercial_quotas.sql','017_stripe_billing.sql','018_deleted_accounts_release_beta_capacity.sql','019_discovery_registry_provider.sql','020_public_trial_availability.sql','021_discovery_failed_run_not_billed.sql','022_team_pro.sql','023_team_offer.sql','024_signals.sql','025_pipeline_feedback.sql','026_signal_monitoring.sql','027_outreach_intelligence.sql','028_outreach_ai_generation.sql','029_outreach_provenance_revalidation.sql','030_signal_discovery.sql','031_next_best_action.sql','032_signal_legacy_geo.sql','033_user_declared_evidence.sql']);
  // 019 (register provider) only widens the provider checks and start_discovery's provider list.
  // 020 (public trial availability) only adds a boolean read of the beta seats; 021 ties a Discovery unit to its run.
  for(const f of ['016_beta_commercial_quotas.sql','017_stripe_billing.sql','018_deleted_accounts_release_beta_capacity.sql','019_discovery_registry_provider.sql','020_public_trial_availability.sql','021_discovery_failed_run_not_billed.sql','022_team_pro.sql','023_team_offer.sql','029_outreach_provenance_revalidation.sql']){
@@ -253,6 +253,12 @@ test('14 — no migration was added by this bloc: the RPCs, RLS and evidence_gua
  // 032 (legacy place backfill) only re-creates the signals guard: no evidence, observation or policy change.
  const m032=(await readFile(new URL('../db/migrations/032_signal_legacy_geo.sql',import.meta.url),'utf8')).split('\n').filter(l=>!l.trim().startsWith('--')).join('\n');
  assert.doesNotMatch(m032,/public\.(evidence|prospect_observations)|policy|grant /i);
+ // 033 (UI-4 USER_DECLARED) is the one later migration that changes evidence, additively: one more status, the
+ // declared_by / note columns, three shape checks and the evidence guard stamping the declaring person. It writes no row,
+ // touches no observation table, and changes no RLS policy nor grant (tests/user-declared-evidence-db.mjs).
+ const m033=(await readFile(new URL('../db/migrations/033_user_declared_evidence.sql',import.meta.url),'utf8')).split('\n').filter(l=>!l.trim().startsWith('--')).join('\n');
+ assert.doesNotMatch(m033,/(insert into|update|delete from) public\.|prospect_observations|policy|grant |row level security/i);
+ assert.deepEqual(m033.match(/alter table public\.\w+/g),Array(10).fill('alter table public.evidence'));
  const client=await readFile(new URL('../src/components/evidence-presentation.ts',import.meta.url),'utf8');
  assert.doesNotMatch(client,/service_role|SUPABASE_SERVICE|process\.env/);
 });

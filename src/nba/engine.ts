@@ -210,6 +210,11 @@ export type FitProfile={
  level:number;verified_score:number;direction:'POSITIVE'|'NEGATIVE'|'MIXED'|'NONE';state:FitState;
  // Criterion labels, to explain without a number: what supports, what goes against (verified), what nobody knows.
  supporting:string[];against:string[];missing:string[];
+ // UI-4 (labels only — no weight, level or state reads them): within supporting, the criteria a person VERIFIED with a
+ // source, and those resting only on the person's own declaration (USER_DECLARED, never verified); declared_false: the
+ // criteria (also in missing) the person declared NOT met — not counter-evidence: they stay in the unknown weight, never
+ // against, so never OFF_TARGET. Absent on recommendations stored before UI-4.
+ verified_supporting?:string[];declared?:string[];declared_false?:string[];
 };
 export type Scores={
  // score / basis / coverage: unchanged since v1 (stored, shown); profile: what the decision reads.
@@ -224,14 +229,15 @@ export type Driver={kind:'signal';signal:ClassifiedSignal}|{kind:'conversation';
 
 export function fitProfileOf(f:ReturnType<typeof estimateFit>,config:NbaConfig):FitProfile{
  const p:FitProfile={total_weight:0,positive_weight:0,verified_positive_weight:0,negative_weight:0,unknown_weight:0,observed_weight:0,coverage:0,verified_coverage:0,
-  level:f.estimated.score,verified_score:f.verified.score,direction:'NONE',state:'UNKNOWN',supporting:[],against:[],missing:[]};
+  level:f.estimated.score,verified_score:f.verified.score,direction:'NONE',state:'UNKNOWN',supporting:[],against:[],missing:[],
+  verified_supporting:[],declared:[],declared_false:[]};
  for(const line of f.estimated.breakdown){
   const verified=f.verified.breakdown.find(b=>b.key===line.key)!;
   p.total_weight+=line.weight;
-  if(verified.state==='TRUE'){p.positive_weight+=line.weight;p.verified_positive_weight+=line.weight;p.supporting.push(line.label)}
+  if(verified.state==='TRUE'){p.positive_weight+=line.weight;p.verified_positive_weight+=line.weight;p.supporting.push(line.label);p.verified_supporting!.push(line.label)}
   else if(verified.state==='FALSE'){p.negative_weight+=line.weight;p.against.push(line.label)}
-  else if(line.state==='ESTIMATED'){p.positive_weight+=line.weight;p.supporting.push(line.label)}
-  else{p.unknown_weight+=line.weight;p.missing.push(line.label)}
+  else if(line.state==='ESTIMATED'){p.positive_weight+=line.weight;p.supporting.push(line.label);if(line.declared===true)p.declared!.push(line.label)}
+  else{p.unknown_weight+=line.weight;p.missing.push(line.label);if(line.declared===false)p.declared_false!.push(line.label)}
  }
  p.observed_weight=p.positive_weight+p.negative_weight;
  const share=(w:number)=>p.total_weight>0?Math.round(100*w/p.total_weight):0;
@@ -418,8 +424,14 @@ function explain(c:Ctx,rule:RuleId,target:Target):Explanation{
    refs:scores.fit.lines.flatMap(l=>l.ref?[evidenceRef(l.ref.id)]:[])});
   if(fp.against.length)why_this_account.push({kind:'fact',text:`Critères ICP vérifiés non satisfaits : ${fp.against.join(', ')}.`,refs:[]});
  }else if(scores.fit.basis==='estimated'){
-  why_this_account.push({kind:'inference',text:`FIT estimé à ${scores.fit.score}/100 à partir de preuves non vérifiées : ${scores.fit.lines.map(l=>l.label).join(', ')}.`,refs:scores.fit.lines.flatMap(l=>l.ref?[evidenceRef(l.ref.id)]:[])});
+  // UI-4: a criterion resting only on the person's declaration is never called a proof (said apart, below).
+  const declared=new Set(scores.fit.profile.declared??[]);const sourced=scores.fit.lines.filter(l=>!declared.has(l.label));
+  why_this_account.push({kind:'inference',text:sourced.length?`FIT estimé à ${scores.fit.score}/100 à partir de preuves non vérifiées : ${sourced.map(l=>l.label).join(', ')}.`
+   :`FIT estimé à ${scores.fit.score}/100 à partir de vos seules déclarations, sans source.`,refs:sourced.flatMap(l=>l.ref?[evidenceRef(l.ref.id)]:[])});
  }else unknown.push({kind:'unknown',text:'Adéquation à l’ICP inconnue : aucune preuve sur ce compte.',refs:[]});
+ // UI-4: what the person declared, without a source — an inference for the estimate, never a fact nor a proof.
+ if(scores.fit.profile.declared?.length)inferred.push({kind:'inference',text:`Déclaré par vous, sans source (non vérifié) : ${scores.fit.profile.declared.join(', ')}.`,refs:[]});
+ if(scores.fit.profile.declared_false?.length)unknown.push({kind:'unknown',text:`Déclaré non rempli par vous, sans source (non vérifié, ce n’est pas une contre-preuve) : ${scores.fit.profile.declared_false.join(', ')}.`,refs:[]});
  if(scores.fit.profile.observed_weight>0&&scores.fit.profile.missing.length)
   unknown.push({kind:'unknown',text:`Critères ICP non documentés (${100-scores.fit.profile.coverage} % de l’ICP) : ${scores.fit.profile.missing.join(', ')}.`,refs:[]});
  const why_now:Statement[]=[];

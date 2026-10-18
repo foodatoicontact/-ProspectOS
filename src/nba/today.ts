@@ -15,7 +15,7 @@ export type TodayRow={id:string;prospect_id:string;recommended_action:'CONTACT'|
  opportunity_score:number;fit_score:number|null;fit_basis:string;intent_score:number;timing_score:number;freshness_score:number;evidence_quality_score:number;
  primary_kind:string|null;primary_signal_type:string|null;primary_evidence_status:string|null;signal_age_days:number|null;
  primary_detail:{signal_id?:string;geo_relevance?:string;place?:string|null;content_id?:string;relevance_reason?:string;suggested_angle?:string}|null;
- scores?:{fit?:{profile?:{state?:string;coverage?:number;supporting?:string[];missing?:string[];against?:string[]};lines?:{label:string}[]}}|null;
+ scores?:{fit?:{profile?:{state?:string;coverage?:number;supporting?:string[];missing?:string[];against?:string[];verified_supporting?:string[];declared?:string[];declared_false?:string[]};lines?:{label:string}[]}}|null;
  target?:{role:string|null;person:{name:string}|null}|null;
  explanation:{why_this_account:Statement[];why_now:Statement[];why_this_action:Statement[];inferred:Statement[];unknown:Statement[]};
  prepared_content?:{kind:string}|null;computed_at?:string;prospects?:{name:string}|null};
@@ -24,7 +24,9 @@ export type TodaySection='contact'|'verify'|'engage'|'watch';
 export type PrimaryAction={kind:'PREPARE_MESSAGE'|'OPEN_CONVERSATION'|'VERIFY_SIGNAL'|'VERIFY_INFORMATION'|'NONE';signalId?:string|null};
 export type TodayCard={id:string;prospectId:string;name:string;section:TodaySection;action:TodayRow['recommended_action'];primary:PrimaryAction;
  whyNow:string|null;whyCompany:string;missingSummary:string|null;proof:{text:string;url:string|null}|null;
- details:{favourable:string[];missing:string[];timing:string|null;place:string|null};
+ // UI-4: verified = the favourable criteria a person verified with a source (null on rows stored before UI-4: unknown);
+ // declared / declaredFalse = what the person declared without a source — never shown as verified.
+ details:{favourable:string[];missing:string[];timing:string|null;place:string|null;verified:string[]|null;declared:string[];declaredFalse:string[]};
  advanced:{rule:string;scores:{label:string;value:string}[];statements:Statement[]}};
 // watched = companies we keep an eye on WITHOUT asking anything of the user (WATCH with nothing to check, WAIT): never the
 // cards already counted "à vérifier" — each company appears once in the summary.
@@ -94,7 +96,7 @@ export function cardOf(r:TodayRow):TodayCard{
   :primary.kind==='VERIFY_INFORMATION'?'Des informations manquent encore avant de décider si ce compte doit être contacté.':null;
  const place=r.primary_detail?.place??null;
  return {id:r.id,prospectId:r.prospect_id,name:r.prospects?.name??'—',section,action:r.recommended_action,primary,whyNow:whyNowOf(r),whyCompany,missingSummary,proof:proofOf(r),
-  details:{favourable,missing:[...signalLine,...missing],timing:r.signal_age_days===null?null:`Signal ${ago(r.signal_age_days)}`,place:place?`${placeName(place)}${r.primary_detail?.geo_relevance==='MATCH'?' — dans votre zone':''}`:null},
+  details:{favourable,missing:[...signalLine,...missing],verified:p?.verified_supporting?[...p.verified_supporting]:null,declared:[...(p?.declared??[])],declaredFalse:[...(p?.declared_false??[])],timing:r.signal_age_days===null?null:`Signal ${ago(r.signal_age_days)}`,place:place?`${placeName(place)}${r.primary_detail?.geo_relevance==='MATCH'?' — dans votre zone':''}`:null},
   advanced:{rule:r.rule,scores:[['Opportunité',r.opportunity_score],['FIT',r.fit_score===null?'—':`${r.fit_score} (${r.fit_basis})`],['Couverture ICP',p?.coverage===undefined?'—':`${p.coverage} %`],
    ['INTENT',r.intent_score],['TIMING',r.timing_score],['Fraîcheur',r.freshness_score],['Qualité de preuve',r.evidence_quality_score],...(place?[['Lieu (données)',place]]:[])].map(([l,v])=>({label:String(l),value:String(v)})),
    statements:[...r.explanation.why_this_account,...r.explanation.why_now,...r.explanation.why_this_action,...r.explanation.inferred,...r.explanation.unknown]}};

@@ -234,3 +234,23 @@ prospect et au tenant. Contrôle post-migration `db/migrations/checks/031_next_b
 - Thèmes de conversation orientés « vente / prospection » ; un projet d'un autre secteur s'appuie sur ses termes INTENT.
 - Calcul à la demande (bouton « Recalculer »), sur les 500 prospects les plus récents d'un projet ; pas de tâche planifiée.
 - Pas encore de canal d'exécution : IONOS / SMTP viendront ensuite, derrière la décision humaine déjà enregistrée ici.
+
+### UI-4 — USER_DECLARED : compléter un critère sans source (2026-10-18)
+
+Une personne peut déclarer, depuis *Aujourd'hui* (Today 2.0, panneau « Que manque-t-il pour décider ? »), qu'un critère de
+l'ICP est rempli ou non, à partir de ce qu'elle sait — **sans source**. Principe : **USER_DECLARED ≠ VERIFIED**.
+
+- **Données (migration 033)** : `evidence.status = 'USER_DECLARED'`, `value` booléen obligatoire, `source_url` et `excerpt`
+  **nuls** (jamais d'URL inventée, interne ou empruntée), `declared_by` posé par le garde depuis la session (`auth.uid()`,
+  jamais par le client ; `verified_by` garde son sens et reste nul), `note` facultative ≤ 280. Migration additive et
+  ré-applicable ; lignes existantes inchangées.
+- **FIT** : une déclaration positive alimente le seul FIT **estimé**, à la confiance manuelle existante (0,7) ; elle
+  n'entre jamais dans `scoreProspect` (FIT vérifié, couverture vérifiée, qualité de preuve), donc **jamais CONTACT**. Une
+  déclaration négative est un FALSE non vérifié : 0 point, **jamais une contre-preuve** (pas d'OFF_TARGET). Une preuve
+  vérifiée l'emporte toujours. Fenêtre de 90 jours comme toute autre ligne. Aucun seuil, aucune règle, aucune version
+  modifiés ; sans déclaration, les sorties sont identiques à main (test d'équivalence).
+- **Outreach** : rien ne change — le modèle factuel, l'angle, les sources de l'IA et le garde-fou ne lisent que des lignes
+  VERIFIED avec source ; une déclaration n'est jamais citée.
+- **Affichage** : *Vérifié* (vert), *Déclaré par vous* (ton neutre `declared`, icône personne), *Estimé, à vérifier*,
+  *Non documenté* / *Déclaré non rempli par vous* ; le niveau 3 montre `USER_DECLARED true / false` brut. Profil FIT :
+  `verified_supporting`, `declared`, `declared_false` (libellés seulement, absents des recommandations antérieures).

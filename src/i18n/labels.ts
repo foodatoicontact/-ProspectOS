@@ -27,7 +27,13 @@ const EVIDENCE_STATUS_LABELS:Record<string,{fr:string;en:string}>={
  NOT_VERIFIED:{fr:'À confirmer',en:'To review'},
  CONTRADICTED:{fr:'Contredite',en:'Contradicted'},
  INFERRED_UNCONFIRMED:{fr:'Supposée',en:'Inferred'},
+ // UI-4: what the person declared without a source — never "verified".
+ USER_DECLARED:{fr:'Déclaré par vous, sans source (non vérifié)',en:'Declared by you, without a source (not verified)'},
 };
+// UI-4: the value a person declared without a source, said as theirs (never as a fact).
+export function declaredValueLabel(value:boolean,locale:Locale):string{
+ return value?(locale==='fr'?'Critère rempli selon vous':'Criterion met, according to you'):(locale==='fr'?'Critère non rempli selon vous':'Criterion not met, according to you');
+}
 // The demo-only "human declared it" nuance (verified_by==='demo-human') is a presentation detail on
 // top of the VERIFIED status, never a distinct internal status value.
 export function evidenceStatusLabel(status:string,verifiedBy:string|null|undefined,locale:Locale):string{

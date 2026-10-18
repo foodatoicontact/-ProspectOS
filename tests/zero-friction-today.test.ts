@@ -144,16 +144,18 @@ test('8 — advanced details keep every explanation statement and its provenance
 });
 
 // ------------------------------------------------------------ 9 engine untouched
-test('9 — NBA v1.3 decisions unchanged: registry and content identical to a54539d; engine identical but for the v1.3.x NOT_ENOUGH split',()=>{
+test('9 — NBA v1.3 decisions unchanged: registry, content and core identical to a54539d; configuration and rules identical but for the v1.3.x NOT_ENOUGH split',()=>{
  const at=(f:string,rev?:string)=>execSync(rev?`git show ${rev}:${f}`:`cat ${f}`,{cwd:new URL('..',import.meta.url),encoding:'utf8'});
- for(const f of ['src/nba/registry.ts','src/nba/content.ts','src/geo/model.ts','src/domain/fit-estimate.ts','src/domain/core.ts'])assert.equal(at(f),at(f,'a54539d'),f);
+ for(const f of ['src/nba/registry.ts','src/nba/content.ts','src/geo/model.ts','src/domain/core.ts'])assert.equal(at(f),at(f,'a54539d'),f);
+ // UI-4 (USER_DECLARED) changes src/domain/fit-estimate.ts and adds labels / sentences to the FIT profile and the
+ // explanation: their byte pins are replaced by a behavioural one — without any declaration, every output of the
+ // a54539d engine + estimate is reproduced exactly (tests/user-declared.test.ts).
  // v1.3.x (docs/NEXT_BEST_ACTION.md): only the terminal rule, its sentences and the rule lookup changed. Configuration,
- // scoring, every other rule and everything after the decision are byte-identical.
+ // every other rule and everything after the decision are byte-identical.
  const before=at('src/nba/engine.ts','a54539d'),now=at('src/nba/engine.ts');
  const cut=(t:string,from:string,to:string)=>t.slice(t.indexOf(from),t.indexOf(to));
- assert.equal(cut(now,'// Configuration','export type RuleId'),cut(before,'// Configuration','export type RuleId'),'config + scoring');
+ assert.equal(cut(now,'// Configuration','// 1. '),cut(before,'// Configuration','// 1. '),'configuration');
  assert.equal(cut(now,'type Ctx=',' // v1.3.x: the former terminal'),cut(before,'type Ctx='," {id:'NOT_ENOUGH'"),'rules 1–11');
- assert.equal(cut(now,'function explain(','export function buildOpportunity'),cut(before,'function explain(','export function buildOpportunity'),'explanation + opportunity type');
  const tail=(t:string)=>t.slice(t.indexOf(' const driver:Driver|null='));
  assert.equal(tail(now),tail(before),'everything after the rule lookup');
  assert.ok(now.includes("version:'nba-v1.3-2026-10'"),'config_version unchanged (docs: why no bump)');

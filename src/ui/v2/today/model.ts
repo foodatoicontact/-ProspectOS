@@ -4,7 +4,7 @@
 //   Level 1  company · signal (TYPE · place · age) · status · one short explanation · one action · "Voir pourquoi"
 //   Level 2  signal, source, freshness (age), place, favourable elements, missing information — never a score
 //   Level 3  scores, coverage, rule, evidence states, statements with their provenance, raw place
-import {buildTodayModel,SECTION_ORDER,type TodayCard,type TodayRow,type TodaySection,type PrimaryAction} from '../../../nba/today.ts';
+import {buildTodayModel,cardOf,SECTION_ORDER,type TodayCard,type TodayRow,type TodaySection,type PrimaryAction} from '../../../nba/today.ts';
 import {REGISTRY} from '../../../nba/registry.ts';
 import {placeName} from '../../../ux/place-phrase.ts';
 import {translate,type TKey} from '../../../i18n/index.ts';
@@ -21,7 +21,8 @@ export type V2Card={
  level2:{source:{label:string;url:string|null}|null;proof:string|null;freshness:string|null;place:string|null;favourable:string[];missing:string[]};
  level3:{scores:{label:string;value:string}[];rule:string;evidence:{label:string;value:string}[];statements:Statement[]};
 };
-export type V2Today={cards:V2Card[];counts:{contact:number;verify:number;engage:number;watched:number};total:number};
+// watched: what the "en veille" chip counts (ZF1.1: WATCH with nothing to do + WAIT) — the cards that filter shows.
+export type V2Today={cards:V2Card[];watched:V2Card[];counts:{contact:number;verify:number;engage:number;watched:number};total:number};
 
 const ACTION_KEY:Record<Exclude<PrimaryAction['kind'],'NONE'>,TKey>={PREPARE_MESSAGE:'today.action.prepare',OPEN_CONVERSATION:'today.action.conversation',
  VERIFY_SIGNAL:'today.action.verifySignal',VERIFY_INFORMATION:'today.action.completeInfo'};
@@ -77,5 +78,10 @@ export function todayV2(rows:TodayRow[],locale:Locale):V2Today{
  const m=buildTodayModel(rows);
  const byId=new Map(rows.map(r=>[r.id,r]));
  const cards=SECTION_ORDER.flatMap(s=>m.sections[s].map(c=>v2CardOf(c,byId.get(c.id)!,locale)));
- return {cards,counts:{contact:m.sections.contact.length,verify:m.sections.verify.length,engage:m.sections.engage.length,watched:m.watched},total:m.total};
+ // WAIT never takes space in the default view (ZF1), but the "en veille" filter must show every company its chip counts:
+ // the WATCH cards with nothing to do, then the PENDING WAIT rows in the engine's own ranking (same order as buildTodayModel).
+ const waiting=rows.filter(r=>r.state==='PENDING'&&r.recommended_action==='WAIT')
+  .sort((a,b)=>b.opportunity_score-a.opportunity_score||a.prospect_id.localeCompare(b.prospect_id)).map(r=>v2CardOf(cardOf(r),r,locale));
+ const watched=[...cards.filter(c=>c.section==='watch'),...waiting];
+ return {cards,watched,counts:{contact:m.sections.contact.length,verify:m.sections.verify.length,engage:m.sections.engage.length,watched:m.watched},total:m.total};
 }

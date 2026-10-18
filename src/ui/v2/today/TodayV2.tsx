@@ -137,7 +137,7 @@ export function TodayV2({projectId,api,locale,dirty,onCleaned,onOpenProspect,tra
  useEffect(()=>{if(mounted.current&&!dirty)return;if(!mounted.current)track('ZF_TODAY_VIEWED');mounted.current=true;void load(dirty?'data_changed':'open')},[projectId,dirty]);// eslint-disable-line react-hooks/exhaustive-deps
  const model=rows?todayV2(rows,locale):null;
  useEffect(()=>{if(model&&model.total>0)track('ZF_FIRST_RECOMMENDATION_VISIBLE')},[rows]);// eslint-disable-line react-hooks/exhaustive-deps
- const current=panel&&model?model.cards.find(c=>c.id===panel.id)??null:null;
+ const current=panel&&model?[...model.cards,...model.watched].find(c=>c.id===panel.id)??null:null;
  useEffect(()=>{if(panel&&model&&!current)setPanel(null)},[panel,model,current]);
 
  const openPanel=(c:V2Card,mode:PanelMode)=>{setAdvanced(false);setPanel({id:c.id,mode});if(mode==='why')track('ZF_WHY_OPENED')};
@@ -154,7 +154,7 @@ export function TodayV2({projectId,api,locale,dirty,onCleaned,onOpenProspect,tra
   catch(e){setNote(String((e as Error).message))}finally{setBusy(false)}
  };
  const toggle=(f:Filter)=>(on:boolean)=>setFilter(on?f:null);
- const visible=model?model.cards.filter(c=>!filter||c.section===filter):[];
+ const visible=!model?[]:filter==='watch'?model.watched:model.cards.filter(c=>!filter||c.section===filter);
  const panelTitle=panel?.mode==='complete'?t.completeTitle:panel?.mode==='verify'?t.verifyTitle:t.whyTitle;
 
  return <div className="pos-today">

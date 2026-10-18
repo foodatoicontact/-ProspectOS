@@ -151,3 +151,13 @@ test('helpers — ages and source labels (FR / EN)',()=>{
  assert.equal(sourceLabel('https://www.ladepeche.fr/x'),'ladepeche.fr');assert.equal(sourceLabel('javascript:alert(1)'),null);
  assert.equal(todayV2(CANARY_ROWS,'en').cards[0]!.signal?.age,'25 days ago');
 });
+test('filter "en veille" — shows every company its chip counts, WAIT included; WAIT never in the default view',()=>{
+ const m=todayV2(ALL_STATES_ROWS,'fr');
+ assert.equal(m.counts.watched,m.watched.length,'chip count = cards shown by the filter');
+ assert.deepEqual(m.watched.map(c=>c.id),['watch','wait']);
+ const wait=m.watched.find(c=>c.id==='wait')!;
+ assert.equal(wait.section,'watch');assert.equal(wait.status,'watch');assert.equal(wait.action.kind,'NONE');
+ assert.ok(!m.cards.some(c=>c.id==='wait'),'default view: WAIT never takes a card (ZF1)');
+ assert.ok(!m.watched.some(c=>c.id==='dismiss'));
+ assert.match(read('../src/ui/v2/today/TodayV2.tsx'),/filter==='watch'\?model\.watched:/);
+});

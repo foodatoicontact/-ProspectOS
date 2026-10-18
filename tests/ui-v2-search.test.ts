@@ -88,9 +88,9 @@ test('verification in words; numbers only in "Détails avancés"; unknown stays 
  assert.equal(scoreText(null,'fr'),null);assert.equal(scoreText({kind:'estimated',main:52,verified:null,toVerify:2,toVerifyPoints:30},'fr'),'52/100 (estimé)');
  const face=nat.slice(nat.indexOf('function ResultCard('),nat.indexOf('<details className="pos-sdetails">',nat.indexOf('function ResultCard(')));
  assert.doesNotMatch(face,/scoreText|\/100|score\.main/,'no number on the card face');
- assert.match(nat,/\{tr\('discovery\.currentScore'\)\} <b>\{scoreText\(f\.score,locale\)\?\?tr\('score\.notScored'\)\}<\/b>/,'the number, in Détails avancés');
- const order=['className="pos-sres__name"','className="pos-sres__place"','<dt>{t.why}</dt>','<dt>{t.source}</dt>','<dt>{t.verification}</dt>','className="pos-sres__actions"','<details className="pos-sdetails">'].map(n=>face.indexOf(n)>=0?face.indexOf(n):nat.indexOf(n));
- assert.deepEqual(order,[...order].sort((a,b)=>a-b),'company, place, why, source, verification, action, details');
+ assert.match(nat,/<dt>\{tr\('discovery\.currentScore'\)\}<\/dt><dd><b>\{scoreText\(f\.score,locale\)\?\?tr\('score\.notScored'\)\}<\/b>/,'the number, in Détails avancés');
+ const order=['className="pos-sres__name"','className="pos-sres__place"','className="pos-sres__tags"','className="pos-sres__why"','className="pos-sres__verify"','className="pos-sres__actions"','<details className="pos-sdetails">'].map(n=>face.indexOf(n)>=0?face.indexOf(n):nat.indexOf(n));
+ assert.deepEqual(order,[...order].sort((a,b)=>a-b),'company + place, novelty + priority, why, verification, action, details');
 });
 test('look — scoped, tokens only, 44 px targets, reduced motion, forced colours; CONTACT green unused',()=>{
  for(const rule of css.match(/^\.pos-ui[^{]*\{/gm)??[])assert.ok(rule.startsWith('.pos-ui .pos-search'),rule);
@@ -112,4 +112,26 @@ test('bench — frozen states and the real panel in demo mode; no network',()=>{
  assert.doesNotMatch(fx,/fetch\(|api\(/);
  assert.match(bench,/mode="demo" api=\{api\}/);assert.match(bench,/const api=async\(\)=>\(\{\}\);/);
  assert.match(read('../app/ui-v2/layout.tsx'),/if\(!uiV2Enabled\(process\.env\)\)notFound\(\);/);
+});
+test('final polish — compact face: no CANDIDAT badge, short reasons, source one tap away, technical metadata in the details',()=>{
+ const face=nat.slice(nat.indexOf('function ResultCard('),nat.indexOf('<details className="pos-sdetails">',nat.indexOf('function ResultCard(')));
+ assert.match(face,/const stateTag=f\.state!=='candidate'&&!\(f\.state==='added'&&f\.nov\?\.status==='ADDED'\);/,'the candidate state stays implicit on the face');
+ assert.match(face,/const why=pr\?shortReasons\(pr\.reasons,locale\):/,'the same reasons, said short');
+ assert.match(face,/<a className="pos-sres__source" href=\{r\.normalized_payload\.source_url\}/,'the source stays one tap away');
+ for(const n of ['resolutionBothLabel','resolutionNameOnlyLabel','discoveryFoundNote','identifiedCompanyLabel','companyWebsiteLabel','signalFoundVia','scoreText','f.viaThirdParty&&<span'])
+  assert.ok(!face.includes(n),`not on the face: ${n}`);
+ const adv=nat.slice(nat.indexOf('<details className="pos-sdetails">',nat.indexOf('function ResultCard(')),nat.indexOf('function RunDetails('));
+ for(const n of ["tr('discovery.identifiedCompanyLabel')","tr('discovery.companyWebsiteLabel')","tr('discovery.signalFoundVia')","tr('discovery.resolutionLabel')",'discoveryFoundNote(','<dt>{t.sources}</dt>',"tr('discovery.currentScore')","tr('discovery.reviewPriority')","tr('discovery.signalSourceNote')","tr('discovery.priorityExplain')","tr('discovery.notAddable')",'additional_sources'])
+  assert.ok(adv.includes(n),`kept in Détails avancés: ${n}`);
+ assert.match(face,/<Button variant="primary" size="sm" iconStart="plus" disabled=\{m\.busy\} onClick=\{\(\)=>m\.accept\(/,'add stays the primary CTA');
+ assert.match(face,/<Button variant="quiet" size="sm" disabled=\{m\.busy\} onClick=\{\(\)=>m\.ignore\(r\)\}>\{tr\('discovery\.ignore'\)\}<\/Button><\/>/,'ignore stays secondary');
+});
+test('short reasons — the same review-priority reasons, every one worded, none added',async()=>{
+ const {SHORT_REASON,shortReasons,priorityChip}=await import('../src/ui/v2/search/model.ts');
+ const src=read('../src/discovery/review-priority.ts');
+ const reasons=[...src.slice(src.indexOf('export type ReviewPriorityReason'),src.indexOf(';',src.indexOf('export type ReviewPriorityReason'))).matchAll(/'([a-z_]+)'/g)].map(x=>x[1]).sort();
+ for(const l of ['fr','en'] as const)assert.deepEqual(Object.keys(SHORT_REASON[l]).sort(),reasons,l);
+ assert.equal(shortReasons(['official_site','website_identified','query_terms_observed','location_mentioned'],'fr'),'Site officiel identifié · site identifié · activité cohérente');
+ assert.equal(shortReasons([],'fr'),'');
+ assert.equal(priorityChip('HIGH','fr'),'Priorité élevée');
 });

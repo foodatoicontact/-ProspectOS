@@ -29,3 +29,27 @@ export function scoreText(s:FitDisplay|null,locale:Locale):string|null{
  if(s.kind==='none')return locale==='fr'?'non établi':'not established';
  return `${s.main}/100${s.kind==='estimated'?(locale==='fr'?' (estimé)':' (estimated)'):''}`;
 }
+
+// The same review-priority reasons (src/discovery/review-priority.ts), said short for the card face. No reason is added,
+// dropped or reordered; the full sentences stay in "Détails avancés".
+import type {ReviewPriorityReason,ReviewPriorityLevel} from '../../../discovery/review-priority.ts';
+export const SHORT_REASON:Record<Locale,Record<ReviewPriorityReason,string>>={
+ fr:{official_site:'Site officiel identifié',named_by_third_party:'Citée par une source tierce',website_identified:'site identifié',query_terms_observed:'activité cohérente',
+  single_query_term:'un seul terme observé',no_specific_query_term:'activité non confirmée',public_registry:'Registre public (SIREN)',registry_activity_code:'code NAF déclaré',
+  location_mentioned:'zone mentionnée',several_sources:'plusieurs sources',business_site_shape:'page d’entreprise',job_ad_source:'via une offre d’emploi',
+  content_source:'via un article',listing_or_editorial_shape:'page liste ou article',not_a_company_candidate:'pas une entreprise exploitable',
+  cooperative_or_network:'coopérative ou réseau',public_body:'acteur public'},
+ en:{official_site:'Official website found',named_by_third_party:'Named by a third-party source',website_identified:'website found',query_terms_observed:'matching activity',
+  single_query_term:'one search term seen',no_specific_query_term:'activity not confirmed',public_registry:'Public registry (SIREN)',registry_activity_code:'NAF code declared',
+  location_mentioned:'area mentioned',several_sources:'several sources',business_site_shape:'company page',job_ad_source:'via a job ad',
+  content_source:'via an article',listing_or_editorial_shape:'list or article page',not_a_company_candidate:'not a usable company',
+  cooperative_or_network:'cooperative or network',public_body:'public body'},
+};
+export function shortReasons(reasons:readonly ReviewPriorityReason[],locale:Locale,max=3):string{
+ const list=reasons.slice(0,max).map(r=>SHORT_REASON[locale][r]);
+ return list.length?list.join(' · '):'';
+}
+export function priorityChip(level:ReviewPriorityLevel,locale:Locale):string{
+ const fr={HIGH:'Priorité élevée',MEDIUM:'Priorité moyenne',LOW:'Priorité faible'},en={HIGH:'High priority',MEDIUM:'Medium priority',LOW:'Low priority'};
+ return (locale==='fr'?fr:en)[level];
+}

@@ -74,39 +74,48 @@
 .pos-ui .pos-search .pos-stab[aria-pressed="true"]{background:var(--pos-text-1);border-color:var(--pos-text-1);color:var(--pos-bg)}
 .pos-ui .pos-search .pos-stab:focus-visible{outline:2px solid var(--pos-accent);outline-offset:2px}
 
-/* One card per company: name and place, then why / source / verification, then the human action. */
-.pos-ui .pos-search .pos-sres{display:grid;gap:var(--pos-space-3);padding:var(--pos-space-4);background:var(--pos-surface-card);border:1px solid var(--pos-border);
- border-radius:var(--pos-radius-xl);box-shadow:var(--pos-shadow-card);min-width:0}
+/* One card per company, read top-down: company + place (with its source one tap away) → novelty + review priority →
+   why it stands out (one short line) → verification (À documenter stays visible) → action. Everything technical is in
+   "Détails avancés". Compact on a phone: the next result shows sooner, targets stay ≥ 44 px. */
+.pos-ui .pos-search .pos-sres{display:grid;gap:var(--pos-space-2);padding:var(--pos-space-3) var(--pos-space-3) var(--pos-space-1);background:var(--pos-surface-card);
+ border:1px solid var(--pos-border);border-radius:var(--pos-radius-xl);box-shadow:var(--pos-shadow-card);min-width:0}
 .pos-ui .pos-search .pos-sres--added,.pos-ui .pos-search .pos-sres--ignored{background:var(--pos-surface-inset);box-shadow:none}
-.pos-ui .pos-search .pos-sres__head{display:grid;gap:4px;min-width:0;align-content:start;align-self:start}
-.pos-ui .pos-search .pos-sres__name{margin:0;font-size:var(--pos-text-lg);font-weight:var(--pos-weight-heavy);letter-spacing:-.02em;overflow-wrap:anywhere}
-.pos-ui .pos-search .pos-sres__place{display:flex;align-items:center;gap:6px;margin:0;font-size:var(--pos-text-sm);color:var(--pos-text-2);overflow-wrap:anywhere}
-.pos-ui .pos-search .pos-sres__place .pos-icon{flex:none;color:var(--pos-text-3)}
-.pos-ui .pos-search .pos-sres__tags{display:flex;flex-wrap:wrap;align-items:flex-start;gap:6px;margin:2px 0 0}
+.pos-ui .pos-search .pos-sres__head{display:grid;gap:2px;min-width:0;align-content:start}
+.pos-ui .pos-search .pos-sres__name{margin:0;font-size:var(--pos-text-md);font-weight:var(--pos-weight-heavy);letter-spacing:-.02em;line-height:var(--pos-leading-snug);overflow-wrap:anywhere}
+.pos-ui .pos-search .pos-sres__place{display:flex;flex-wrap:wrap;align-items:center;gap:2px var(--pos-space-3);margin:0;font-size:var(--pos-text-sm);color:var(--pos-text-2);overflow-wrap:anywhere}
+.pos-ui .pos-search .pos-sres__source{font-size:var(--pos-text-sm);color:var(--pos-signal)}
+.pos-ui .pos-search .pos-sres__tags{display:flex;flex-wrap:wrap;align-items:flex-start;gap:6px;margin:0}
 .pos-ui .pos-search .pos-stag{display:inline-flex;align-items:center;min-height:24px;padding:0 var(--pos-space-2);border-radius:var(--pos-radius-pill);background:var(--pos-surface-muted);
  color:var(--pos-text-2);font-size:var(--pos-text-xs);font-weight:var(--pos-weight-semibold)}
 .pos-ui .pos-search .pos-stag--novelty-new{background:var(--pos-accent);color:var(--pos-on-accent)}
 .pos-ui .pos-search .pos-stag--novelty-added,.pos-ui .pos-search .pos-stag--state-added{background:var(--pos-status-engage-bg);color:var(--pos-status-engage-fg)}
 .pos-ui .pos-search .pos-stag--novelty-ignored{background:var(--pos-status-excluded-bg);color:var(--pos-status-excluded-fg)}
-.pos-ui .pos-search .pos-stag--state-candidate{background:var(--pos-status-verify-bg);color:var(--pos-status-verify-fg)}
+.pos-ui .pos-search .pos-stag--priority-high{background:var(--pos-status-verify-bg);color:var(--pos-status-verify-fg)}
+.pos-ui .pos-search .pos-stag--priority-medium,.pos-ui .pos-search .pos-stag--priority-low{background:transparent;border:1px solid var(--pos-border-strong);color:var(--pos-text-2)}
 .pos-ui .pos-search .pos-stag--run-failed,.pos-ui .pos-search .pos-stag--run-interrupted{background:var(--pos-status-excluded-bg);color:var(--pos-status-excluded-fg)}
 .pos-ui .pos-search .pos-stag--run-running{background:var(--pos-status-verify-bg);color:var(--pos-status-verify-fg)}
-.pos-ui .pos-search .pos-sres__facts{display:grid;gap:var(--pos-space-2);margin:0;min-width:0;align-content:start}
-.pos-ui .pos-search .pos-sres__facts>div{display:grid;gap:2px;min-width:0}
-.pos-ui .pos-search .pos-sres__facts dt{font-size:var(--pos-text-xs);font-weight:var(--pos-weight-bold);letter-spacing:.05em;text-transform:uppercase;color:var(--pos-text-3)}
-.pos-ui .pos-search .pos-sres__facts dd{margin:0;font-size:var(--pos-text-sm);color:var(--pos-text-1);overflow-wrap:anywhere}
-.pos-ui .pos-search .pos-spriority{font-weight:var(--pos-weight-semibold)}
-.pos-ui .pos-search .pos-spriority--high{color:var(--pos-status-verify-fg)}
-.pos-ui .pos-search .pos-sres__reasons{color:var(--pos-text-2)}
-.pos-ui .pos-search .pos-sverify{display:inline-flex;align-items:center;gap:4px;font-weight:var(--pos-weight-semibold)}
+.pos-ui .pos-search .pos-sres__why{margin:0;font-size:var(--pos-text-sm);color:var(--pos-text-1);line-height:var(--pos-leading-snug);overflow-wrap:anywhere}
+.pos-ui .pos-search .pos-sres__verify{display:flex;flex-wrap:wrap;align-items:baseline;gap:2px var(--pos-space-2);margin:0;font-size:var(--pos-text-sm)}
+.pos-ui .pos-search .pos-sres__hint{font-size:var(--pos-text-xs);color:var(--pos-text-3)}
+.pos-ui .pos-search .pos-sverify{display:inline-flex;align-items:center;gap:4px;font-weight:var(--pos-weight-bold)}
+.pos-ui .pos-search .pos-sverify .pos-icon{align-self:center}
 .pos-ui .pos-search .pos-sverify--verified{color:var(--pos-status-verified-fg)}
 .pos-ui .pos-search .pos-sverify--estimated{color:var(--pos-text-1)}
 .pos-ui .pos-search .pos-sverify--document{color:var(--pos-status-verify-fg)}
 .pos-ui .pos-search .pos-sverify--unknown{color:var(--pos-text-3)}
-.pos-ui .pos-search .pos-sres__actions{display:flex;flex-wrap:wrap;align-items:center;gap:var(--pos-space-2)}
+.pos-ui .pos-search .pos-sres__actions{display:flex;flex-wrap:wrap;align-items:center;gap:var(--pos-space-1) var(--pos-space-2);margin-top:2px}
 .pos-ui .pos-search .pos-sres__actions:empty{display:none}
 .pos-ui .pos-search .pos-sres .pos-sdetails{border-top:1px solid var(--pos-hairline);border-radius:0}
+.pos-ui .pos-search .pos-sres .pos-sdetails>summary{min-height:var(--pos-size-target);font-weight:var(--pos-weight-medium);color:var(--pos-text-3)}
 .pos-ui .pos-search .pos-sdiscarded{list-style:none;padding:0}
+/* "Détails avancés": labelled rows, chips for kinds — not a paragraph dump. */
+.pos-ui .pos-search .pos-sadv{display:grid;gap:var(--pos-space-2);margin:0 0 var(--pos-space-2)}
+.pos-ui .pos-search .pos-sadv>div{display:grid;gap:2px;min-width:0}
+.pos-ui .pos-search .pos-sadv dt{font-size:var(--pos-text-xs);font-weight:var(--pos-weight-semibold);color:var(--pos-text-3)}
+.pos-ui .pos-search .pos-sadv dd{display:flex;flex-wrap:wrap;align-items:center;gap:4px var(--pos-space-2);margin:0;font-size:var(--pos-text-sm);color:var(--pos-text-1);overflow-wrap:anywhere}
+.pos-ui .pos-search .pos-sadv__title{flex-basis:100%;font-size:var(--pos-text-xs)}
+.pos-ui .pos-search .pos-schip{display:inline-flex;align-items:center;min-height:22px;padding:0 var(--pos-space-2);border-radius:var(--pos-radius-pill);background:var(--pos-surface-muted);
+ color:var(--pos-text-2);font-size:var(--pos-text-xs);font-weight:var(--pos-weight-semibold)}
 
 /* ── History ─────────────────────────────────────────────────────────────────────────────────────────────────────── */
 .pos-ui .pos-search .pos-shistory{display:grid;gap:var(--pos-space-3);min-width:0}
@@ -129,21 +138,17 @@
  .pos-ui .pos-search .pos-sform__submit{width:auto}
  .pos-ui .pos-search .pos-sform__grid{grid-template-columns:repeat(2,minmax(0,1fr))}
  .pos-ui .pos-search .pos-sfield--range{grid-column:1/-1}
- /* Dense card: identity on the left, facts in the middle, action on the right. */
- .pos-ui .pos-search .pos-sres{grid-template-columns:minmax(0,1fr) minmax(0,1.4fr);grid-template-areas:"head facts" "actions actions" "details details";column-gap:var(--pos-space-5)}
- .pos-ui .pos-search .pos-sres__head{grid-area:head}
- .pos-ui .pos-search .pos-sres__facts{grid-area:facts}
- .pos-ui .pos-search .pos-sres>.pos-snote{grid-column:1/-1}
- .pos-ui .pos-search .pos-sres__actions{grid-area:actions}
- .pos-ui .pos-search .pos-sres>.pos-sdetails{grid-area:details}
+ /* Dense card: what it is and why on the left, the action on the right. */
+ .pos-ui .pos-search .pos-sres{grid-template-columns:minmax(0,1fr) auto;column-gap:var(--pos-space-5);padding:var(--pos-space-4) var(--pos-space-4) var(--pos-space-1)}
+ .pos-ui .pos-search .pos-sres>:not(.pos-sres__actions){grid-column:1}
+ .pos-ui .pos-search .pos-sres>.pos-sdetails{grid-column:1/-1}
+ .pos-ui .pos-search .pos-sres__actions{grid-column:2;grid-row:1/span 4;align-self:start;flex-direction:column;align-items:stretch;margin-top:0}
 }
 @media (min-width:1024px){
  .pos-ui .pos-search{min-height:calc(100dvh - 2 * var(--pos-shell-gap,12px));border-radius:26px;overflow:hidden;background:var(--pos-surface-shell);
   border:1px solid var(--pos-glass-border);box-shadow:var(--pos-glass-highlight),var(--pos-shadow-float)}
  .pos-ui .pos-search__main{max-width:1280px;margin:0 auto;padding:var(--pos-space-8)}
  .pos-ui .pos-search .pos-sform__grid{grid-template-columns:repeat(3,minmax(0,1fr))}
- .pos-ui .pos-search .pos-sres{grid-template-columns:minmax(0,1fr) minmax(0,1.5fr) auto;grid-template-areas:"head facts actions" "details details details"}
- .pos-ui .pos-search .pos-sres__actions{flex-direction:column;align-items:stretch;justify-content:flex-start}
 }
 @media (min-width:1200px){
  .pos-ui .pos-search .pos-snative__layout{grid-template-columns:minmax(0,1fr) 300px;align-items:start}

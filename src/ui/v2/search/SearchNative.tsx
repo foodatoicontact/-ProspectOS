@@ -16,23 +16,23 @@ import {searchDoneNote,discoveryFoundNote,runDateLabel,runCountsLabel,resultsSum
  deepPassLine,newActorsFoundLabel,type TKey} from '../../../i18n/index.ts';
 import type {Locale} from '../../../i18n/locale.ts';
 import {Button,Icon} from '../primitives.tsx';
-import {verificationOf,scoreText,type VerificationKind} from './model.ts';
+import {verificationOf,scoreText,shortReasons,priorityChip,type VerificationKind} from './model.ts';
 
 export const NATIVE_TEXT:Record<Locale,{settings:string;searchSummary:(q:string,l:string)=>string;edit:string;searching:string;results:(n:number)=>string;
  why:string;source:string;verification:string;advanced:string;runDetails:string;noResults:string;noResultsBody:string;startTitle:string;startBody:string;
- targeting:string;thirdParty:string;history:string;filters:string}>={
+ targeting:string;thirdParty:string;history:string;filters:string;kind:string;confidence:string;sources:string}>={
  fr:{settings:'Plus de réglages',searchSummary:(q,l)=>`${q} · ${l}`,edit:'Modifier la recherche',searching:'Recherche en cours…',
   results:n=>n===1?'1 entreprise trouvée':`${n} entreprises trouvées`,why:'Pourquoi elle correspond',source:'Source',verification:'Vérification',
   advanced:'Détails avancés',runDetails:'Détails de la recherche',noResults:'Aucune entreprise trouvée.',
   noResultsBody:'Élargissez la zone, retirez une catégorie ou reformulez la requête.',startTitle:'Lancez une recherche',
   startBody:'Décrivez l’activité recherchée et la zone. Les résultats s’affichent ici, chacun à vérifier à la source.',
-  targeting:'Ciblage utilisé',thirdParty:'trouvée via une source tierce',history:'Historique des recherches',filters:'Filtrer les résultats'},
+  targeting:'Ciblage utilisé',thirdParty:'trouvée via une source tierce',history:'Historique des recherches',filters:'Filtrer les résultats',kind:'Type de résultat',confidence:'Confiance de normalisation',sources:'Sources'},
  en:{settings:'More settings',searchSummary:(q,l)=>`${q} · ${l}`,edit:'Edit the search',searching:'Searching…',
   results:n=>n===1?'1 company found':`${n} companies found`,why:'Why it matches',source:'Source',verification:'Verification',
   advanced:'Advanced details',runDetails:'Search details',noResults:'No company found.',
   noResultsBody:'Widen the area, remove a category or rephrase the query.',startTitle:'Run a search',
   startBody:'Describe the activity and the area. Results show here, each to be checked at its source.',
-  targeting:'Targeting used',thirdParty:'found via a third-party source',history:'Search history',filters:'Filter results'},
+  targeting:'Targeting used',thirdParty:'found via a third-party source',history:'Search history',filters:'Filter results',kind:'Result type',confidence:'Normalisation confidence',sources:'Sources'},
 };
 // The legacy state wording (DiscoveryPanel STATE_LABEL), same keys.
 const STATE_KEY:Record<'candidate'|'added'|'ignored'|'unresolved',TKey>={candidate:'discovery.state.candidate',added:'discovery.addedToProject',ignored:'discovery.ignoredBadge',unresolved:'discovery.state.unresolved'};
@@ -93,25 +93,24 @@ function ResultCard({m,r}:{m:DiscoveryView;r:DiscoveryResult}){
  const name=f.nameResolved?r.normalized_payload.name:f.legacy?tr('discovery.legacyUnclassified'):tr('discovery.unresolvedCompany');
  const place=r.normalized_payload.city??(typeof meta.observed_location==='string'?`${meta.observed_location} · ${tr(meta.observed_location_basis==='THIRD_PARTY_SOURCE'?'discovery.locationThirdParty':'discovery.locationMentioned')}`:tr('discovery.cityToConfirm'));
  const v=verificationOf(f,locale);const pr=f.canAdd?m.priorityOf(r):null;const titleId=`pos-sres-${r.id}`;
+ // The candidate state is the default of a result: only a decided or not identified one says its state on the face.
+ const stateTag=f.state!=='candidate'&&!(f.state==='added'&&f.nov?.status==='ADDED');
+ const why=pr?shortReasons(pr.reasons,locale):f.typeKey?tr(f.typeKey):tr('discovery.class.uncertain');
+ const sources=1+(f.meta.additional_sources?.length??0);
  return <li><article className={`pos-sres pos-sres--${f.state}`} aria-labelledby={titleId} data-testid="search-result" data-state={f.state} data-novelty={f.nov?.status??''}>
   <header className="pos-sres__head">
    <h3 id={titleId} className="pos-sres__name">{name}</h3>
-   <p className="pos-sres__place"><Icon name="project" size={14}/><span>{place}</span></p>
-   <p className="pos-sres__tags">
-    {f.nov&&<span className={`pos-stag pos-stag--novelty-${f.nov.status.toLowerCase()}`} title={f.hist&&f.hist.status!==f.nov.status?`${tr('novelty.atRunTime')} ${tr(`novelty.${f.hist.status}` as TKey)}`:undefined}>{tr(`novelty.${f.nov.status}` as TKey)}</span>}
-    <span className={`pos-stag pos-stag--state-${f.state}`}>{tr(STATE_KEY[f.state])}</span>
-   </p>
+   <p className="pos-sres__place"><span>{place}</span>
+    <a className="pos-sres__source" href={r.normalized_payload.source_url} title={r.normalized_payload.source_url} rel="noreferrer" target="_blank">{t.source}<Icon name="external" size={12}/><span className="pos-visually-hidden"> {f.sourceHost||r.normalized_payload.source_title}</span></a></p>
   </header>
-  <dl className="pos-sres__facts">
-   <div><dt>{t.why}</dt><dd>{pr?<><span className={`pos-spriority pos-spriority--${pr.level.toLowerCase()}`}>{tr('discovery.reviewPriority')} : {tr(`discovery.priority.${pr.level}` as TKey)}</span>
-    {pr.reasons.length>0&&<span className="pos-sres__reasons"> {pr.reasons.slice(0,4).map(x=>tr(`discovery.priorityReason.${x}` as TKey)).join(' · ')}</span>}</>
-    :<span className="pos-sres__muted">{f.typeKey?tr(f.typeKey):tr('discovery.class.uncertain')}</span>}</dd></div>
-   <div><dt>{t.source}</dt><dd><a href={r.normalized_payload.source_url} title={r.normalized_payload.source_url} rel="noreferrer" target="_blank">{f.sourceHost||r.normalized_payload.source_title}<Icon name="external" size={14}/></a>
-    {f.typeKey&&<span className="pos-sres__muted"> · {tr(f.typeKey)}</span>}{f.viaThirdParty&&<span className="pos-sres__muted"> · {t.thirdParty}</span>}
-    {f.nameResolved&&<span className="pos-sres__muted"> · {f.domainResolved?tr('discovery.resolutionBothLabel'):tr('discovery.resolutionNameOnlyLabel')}</span>}</dd></div>
-   <div><dt>{t.verification}</dt><dd><span className={`pos-sverify pos-sverify--${v.kind}`} data-verification={v.kind}><Icon name={VERIFY_ICON[v.kind]} size={14}/>{v.label}</span>
-    {v.hint&&<span className="pos-sres__muted"> {v.hint}</span>}</dd></div>
-  </dl>
+  {(f.nov||pr||stateTag)&&<p className="pos-sres__tags">
+   {f.nov&&<span className={`pos-stag pos-stag--novelty-${f.nov.status.toLowerCase()}`} title={f.hist&&f.hist.status!==f.nov.status?`${tr('novelty.atRunTime')} ${tr(`novelty.${f.hist.status}` as TKey)}`:undefined}>{tr(`novelty.${f.nov.status}` as TKey)}</span>}
+   {pr&&<span className={`pos-stag pos-stag--priority-${pr.level.toLowerCase()}`} data-priority={pr.level}>{priorityChip(pr.level,locale)}</span>}
+   {stateTag&&<span className={`pos-stag pos-stag--state-${f.state}`}>{tr(STATE_KEY[f.state])}</span>}
+  </p>}
+  <p className="pos-sres__why"><span className="pos-visually-hidden">{t.why} : </span>{why}</p>
+  <p className="pos-sres__verify"><span className="pos-visually-hidden">{t.verification} : </span><span className={`pos-sverify pos-sverify--${v.kind}`} data-verification={v.kind}><Icon name={VERIFY_ICON[v.kind]} size={14}/>{v.label}</span>
+   {v.hint&&<small className="pos-sres__hint">{v.hint}</small>}</p>
   {r.status==='pending'&&r.dedupe_status!=='unique'&&<p className="pos-snote pos-snote--warn">{r.reason??tr('discovery.possibleDuplicate')} · {r.dedupe_status==='duplicate_candidate'?tr('discovery.existingProspect'):tr('discovery.noAutoMerge')}</p>}
   {/* The legacy card's actions, same conditions and same handlers. */}
   <div className="pos-sres__actions">
@@ -125,13 +124,21 @@ function ResultCard({m,r}:{m:DiscoveryView;r:DiscoveryResult}){
   </div>
   <details className="pos-sdetails">
    <summary><span>{t.advanced}</span><Icon name="chevron-down" size={16}/></summary>
-   {f.cls&&<p className="pos-sres__muted">{f.cls==='COMPANY_CANDIDATE'?tr('discovery.class.companyCandidate'):f.cls==='SIGNAL_SOURCE'?tr('discovery.class.signalSource'):tr('discovery.class.uncertain')}</p>}
-   {f.nameResolved&&<p><b>{tr('discovery.identifiedCompanyLabel')}</b> {r.normalized_payload.name} · <b>{tr('discovery.companyWebsiteLabel')}</b> {r.normalized_payload.website??tr('discovery.websitePendingReview')} · <b>{tr('discovery.signalFoundVia')}</b> {f.sourceHost}</p>}
+   <dl className="pos-sadv">
+    {f.cls&&<div><dt>{t.kind}</dt><dd><span className="pos-schip">{f.cls==='COMPANY_CANDIDATE'?tr('discovery.class.companyCandidate'):f.cls==='SIGNAL_SOURCE'?tr('discovery.class.signalSource'):tr('discovery.class.uncertain')}</span>
+     <span className="pos-schip">{tr(STATE_KEY[f.state])}</span></dd></div>}
+    {f.nameResolved&&<div><dt>{tr('discovery.identifiedCompanyLabel')}</dt><dd>{r.normalized_payload.name}</dd></div>}
+    {f.nameResolved&&<div><dt>{tr('discovery.companyWebsiteLabel')}</dt><dd>{r.normalized_payload.website??tr('discovery.websitePendingReview')}</dd></div>}
+    <div><dt>{tr('discovery.signalFoundVia')}</dt><dd><a href={r.normalized_payload.source_url} rel="noreferrer" target="_blank">{f.sourceHost||r.normalized_payload.source_title}<Icon name="external" size={12}/></a>
+     {f.typeKey&&<span className="pos-schip">{tr(f.typeKey)}</span>}{f.viaThirdParty&&<span className="pos-schip">{t.thirdParty}</span>}
+     <span className="pos-sres__muted pos-sadv__title">{r.normalized_payload.source_title}</span></dd></div>
+    {f.nameResolved&&<div><dt>{tr('discovery.resolutionLabel')}</dt><dd>{f.domainResolved?tr('discovery.resolutionBothLabel'):tr('discovery.resolutionNameOnlyLabel')}</dd></div>}
+    <div><dt>{t.confidence}</dt><dd>{discoveryFoundNote(locale,Math.round(r.normalized_payload.confidence*100),r.normalized_payload.discovered_source)}</dd></div>
+    <div><dt>{t.sources}</dt><dd>{sources}{!!f.meta.additional_sources?.length&&<> · {f.meta.additional_sources.map((s,i)=><a key={i} href={s.source_url} rel="noreferrer" target="_blank">{i?' · ':''}{s.source_title}<Icon name="external" size={12}/></a>)}</>}</dd></div>
+    <div><dt>{tr('discovery.currentScore')}</dt><dd><b>{scoreText(f.score,locale)??tr('score.notScored')}</b>{f.score===null&&<span className="pos-sres__muted"> — {tr('discovery.noEvidenceAtDiscovery')}</span>}</dd></div>
+    {pr&&<div><dt>{tr('discovery.reviewPriority')}</dt><dd>{tr(`discovery.priority.${pr.level}` as TKey)}{pr.reasons.length>0&&<span className="pos-sres__muted"> — {pr.reasons.slice(0,4).map(x=>tr(`discovery.priorityReason.${x}` as TKey)).join(' · ')}</span>}</dd></div>}
+   </dl>
    {f.viaThirdParty&&<p className="pos-sres__muted">{tr('discovery.signalSourceNote')}</p>}
-   {!!f.meta.additional_sources?.length&&<p className="pos-sres__muted">{tr('discovery.otherSources')} : {f.meta.additional_sources.map((s,i)=><a key={i} href={s.source_url} rel="noreferrer" target="_blank">{i?' · ':''}{s.source_title}<Icon name="external" size={12}/></a>)}</p>}
-   <p><a href={r.normalized_payload.source_url} rel="noreferrer" target="_blank">{r.normalized_payload.source_title}<Icon name="external" size={12}/></a></p>
-   <p className="pos-sres__muted">{discoveryFoundNote(locale,Math.round(r.normalized_payload.confidence*100),r.normalized_payload.discovered_source)}</p>
-   <p>{tr('discovery.currentScore')} <b>{scoreText(f.score,locale)??tr('score.notScored')}</b>{f.score===null&&<> — {tr('discovery.noEvidenceAtDiscovery')}</>}</p>
    {f.canAdd&&<p className="pos-sres__muted">{tr('discovery.priorityExplain')}</p>}
    {r.status==='pending'&&!f.canAdd&&<p className="pos-sres__muted">{tr('discovery.notAddable')}</p>}
   </details>

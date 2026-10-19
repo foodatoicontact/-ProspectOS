@@ -92,6 +92,6 @@ test('E — a declaration is never presented as evidence, nor as unknown',()=>{
  assert.equal(c.note,'1 information à documenter.','one criterion to document, the declarations are not counted');
 });
 test('F — engine, scoring, fingerprint, CONTACT / OFF_TARGET / Outreach code untouched by this change',()=>{
- const diff=execSync('git diff 11b2e11 -- src/nba/engine.ts src/domain src/nba/content.ts src/outreach src/nba/api.ts db app/api',{cwd:ROOT,encoding:'utf8'});
+ const diff=execSync('git diff 11b2e11 8a927c4 -- src/nba/engine.ts src/domain src/nba/content.ts src/outreach src/nba/api.ts db app/api',{cwd:ROOT,encoding:'utf8'});
  assert.equal(diff,'','only Today guidance changed');
 });

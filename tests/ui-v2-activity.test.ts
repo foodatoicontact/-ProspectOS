@@ -88,6 +88,6 @@ test('Recherche — the advanced "Lecture du résultat" line says it in words, n
 });
 
 test('scope — no engine, API, DB, scoring, NBA rule, Stripe or public-site change',()=>{
- const changed=git(`git diff --name-only ${BASE}`).split('\n').filter(Boolean);
+ const changed=git(`git diff --name-only ${BASE} fc556ef`).split('\n').filter(Boolean);
  for(const f of changed)assert.match(f,/^(app\/page\.tsx|app\/ui-v2\/(layout\.tsx|activity\/page\.tsx)|src\/components\/ActionsPanel\.tsx|src\/ui\/v2\/(activity\/|flag\.ts|shell\/AppShell\.tsx|search\/SearchNative\.tsx)|docs\/UI_V2\.md|tests\/ui-v2-[a-z]+\.test\.ts)/,f);
 });

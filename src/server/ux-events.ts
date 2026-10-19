@@ -68,13 +68,11 @@ export function zfPayload(i:Pick<ZfEventInput,'kind'|'sessionId'|'elapsedMs'|'in
 }
 // Why a ZF event was not written — logged (no personal data) so a silent 202 can never hide a broken measurement again.
 export type ZfOutcome='recorded'|'duplicate'|'flag_off'|'production'|'invalid'|'no_writer'|'failed';
-// ZF1.1 (interactive canary): the gate is the ZF flag itself, set only on the Preview that runs the experiment, and an
-// explicit Production never writes. It no longer depends on VERCEL_ENV being visible at runtime: on this project the
-// Preview function does not see VERCEL_ENV (/api/public/ux-config answers "unknown"), so the former UX A/B gate
-// (uxAbEnabledFromEnv) skipped every ZF event while the route still answered 202.
-export function zfWritesAllowed(enabled:boolean,env:{VERCEL_ENV?:string}):'ok'|'flag_off'|'production'{
- if(!enabled)return 'flag_off';
- return env.VERCEL_ENV==='production'?'production':'ok';
+// ZF1.1 (interactive canary): the gate is the ZF flag itself — global, or the organizations of the Production canary
+// (ZERO_FRICTION_TODAY_ORGS), resolved by the route under RLS. B1: VERCEL_ENV describes the environment, it does not
+// switch the measurement off — the canary keeps writing in Production once the runtime exposes it, exactly as before.
+export function zfWritesAllowed(enabled:boolean,_env?:{VERCEL_ENV?:string}):'ok'|'flag_off'{
+ return enabled?'ok':'flag_off';
 }
 export async function recordZfEvent(i:ZfEventInput):Promise<ZfOutcome>{
  const gate=zfWritesAllowed(i.enabled,i.env);if(gate!=='ok')return gate;

@@ -22,7 +22,8 @@ test('flag — OFF by default, only "true"/"1", hard OFF whenever the platform s
  assert.equal(uiV2Enabled({UI_V2_ENABLED:'true'}),true);
  assert.equal(uiV2Enabled({UI_V2_ENABLED:' TRUE '}),true);
  assert.equal(uiV2Enabled({UI_V2_ENABLED:'1',VERCEL_ENV:'preview'}),true);
- assert.equal(uiV2Enabled({UI_V2_ENABLED:'1',VERCEL_ENV:'production'}),false,'never in Production, whatever the switch');
+ assert.equal(uiV2Enabled({UI_V2_ENABLED:'1',VERCEL_ENV:'production'}),true,'B1: the switch decides, also in Production');
+ assert.equal(uiV2Enabled({VERCEL_ENV:'production'}),false,'no switch, no shell');
 });
 
 // ── Theme ─────────────────────────────────────────────────────────────────────────────────────────────────
@@ -259,7 +260,7 @@ test('UI-5C — the benches are never served in Production: their own opt-in on 
  assert.equal(uiV2BenchEnabled({UI_V2_ENABLED:'1',UI_V2_BENCH_ENABLED:'yes'}),false);
  assert.equal(uiV2BenchEnabled({UI_V2_ENABLED:'1',UI_V2_BENCH_ENABLED:'1'}),true);
  assert.equal(uiV2BenchEnabled({UI_V2_ENABLED:'true',UI_V2_BENCH_ENABLED:' TRUE '}),true);
- assert.equal(uiV2BenchEnabled({UI_V2_ENABLED:'1',UI_V2_BENCH_ENABLED:'1',VERCEL_ENV:'production'}),false);
+ assert.equal(uiV2BenchEnabled({UI_V2_ENABLED:'1',UI_V2_BENCH_ENABLED:'1',VERCEL_ENV:'production'}),false,'Production reported: never the benches, even with both flags');
  // The shell itself is unchanged: the public flag still answers for UI_V2_ENABLED alone.
  assert.match(read('../app/api/public/ui-v2/route.ts'),/enabled:uiV2Enabled\(process\.env\)/);
 });

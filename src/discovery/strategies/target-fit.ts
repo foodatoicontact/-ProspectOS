@@ -14,7 +14,8 @@ export function findTargetFitCriterion(criteria:Criterion[]):Criterion|null{
 }
 type Dimension='categories'|'locations'|'org_types';
 export const TARGET_FIT_DIMENSION_LABELS:Record<Dimension,string>={categories:'catégorie',locations:'localisation',org_types:'type d’organisation'};
-export type TargetFitMatch={dimension:Dimension; matchedValue:string; line:string};
+// identity: the match comes from the page's identity statements (title, h1, header tagline…), not from a sentence.
+export type TargetFitMatch={dimension:Dimension; matchedValue:string; line:string; identity?:true};
 export type TargetFitRejection={dimension:Dimension; value:string; line:string; code:RejectCode};
 export type TargetFitEvaluation={satisfied:boolean; matches:TargetFitMatch[]; rejected:TargetFitRejection[]};
 function isStringArray(value:unknown):value is string[]{return Array.isArray(value)&&value.every(v=>typeof v==='string')}
@@ -36,7 +37,7 @@ function isValidTargetFitConfig(config:unknown):config is TargetFitRules{
 // The user's own values are the ONLY vocabulary ever consulted here — never the criterion's label,
 // never a hardcoded per-sector list, never a guess. A dimension only counts as "defined" when the
 // user actually populated it (an absent or empty dimension is simply not part of the rule).
-export function evaluateTargetFit(ctx:Pick<ObservationContext,'lines'>,rules:unknown):TargetFitEvaluation{
+export function evaluateTargetFit(ctx:Pick<ObservationContext,'lines'|'identity'>,rules:unknown):TargetFitEvaluation{
  if(!isValidTargetFitConfig(rules))return {satisfied:false,matches:[],rejected:[]};
  const dimensions:[Dimension,string[]|undefined][]=[['categories',rules.categories],['locations',rules.locations],['org_types',rules.org_types]];
  // A grammatical word ("des") or a discourse marker is never a rule value: it would match every page. A
@@ -48,7 +49,12 @@ export function evaluateTargetFit(ctx:Pick<ObservationContext,'lines'>,rules:unk
  const matches:TargetFitMatch[]=[];const rejected:TargetFitRejection[]=[];
  for(const [dimension,values] of defined){
   const {best,rejected:refused}=bestMatch(ctx.lines,values,dimension);
-  if(best)matches.push({dimension,matchedValue:best.match.value,line:best.match.line});
+  if(best){matches.push({dimension,matchedValue:best.match.value,line:best.match.line});continue}
+  // No sentence of the page supports it: what the site states it IS in its identity statements (its title, its h1,
+  // the tagline of its own header — "Vins naturels") is looked at next, with the same values and the same
+  // context checks except shortness. Only target_fit reads them: never a need, a signal or an intent.
+  const identity=ctx.identity?.length?bestMatch(ctx.identity,values,dimension,true).best:null;
+  if(identity)matches.push({dimension,matchedValue:identity.match.value,line:identity.match.line,identity:true});
   else for(const r of refused)rejected.push({dimension,value:r.match.value,line:r.match.line,code:r.code});
  }
  const matchedDimensions=new Set(matches.map(m=>m.dimension));

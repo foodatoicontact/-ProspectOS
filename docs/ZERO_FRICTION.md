@@ -90,6 +90,10 @@ is not refused on Production, a LIVE key is always refused) and the « never exp
 `zfWritesAllowed` (Production stays protected only by the ZF flag being absent). Not fixed here; must be resolved in
 its own change BEFORE Stripe LIVE, BEFORE any ZF activation in Production, and before relying on any environment guard.
 
+B1 (release gate): the code no longer lets VERCEL_ENV switch a feature off — `uiV2Enabled` follows `UI_V2_ENABLED` only
+(the benches stay closed when Production is reported), and `zfWritesAllowed` follows the ZF flag / canary organizations
+only. Exposing the Vercel system variables (project setting) is then safe: it only activates the Stripe locks.
+
 ## Baseline and target
 
 Baseline (Canary 2): ~23 human interventions for 10 prospects, 0 natural CONTACT. Global target: site → understanding

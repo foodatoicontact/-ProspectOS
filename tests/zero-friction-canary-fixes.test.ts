@@ -65,7 +65,7 @@ test('1 — the client path emits ux.zf_*: ZfSession → zfEventRequest → a bo
  const route=await read('app/api/v1/[...path]/route.ts');
  assert.match(route,/if\(resource==='zf-events'&&request\.method==='POST'\)\{[\s\S]{0,300}await handleZfEvent\(body,db,user,/);
 });
-test('2 — authenticated route: writes on the Preview even when VERCEL_ENV is not visible (the canary defect); explicit Production never writes',async()=>{
+test('2 — authenticated route: writes on the Preview even when VERCEL_ENV is not visible (the canary defect); Production writes when the flag allows it (B1)',async()=>{
  // The defect observed on the canary: the Preview runtime does not expose VERCEL_ENV (ux-config answered "unknown"), so the
  // former gate skipped every event while answering 202.
  const logs:any[]=[];
@@ -78,8 +78,11 @@ test('2 — authenticated route: writes on the Preview even when VERCEL_ENV is n
  assert.deepEqual(ins.row.payload,{schema:1,experiment:'zero_friction_today',session_id:SESSION,elapsed_ms:1200,interactions:0,user_id:USER,project_id:PROJECT});
  assert.deepEqual(logs,[{component:'zf-events',kind:'ZF_TODAY_VIEWED',outcome:'recorded'}],'outcome logged, no personal data');
  const prod=writer();
- assert.equal(await handleZfEvent(body('ZF_TODAY_VIEWED'),rls,{id:USER},{admin:()=>prod.admin,env:{VERCEL_ENV:'production'},enabled:true,log:()=>{}}),'production');
- assert.equal(prod.calls.length,0);
+ assert.equal(await handleZfEvent(body('ZF_TODAY_VIEWED'),rls,{id:USER},{admin:()=>prod.admin,env:{VERCEL_ENV:'production'},enabled:true,log:()=>{}}),'recorded','B1: the flag decides, not VERCEL_ENV');
+ assert.ok(prod.calls.some(c=>c.op==='insert:events'));
+ const off=writer();
+ assert.equal(await handleZfEvent(body('ZF_TODAY_VIEWED'),rls,{id:USER},{admin:()=>off.admin,env:{VERCEL_ENV:'production'},enabled:false,log:()=>{}}),'flag_off');
+ assert.equal(off.calls.length,0,'flag off: nothing read, nothing written');
  assert.equal(await handleZfEvent(body('ZF_TODAY_VIEWED',{project_id:'00000000-0000-4000-8000-0000000000ff'}),rls,{id:USER},{admin:()=>writer().admin,env:{},enabled:true,log:()=>{}}),'invalid','a project the user cannot read');
  assert.equal(await handleZfEvent(body('ZF_TODAY_VIEWED',{user_id:USER}),rls,{id:USER},{admin:()=>writer().admin,env:{},enabled:true,log:()=>{}}),'invalid','closed body');
  assert.equal(await handleZfEvent(body('ZF_TODAY_VIEWED'),rls,{id:USER},{admin:()=>null,env:{},enabled:true,log:()=>{}}),'no_writer','a missing writer is named, not hidden');
@@ -195,7 +198,7 @@ test('12 — NBA decisions identical to the v1.3 canary fixtures (and the freshn
  assert.deepEqual([at(46).recommended_action,at(46).freshness_score],['DISMISS',49],'it leaves Today when the signal crosses the threshold — by time alone');
 });
 test('13 — flag OFF: nothing written, historical behaviour unchanged',async()=>{
- assert.equal(zfWritesAllowed(false,{VERCEL_ENV:'preview'}),'flag_off');assert.equal(zfWritesAllowed(true,{}),'ok');assert.equal(zfWritesAllowed(true,{VERCEL_ENV:'production'}),'production');
+ assert.equal(zfWritesAllowed(false,{VERCEL_ENV:'preview'}),'flag_off');assert.equal(zfWritesAllowed(true,{}),'ok');assert.equal(zfWritesAllowed(true,{VERCEL_ENV:'production'}),'ok','B1: the flag decides, not VERCEL_ENV');
  let read_=0;const db:any={from:()=>{read_++;return rls.from()}};const w=writer();
  assert.equal(await handleZfEvent(body('ZF_TODAY_VIEWED'),db,{id:USER},{admin:()=>w.admin,env:{VERCEL_ENV:'preview'},enabled:false,log:()=>{}}),'flag_off');
  assert.equal(w.calls.length,0);

@@ -65,7 +65,9 @@ test('flag — /api/public/ui-v2 is dynamic, never cached, answers only a boolea
  try{
   delete process.env.UI_V2_ENABLED;assert.deepEqual(await (await GET()).json(),{enabled:false});
   process.env.UI_V2_ENABLED='1';assert.deepEqual(await (await GET()).json(),{enabled:true});
-  process.env.VERCEL_ENV='production';assert.deepEqual(await (await GET()).json(),{enabled:false});
+  // B1: the switch decides, also when the runtime reports Production (UI_V2_ENABLED is set there on owner GO).
+  process.env.VERCEL_ENV='production';assert.deepEqual(await (await GET()).json(),{enabled:true});
+  delete process.env.UI_V2_ENABLED;assert.deepEqual(await (await GET()).json(),{enabled:false});
  }finally{process.env=saved}
 });
 test('flag — the root layout stays static and flag-free',()=>{

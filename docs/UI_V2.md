@@ -226,6 +226,24 @@ frozen DiscoveryView states (fictitious data, every action only listed on the pa
 demo mode (synthetic TEST companies, local storage only). The browser was checked with Playwright at 320 px, 390 px dark
 and 1440 px light and dark, with keyboard and reduced motion, covering every state and a real demo search.
 
+## UI-5C — Activité 2.0 and end of the v2 app redesign
+
+- **Activité** (bottom bar / side nav) leads to the screen that already exists for the account (`nav.ts`): "À faire"
+  (Next Best Action) when it is on, else the overview. Both are now v2 (`src/ui/v2/activity/`):
+  - **À faire**: the same `ActionsPanel` (same props, same calls) rendered through its optional `view` prop by
+    `ActionsNative` — one compact row per action: action, company (opens the record), why now, when; Valider / Fait /
+    Reporter 7 j / Rejeter, Recalculer and the three filters unchanged. The explanation, the prepared content (copy) and
+    the indicators (opportunity, FIT, INTENT, TIMING, fraîcheur, preuve) stay one tap away in « Détails ».
+  - **Vue d'ensemble**: the legacy dashboard's four figures and pipeline; a status opens the filtered prospects list.
+  - Flag OFF: the legacy screens, unchanged (the legacy `ActionsPanel` markup is pinned byte-identical).
+- **Recherche**: the advanced « Lecture du résultat » line says the reliability and the source in words (`foundLine`), never
+  a provider id; the legacy screen keeps its line.
+- **Benches** (`/ui-v2`, `/ui-v2/today|prospects|search|activity`): they need `UI_V2_BENCH_ENABLED` ("true"/"1") on top of
+  `UI_V2_ENABLED` (`uiV2BenchEnabled`, server-side `notFound()` in `app/ui-v2/layout.tsx`, no flash). Production sets
+  `UI_V2_ENABLED` for the shell and never the bench flag, so the benches answer 404 there. Local / test server / a Preview
+  under review: set both.
+- The v2 redesign of the connected app ends here; what remains is backlog, not a UI-5D.
+
 ## WEB-1 / WEB-2 — Public site 2.0
 
 **One flag, chosen at build time.** `NEXT_PUBLIC_WEB_V2_ENABLED` ("1"/"true", `src/ui/v2/public/flag.ts`) covers the whole public

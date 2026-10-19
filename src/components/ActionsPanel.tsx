@@ -1,5 +1,5 @@
 'use client';
-import {useEffect,useRef,useState} from 'react';
+import {useEffect,useRef,useState,type ReactNode} from 'react';
 import {translate,type Locale,type TKey} from '../i18n';
 import {REGISTRY,COMMERCIAL_SIGNAL_TYPES,type CommercialSignalType} from '../nba/registry';
 import type {NbaAction,Statement} from '../nba/engine';
@@ -7,6 +7,7 @@ import type {NbaAction,Statement} from '../nba/engine';
 // fact links to its source; inferences and unknowns are labelled as such. Buttons only record a HUMAN decision: nothing
 // here sends, posts, comments or messages anyone. Drafts can be copied, never sent.
 type Api=(path:string,method?:string,body?:unknown)=>Promise<any>;
+export type ActionRow=Row;
 type Row={id:string;prospect_id:string;recommended_action:NbaAction;rule:string;state:string;opportunity_score:number;fit_score:number|null;fit_basis:string;intent_score:number;
  timing_score:number;freshness_score:number;evidence_quality_score:number;primary_kind:string|null;primary_signal_type:CommercialSignalType|null;primary_evidence_status:string|null;
  signal_age_days:number|null;primary_detail:{relevance_reason?:string;suggested_angle?:string}|null;
@@ -15,13 +16,13 @@ type Row={id:string;prospect_id:string;recommended_action:NbaAction;rule:string;
  prepared_content:{kind:string;text?:string;suggested_comment?:string|null;suggested_dm_after_engagement?:string|null;angle?:string;reason?:string};
  expires_at:string;prospects?:{name:string;city:string|null;website:string|null}|null};
 
-const SECTIONS:{key:string;actions:NbaAction[];title:TKey}[]=[
+export const SECTIONS:{key:string;actions:NbaAction[];title:TKey}[]=[
  {key:'contact',actions:['CONTACT'],title:'nba.section.contact'},
  {key:'engage',actions:['ENGAGE'],title:'nba.section.engage'},
  {key:'watch',actions:['WATCH'],title:'nba.section.watch'},
  {key:'wait',actions:['WAIT'],title:'nba.section.wait'},
 ];
-const typeLabel=(t:CommercialSignalType|null,locale:Locale)=>t?REGISTRY.find(e=>e.type===t)?.label[locale]??t:null;
+export const typeLabel=(t:CommercialSignalType|null,locale:Locale)=>t?REGISTRY.find(e=>e.type===t)?.label[locale]??t:null;
 const safeHref=(u:string|null)=>{if(!u)return null;try{const x=new URL(u);return x.protocol==='https:'||x.protocol==='http:'?x.href:null}catch{return null}};
 
 function Statements({items,locale}:{items:Statement[];locale:Locale}){
@@ -71,7 +72,11 @@ function Card({row,locale,busy,onDecide,onOpenProspect}:{row:Row;locale:Locale;b
  </article>;
 }
 
-export function ActionsPanel({projectId,api,locale,disabled,onOpenProspect}:{projectId:string;api:Api;locale:Locale;disabled:boolean;onOpenProspect:(id:string)=>void}){
+// UI-5C: what the panel knows and can do, handed as-is to a v2 view (Activité 2.0). Same state, same calls, same decisions.
+export type ActionsView={locale:Locale;today:Row[];queue:Row[];busy:boolean;error:string;note:string;
+ filter:{signal_type:string;min_score:string;min_freshness:string};setFilter:(f:{signal_type:string;min_score:string;min_freshness:string})=>void;
+ compute:()=>void;decide:(id:string,body:Record<string,unknown>)=>void;onOpenProspect:(id:string)=>void};
+export function ActionsPanel({projectId,api,locale,disabled,onOpenProspect,view}:{projectId:string;api:Api;locale:Locale;disabled:boolean;onOpenProspect:(id:string)=>void;view?:(v:ActionsView)=>ReactNode}){
  const tr=(k:TKey)=>translate(locale,k);
  const [today,setToday]=useState<Row[]>([]),[queue,setQueue]=useState<Row[]>([]);
  const [busy,setBusy]=useState(false),[error,setError]=useState(''),[note,setNote]=useState('');
@@ -88,6 +93,8 @@ export function ActionsPanel({projectId,api,locale,disabled,onOpenProspect}:{pro
  const compute=()=>run(async()=>{const r=await api(`projects/${projectId}/next-best-actions/compute`,'POST',{});setNote(tr('nba.computed').replace('{n}',String(r.prospects)).replace('{c}',String(r.by_action?.CONTACT??0)).replace('{e}',String(r.by_action?.ENGAGE??0)));await load()});
  const decide=(id:string,body:Record<string,unknown>)=>run(async()=>{await api(`next-best-actions/${id}/decision`,'POST',body);await load()});
  const off=disabled||busy;
+ // UI-5C: the v2 view renders the same state and calls the same handlers; without it, the legacy markup below is unchanged.
+ if(view)return <>{view({locale,today,queue,busy:off,error,note,filter,setFilter,compute,decide,onOpenProspect})}</>;
  return <section className="card nba-panel">
   <div className="section-title"><h2>{tr('nba.title')}</h2><button className="primary" disabled={off} onClick={compute}>{tr('nba.compute')}</button></div>
   <p className="muted">{tr('nba.intro')}</p>

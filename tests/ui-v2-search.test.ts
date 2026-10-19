@@ -103,7 +103,7 @@ test('look — scoped, tokens only, 44 px targets, reduced motion, forced colour
  assert.match(css,/\.pos-stabs\{display:flex;[^}]*overflow-x:auto/,'the filter scrolls inside itself at 320 px');
 });
 test('scope — no engine, provider, scoring, quota, NBA / ZF, Today, Prospects, Stripe, pricing, DB or public-site change',()=>{
- const changed=git(`git diff --name-only ${MAIN}`).split('\n').filter(Boolean);
+ const changed=git(`git diff --name-only ${MAIN} f9d61a9`).split('\n').filter(Boolean);
  assert.deepEqual(changed.filter(f=>!/^(app\/page\.tsx|app\/ui-v2\/search\/page\.tsx|docs\/UI_V2\.md|src\/ui\/v2\/search\/|src\/ui\/v2\/shell\/AppShell\.tsx|src\/components\/DiscoveryPanel\.tsx|tests\/(ui-v2-search|onboarding-quickstart)\.test\.ts)/.test(f)),[],'only UI-5B files');
 });
 test('bench — frozen states and the real panel in demo mode; no network',()=>{

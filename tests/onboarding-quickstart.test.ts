@@ -41,7 +41,9 @@ test('2 — with a URL: the existing analyze-company route, with its own input r
 test('3 — ICP proposal: type of business, area and observable needs come from the user’s own words',()=>{
  assert.deepEqual(parseTarget(TARGET),{query:'restaurants indépendants',categories:['restaurant'],locations:['Occitanie'],signals:['commande à emporter'],notes:['1 à 5 établissements']});
  assert.deepEqual(parseTarget('PME industrielles de Haute-Garonne, 10-50 salariés, ayant un site e-commerce').locations,['Haute-Garonne']);
- assert.deepEqual(parseTarget('Cabinets comptables à Lyon qui proposent la paie en ligne').signals,['paie en ligne']);
+ // What the target offers is what it IS (a category the site can state), never a need of the prospect.
+ assert.deepEqual(parseTarget('Cabinets comptables à Lyon qui proposent la paie en ligne').categories,['cabinet','paie en ligne']);
+ assert.deepEqual(parseTarget('Cabinets comptables à Lyon qui proposent la paie en ligne').signals,[]);
  assert.deepEqual(extractLocations('agences immobilières'),[],'no area written → none invented');
  const p=buildTargetingProposal({offerText:OFFER,targetText:'agences immobilières'});
  assert.ok(p.missing.includes('location'));assert.equal(readyForDiscovery(p),false,'no area → Discovery is not proposed until the user gives one');

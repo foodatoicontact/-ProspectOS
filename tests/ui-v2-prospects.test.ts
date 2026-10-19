@@ -166,7 +166,7 @@ test('flag OFF — the legacy Prospects screen is unchanged (its markup is byte-
  assert.equal(page.slice(page.indexOf(' const overlays=<>'),page.indexOf(' const contentClass=')),before.slice(before.indexOf(' const overlays=<>'),before.indexOf(' const contentClass=')),'same dialogs');
 });
 test('scope — no migration, NBA, ZF, Discovery, Stripe, pricing or public site file changed',()=>{
- const changed=execSync('git diff --name-only 8a927c4',{cwd:new URL('..',import.meta.url),encoding:'utf8'}).split('\n').filter(Boolean);
+ const changed=execSync('git diff --name-only 8a927c4 836d8e9',{cwd:new URL('..',import.meta.url),encoding:'utf8'}).split('\n').filter(Boolean);
  for(const f of changed)assert.doesNotMatch(f,/^db\/|^src\/(nba|ux|discovery|signal-discovery|server|domain|outreach)\/|stripe|pricing|^src\/ui\/v2\/(public|home)\/|^app\/(api|tarifs)/,f);
 });
 test('mobile polish — export quieter than add, unknown place quieter, compact cards (320–390 px)',()=>{

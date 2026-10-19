@@ -244,11 +244,22 @@ test('flag OFF parity — the existing app does not load, import or reference th
  assert.doesNotMatch(page,/\.css'/);
  assert.doesNotMatch(read('../app/sitemap.ts'),/ui-v2/);
 });
-test('flag OFF parity — /ui-v2 is decided per request and 404s unless UI_V2_ENABLED; never indexed',()=>{
+test('flag OFF parity — /ui-v2 is decided per request and 404s unless UI_V2_ENABLED AND UI_V2_BENCH_ENABLED; never indexed',()=>{
  const src=read('../app/ui-v2/layout.tsx');
- assert.match(src,/await connection\(\);\s*if\(!uiV2Enabled\(process\.env\)\)notFound\(\);/);
- assert.match(src,/return uiV2Enabled\(process\.env\)\?\{title:'Fondations UI v2 \(Preview\)',robots:\{index:false,follow:false\}\}:\{\};/,
+ assert.match(src,/await connection\(\);\s*if\(!uiV2BenchEnabled\(process\.env\)\)notFound\(\);/);
+ assert.match(src,/return uiV2BenchEnabled\(process\.env\)\?\{title:'Fondations UI v2 \(Preview\)',robots:\{index:false,follow:false\}\}:\{\};/,
   'flag OFF: not even the title reveals the page');
  assert.doesNotMatch(src,/export const metadata/);
  assert.ok(src.indexOf('notFound()')<src.indexOf('tokensCss()'),'nothing is rendered before the flag check');
+});
+test('UI-5C — the benches are never served in Production: their own opt-in on top of the shell flag',async()=>{
+ const {uiV2BenchEnabled}=await import('../src/ui/v2/flag.ts');
+ assert.equal(uiV2BenchEnabled({UI_V2_ENABLED:'1'}),false,'the Production shell flag alone does not open the benches');
+ assert.equal(uiV2BenchEnabled({UI_V2_BENCH_ENABLED:'1'}),false,'nor the bench flag without the shell');
+ assert.equal(uiV2BenchEnabled({UI_V2_ENABLED:'1',UI_V2_BENCH_ENABLED:'yes'}),false);
+ assert.equal(uiV2BenchEnabled({UI_V2_ENABLED:'1',UI_V2_BENCH_ENABLED:'1'}),true);
+ assert.equal(uiV2BenchEnabled({UI_V2_ENABLED:'true',UI_V2_BENCH_ENABLED:' TRUE '}),true);
+ assert.equal(uiV2BenchEnabled({UI_V2_ENABLED:'1',UI_V2_BENCH_ENABLED:'1',VERCEL_ENV:'production'}),false);
+ // The shell itself is unchanged: the public flag still answers for UI_V2_ENABLED alone.
+ assert.match(read('../app/api/public/ui-v2/route.ts'),/enabled:uiV2Enabled\(process\.env\)/);
 });

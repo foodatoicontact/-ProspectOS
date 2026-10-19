@@ -8,3 +8,11 @@ export function uiV2Enabled(env:Env):boolean{
  const v=(env.UI_V2_ENABLED??'').trim().toLowerCase();
  return v==='true'||v==='1';
 }
+// UI-5C: the /ui-v2/* benches (frozen fixtures for visual review) are a separate, explicit opt-in. The v2 shell itself
+// runs in Production (UI_V2_ENABLED), the benches never do: without UI_V2_BENCH_ENABLED ("true"/"1") they answer the
+// same server-side 404 as any unknown URL. Set it only for a local run, a test server or a Preview being reviewed.
+export function uiV2BenchEnabled(env:Env):boolean{
+ if(!uiV2Enabled(env))return false;
+ const v=(env.UI_V2_BENCH_ENABLED??'').trim().toLowerCase();
+ return v==='true'||v==='1';
+}

@@ -48,7 +48,7 @@ test('flag OFF — app/page.tsx before the v2 branch and the legacy return are b
 test('flag ON — the same DiscoveryPanel element, plus view={SearchNative}',()=>{
  assert.equal((v2.match(/<DiscoveryPanel /g)??[]).length,1);
  assert.equal(el(v2),el(legacy),'same props');
- assert.match(v2,/onAdded=\{p=>\{[^}]*\}\} view=\{m=><v2\.SearchNative m=\{m\}\/>\}\/>\}\/>:undefined\}>/);
+ assert.match(v2,/onAdded=\{p=>\{[^}]*\}\} view=\{m=><v2\.SearchNative m=\{m\}\/>\}\/>\}\/>\n/); // UI-5C: Activité follows in the same chain
  assert.match(read('../src/ui/v2/shell/AppShell.tsx'),/export \{SearchNative\} from '\.\.\/search\/SearchNative\.tsx';/);
 });
 test('actions parity — the v2 card offers exactly the legacy actions, same conditions, same handlers',()=>{
@@ -111,17 +111,17 @@ test('bench — frozen states and the real panel in demo mode; no network',()=>{
  assert.match(fx,/export const BENCH_STATES:readonly BenchState\[\]=\['results','empty','loading','error','quota','start'\];/);
  assert.doesNotMatch(fx,/fetch\(|api\(/);
  assert.match(bench,/mode="demo" api=\{api\}/);assert.match(bench,/const api=async\(\)=>\(\{\}\);/);
- assert.match(read('../app/ui-v2/layout.tsx'),/if\(!uiV2Enabled\(process\.env\)\)notFound\(\);/);
+ assert.match(read('../app/ui-v2/layout.tsx'),/if\(!uiV2BenchEnabled\(process\.env\)\)notFound\(\);/);
 });
 test('final polish — compact face: no CANDIDAT badge, short reasons, source one tap away, technical metadata in the details',()=>{
  const face=nat.slice(nat.indexOf('function ResultCard('),nat.indexOf('<details className="pos-sdetails">',nat.indexOf('function ResultCard(')));
  assert.match(face,/const stateTag=f\.state!=='candidate'&&!\(f\.state==='added'&&f\.nov\?\.status==='ADDED'\);/,'the candidate state stays implicit on the face');
  assert.match(face,/const why=pr\?shortReasons\(pr\.reasons,locale\):/,'the same reasons, said short');
  assert.match(face,/<a className="pos-sres__source" href=\{r\.normalized_payload\.source_url\}/,'the source stays one tap away');
- for(const n of ['resolutionBothLabel','resolutionNameOnlyLabel','discoveryFoundNote','identifiedCompanyLabel','companyWebsiteLabel','signalFoundVia','scoreText','f.viaThirdParty&&<span'])
+ for(const n of ['resolutionBothLabel','resolutionNameOnlyLabel','foundLine','identifiedCompanyLabel','companyWebsiteLabel','signalFoundVia','scoreText','f.viaThirdParty&&<span'])
   assert.ok(!face.includes(n),`not on the face: ${n}`);
  const adv=nat.slice(nat.indexOf('<details className="pos-sdetails">',nat.indexOf('function ResultCard(')),nat.indexOf('function RunDetails('));
- for(const n of ["tr('discovery.identifiedCompanyLabel')","tr('discovery.companyWebsiteLabel')","tr('discovery.signalFoundVia')","tr('discovery.resolutionLabel')",'discoveryFoundNote(','<dt>{t.sources}</dt>',"tr('discovery.currentScore')","tr('discovery.reviewPriority')","tr('discovery.signalSourceNote')","tr('discovery.priorityExplain')","tr('discovery.notAddable')",'additional_sources'])
+ for(const n of ["tr('discovery.identifiedCompanyLabel')","tr('discovery.companyWebsiteLabel')","tr('discovery.signalFoundVia')","tr('discovery.resolutionLabel')",'foundLine(','<dt>{t.sources}</dt>',"tr('discovery.currentScore')","tr('discovery.reviewPriority')","tr('discovery.signalSourceNote')","tr('discovery.priorityExplain')","tr('discovery.notAddable')",'additional_sources'])
   assert.ok(adv.includes(n),`kept in Détails avancés: ${n}`);
  assert.match(face,/<Button variant="primary" size="sm" iconStart="plus" disabled=\{m\.busy\} onClick=\{\(\)=>m\.accept\(/,'add stays the primary CTA');
  assert.match(face,/<Button variant="quiet" size="sm" disabled=\{m\.busy\} onClick=\{\(\)=>m\.ignore\(r\)\}>\{tr\('discovery\.ignore'\)\}<\/Button><\/>/,'ignore stays secondary');

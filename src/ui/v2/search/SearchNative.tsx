@@ -12,7 +12,7 @@ import {runState,type RunSummary} from '../../../discovery/run-history.ts';
 import {FIXTURE_LABEL} from '../../../discovery/providers/fixture.ts';
 import {nafGroupLabel} from '../../../discovery/registry/naf.ts';
 import type {SearchMode} from '../../../discovery/search-until-new.ts';
-import {searchDoneNote,discoveryFoundNote,runDateLabel,runCountsLabel,resultsSummaryLabel,noveltySummaryLabel,runNoveltyLabel,deepStopLabel,passesLabel,
+import {searchDoneNote,runDateLabel,runCountsLabel,resultsSummaryLabel,noveltySummaryLabel,runNoveltyLabel,deepStopLabel,passesLabel,
  deepPassLine,newActorsFoundLabel,type TKey} from '../../../i18n/index.ts';
 import type {Locale} from '../../../i18n/locale.ts';
 import {Button,Icon} from '../primitives.tsx';
@@ -26,14 +26,22 @@ export const NATIVE_TEXT:Record<Locale,{settings:string;searchSummary:(q:string,
   advanced:'Détails avancés',runDetails:'Détails de la recherche',noResults:'Aucune entreprise trouvée.',
   noResultsBody:'Élargissez la zone, retirez une catégorie ou reformulez la requête.',startTitle:'Lancez une recherche',
   startBody:'Décrivez l’activité recherchée et la zone. Les résultats s’affichent ici, chacun à vérifier à la source.',
-  targeting:'Ciblage utilisé',thirdParty:'trouvée via une source tierce',history:'Historique des recherches',filters:'Filtrer les résultats',kind:'Type de résultat',confidence:'Confiance de normalisation',sources:'Sources'},
+  targeting:'Ciblage utilisé',thirdParty:'trouvée via une source tierce',history:'Historique des recherches',filters:'Filtrer les résultats',kind:'Type de résultat',confidence:'Lecture du résultat',sources:'Sources'},
  en:{settings:'More settings',searchSummary:(q,l)=>`${q} · ${l}`,edit:'Edit the search',searching:'Searching…',
   results:n=>n===1?'1 company found':`${n} companies found`,why:'Why it matches',source:'Source',verification:'Verification',
   advanced:'Advanced details',runDetails:'Search details',noResults:'No company found.',
   noResultsBody:'Widen the area, remove a category or rephrase the query.',startTitle:'Run a search',
   startBody:'Describe the activity and the area. Results show here, each to be checked at its source.',
-  targeting:'Targeting used',thirdParty:'found via a third-party source',history:'Search history',filters:'Filter results',kind:'Result type',confidence:'Normalisation confidence',sources:'Sources'},
+  targeting:'Targeting used',thirdParty:'found via a third-party source',history:'Search history',filters:'Filter results',kind:'Result type',confidence:'Result reading',sources:'Sources'},
 };
+// "Lecture du résultat": how sure the automatic reading of this search result is, and where it came from — in words, never
+// a provider id ("fixture", "brave"). The legacy line (discoveryFoundNote) stays for the legacy screen.
+const SOURCE_NAME:Record<Locale,Record<string,string>>={fr:{brave:'recherche web',registry:'registre des entreprises',fixture:'données de test'},
+ en:{brave:'web search',registry:'company register',fixture:'test data'}};
+export function foundLine(locale:Locale,pct:number,source:string):string{
+ const from=SOURCE_NAME[locale][source]??(locale==='fr'?'autre source':'other source');
+ return locale==='fr'?`Fiabilité ${pct} % · via ${from}`:`Reliability ${pct}% · via ${from}`;
+}
 // The legacy state wording (DiscoveryPanel STATE_LABEL), same keys.
 const STATE_KEY:Record<'candidate'|'added'|'ignored'|'unresolved',TKey>={candidate:'discovery.state.candidate',added:'discovery.addedToProject',ignored:'discovery.ignoredBadge',unresolved:'discovery.state.unresolved'};
 const VERIFY_ICON:Record<VerificationKind,'verified'|'info'|'verify'|'excluded'>={verified:'verified',estimated:'info',document:'verify',unknown:'excluded'};
@@ -133,7 +141,7 @@ function ResultCard({m,r}:{m:DiscoveryView;r:DiscoveryResult}){
      {f.typeKey&&<span className="pos-schip">{tr(f.typeKey)}</span>}{f.viaThirdParty&&<span className="pos-schip">{t.thirdParty}</span>}
      <span className="pos-sres__muted pos-sadv__title">{r.normalized_payload.source_title}</span></dd></div>
     {f.nameResolved&&<div><dt>{tr('discovery.resolutionLabel')}</dt><dd>{f.domainResolved?tr('discovery.resolutionBothLabel'):tr('discovery.resolutionNameOnlyLabel')}</dd></div>}
-    <div><dt>{t.confidence}</dt><dd>{discoveryFoundNote(locale,Math.round(r.normalized_payload.confidence*100),r.normalized_payload.discovered_source)}</dd></div>
+    <div><dt>{t.confidence}</dt><dd>{foundLine(locale,Math.round(r.normalized_payload.confidence*100),r.normalized_payload.discovered_source)}</dd></div>
     <div><dt>{t.sources}</dt><dd>{sources}{!!f.meta.additional_sources?.length&&<> · {f.meta.additional_sources.map((s,i)=><a key={i} href={s.source_url} rel="noreferrer" target="_blank">{i?' · ':''}{s.source_title}<Icon name="external" size={12}/></a>)}</>}</dd></div>
     <div><dt>{tr('discovery.currentScore')}</dt><dd><b>{scoreText(f.score,locale)??tr('score.notScored')}</b>{f.score===null&&<span className="pos-sres__muted"> — {tr('discovery.noEvidenceAtDiscovery')}</span>}</dd></div>
     {pr&&<div><dt>{tr('discovery.reviewPriority')}</dt><dd>{tr(`discovery.priority.${pr.level}` as TKey)}{pr.reasons.length>0&&<span className="pos-sres__muted"> — {pr.reasons.slice(0,4).map(x=>tr(`discovery.priorityReason.${x}` as TKey)).join(' · ')}</span>}</dd></div>}

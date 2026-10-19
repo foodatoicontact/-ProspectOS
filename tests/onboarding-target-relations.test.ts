@@ -69,3 +69,13 @@ test('the parsed ICP is a definition, not evidence: no criterion carries a value
  const p=buildTargetingProposal({offerText:OFFER,targetText:'entreprises travaillant avec la pierre naturelle'});
  for(const c of p.criteria)for(const k of ['value','status','source_url','excerpt','evidence'])assert.ok(!(k in c),`${c.key}.${k}`);
 });
+
+test('H — not too permissive: counterparts, clients, idioms, adverbs, negations, possessives and places are never categories',()=>{
+ const cats=(t:string)=>parseTarget(t).categories;
+ assert.deepEqual(cats('sociétés travaillant avec des collectivités'),[],'"avec des …" names counterparts; the verb is no category either');
+ assert.deepEqual(cats('entreprises qui vendent des logiciels aux restaurants'),['logiciels'],'the clients are cut from the concept');
+ for(const t of ['entreprises qui font face à des difficultés de recrutement','PME qui utilisent encore Excel','entreprises qui travaillent beaucoup à l’export',
+  'entreprises qui ne proposent pas de site web','PME qui transforment leur organisation','entreprises opérant en Occitanie','entreprises réalisant plus de 10 M€ de chiffre d’affaires'])assert.deepEqual(cats(t),[],t);
+ assert.deepEqual(parseTarget('entreprises opérant en Occitanie').locations,['Occitanie']);
+ assert.deepEqual(cats('cabinets spécialisés en cybersécurité'),['cabinet','cybersécurité']);
+});

@@ -85,24 +85,41 @@ const RELATION=/(?:^|\s)(qui\s+(?:sont\s+)?)?(travaill(?:ant|ent)|sp[ée]cialis[
 const FUNCTION_LEAD=/^(?:avec|dans|en|sur|de|du|des|à|a|au|aux|la|le|les|un|une|l[’']|d[’'])(?:\s+|(?<=[’'])\s*)/i;
 const CONTAINER_LEAD=/^(?:secteurs?|domaines?|fili[èe]res?|march[ée]s?|univers|monde|industries?|activit[ée]s?)\s+(?:de\s+la|de\s+l[’']|du|des|de|d[’'])\s*/i;
 const CLIENT_LEAD=/^(?:pour|chez|aupr[èe]s)\b/i;
-const CONCEPT_END=/[,;.\n(:]|\s(?:qui|avec|ayant|dont|pour|afin|mais|car|depuis|notamment)\s|\s(?:en|à|a|dans|sur|autour de|près de|proche de)\s+[A-ZÀ-ÖØ-Ý]/u;
+// "avec des / les …" names counterparts (clients, partners: "avec des collectivités"), not a material or a field
+// ("avec la pierre", "avec le bois"): a plural article after "avec" is no concept.
+const COUNTERPART_LEAD=/^avec\s+(?:des|les)\s/i;
+// The object of a relation always opens with a preposition or an article ("du recrutement", "dans l'isolation",
+// "avec la…"). Anything else is an idiom ("font face à"), an adverb ("encore Excel"), a negation ("pas de site") or
+// a possessive ("leur organisation"): not a description of the business — the text is left to the parser as before.
+const OBJECT_LEAD=/^(?:avec|dans|en|sur|de|du|des|à|au|aux|la|le|les|un|une|l[’']|d[’'])(?:\s|(?<=[’']))/i;
+const CONCEPT_END=/[,;.\n(:]|\s(?:qui|avec|ayant|dont|pour|afin|mais|car|depuis|notamment|aux|auprès)\s|\s(?:en|à|a|dans|sur|autour de|près de|proche de)\s+[A-ZÀ-ÖØ-Ý]/u;
+// "… des logiciels aux restaurants / pour les hôpitaux": the clients that follow belong to the relation, not to the head.
+const CLIENT_TAIL=/^\s(?:aux|auprès|pour)\s/;
+const CLAUSE_END=/[,;.\n(:]|\s(?:qui|avec|ayant|dont|afin|mais|car|depuis|notamment)\s|\s(?:en|à|a|dans|sur|autour de|près de|proche de)\s+[A-ZÀ-ÖØ-Ý]/u;
 const VAGUE_OBJECT=/^(?:choses?|trucs?|activit[ée]s?|services?|produits?|solutions?|prestations?|projets?|clients?|nous|vous|eux|elles?|tout|tous|toutes?|cela|ça|ca|beaucoup|quelque chose)$/i;
 const FUNCTION_WORD=/^(?:de|du|des|la|le|les|un|une|en|et|ou|à|a|au|aux|l|d|leur|leurs|son|sa|ses|nos|vos)$/i;
 function relationalConcepts(text:string,locations:string[]):{concepts:string[];rest:string}{
- const concepts:string[]=[];let rest=text;
+ const concepts:string[]=[];let rest=text;let from=0;
+ const placeFolds=locations.map(foldPlace);
  for(let guard=0;guard<3;guard++){
-  const m=RELATION.exec(rest);
+  const m=RELATION.exec(rest.slice(from));if(!m)break;
+  const index=from+m.index;
+  const start=index+(m[0].length-m[0].trimStart().length),after=index+m[0].length;
+  const tail=rest.slice(after);
   // A participle opening the text is a noun ("Exploitants agricoles"), not a relation: a target is described first.
-  if(!m||(!m[1]&&!rest.slice(0,m.index).trim()))break;
-  const start=m.index+(m[0].length-m[0].trimStart().length),after=m.index+m[0].length;
-  const tail=rest.slice(after);const end=CONCEPT_END.exec(tail);
+  // A relation whose object does not open like a noun phrase, or names counterparts, is left in the text unchanged.
+  if((!m[1]&&!rest.slice(0,index).trim())||!OBJECT_LEAD.test(tail)||COUNTERPART_LEAD.test(tail)){from=after;continue}
+  const end=CONCEPT_END.exec(tail);
   let object=clean(end?tail.slice(0,end.index):tail);
-  rest=`${rest.slice(0,start)} ${end?tail.slice(end.index):''}`.replace(/\s+/g,' ').trim();
+  let resume=end?end.index:tail.length;
+  if(end&&CLIENT_TAIL.test(tail.slice(end.index))){const next=CLAUSE_END.exec(tail.slice(end.index+1));resume=next?end.index+1+next.index:tail.length}
+  rest=`${rest.slice(0,start)} ${tail.slice(resume)}`.replace(/\s+/g,' ').trim();from=start;
   for(let i=0;i<4&&(FUNCTION_LEAD.test(object)||CONTAINER_LEAD.test(object));i++)object=clean(object.replace(CONTAINER_LEAD,'').replace(FUNCTION_LEAD,''));
   if(CLIENT_LEAD.test(object)||VAGUE.test(object))continue;
   for(const raw of object.split(/\s+(?:ou|et)\s+/i)){
    let item=clean(raw);for(let i=0;i<3&&FUNCTION_LEAD.test(item);i++)item=clean(item.replace(FUNCTION_LEAD,''));
-   for(const place of locations)item=clean(item.replace(new RegExp(`\\s+(?:en|à|a|de|du|des|d’|d')?\\s*${place.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')}\\b.*$`,'i'),''));
+   for(const place of locations)item=clean(item.replace(new RegExp(`(?:^|\\s+)(?:en|à|a|de|du|des|d’|d')?\\s*${place.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')}\\b.*$`,'i'),''));
+   if(placeFolds.includes(foldPlace(item)))continue; // a place is a location, never a category
    const words=item.toLowerCase().split(' ').filter(Boolean);
    if(!words.length||words.length>6||SIZE.test(item))continue;
    if(!words.some(w=>w.replace(/[^\p{L}0-9]/gu,'').length>=3&&!FUNCTION_WORD.test(w)))continue;
@@ -131,7 +148,7 @@ export function parseTarget(targetText:string):{query:string;categories:string[]
  const firstWord=generic?'':words.find(w=>w.length>2)??'';
  // A size word followed by what it does ("ETI industrielles ou agroalimentaires"): those qualifiers are the
  // business words the user wrote — each coordinated one is a category. The size word itself never is.
- const qualifiers=generic?words.slice(1).join(' ').split(/\s+(?:ou|et)\s+|\s*,\s*/).map(q=>q.split(' ')[0]??'').filter(q=>q.length>2&&!/^(?:de|des|du|en|et|ou)$/i.test(q)).map(lemma):[];
+ const qualifiers=generic?words.slice(1).join(' ').split(/\s+(?:ou|et)\s+|\s*,\s*/).map(q=>q.split(' ')[0]??'').filter(q=>q.length>2&&!/^(?:de|des|du|en|et|ou)$/i.test(q)&&!RELATION.test(` ${q} `)).map(lemma):[]; // a verb is never a category
  const categories=uniq([...(firstWord?[singular(firstWord)]:qualifiers),...relation.concepts]).slice(0,MAX_LIST);
  const placeFolds=locations.map(foldPlace);
  const signals=uniq(clauses.slice(1)

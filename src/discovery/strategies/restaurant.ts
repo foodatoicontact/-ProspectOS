@@ -1,5 +1,6 @@
 import type {Observation} from '../types.ts';
-export type ObservationContext={lines:string[];text:string;make(criterion:Observation['criterion'],type:string,excerpt:string,value:boolean|null,status:Observation['status'],claim:string,confidence:number):Observation};
+// identity: the page's identity statements (observations.ts) — read by target_fit only.
+export type ObservationContext={lines:string[];text:string;identity?:string[];make(criterion:Observation['criterion'],type:string,excerpt:string,value:boolean|null,status:Observation['status'],claim:string,confidence:number):Observation};
 // Optional preset: activates only when the project's own ICP already contains one of these keys.
 // Never activated by project name — see isRestaurantPresetActive().
 export const RESTAURANT_PRESET_KEYS=['food','region','phone_orders','social_orders','platforms','weak_collect','audience','internal_delivery'] as const;

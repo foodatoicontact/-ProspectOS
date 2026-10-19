@@ -211,6 +211,39 @@ try {
     const ev = (await as(A, 'select * from public.evidence where prospect_id=$1', [prP])).rows.map(e => ({ ...e, observed_at: new Date(e.observed_at).toISOString() }));
     assert.equal(scoreProspect(PROD_ICP, ev).score, 0);
   });
+  // ---- Site identity → target_fit: a heading of the official page, proposed through the same RPCs ----
+  const STONE_ICP = [
+    { key: 'target_fit', label: 'Correspond à la cible définie', weight: 25, rules: { type: 'target_fit', config: { match: 'any_defined', categories: ['pierre naturelle', 'marbre', 'granit'] } } },
+    { key: 'need_fit', label: 'Besoin correspondant à l’offre', weight: 30, rules: { type: 'need_fit', config: { signals: ['protection des surfaces'] } } },
+    { key: 'commercial_signal', label: 'Signal commercial observable', weight: 25 },
+    { key: 'contactability', label: 'Canal de contact professionnel documenté', weight: 20 },
+  ];
+  const URL_S = 'https://pierres.fixture.example/';
+  const pa3 = await project(A, oa);
+  await sql(`insert into public.icps(project_id,organization_id,criteria) values ($1,$2,$3::jsonb)`, [pa3, oa, JSON.stringify(STONE_ICP)]);
+  const prS = (await as(A, `insert into public.prospects(organization_id,project_id,name,website,status) values($1,$2,'Pierres SA',$3,'À analyser') returning id`, [oa, pa3, URL_S])).rows[0].id;
+  const stonePage = '<html><head><title>Pierres SA / Pierres Naturelles</title></head><body><nav><a href="/catalogue">Catalogue</a></nav><h1>Pierres SA</h1><h2>Pierres Naturelles</h2><p>Tél : 04 72 00 00 00</p></body></html>';
+  const rowsS = async () => (await as(A, 'select o.*, e.status evidence_status, e.verified_by from public.prospect_observations o left join public.evidence e on e.id=o.evidence_id where o.prospect_id=$1', [prS])).rows;
+  const evidenceS = async () => (await as(A, 'select * from public.evidence where prospect_id=$1', [prS])).rows.map(e => ({ ...e, observed_at: new Date(e.observed_at).toISOString() }));
+
+  await check('IDENTITY_TO_TARGET_FIT: a heading of the official page is stored as an unconfirmed target_fit proposal; no need, no signal; score 0', async () => {
+    await save(A, prS, prioritizeObservations(new ObservationService().extract(stonePage, URL_S, STONE_ICP, 'official_website')).map(toStorageSafeObservation));
+    const rows = await rowsS();
+    const fit = rows.find(o => o.criterion === 'target_fit' && o.value === true);
+    assert.ok(fit, 'a target_fit proposal');
+    assert.equal(fit.status, 'INFERRED'); assert.equal(fit.review_status, 'NOT_VERIFIED');
+    assert.equal(fit.evidence_status, 'INFERRED_UNCONFIRMED'); assert.equal(fit.verified_by, null);
+    assert.equal(fit.source_url, URL_S); assert.ok(stonePage.includes(fit.source_excerpt));
+    assert.ok(rows.every(o => !['need_fit', 'commercial_signal'].includes(o.criterion) || o.value === null), 'no need, no commercial signal');
+    assert.equal(scoreProspect(STONE_ICP, await evidenceS()).score, 0);
+  });
+  await check('IDENTITY_HUMAN_CONFIRMATION: only the existing review makes it VERIFIED by that human, score = the target_fit weight', async () => {
+    const fit = (await rowsS()).find(o => o.criterion === 'target_fit' && o.value === true);
+    await review(A, fit.id, 'confirm');
+    const e = (await evidenceS()).find(x => x.id === fit.evidence_id);
+    assert.equal(e.status, 'VERIFIED'); assert.equal(e.verified_by, A);
+    assert.equal(scoreProspect(STONE_ICP, await evidenceS()).score, 25);
+  });
 } finally {
   await db.close();
 }

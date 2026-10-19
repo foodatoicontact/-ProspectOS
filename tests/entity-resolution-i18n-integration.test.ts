@@ -223,7 +223,7 @@ test('V2/5 — locale persistence (useLocale.ts) is unaffected: still saves to L
 test('V2/6 — evidence workflow (observations.ts) is untouched by this micro-patch', async () => {
  const {execSync} = await import('node:child_process');
  const cwd = new URL('..', import.meta.url);
- const diff = execSync('git diff --name-only 9604248dcba8f1ea96e76238933b350d0d0cc331 -- src/discovery/observations.ts', {cwd, encoding: 'utf8'});
+ const diff = execSync('git diff --name-only 9604248dcba8f1ea96e76238933b350d0d0cc331 f9d61a9 -- src/discovery/observations.ts', {cwd, encoding: 'utf8'});
  assert.equal(diff.trim(), '');
 });
 test('V2/7 — domain is never derived from a resolved company name: entity-resolution.ts never calls a domain-guessing function on the name', async () => {

@@ -156,6 +156,9 @@
 .pos-ui .pos-island .note{background:var(--pos-surface-inset);border:1px solid var(--pos-border);color:var(--pos-text-2)}
 .pos-ui .pos-island .pill{background:var(--pos-surface-muted);color:var(--pos-text-2)}
 .pos-ui .pos-island .evidence-card{background:var(--pos-surface-inset);border-color:var(--pos-border);color:var(--pos-text-1)}
+/* The quoted source excerpt: the legacy rule paints it a fixed light background while its text follows the theme —
+   unreadable in dark mode. Here both come from the theme, a card surface on the inset card, in light and dark. */
+.pos-ui .pos-island .observations blockquote{background:var(--pos-surface-card);border-left-color:var(--pos-border-strong);color:var(--pos-text-1)}
 .pos-ui .pos-island .intent-pill{display:none} /* the INTENT score lives in "Détails avancés" */
 .pos-ui .pos-island :focus-visible{outline:2px solid var(--pos-accent);outline-offset:2px}
 

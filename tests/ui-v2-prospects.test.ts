@@ -180,3 +180,9 @@ test('mobile polish — export quieter than add, unknown place quieter, compact 
  assert.match(css,/@media \(max-width:359px\)\{\.pos-ui \.pos-prow \.pos-fit__hint\{display:none\}\}/);
  assert.match(ui,/<small className="pos-fit__hint" title=\{hint\}>/,'the full hint stays available');
 });
+test('evidence excerpt — the quoted source takes its background AND its text from the theme (readable in dark mode)',()=>{
+ const css=read('../src/ui/v2/prospects/prospects.css');
+ assert.match(css,/\.pos-ui \.pos-island \.observations blockquote\{background:var\(--pos-surface-card\);border-left-color:var\(--pos-border-strong\);color:var\(--pos-text-1\)\}/);
+ // The legacy light rule stays as is for the legacy screen (flag OFF); only the v2 island overrides it.
+ assert.match(read('../app/globals.css'),/\.observations blockquote\{margin:10px 0;padding:8px 12px;border-left:3px solid #bad498;background:#f7f9f3;/);
+});

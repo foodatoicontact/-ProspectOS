@@ -60,7 +60,11 @@ export function extractGenericObservations(ctx:ObservationContext,criteria:Crite
  const attachTargetFitTo=targetFitEvaluation?.satisfied?targetFitCriterion:null;
  if(attachTargetFitTo&&targetFitEvaluation){
   const claim=targetFitEvaluation.matches.map(m=>`${TARGET_FIT_DIMENSION_LABELS[m.dimension]} correspond à « ${m.matchedValue} »`).join(' ; ');
-  out.push(make(attachTargetFitTo.key,'TARGET_FIT_RULE_MATCH',targetFitEvaluation.matches[0].line,true,'OBSERVED',`Correspondance proposée avec la règle ICP : ${claim} — extrait à vérifier`,.85));
+  // Supported by an identity statement (title, h1, header tagline) rather than a sentence: a weaker, INFERRED proposal
+  // whose excerpt is that statement — never scored until a human confirms it (INFERRED_UNCONFIRMED).
+  const fromIdentity=targetFitEvaluation.matches.find(m=>m.identity);
+  if(fromIdentity)out.push(make(attachTargetFitTo.key,'TARGET_FIT_RULE_MATCH',fromIdentity.line,true,'INFERRED',`Le site se présente ainsi dans son titre ou son en-tête : ${claim} — à confirmer par un humain`,.6));
+  else out.push(make(attachTargetFitTo.key,'TARGET_FIT_RULE_MATCH',targetFitEvaluation.matches[0].line,true,'OBSERVED',`Correspondance proposée avec la règle ICP : ${claim} — extrait à vérifier`,.85));
  }
  // Matches refused for their context (a sentence about the sector or the clients, a menu, legal text…): one note
  // with the reason, value null — never a proposal, never a score; the criterion stays to confirm.

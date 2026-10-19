@@ -1,19 +1,41 @@
-import {load} from 'cheerio';
+import {load,type CheerioAPI} from 'cheerio';
 import {createHash} from 'node:crypto';
 import type {Criterion,Evidence} from '../domain/core.ts';
 import {ObservationSchema,type Observation} from './types.ts';
 import {extractRestaurantObservations,isRestaurantPresetActive,RESTAURANT_PRESET_KEYS} from './strategies/restaurant.ts';
 import {extractGenericObservations} from './strategies/generic.ts';
+// What a page states the organization IS, where a site states it: its <title>, its meta and Open Graph title /
+// description, its h1 and the tagline right after it, and the short headings and taglines of its own <header>. Never a
+// link, a button, a list item, a menu, a form or the footer. Exact text of the page, read before any line splitting;
+// only target_fit reads it.
+const NOT_IDENTITY='nav,menu,a,button,li,footer,form,select,option,label,[role=navigation],[role=menu]';
+const INLINE=new Set(['span','strong','em','b','i','small','br','sup','sub','abbr']);
+function identityStatements($:CheerioAPI):string[]{
+ const out:string[]=[];
+ const add=(raw:string|undefined)=>{const t=(raw??'').replace(/\s+/g,' ').trim();if(t&&t.length<=300&&!out.includes(t))out.push(t)};
+ add($('head title').first().text());
+ for(const meta of ['meta[name="description"]','meta[property="og:title"]','meta[property="og:site_name"]','meta[property="og:description"]'])add($(meta).first().attr('content'));
+ const tagline=$('h1').map((_,h)=>$(h).next('h2,h3,p').get()).get();
+ $('h1, header h2, header h3, header p, header span, header strong').add(tagline).each((_,el)=>{
+  const e=$(el);
+  if(e.closest(NOT_IDENTITY).length||e.find(NOT_IDENTITY).length)return;
+  // A text block only: a container of other blocks is read through them.
+  if(e.children().toArray().some(c=>!INLINE.has(c.tagName.toLowerCase())))return;
+  add(e.text());
+ });
+ return out.slice(0,16);
+}
 export class ObservationService {
  // Generic pipeline driven by the project's own ICP: PROJECT -> CRITERIA -> OBSERVATIONS.
  // The restaurant preset only runs when the ICP itself carries one of its known keys — never from the project name.
  extract(html:string,url:string,criteria:Criterion[],sourceType:Observation['source_type']='official_website',now=new Date()):Observation[]{
  const $=load(html.slice(0,500000));$('script,style,noscript,template,svg').remove();const title=$('title').text().trim().slice(0,300)||'Page publique';
+ const identity=identityStatements($);
  $('br').replaceWith('\n');$('p,div,li,section,h1,h2,h3,footer,address').append('\n');
  const text=$('body').text().replace(/[ \t]+/g,' ').trim();const lines=text.split(/[\n]+|(?<=[.!?])\s+/).map(s=>s.trim()).filter(Boolean);
  const hash=createHash('sha256').update(text).digest('hex');const collected=now.toISOString(),expires=new Date(+now+90*86400000).toISOString();
  const make=(criterion:Observation['criterion'],type:string,excerpt:string,value:boolean|null,status:Observation['status'],claim:string,confidence:number):Observation=>ObservationSchema.parse({criterion,observation_type:type,claim,value,status,source_url:url,source_title:title,source_excerpt:excerpt.slice(0,500),source_type:sourceType,confidence,collected_at:collected,expires_at:expires,content_hash:hash});
- const ctx={lines,text,make};
+ const ctx={lines,text,identity,make};
  const criteriaKeys=new Set(criteria.map(c=>c.key));
  const presetActive=isRestaurantPresetActive(criteriaKeys);
  const restaurantActiveKeys=presetActive?new Set(RESTAURANT_PRESET_KEYS.filter(k=>criteriaKeys.has(k))):new Set<string>();

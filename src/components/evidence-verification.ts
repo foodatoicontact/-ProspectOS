@@ -45,3 +45,14 @@ export function createInFlight(){
 export function reviewChangesState(row:Pick<StoredObservation,'review_status'>,decision:'confirm'|'contradict'|'unverify'):boolean{
  return decision==='confirm'?row.review_status!=='VERIFIED':decision==='contradict'?row.review_status!=='CONTRADICTED':row.review_status!=='NOT_VERIFIED';
 }
+
+// A criterion can read as settled (TRUE/FALSE from verified proofs) while a proof pointing the OTHER way still waits
+// for review: validating "35 collaborateurs" scored "PME 10–100, priorité AURA" as met although "siège à Toulouse" was
+// never read. Display only — the score is unchanged (scoreProspect counts verified proofs only); this lists the
+// unreviewed opposite proofs so the line can say so. A proof already verified (or contradicted) by a copy is reviewed.
+export function unreviewedContrary(state:string,criterion:string,all:Evidence[]):Evidence[]{
+ if(state!=='TRUE'&&state!=='FALSE')return [];
+ const settled=state==='TRUE';
+ return all.filter(e=>e.criterion===criterion&&e.value!==settled&&(e.status==='NOT_VERIFIED'||e.status==='INFERRED_UNCONFIRMED')
+  &&!all.some(o=>o.id!==e.id&&(o.status==='VERIFIED'||o.status==='CONTRADICTED')&&sameProof(o,e)));
+}

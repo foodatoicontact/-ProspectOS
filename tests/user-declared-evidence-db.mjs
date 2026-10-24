@@ -19,7 +19,7 @@ try{
   grant usage on schema auth,public to anon,authenticated,service_role;grant execute on function auth.uid() to anon,authenticated,service_role;`);
  await db.exec(await readFile(new URL('../db/schema.sql',import.meta.url),'utf8'));
  const files=(await readdir(new URL('../db/migrations/',import.meta.url))).filter(f=>f.endsWith('.sql')).sort();
- assert.deepEqual(files.slice(files.indexOf('033_user_declared_evidence.sql')),['033_user_declared_evidence.sql','035_self_outreach.sql'],'033 is followed only by 035 (Self-Outreach: its own tables, no evidence change)');
+ assert.deepEqual(files.slice(files.indexOf('033_user_declared_evidence.sql')),['033_user_declared_evidence.sql','034_release_legacy_test_billing.sql','035_self_outreach.sql'],'033 is followed only by 034 (one-off legacy TEST billing release) and 035 (Self-Outreach: its own tables); neither changes evidence');
  for(const f of files.slice(0,-1))await db.exec(await readFile(new URL(`../db/migrations/${f}`,import.meta.url),'utf8'));
 
  const U=n=>`00000000-0000-4000-8000-${String(n).padStart(12,'0')}`;const A=U(1),B=U(2);

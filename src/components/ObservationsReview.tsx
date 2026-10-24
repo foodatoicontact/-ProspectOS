@@ -9,17 +9,19 @@ import {contactsIn,separateGluedContacts} from './contact-format';
 import {createInFlight,reviewChangesState} from './evidence-verification';
 // "Autres informations trouvées": collapsed, then a few at a time.
 const OTHERS_PAGE=3;
+// Analysis refusals that mean "this prospect was not found by ProspectOS search": retrying cannot change them.
+const MANUAL_ONLY_CODES=new Set(['SOURCE_POLICY_REQUIRED','DISCOVERY_CAPABILITY_INVALID']);
 type Api=(path:string,method?:string,body?:unknown)=>Promise<any>;
 export function ObservationsReview({prospect,criteria,mode,api,onChanged,onReviewSummary,disabled,onBusyChange,locale}:{prospect:Prospect;criteria:Criterion[];mode:'demo'|'live';api:Api;disabled:boolean;onBusyChange:(active:boolean)=>void;onChanged:(evidence?:Evidence[])=>Promise<void>;onReviewSummary?:(summary:ReviewSummary)=>void;locale:Locale}){
  const tr=(key:TKey)=>translate(locale,key);
- const [rows,setRows]=useState<StoredObservation[]>([]),[busy,setBusy]=useState(false),[error,setError]=useState(''),[website,setWebsite]=useState(prospect.website??'');const generation=useRef(0);const [othersShown,setOthersShown]=useState(OTHERS_PAGE);
+ const [rows,setRows]=useState<StoredObservation[]>([]),[busy,setBusy]=useState(false),[error,setError]=useState(''),[errorCode,setErrorCode]=useState(''),[website,setWebsite]=useState(prospect.website??'');const generation=useRef(0);const [othersShown,setOthersShown]=useState(OTHERS_PAGE);
  // loaded: the observations of THIS prospect were read (or their read failed). Until then the review summary
  // sent to the page is not ready, so the ICP section does not mistake analysis evidence for manual evidence.
  const [loaded,setLoaded]=useState(false);const reviewing=useRef(createInFlight());const analyzing=useRef(createInFlight());
  const key=`prospectos-observations:${prospect.id}`;
  useEffect(()=>{const r=++generation.current;setRows([]);setLoaded(false);setWebsite(prospect.website??'');setError('');if(mode==='demo'){try{setRows(JSON.parse(localStorage.getItem(key)??'[]'))}catch{}setLoaded(true)}else api(`prospects/${prospect.id}/observations`).then(data=>{if(r===generation.current){setRows(data);setLoaded(true)}}).catch(()=>{if(r===generation.current){setError(tr('evidence.unavailable'));setLoaded(true)}});return()=>{generation.current++}},[prospect.id,mode]);
  const persist=(next:StoredObservation[])=>{setRows(next);if(mode==='demo')localStorage.setItem(key,JSON.stringify(next))};
- async function execute(fn:()=>Promise<void>){if(disabled||busy)return;onBusyChange(true);setBusy(true);setError('');try{await fn()}catch(e){setError(e instanceof Error?e.message:tr('error.generic'))}finally{setBusy(false);onBusyChange(false)}}
+ async function execute(fn:()=>Promise<void>){if(disabled||busy)return;onBusyChange(true);setBusy(true);setError('');setErrorCode('');try{await fn()}catch(e){setError(e instanceof Error?e.message:tr('error.generic'));setErrorCode((e as Error&{code?:string})?.code??'')}finally{setBusy(false);onBusyChange(false)}}
  function evidenceFor(o:StoredObservation):Evidence|null{if(!o.evidence_id||!o.criterion||o.value===null)return null;return {id:o.evidence_id,criterion:o.criterion,value:o.value,status:o.review_status,source_url:o.source_url,excerpt:o.source_excerpt,observed_at:o.collected_at,verified_by:o.review_status==='NOT_VERIFIED'?null:'demo-human'}}
  // One analysis request per prospect at a time: a double click never reserves (nor bills) two analyses.
  async function analyze(){await analyzing.current.run(prospect.id,()=>execute(async()=>{const r=generation.current;if(mode==='demo'){
@@ -69,7 +71,10 @@ export function ObservationsReview({prospect,criteria,mode,api,onChanged,onRevie
  </article>;
  // A failed analysis is one compact card (what failed, retry) — never a page of empty criteria.
  const failed=error&&rows.length===0;
+ // A prospect added by hand is not analyzable by design (analysis-authorization.ts): the server message explains why
+ // and what to do instead; no technical note and no retry, which could only fail again.
+ const manualOnly=failed&&MANUAL_ONLY_CODES.has(errorCode);
  return <section className="observations-review"><div className="section-title"><h3>{tr('evidence.reviewTitle')}</h3><button disabled={busy||disabled} onClick={analyze}>{tr('evidence.analyzeWebsite')}</button></div><p className="muted">{tr('evidence.foundVsVerified')}</p>{!prospect.website&&mode==='live'&&<form onSubmit={e=>{e.preventDefault();execute(async()=>{await api(`prospects/${prospect.id}/website`,'POST',{website,official_confirmed:true});await onChanged()})}}><label>{tr('evidence.officialWebsiteLabel')}<input type="url" required value={website} onChange={e=>setWebsite(e.target.value)}/></label><label className="checkbox"><input type="checkbox" required/>{tr('evidence.confirmWebsiteCheckbox')}</label><button disabled={busy||disabled}>{tr('evidence.saveWebsite')}</button></form>}
-  {failed?<div className="analysis-failed" role="alert"><b>{tr('evidence.analysisFailedTitle')}</b><p>{error}</p><p className="muted">{tr('evidence.analysisFailedNote')}</p><button disabled={busy||disabled} onClick={analyze}>{tr('evidence.retry')}</button></div>:error&&<p role="alert" className="note">{error}</p>}
+  {failed?<div className="analysis-failed" role="alert"><b>{tr('evidence.analysisFailedTitle')}</b><p>{error}</p>{!manualOnly&&<><p className="muted">{tr('evidence.analysisFailedNote')}</p><button disabled={busy||disabled} onClick={analyze}>{tr('evidence.retry')}</button></>}</div>:error&&<p role="alert" className="note">{error}</p>}
   {rows.length>0&&<div className="observations"><h4 className="evidence-group-title">{tr('evidence.proposalsTitle')}</h4>{view.groups.length?view.groups.map(group):<p className="muted">{tr('evidence.noProposals')}</p>}{view.missing.length>0&&<p className="muted evidence-missing">{tr('evidence.notFoundTitle')} {view.missing.join(' · ')}</p>}{view.others.length>0&&<details className="evidence-others"><summary>{tr('evidence.otherFindings')} ({view.others.length})</summary>{view.others.slice(0,othersShown).map(card)}{view.others.length>othersShown&&<button className="more-button" onClick={()=>setOthersShown(n=>n+OTHERS_PAGE)}>{tr('evidence.showMore')} ({view.others.length-othersShown})</button>}</details>}</div>}</section>
 }

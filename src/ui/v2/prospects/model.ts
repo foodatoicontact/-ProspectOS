@@ -12,7 +12,7 @@
 import {estimateFit,type EstimateLine,type FitEstimate} from '../../../domain/fit-estimate.ts';
 import {fitDisplay,type FitDisplay} from '../../../domain/score-display.ts';
 import {safeLink,type Criterion,type Evidence,type Prospect,type scoreProspect} from '../../../domain/core.ts';
-import {hasVerifiedCopy,reviewSummaryReady} from '../../../components/evidence-verification.ts';
+import {hasVerifiedCopy,reviewSummaryReady,unreviewedContrary} from '../../../components/evidence-verification.ts';
 import type {ReviewSummary} from '../../../components/evidence-presentation.ts';
 import {statusLabel,evidenceStatusLabel,declaredValueLabel} from '../../../i18n/labels.ts';
 import type {Locale} from '../../../i18n/locale.ts';
@@ -57,7 +57,11 @@ export type EvidenceBasis='verified'|'declared'|'to_verify';
 export type EvidenceItem={id:string;basis:EvidenceBasis;text:string;note:string|null;href:string|null;date:string;statusLabel:string;verifiable:boolean;evidence:Evidence};
 export type CriterionView={key:string;label:string;weight:number;state:CriterionState;stateLabel:string;
  // The observations block of this criterion (ObservationsReview), when there is one: "Revoir les preuves" scrolls to it.
- reviewAnchor:string|null;pending:number;items:EvidenceItem[]};
+ reviewAnchor:string|null;pending:number;items:EvidenceItem[];
+ // A proof pointing the other way that nobody reviewed yet, while the criterion already reads as settled: said on the
+ // line (display only — the score counts verified proofs and is unchanged). Null when there is none.
+ contraryLabel:string|null};
+const CONTRARY_LABEL:Record<Locale,string>={fr:'Preuve contraire à relire',en:'Contrary evidence to review'};
 
 const STATE_LABEL:Record<Locale,Record<CriterionState,string>>={
  fr:{verified:'Vérifié',verified_false:'Vérifié non rempli',contradicted:'Contradiction à revoir',declared:'Déclaré par vous',declared_false:'Déclaré non rempli par vous',
@@ -95,7 +99,7 @@ export function criteriaView(breakdown:Breakdown[],estimate:FitEstimate,summary:
   const pending=b.state!=='TRUE'&&!!g&&g.pending>0;
   const state=stateOf(b,estimate.estimated.breakdown.find(l=>l.key===b.key),pending);
   return {key:b.key,label:b.label,weight:b.weight,state,stateLabel:STATE_LABEL[locale][state],reviewAnchor:g?.anchorId??null,pending:g?.pending??0,
-   items:manual.map(e=>itemOf(e,locale,prospect.evidence))};
+   items:manual.map(e=>itemOf(e,locale,prospect.evidence)),contraryLabel:unreviewedContrary(b.state,b.key,prospect.evidence).length?CONTRARY_LABEL[locale]:null};
  });
 }
 

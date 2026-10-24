@@ -97,6 +97,7 @@
 .pos-ui .pos-pcrit__label{flex:1;min-width:0;font-size:var(--pos-text-base);line-height:var(--pos-leading-snug);overflow-wrap:anywhere}
 .pos-ui .pos-pcrit__label small{display:block;margin-top:1px;font-size:var(--pos-text-xs);color:var(--pos-text-3)}
 .pos-ui .pos-pcrit[data-state="declared"] .pos-pcrit__label small,.pos-ui .pos-pcrit[data-state="declared_false"] .pos-pcrit__label small{color:var(--pos-status-declared-fg)}
+.pos-ui .pos-pcrit__label small.pos-pcrit__contrary{color:var(--pos-status-verify-fg);font-weight:600}
 .pos-ui .pos-pcrit[data-state="verified"] .pos-pcrit__label small{color:var(--pos-status-verified-fg)}
 .pos-ui .pos-pev__list{display:grid;gap:var(--pos-space-2);margin:var(--pos-space-2) 0 0 26px}
 .pos-ui .pos-pev{display:grid;justify-items:start;gap:var(--pos-space-1);padding:var(--pos-space-3);border-radius:var(--pos-radius-md);background:var(--pos-surface-inset);

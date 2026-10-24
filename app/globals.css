@@ -617,3 +617,14 @@ button,.button{transition:background-color .18s ease,border-color .18s ease,colo
 .nba-draft{white-space:pre-wrap;background:#f5f8f6;border-radius:8px;padding:10px;margin:6px 0}
 .nba-human{font-size:12px}
 @media (max-width:640px){.nba-card{padding:12px}.nba-filters label{min-width:100%}}
+/* Zero-Friction ZF1 — "Aujourd'hui": reuses the NBA card; long texts wrap, actions stack on small screens. */
+.today-panel .today-summary{font-size:15px;margin:6px 0 12px}
+.today-section h3{margin:18px 0 6px}
+.today-card{overflow-wrap:anywhere}
+.today-card.today-contact{border-left-color:#207b60}.today-card.today-verify{border-left-color:#c58b1b}.today-card.today-engage{border-left-color:#3b6fb6}.today-card.today-watch{border-left-color:#9fb3aa}
+.today-why-now{font-weight:600;margin:4px 0}
+.today-missing{margin:4px 0 8px}
+.today-verify{background:#f7faf8;border-radius:8px;padding:10px 12px;margin:8px 0}
+.today-card details{margin-top:8px}.today-card summary{cursor:pointer;min-height:44px;display:flex;align-items:center}
+.today-card summary:focus-visible,.today-card button:focus-visible{outline:2px solid #207b60;outline-offset:2px}
+@media (max-width:640px){.today-card .actions{display:flex;flex-direction:column;gap:8px}.today-card .actions button{width:100%;min-height:44px}}

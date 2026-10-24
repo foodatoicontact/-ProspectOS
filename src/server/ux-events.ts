@@ -6,6 +6,7 @@
 // - Closed payload, no text: no message, prompt, source, key or credential. Production writes nothing. Best-effort: a
 //   failure never breaks the user's request.
 import type {SupabaseClient} from '@supabase/supabase-js';
+import {z} from 'zod';
 import {uxAbEnabledFromEnv,UX_EXPERIMENT} from '../ux/variant.ts';
 
 export const UX_KINDS=['prospect_detail_viewed','outreach_generated','outreach_edited','outreach_approved','outreach_copied'] as const;
@@ -46,4 +47,65 @@ export async function recordUxEvent(i:UxEventInput):Promise<'recorded'|'skipped'
   const {error}=await i.admin.from('events').insert({organization_id:i.row.organization_id,prospect_id:i.row.prospect_id,actor_id:null,kind,payload});
   return error?'failed':'recorded';
  }catch{return 'failed'}
+}
+
+// Zero-Friction ZF1 measurement (docs/ZERO_FRICTION.md). Same table, same rules: no actor (not business activity),
+// closed numeric payload, no text, nothing written in Production. One event per kind per client session; the client
+// counts only trusted user clicks/submits (never renders, loads, polling or automatic recomputations).
+// UI-3: ZF_WHY_OPENED = level 2 ("Voir pourquoi"); ZF_ADVANCED_DETAILS_OPENED stays level 3 only.
+export const ZF_KINDS=['ZF_SESSION_STARTED','ZF_TODAY_VIEWED','ZF_FIRST_RECOMMENDATION_VISIBLE','ZF_FIRST_MEANINGFUL_ACTION','ZF_ADVANCED_DETAILS_OPENED','ZF_WHY_OPENED'] as const;
+export type ZfKind=typeof ZF_KINDS[number];
+export type ZfEventInput={admin:SupabaseClient|null;env:{VERCEL_ENV?:string;NODE_ENV?:string;UX_AB_ENABLED?:string};enabled:boolean;userId:string;organizationId:string;
+ // UI-3: the project the event belongs to, kept distinct from the organization (row column) in the payload.
+ projectId?:string;
+ kind:string;sessionId:string;elapsedMs:number;interactions:number};
+export function zfPayload(i:Pick<ZfEventInput,'kind'|'sessionId'|'elapsedMs'|'interactions'|'userId'|'projectId'>):Record<string,unknown>|null{
+ if(!(ZF_KINDS as readonly string[]).includes(i.kind)||!UUID.test(i.sessionId)||!UUID.test(i.userId))return null;
+ if(!Number.isInteger(i.elapsedMs)||i.elapsedMs<0||i.elapsedMs>86400000||!Number.isInteger(i.interactions)||i.interactions<0||i.interactions>10000)return null;
+ if(i.projectId!==undefined&&!UUID.test(i.projectId))return null;
+ return {schema:1,experiment:'zero_friction_today',session_id:i.sessionId,elapsed_ms:i.elapsedMs,interactions:i.interactions,user_id:i.userId,
+  ...(i.projectId?{project_id:i.projectId}:{})};
+}
+// Why a ZF event was not written — logged (no personal data) so a silent 202 can never hide a broken measurement again.
+export type ZfOutcome='recorded'|'duplicate'|'flag_off'|'production'|'invalid'|'no_writer'|'failed';
+// ZF1.1 (interactive canary): the gate is the ZF flag itself — global, or the organizations of the Production canary
+// (ZERO_FRICTION_TODAY_ORGS), resolved by the route under RLS. B1: VERCEL_ENV describes the environment, it does not
+// switch the measurement off — the canary keeps writing in Production once the runtime exposes it, exactly as before.
+export function zfWritesAllowed(enabled:boolean,_env?:{VERCEL_ENV?:string}):'ok'|'flag_off'{
+ return enabled?'ok':'flag_off';
+}
+export async function recordZfEvent(i:ZfEventInput):Promise<ZfOutcome>{
+ const gate=zfWritesAllowed(i.enabled,i.env);if(gate!=='ok')return gate;
+ if(!UUID.test(i.organizationId))return 'invalid';
+ const payload=zfPayload(i);if(!payload)return 'invalid';
+ try{
+  if(!i.admin)return 'no_writer';
+  const kind=`ux.${i.kind.toLowerCase()}`;
+  const {data,error}=await i.admin.from('events').select('id').eq('kind',kind).is('actor_id',null).eq('payload->>session_id',i.sessionId).limit(1);
+  if(error)return 'failed';
+  if(data&&data.length)return 'duplicate';
+  const r=await i.admin.from('events').insert({organization_id:i.organizationId,prospect_id:null,actor_id:null,kind,payload});
+  return r.error?'failed':'recorded';
+ }catch{return 'failed'}
+}
+
+// POST /zf-events (app/api/v1/[...path]/route.ts). The body is exactly what the browser's ZfSession sends (zfEventRequest,
+// src/ux/zf-session.ts); the organization comes from a project the user can read with its own RLS client, the user from
+// the session. Always answered 202 (measurement never fails the page); the outcome is logged, never returned.
+export const ZfEventBody=z.object({kind:z.enum(ZF_KINDS),project_id:z.string().uuid(),session_id:z.string().uuid(),
+ elapsed_ms:z.number().int().min(0),interactions:z.number().int().min(0)}).strict();
+// enabled: a boolean, or (ZF org canary) a test of the project's organization resolved here under the caller's RLS.
+export async function handleZfEvent(body:unknown,db:SupabaseClient,user:{id:string},deps:{admin:()=>SupabaseClient|null;env:ZfEventInput['env'];enabled:boolean|((organizationId:string)=>boolean);
+ log:(line:Record<string,unknown>)=>void}):Promise<ZfOutcome>{
+ const parsed=ZfEventBody.safeParse(body);
+ const outcome:ZfOutcome=!parsed.success?'invalid':await (async()=>{
+  const b=parsed.data;
+  const {data:proj}=await db.from('projects').select('organization_id').eq('id',b.project_id).maybeSingle();
+  if(!proj)return 'invalid';
+  const enabled=typeof deps.enabled==='function'?deps.enabled(proj.organization_id):deps.enabled;
+  return recordZfEvent({admin:deps.admin(),env:deps.env,enabled,userId:user.id,organizationId:proj.organization_id,projectId:b.project_id,kind:b.kind,
+   sessionId:b.session_id,elapsedMs:b.elapsed_ms,interactions:b.interactions});
+ })();
+ deps.log({component:'zf-events',kind:parsed.success?parsed.data.kind:null,outcome});
+ return outcome;
 }

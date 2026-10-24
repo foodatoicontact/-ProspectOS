@@ -89,7 +89,7 @@ test('demo/visitor click records the intent and leaves the demo; it never calls 
  assert.match(choose,/if\(mode==='live'\)\{setModal\(''\);void work\(\(\)=>startCheckout\(plan\)\);return\}/,'LIVE → BETA/PRO goes straight to startCheckout(plan)');
 });
 test('the welcome screen shows the chosen offer during sign-up, confirmation and sign-in',()=>{
- const welcome=page.match(/if\(mode==='welcome'\)return <main className="welcome">[\s\S]*?<\/main>;/)![0];
+ const welcome=[legacyWelcome(page)]![0];
  assert.match(welcome,/<section className="login card" id="inscription">\{planIntent&&<div className="plan-intent" role="status"><p>\{tr\('offers\.selected'\)\} <b>\{tr\(offerNameKey\(planIntent\)\)\}<\/b>/,'shown above the sign-up form, the check-email screen and the sign-in form alike — named after the chosen offer (Solo, Pro or Équipe)');
  assert.equal(fr['offers.selected'],'Offre choisie :');assert.equal(fr['billing.betaName'],'ProspectOS Solo');assert.equal(fr['billing.proName'],'ProspectOS Pro');assert.equal(fr['billing.teamName'],'ProspectOS Équipe');
 });
@@ -197,6 +197,7 @@ test('demo help: the 7 steps stay visible; the score note and the 4 live limitat
 
 // ---------------------------------------------------------------- subscription management access
 import {subscriptionView} from '../src/domain/subscription-view.ts';
+import {legacyWelcome} from './welcome-screen.ts';
 const END='2026-10-28T10:00:00Z';
 test('PAID active subscription → "Gérer mon abonnement" through the portal',()=>{
  const v=subscriptionView({has_customer:true,plan:'PAID',status:'active',cancel_at_period_end:false,current_period_end:END},OPEN)!;

@@ -1,5 +1,5 @@
 // Self-Outreach routes (/api/v1/self-outreach/…) — members of an organization listed in SELF_OUTREACH_ORG_IDS, with
-// SELF_OUTREACH_ENABLED on. Every write goes through a migration-033 function as the member (RLS); nothing here sends
+// SELF_OUTREACH_ENABLED on. Every write goes through a migration-035 function as the member (RLS); nothing here sends
 // an email (sending is the cron job's, behind SELF_OUTREACH_SEND_ENABLED). Errors never carry configuration values.
 import {z} from 'zod';
 import type {SupabaseClient} from '@supabase/supabase-js';

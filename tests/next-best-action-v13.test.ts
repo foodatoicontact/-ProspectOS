@@ -84,7 +84,8 @@ test('FIT CASE 6 — 35 TRUE, 65 UNKNOWN, no timing → not qualified LOW_FIT',(
  assert.equal(o.scores.fit.profile.state,'INCOMPLETE');
  assert.notEqual(o.rule,'OFF_TARGET');assert.equal(o.recommended_action,'DISMISS','nothing to act on now — the rule says why, without calling the FIT low');
  assert.doesNotMatch(action(o),LOW_WORDING);
- assert.equal(action(o),'Le compte correspond aux critères vérifiés disponibles, mais seulement 35 % de l’ICP est documenté, et aucun élément récent ne justifie une action.');
+ assert.equal(o.rule,'FIT_INCOMPLETE_NO_TIMING','v1.3.x: to document, not rejected');
+ assert.equal(action(o),'Les éléments disponibles sont favorables, mais une partie de l’ICP reste non documentée (35 % documenté ; à documenter : Décision d’achat locale, Besoin d’un canal direct, Canal de contact documenté), et aucun élément récent ne justifie une action.');
 });
 
 test('FIT CASE 7 — the INCOMPLETE_FIT explanation names the coverage and the missing information',()=>{

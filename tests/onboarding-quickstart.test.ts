@@ -41,7 +41,9 @@ test('2 — with a URL: the existing analyze-company route, with its own input r
 test('3 — ICP proposal: type of business, area and observable needs come from the user’s own words',()=>{
  assert.deepEqual(parseTarget(TARGET),{query:'restaurants indépendants',categories:['restaurant'],locations:['Occitanie'],signals:['commande à emporter'],notes:['1 à 5 établissements']});
  assert.deepEqual(parseTarget('PME industrielles de Haute-Garonne, 10-50 salariés, ayant un site e-commerce').locations,['Haute-Garonne']);
- assert.deepEqual(parseTarget('Cabinets comptables à Lyon qui proposent la paie en ligne').signals,['paie en ligne']);
+ // What the target offers is what it IS (a category the site can state), never a need of the prospect.
+ assert.deepEqual(parseTarget('Cabinets comptables à Lyon qui proposent la paie en ligne').categories,['cabinet','paie en ligne']);
+ assert.deepEqual(parseTarget('Cabinets comptables à Lyon qui proposent la paie en ligne').signals,[]);
  assert.deepEqual(extractLocations('agences immobilières'),[],'no area written → none invented');
  const p=buildTargetingProposal({offerText:OFFER,targetText:'agences immobilières'});
  assert.ok(p.missing.includes('location'));assert.equal(readyForDiscovery(p),false,'no area → Discovery is not proposed until the user gives one');
@@ -100,7 +102,7 @@ test('10 — Discovery unchanged: the form is pre-filled once, never launched; t
  const effect=panel.slice(panel.indexOf('const prefillApplied'),panel.indexOf('const prefillApplied')+400);
  assert.match(effect,/useEffect\(\(\)=>\{if\(!prefill\|\|activeRunId\)return;setFields\(f=>\(\{\.\.\.f,query:f\.query\|\|prefill\.query,location:f\.location\|\|prefill\.location,categories:f\.categories\|\|prefill\.categories\.join\(', '\)\}\)\);/);
  assert.doesNotMatch(effect,/search\(|api\(/,'pre-filling never searches');
- assert.match(panel,/prefill=null,onPrefillUsed\}/,'absent by default: the panel behaves as before');
+ assert.match(panel,/prefill=null,onPrefillUsed,view\}/,'absent by default: the panel behaves as before (view: UI-5B, optional)');
  assert.match(page,/prefill=\{discoveryPrefill\?\.projectId===projectId\?discoveryPrefill:discoveryPrefillFromIcp\(criteria\)\} onPrefillUsed=\{\(\)=>setDiscoveryPrefill\(null\)\}/);
 });
 test('11, 12 — auth and billing untouched by the quick start',()=>{

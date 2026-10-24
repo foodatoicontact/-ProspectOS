@@ -33,8 +33,20 @@ test('page — the view is tracked in live mode only, once per prospect and vari
  assert.equal(markViewOnce(seen,'p1:A'),true,'another variant is another view');assert.equal(markViewOnce(seen,'p2:B'),true);
 });
 test('page — one instance of each panel and of the message block (no duplicated logic)',()=>{
+ // Legacy screen (flag OFF): exactly one of each, as before.
+ const legacy=page.slice(0,page.indexOf(' if(v2){'));
  for(const n of ['<ObservationsReview key=','<SignalsPanel key=','<PublicContentPanel key=','<StyleProfilePanel ','className="message-box"','onClick={generate}','onClick={saveDraft}','onClick={approveDraft}','onClick={copyApproved}',"onClick={()=>status('Contacté')}"])
-  assert.equal(count(page,n),1,n);
+  assert.equal(count(legacy,n),1,n);
+ // UI-5A (flag ON): the Prospects 2.0 record mounts the SAME panels — byte-identical elements, never a variant — and the
+ // same handlers. Only one of the two screens is ever rendered (the v2 shell replaces the legacy region).
+ const v2=page.slice(page.indexOf(' if(v2){'),page.indexOf(' return <div className="shell">'));
+ for(const tag of ['<ObservationsReview ','<SignalsPanel ','<PublicContentPanel ','<StyleProfilePanel ']){
+  const a=legacy.slice(legacy.indexOf(tag)),b=v2.slice(v2.indexOf(tag));
+  assert.equal(count(v2,tag),1,tag);
+  assert.equal(b.slice(0,b.indexOf('/>,')+2),a.slice(0,a.indexOf('/>')+2),`${tag} identical in v2`);
+ }
+ assert.match(v2,/onStatus:status,/);
+ assert.match(v2,/onChange:setDraft,onGenerate:generate,onSave:saveDraft,onApprove:approveDraft,onCopy:copyApproved\}/);
 });
 test('page — B only adds the cockpit and groups the justifications; A renders exactly as before',()=>{
  assert.match(page,/<div className=\{uxAssignment\.variant==='B'\?'detail-layout ux-b':'detail-layout'\} data-ux-variant=\{uxAssignment\.variant\}>/);

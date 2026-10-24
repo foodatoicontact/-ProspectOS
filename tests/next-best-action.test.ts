@@ -96,7 +96,7 @@ test('evidence first: an unreviewed signal never triggers CONTACT (WATCH, to ver
  assert.equal(rejected.scores.timing.score,0);assert.deepEqual(rejected.signal_ids,[]);assert.equal(rejected.recommended_action,'WAIT');
  const unknown=buildOpportunity(input(85,{evidence:[]}));
  assert.equal(unknown.scores.fit.basis,'unknown');assert.equal(unknown.scores.fit.score,null);
- assert.equal(unknown.recommended_action,'DISMISS');assert.equal(unknown.rule,'NOT_ENOUGH');
+ assert.equal(unknown.recommended_action,'DISMISS');assert.equal(unknown.rule,'FIT_UNKNOWN_NO_TIMING');
  assert.ok(unknown.explanation.unknown.some(s=>/ICP inconnue/.test(s.text)));
 });
 
@@ -157,8 +157,9 @@ test('rules: closed prospects and off-target accounts are dismissed; OPPORTUNITY
  // A high opportunity from FIT + INTENT alone (old signals) is still WAIT without TIMING.
  const old=buildOpportunity(input(100,{signals:[signal({signal_type:'funding',title:'Levée',excerpt:'Levée.',published_at:daysAgo(400)})]}));
  assert.equal(old.recommended_action,'WAIT');
- // Each rule is one entry of a table, the last one always applies.
- assert.equal(RULES.at(-1)!.id,'NOT_ENOUGH');assert.equal(new Set(RULES.map(r=>r.id)).size,RULES.length);
+ // Each rule is one entry of a table; v1.3.x: the former catch-all NOT_ENOUGH is three explicit DISMISS rules, by FIT state.
+ assert.deepEqual(RULES.slice(-3).map(r=>[r.id,r.action]),[['FIT_UNKNOWN_NO_TIMING','DISMISS'],['FIT_INCOMPLETE_NO_TIMING','DISMISS'],['LOW_FIT_NO_TIMING','DISMISS']]);
+ assert.ok(!RULES.some(r=>(r.id as string)==='NOT_ENOUGH'));assert.equal(new Set(RULES.map(r=>r.id)).size,RULES.length);
 });
 
 test('conversation: only a VERIFIED, dated, relevant and recent public content; an explicit fresh need beats it',()=>{

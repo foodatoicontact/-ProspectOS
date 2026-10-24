@@ -108,3 +108,13 @@ export function trialEndsInLabel(locale:Locale,days:number):string{
  if(days<=0)return locale==='fr'?'Essai se termine aujourd’hui':'Trial ends today';
  return locale==='fr'?`Essai se termine dans ${days} jour${days>1?'s':''}`:`Trial ends in ${days} day${days===1?'':'s'}`;
 }
+// ZF1.1 "Aujourd'hui" summary: one sentence per DISTINCT set of companies (to contact, to verify, watched without any
+// action asked) — a company is never counted twice — with real singular/plural forms.
+export function todaySummary(locale:Locale,n:{contact:number;verify:number;watched:number}):string[]{
+ const fr=locale==='fr';
+ const out=[n.contact===0?(fr?'Aucune entreprise à contacter aujourd’hui.':'No company to contact today.')
+  :fr?`${n.contact} entreprise${n.contact>1?'s':''} à contacter aujourd’hui.`:`${n.contact} compan${n.contact>1?'ies':'y'} to contact today.`];
+ if(n.verify>0)out.push(fr?(n.verify>1?`${n.verify} entreprises sont à vérifier.`:'1 entreprise est à vérifier.'):(n.verify>1?`${n.verify} companies to verify.`:'1 company to verify.'));
+ if(n.watched>0)out.push(fr?(n.watched>1?`Nous surveillons ${n.watched} entreprises.`:'Nous surveillons 1 entreprise.'):(n.watched>1?`We are watching ${n.watched} companies.`:'We are watching 1 company.'));
+ return out;
+}

@@ -1,4 +1,4 @@
-// Self-Outreach jobs (cron): every state change goes through the migration-033 functions (atomic, idempotent, safe
+// Self-Outreach jobs (cron): every state change goes through the migration-035 functions (atomic, idempotent, safe
 // when two workers run). Fail closed: anything ambiguous stops instead of sending.
 //   processSendQueue  claim (daily cap, suppression, reply, lease) → check right before SMTP → send → complete.
 //   pollReplies       read recent inbound mail → record (match + stop follow-ups / bounce / opt-out, atomically).

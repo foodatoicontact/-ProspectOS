@@ -1,0 +1,161 @@
+/* Recherche 2.0 (UI-5B). Scoped to .pos-ui .pos-search, tokens only. Mobile first: a compact form (what to look for,
+   where, one button), then the results as the main content, one card per company; history after them. ≥ 1200 px: the
+   results column and the history side by side. No score leads: a result says how it is verified in words. */
+
+.pos-ui .pos-search{min-width:0}
+.pos-ui .pos-search__main{padding:var(--pos-space-4) var(--pos-space-4) var(--pos-space-7);min-width:0}
+.pos-ui .pos-search__head{margin-bottom:var(--pos-space-4)}
+.pos-ui .pos-search__title{margin:0;font-size:var(--pos-text-3xl);font-weight:var(--pos-weight-heavy);letter-spacing:-.04em}
+.pos-ui .pos-search__intro{margin:var(--pos-space-1) 0 0;max-width:62ch;font-size:var(--pos-text-base);color:var(--pos-text-2)}
+
+.pos-ui .pos-search .pos-snative{display:grid;gap:var(--pos-space-3);min-width:0}
+.pos-ui .pos-search .pos-snative__layout{display:grid;gap:var(--pos-space-5);min-width:0;margin-top:var(--pos-space-2)}
+.pos-ui .pos-search .pos-snative__main,.pos-ui .pos-search .pos-snative__side{min-width:0}
+.pos-ui .pos-search .pos-snote{margin:0;padding:var(--pos-space-2) var(--pos-space-3);border-radius:var(--pos-radius-md);background:var(--pos-surface-inset);
+ border:1px solid var(--pos-border);color:var(--pos-text-2);font-size:var(--pos-text-sm);overflow-wrap:anywhere}
+.pos-ui .pos-search .pos-snote p{margin:0}
+.pos-ui .pos-search .pos-snote--warn{background:var(--pos-status-verify-bg);border-color:transparent;color:var(--pos-status-verify-fg)}
+.pos-ui .pos-search .pos-snote--error{border-color:var(--pos-status-excluded-fg);color:var(--pos-status-excluded-fg)}
+.pos-ui .pos-search .pos-sres__muted{color:var(--pos-text-3)}
+.pos-ui .pos-search a{color:var(--pos-signal);font-weight:var(--pos-weight-semibold);text-decoration:none;display:inline-flex;align-items:center;gap:3px;overflow-wrap:anywhere}
+.pos-ui .pos-search a:hover{text-decoration:underline}
+
+/* ── Form: what and where first; the rest in "Plus de réglages" ───────────────────────────────────────────────────── */
+.pos-ui .pos-search .pos-sform{display:grid;gap:var(--pos-space-2);padding:var(--pos-space-4);background:var(--pos-surface-card);border:1px solid var(--pos-border);
+ border-radius:var(--pos-radius-xl);box-shadow:var(--pos-shadow-card);min-width:0}
+.pos-ui .pos-search .pos-sform label{margin:0}
+.pos-ui .pos-search .pos-sform__main{display:grid;gap:var(--pos-space-3);min-width:0}
+.pos-ui .pos-search .pos-sfield{display:grid;gap:6px;min-width:0;margin:0;padding:0;border:0}
+.pos-ui .pos-search .pos-sfield>span,.pos-ui .pos-search .pos-sfield legend{font-size:var(--pos-text-sm);font-weight:var(--pos-weight-semibold);color:var(--pos-text-1);padding:0}
+.pos-ui .pos-search .pos-sfield small{font-size:var(--pos-text-xs);color:var(--pos-text-3)}
+.pos-ui .pos-search .pos-sfield :where(input,select){width:100%;min-height:var(--pos-size-target);margin:0;padding:0 var(--pos-space-3);border:1px solid var(--pos-border-strong);
+ border-radius:var(--pos-radius-md);background:var(--pos-surface-card);color:var(--pos-text-1);font:inherit;font-size:var(--pos-text-base)}
+.pos-ui .pos-search .pos-sfield :where(input,select):focus-visible{outline:2px solid var(--pos-accent);outline-offset:1px}
+.pos-ui .pos-search .pos-sfield input::placeholder{color:var(--pos-text-3)}
+.pos-ui .pos-search .pos-sfield--range{display:flex;flex-wrap:wrap;align-items:flex-end;gap:var(--pos-space-2) var(--pos-space-3)}
+.pos-ui .pos-search .pos-sfield--range legend{width:100%;margin-bottom:6px}
+.pos-ui .pos-search .pos-sfield--range label{display:grid;gap:6px;flex:1 1 120px}
+.pos-ui .pos-search .pos-sfield--range label>span{font-size:var(--pos-text-xs);color:var(--pos-text-2)}
+.pos-ui .pos-search .pos-sform__submit{width:100%}
+.pos-ui .pos-search .pos-sform__more>summary,.pos-ui .pos-search .pos-sdetails>summary{display:flex;align-items:center;justify-content:space-between;gap:var(--pos-space-2);
+ min-height:var(--pos-size-target);cursor:pointer;list-style:none;font-size:var(--pos-text-sm);font-weight:var(--pos-weight-semibold);color:var(--pos-text-2)}
+.pos-ui .pos-search :is(.pos-sform__more,.pos-sdetails)>summary::-webkit-details-marker{display:none}
+.pos-ui .pos-search :is(.pos-sform__more,.pos-sdetails)>summary .pos-icon{flex:none;transition:transform var(--pos-dur-base) var(--pos-ease-standard)}
+.pos-ui .pos-search :is(.pos-sform__more,.pos-sdetails)[open]>summary .pos-icon{transform:rotate(180deg)}
+.pos-ui .pos-search .pos-sform__more{border-top:1px solid var(--pos-hairline)}
+.pos-ui .pos-search .pos-sform__more[open]{display:grid;gap:var(--pos-space-3);padding-bottom:var(--pos-space-2)}
+.pos-ui .pos-search .pos-sform__grid{display:grid;gap:var(--pos-space-3);min-width:0}
+.pos-ui .pos-search .pos-sform--folded{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:var(--pos-space-2);padding:var(--pos-space-2) var(--pos-space-2) var(--pos-space-2) var(--pos-space-4)}
+.pos-ui .pos-search .pos-sform__summary{display:flex;align-items:center;gap:var(--pos-space-2);margin:0;min-width:0;color:var(--pos-text-1);font-size:var(--pos-text-base);overflow-wrap:anywhere}
+.pos-ui .pos-search .pos-sform__summary .pos-icon{flex:none;color:var(--pos-text-3)}
+.pos-ui .pos-search .pos-sdetails{border-radius:var(--pos-radius-lg);min-width:0}
+.pos-ui .pos-search .pos-sdetails--context,.pos-ui .pos-search .pos-sdetails--run{padding:0 var(--pos-space-3);background:var(--pos-surface-inset);border:1px solid var(--pos-border)}
+.pos-ui .pos-search .pos-sdetails[open]{padding-bottom:var(--pos-space-3)}
+.pos-ui .pos-search .pos-sdetails p,.pos-ui .pos-search .pos-sdetails li{margin:var(--pos-space-1) 0;font-size:var(--pos-text-sm);color:var(--pos-text-2);overflow-wrap:anywhere}
+.pos-ui .pos-search .pos-sdetails ul{margin:var(--pos-space-1) 0;padding-left:var(--pos-space-5)}
+
+/* ── Results ─────────────────────────────────────────────────────────────────────────────────────────────────────── */
+.pos-ui .pos-search .pos-sresults{display:grid;gap:var(--pos-space-3);min-width:0}
+.pos-ui .pos-search .pos-sresults__head{display:grid;gap:2px}
+.pos-ui .pos-search .pos-sresults__title{margin:0;font-size:var(--pos-text-2xl);font-weight:var(--pos-weight-heavy);letter-spacing:-.03em}
+.pos-ui .pos-search .pos-sresults__head p{margin:0;font-size:var(--pos-text-sm)}
+.pos-ui .pos-search .pos-sresults__list{list-style:none;margin:0;padding:0;display:grid;gap:var(--pos-space-3)}
+.pos-ui .pos-search .pos-sstatus{display:flex;align-items:center;gap:var(--pos-space-2);margin:0;padding:var(--pos-space-4);color:var(--pos-text-2)}
+.pos-ui .pos-search .pos-sspinner{width:16px;height:16px;border-radius:50%;border:2px solid var(--pos-border-strong);border-top-color:var(--pos-accent);animation:pos-sspin .8s linear infinite}
+@keyframes pos-sspin{to{transform:rotate(360deg)}}
+
+/* Novelty filter: label + count, aria-pressed; scrolls inside itself at 320 px, never the page. */
+.pos-ui .pos-search .pos-snovelty{display:grid;gap:var(--pos-space-2);min-width:0}
+.pos-ui .pos-search .pos-snovelty p{margin:0;font-size:var(--pos-text-sm)}
+.pos-ui .pos-search .pos-snovelty__note{font-size:var(--pos-text-xs)}
+.pos-ui .pos-search .pos-stabs{display:flex;gap:var(--pos-space-2);overflow-x:auto;padding-bottom:2px;-webkit-overflow-scrolling:touch;scrollbar-width:thin}
+.pos-ui .pos-search .pos-stab{flex:none;display:inline-flex;align-items:center;gap:6px;min-height:var(--pos-size-target);padding:0 var(--pos-space-3);border-radius:var(--pos-radius-pill);
+ border:1px solid var(--pos-border-strong);background:var(--pos-surface-card);color:var(--pos-text-2);font:inherit;font-size:var(--pos-text-sm);font-weight:var(--pos-weight-semibold);cursor:pointer}
+.pos-ui .pos-search .pos-stab[aria-pressed="true"]{background:var(--pos-text-1);border-color:var(--pos-text-1);color:var(--pos-bg)}
+.pos-ui .pos-search .pos-stab:focus-visible{outline:2px solid var(--pos-accent);outline-offset:2px}
+
+/* One card per company, read top-down: company + place (with its source one tap away) → novelty + review priority →
+   why it stands out (one short line) → verification (À documenter stays visible) → action. Everything technical is in
+   "Détails avancés". Compact on a phone: the next result shows sooner, targets stay ≥ 44 px. */
+.pos-ui .pos-search .pos-sres{display:grid;gap:var(--pos-space-2);padding:var(--pos-space-3) var(--pos-space-3) var(--pos-space-1);background:var(--pos-surface-card);
+ border:1px solid var(--pos-border);border-radius:var(--pos-radius-xl);box-shadow:var(--pos-shadow-card);min-width:0}
+.pos-ui .pos-search .pos-sres--added,.pos-ui .pos-search .pos-sres--ignored{background:var(--pos-surface-inset);box-shadow:none}
+.pos-ui .pos-search .pos-sres__head{display:grid;gap:2px;min-width:0;align-content:start}
+.pos-ui .pos-search .pos-sres__name{margin:0;font-size:var(--pos-text-md);font-weight:var(--pos-weight-heavy);letter-spacing:-.02em;line-height:var(--pos-leading-snug);overflow-wrap:anywhere}
+.pos-ui .pos-search .pos-sres__place{display:flex;flex-wrap:wrap;align-items:center;gap:2px var(--pos-space-3);margin:0;font-size:var(--pos-text-sm);color:var(--pos-text-2);overflow-wrap:anywhere}
+.pos-ui .pos-search .pos-sres__source{font-size:var(--pos-text-sm);color:var(--pos-signal)}
+.pos-ui .pos-search .pos-sres__tags{display:flex;flex-wrap:wrap;align-items:flex-start;gap:6px;margin:0}
+.pos-ui .pos-search .pos-stag{display:inline-flex;align-items:center;min-height:24px;padding:0 var(--pos-space-2);border-radius:var(--pos-radius-pill);background:var(--pos-surface-muted);
+ color:var(--pos-text-2);font-size:var(--pos-text-xs);font-weight:var(--pos-weight-semibold)}
+.pos-ui .pos-search .pos-stag--novelty-new{background:var(--pos-accent);color:var(--pos-on-accent)}
+.pos-ui .pos-search .pos-stag--novelty-added,.pos-ui .pos-search .pos-stag--state-added{background:var(--pos-status-engage-bg);color:var(--pos-status-engage-fg)}
+.pos-ui .pos-search .pos-stag--novelty-ignored{background:var(--pos-status-excluded-bg);color:var(--pos-status-excluded-fg)}
+.pos-ui .pos-search .pos-stag--priority-high{background:var(--pos-status-verify-bg);color:var(--pos-status-verify-fg)}
+.pos-ui .pos-search .pos-stag--priority-medium,.pos-ui .pos-search .pos-stag--priority-low{background:transparent;border:1px solid var(--pos-border-strong);color:var(--pos-text-2)}
+.pos-ui .pos-search .pos-stag--run-failed,.pos-ui .pos-search .pos-stag--run-interrupted{background:var(--pos-status-excluded-bg);color:var(--pos-status-excluded-fg)}
+.pos-ui .pos-search .pos-stag--run-running{background:var(--pos-status-verify-bg);color:var(--pos-status-verify-fg)}
+.pos-ui .pos-search .pos-sres__why{margin:0;font-size:var(--pos-text-sm);color:var(--pos-text-1);line-height:var(--pos-leading-snug);overflow-wrap:anywhere}
+.pos-ui .pos-search .pos-sres__verify{display:flex;flex-wrap:wrap;align-items:baseline;gap:2px var(--pos-space-2);margin:0;font-size:var(--pos-text-sm)}
+.pos-ui .pos-search .pos-sres__hint{font-size:var(--pos-text-xs);color:var(--pos-text-3)}
+.pos-ui .pos-search .pos-sverify{display:inline-flex;align-items:center;gap:4px;font-weight:var(--pos-weight-bold)}
+.pos-ui .pos-search .pos-sverify .pos-icon{align-self:center}
+.pos-ui .pos-search .pos-sverify--verified{color:var(--pos-status-verified-fg)}
+.pos-ui .pos-search .pos-sverify--estimated{color:var(--pos-text-1)}
+.pos-ui .pos-search .pos-sverify--document{color:var(--pos-status-verify-fg)}
+.pos-ui .pos-search .pos-sverify--unknown{color:var(--pos-text-3)}
+.pos-ui .pos-search .pos-sres__actions{display:flex;flex-wrap:wrap;align-items:center;gap:var(--pos-space-1) var(--pos-space-2);margin-top:2px}
+.pos-ui .pos-search .pos-sres__actions:empty{display:none}
+.pos-ui .pos-search .pos-sres .pos-sdetails{border-top:1px solid var(--pos-hairline);border-radius:0}
+.pos-ui .pos-search .pos-sres .pos-sdetails>summary{min-height:var(--pos-size-target);font-weight:var(--pos-weight-medium);color:var(--pos-text-3)}
+.pos-ui .pos-search .pos-sdiscarded{list-style:none;padding:0}
+/* "Détails avancés": labelled rows, chips for kinds — not a paragraph dump. */
+.pos-ui .pos-search .pos-sadv{display:grid;gap:var(--pos-space-2);margin:0 0 var(--pos-space-2)}
+.pos-ui .pos-search .pos-sadv>div{display:grid;gap:2px;min-width:0}
+.pos-ui .pos-search .pos-sadv dt{font-size:var(--pos-text-xs);font-weight:var(--pos-weight-semibold);color:var(--pos-text-3)}
+.pos-ui .pos-search .pos-sadv dd{display:flex;flex-wrap:wrap;align-items:center;gap:4px var(--pos-space-2);margin:0;font-size:var(--pos-text-sm);color:var(--pos-text-1);overflow-wrap:anywhere}
+.pos-ui .pos-search .pos-sadv__title{flex-basis:100%;font-size:var(--pos-text-xs)}
+.pos-ui .pos-search .pos-schip{display:inline-flex;align-items:center;min-height:22px;padding:0 var(--pos-space-2);border-radius:var(--pos-radius-pill);background:var(--pos-surface-muted);
+ color:var(--pos-text-2);font-size:var(--pos-text-xs);font-weight:var(--pos-weight-semibold)}
+
+/* ── History ─────────────────────────────────────────────────────────────────────────────────────────────────────── */
+.pos-ui .pos-search .pos-shistory{display:grid;gap:var(--pos-space-3);min-width:0}
+.pos-ui .pos-search .pos-shistory__title{margin:0;font-size:var(--pos-text-lg);font-weight:var(--pos-weight-heavy);letter-spacing:-.02em}
+.pos-ui .pos-search .pos-shistory p{margin:0;font-size:var(--pos-text-sm)}
+.pos-ui .pos-search .pos-slast{display:grid;gap:var(--pos-space-2);padding:var(--pos-space-3);border-radius:var(--pos-radius-lg);background:var(--pos-surface-inset);border:1px solid var(--pos-border)}
+.pos-ui .pos-search .pos-slast .pos-btn{justify-self:start}
+.pos-ui .pos-search .pos-sruns{list-style:none;margin:0;padding:0;display:grid;gap:var(--pos-space-2)}
+.pos-ui .pos-search .pos-srun{display:grid;gap:4px;padding:var(--pos-space-3);border-radius:var(--pos-radius-lg);background:var(--pos-surface-card);border:1px solid var(--pos-border);min-width:0}
+.pos-ui .pos-search .pos-srun.is-current{border-color:var(--pos-accent);box-shadow:inset 3px 0 0 var(--pos-accent)}
+.pos-ui .pos-search .pos-srun__top{display:flex;align-items:center;justify-content:space-between;gap:var(--pos-space-2);font-size:var(--pos-text-xs)}
+.pos-ui .pos-search .pos-srun__query{margin:0;font-family:var(--pos-font-ui);font-size:var(--pos-text-base);font-weight:var(--pos-weight-bold);letter-spacing:0;
+ display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;overflow-wrap:anywhere}
+.pos-ui .pos-search .pos-srun__actions{display:flex;flex-wrap:wrap;gap:var(--pos-space-1) var(--pos-space-2);margin-top:4px}
+
+/* ── Tablet / desktop ─────────────────────────────────────────────────────────────────────────────────────────────── */
+@media (min-width:641px){
+ .pos-ui .pos-search__main{padding:var(--pos-space-6) var(--pos-space-6) var(--pos-space-8)}
+ .pos-ui .pos-search .pos-sform__main{grid-template-columns:minmax(0,1.6fr) minmax(0,1fr) auto;align-items:end}
+ .pos-ui .pos-search .pos-sform__submit{width:auto}
+ .pos-ui .pos-search .pos-sform__grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+ .pos-ui .pos-search .pos-sfield--range{grid-column:1/-1}
+ /* Dense card: what it is and why on the left, the action on the right. */
+ .pos-ui .pos-search .pos-sres{grid-template-columns:minmax(0,1fr) auto;column-gap:var(--pos-space-5);padding:var(--pos-space-4) var(--pos-space-4) var(--pos-space-1)}
+ .pos-ui .pos-search .pos-sres>:not(.pos-sres__actions){grid-column:1}
+ .pos-ui .pos-search .pos-sres>.pos-sdetails{grid-column:1/-1}
+ .pos-ui .pos-search .pos-sres__actions{grid-column:2;grid-row:1/span 4;align-self:start;flex-direction:column;align-items:stretch;margin-top:0}
+}
+@media (min-width:1024px){
+ .pos-ui .pos-search{min-height:calc(100dvh - 2 * var(--pos-shell-gap,12px));border-radius:26px;overflow:hidden;background:var(--pos-surface-shell);
+  border:1px solid var(--pos-glass-border);box-shadow:var(--pos-glass-highlight),var(--pos-shadow-float)}
+ .pos-ui .pos-search__main{max-width:1280px;margin:0 auto;padding:var(--pos-space-8)}
+ .pos-ui .pos-search .pos-sform__grid{grid-template-columns:repeat(3,minmax(0,1fr))}
+}
+@media (min-width:1200px){
+ .pos-ui .pos-search .pos-snative__layout{grid-template-columns:minmax(0,1fr) 300px;align-items:start}
+ .pos-ui .pos-search .pos-snative__side{position:sticky;top:var(--pos-space-4)}
+}
+@media (prefers-reduced-motion:reduce){
+ .pos-ui .pos-search .pos-sspinner{animation:none}
+ .pos-ui .pos-search :is(.pos-sform__more,.pos-sdetails)>summary .pos-icon{transition:none}
+}
+@media (forced-colors:active){.pos-ui .pos-search :is(.pos-sres,.pos-srun,.pos-sform,.pos-stab){border:1px solid CanvasText}}

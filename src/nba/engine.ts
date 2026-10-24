@@ -210,6 +210,11 @@ export type FitProfile={
  level:number;verified_score:number;direction:'POSITIVE'|'NEGATIVE'|'MIXED'|'NONE';state:FitState;
  // Criterion labels, to explain without a number: what supports, what goes against (verified), what nobody knows.
  supporting:string[];against:string[];missing:string[];
+ // UI-4 (labels only — no weight, level or state reads them): within supporting, the criteria a person VERIFIED with a
+ // source, and those resting only on the person's own declaration (USER_DECLARED, never verified); declared_false: the
+ // criteria (also in missing) the person declared NOT met — not counter-evidence: they stay in the unknown weight, never
+ // against, so never OFF_TARGET. Absent on recommendations stored before UI-4.
+ verified_supporting?:string[];declared?:string[];declared_false?:string[];
 };
 export type Scores={
  // score / basis / coverage: unchanged since v1 (stored, shown); profile: what the decision reads.
@@ -224,14 +229,15 @@ export type Driver={kind:'signal';signal:ClassifiedSignal}|{kind:'conversation';
 
 export function fitProfileOf(f:ReturnType<typeof estimateFit>,config:NbaConfig):FitProfile{
  const p:FitProfile={total_weight:0,positive_weight:0,verified_positive_weight:0,negative_weight:0,unknown_weight:0,observed_weight:0,coverage:0,verified_coverage:0,
-  level:f.estimated.score,verified_score:f.verified.score,direction:'NONE',state:'UNKNOWN',supporting:[],against:[],missing:[]};
+  level:f.estimated.score,verified_score:f.verified.score,direction:'NONE',state:'UNKNOWN',supporting:[],against:[],missing:[],
+  verified_supporting:[],declared:[],declared_false:[]};
  for(const line of f.estimated.breakdown){
   const verified=f.verified.breakdown.find(b=>b.key===line.key)!;
   p.total_weight+=line.weight;
-  if(verified.state==='TRUE'){p.positive_weight+=line.weight;p.verified_positive_weight+=line.weight;p.supporting.push(line.label)}
+  if(verified.state==='TRUE'){p.positive_weight+=line.weight;p.verified_positive_weight+=line.weight;p.supporting.push(line.label);p.verified_supporting!.push(line.label)}
   else if(verified.state==='FALSE'){p.negative_weight+=line.weight;p.against.push(line.label)}
-  else if(line.state==='ESTIMATED'){p.positive_weight+=line.weight;p.supporting.push(line.label)}
-  else{p.unknown_weight+=line.weight;p.missing.push(line.label)}
+  else if(line.state==='ESTIMATED'){p.positive_weight+=line.weight;p.supporting.push(line.label);if(line.declared===true)p.declared!.push(line.label)}
+  else{p.unknown_weight+=line.weight;p.missing.push(line.label);if(line.declared===false)p.declared_false!.push(line.label)}
  }
  p.observed_weight=p.positive_weight+p.negative_weight;
  const share=(w:number)=>p.total_weight>0?Math.round(100*w/p.total_weight):0;
@@ -297,7 +303,10 @@ export function scoresOf(input:NbaInput,classified:ClassifiedSignal[],conversati
 // is always traceable to one written rule. OPPORTUNITY never decides alone.
 // ------------------------------------------------------------
 export type RuleId='CLOSED_PROSPECT'|'OFF_TARGET'|'EXPLICIT_RECENT_NEED'|'RELEVANT_CONVERSATION'|'CONTACT_SIGNAL'|'SIGNAL_TO_VERIFY'
- |'SOME_TIMING'|'FIT_FRESH_SIGNAL'|'FIT_WITHOUT_TIMING'|'UNKNOWN_FIT_FRESH_SIGNAL'|'INCOMPLETE_FIT_FRESH_SIGNAL'|'NOT_ENOUGH';
+ |'SOME_TIMING'|'FIT_FRESH_SIGNAL'|'FIT_WITHOUT_TIMING'|'UNKNOWN_FIT_FRESH_SIGNAL'|'INCOMPLETE_FIT_FRESH_SIGNAL'
+ |'FIT_UNKNOWN_NO_TIMING'|'FIT_INCOMPLETE_NO_TIMING'|'LOW_FIT_NO_TIMING';
+// v1.3.x: the former terminal rule, kept only to read recommendations stored before the split (never decided any more).
+export type LegacyRuleId='NOT_ENOUGH';
 type Ctx={input:NbaInput;scores:Scores;primary:Driver|null;signals:ClassifiedSignal[];conversation:Conversation|null;config:NbaConfig;zone:IcpZone|null};
 // v1.3: WATCH / WAIT / ENGAGE read the FIT level (verified + estimated: it only grows when a criterion becomes TRUE);
 // CONTACT reads the VERIFIED score alone. Neither ever reads a missing criterion as a failed one.
@@ -330,7 +339,13 @@ export const RULES:readonly {id:RuleId;action:NbaAction;when:(c:Ctx)=>boolean}[]
  {id:'UNKNOWN_FIT_FRESH_SIGNAL',action:'WATCH',when:c=>fitState(c)==='UNKNOWN'&&!!freshSignal(c)},
  // v1.3: a partly documented FIT with nothing against it is INCOMPLETE, not low — same check as an unknown one.
  {id:'INCOMPLETE_FIT_FRESH_SIGNAL',action:'WATCH',when:c=>fitState(c)==='INCOMPLETE'&&!!freshSignal(c)},
- {id:'NOT_ENOUGH',action:'DISMISS',when:()=>true},
+ // v1.3.x: the former terminal NOT_ENOUGH, split by FIT state. Same action (DISMISS), same thresholds: what reaches here
+ // has no fresh signal for WATCH and a level under the WATCH threshold (SUFFICIENT never does). UNKNOWN and INCOMPLETE are
+ // "to document", not rejected; KNOWN_LOW between dismissBelow and watchMin stays with the low-fit accounts. Exhaustive:
+ // buildOpportunity refuses a case none of the rules covers rather than invent one.
+ {id:'FIT_UNKNOWN_NO_TIMING',action:'DISMISS',when:c=>fitState(c)==='UNKNOWN'},
+ {id:'FIT_INCOMPLETE_NO_TIMING',action:'DISMISS',when:c=>fitState(c)==='INCOMPLETE'},
+ {id:'LOW_FIT_NO_TIMING',action:'DISMISS',when:c=>fitState(c)==='KNOWN_LOW'},
 ];
 
 // ------------------------------------------------------------
@@ -379,14 +394,22 @@ function actionReason(c:Ctx,rule:RuleId):string{
    :`Le compte correspond à l’ICP (${fit}), mais aucun élément récent${c.zone?` dans ${zoneName(c.zone)}`:''} ne justifie une prise de contact maintenant.${tooOld}${offZone}`;
   case 'UNKNOWN_FIT_FRESH_SIGNAL':return `Un signal récent existe (${named(fresh!)}), mais l’adéquation à l’ICP et/ou le signal doivent encore être vérifiés avant toute prise de contact.`;
   case 'INCOMPLETE_FIT_FRESH_SIGNAL':return `Un signal récent existe (${named(fresh!)}). ${incompleteFit(fp)} : des informations supplémentaires sont nécessaires avant une prise de contact.`;
-  case 'NOT_ENOUGH':
-   if(fp.state==='KNOWN_LOW')return counting?`Un signal récent existe (${named(counting)}), mais ${lowFit(fp).replace(/^D/,'d')}.`:`${lowFit(fp)}, et aucun élément récent ne justifie une action.${tooOld}${offZone}`;
-   if(fp.state==='INCOMPLETE')return counting
-    ?`${incompleteFit(fp)}, et le meilleur signal encore pris en compte (${named(counting)}) a perdu l’essentiel de sa fraîcheur (${fresh_(counting)} %) : pas assez pour justifier une vérification.${offZone}`
-    :`${incompleteFit(fp)}, et aucun élément récent ne justifie une action.${tooOld}${offZone}`;
-   if(counting)return `Adéquation à l’ICP inconnue, et le meilleur signal encore pris en compte (${named(counting)}) a perdu l’essentiel de sa fraîcheur (${fresh_(counting)} %) : pas assez pour justifier une vérification.${offZone}`;
-   if(outside||expired)return `Adéquation à l’ICP inconnue.${offZone}${tooOld}`;
-   return 'Les informations disponibles sont insuffisantes pour recommander une action.';
+  // v1.3.x: each says exactly the FIT state; an UNKNOWN or INCOMPLETE FIT is never called off target.
+  case 'FIT_UNKNOWN_NO_TIMING':{
+   const base='L’adéquation à l’ICP n’est pas encore documentée : aucune information ne permet de dire si le compte correspond ou non à la cible';
+   return counting?`${base}, et le meilleur signal encore pris en compte (${named(counting)}) a perdu l’essentiel de sa fraîcheur (${fresh_(counting)} %) : à documenter avant toute action.${offZone}`
+    :`${base}, et aucun élément récent ne justifie une action : à documenter.${tooOld}${offZone}`;
+  }
+  case 'FIT_INCOMPLETE_NO_TIMING':{
+   const base=`Les éléments disponibles sont favorables, mais une partie de l’ICP reste non documentée (${fp.coverage} % documenté${fp.missing.length?` ; à documenter : ${fp.missing.join(', ')}`:''})`;
+   return counting?`${base}, et le meilleur signal encore pris en compte (${named(counting)}) a perdu l’essentiel de sa fraîcheur (${fresh_(counting)} %) : pas assez pour justifier une vérification.${offZone}`
+    :`${base}, et aucun élément récent ne justifie une action.${tooOld}${offZone}`;
+  }
+  case 'LOW_FIT_NO_TIMING':{
+   const base=`Des éléments vérifiés sont défavorables (${fp.against.join(', ')} ; ${fit}), sans atteindre le seuil qui écarte un compte comme hors cible`;
+   return counting?`${base}, et le signal récent (${named(counting)}) ne suffit pas à justifier une action.${offZone}`
+    :`${base}, et aucun élément récent ne justifie une action.${tooOld}${offZone}`;
+  }
  }
 }
 
@@ -401,8 +424,14 @@ function explain(c:Ctx,rule:RuleId,target:Target):Explanation{
    refs:scores.fit.lines.flatMap(l=>l.ref?[evidenceRef(l.ref.id)]:[])});
   if(fp.against.length)why_this_account.push({kind:'fact',text:`Critères ICP vérifiés non satisfaits : ${fp.against.join(', ')}.`,refs:[]});
  }else if(scores.fit.basis==='estimated'){
-  why_this_account.push({kind:'inference',text:`FIT estimé à ${scores.fit.score}/100 à partir de preuves non vérifiées : ${scores.fit.lines.map(l=>l.label).join(', ')}.`,refs:scores.fit.lines.flatMap(l=>l.ref?[evidenceRef(l.ref.id)]:[])});
+  // UI-4: a criterion resting only on the person's declaration is never called a proof (said apart, below).
+  const declared=new Set(scores.fit.profile.declared??[]);const sourced=scores.fit.lines.filter(l=>!declared.has(l.label));
+  why_this_account.push({kind:'inference',text:sourced.length?`FIT estimé à ${scores.fit.score}/100 à partir de preuves non vérifiées : ${sourced.map(l=>l.label).join(', ')}.`
+   :`FIT estimé à ${scores.fit.score}/100 à partir de vos seules déclarations, sans source.`,refs:sourced.flatMap(l=>l.ref?[evidenceRef(l.ref.id)]:[])});
  }else unknown.push({kind:'unknown',text:'Adéquation à l’ICP inconnue : aucune preuve sur ce compte.',refs:[]});
+ // UI-4: what the person declared, without a source — an inference for the estimate, never a fact nor a proof.
+ if(scores.fit.profile.declared?.length)inferred.push({kind:'inference',text:`Déclaré par vous, sans source (non vérifié) : ${scores.fit.profile.declared.join(', ')}.`,refs:[]});
+ if(scores.fit.profile.declared_false?.length)unknown.push({kind:'unknown',text:`Déclaré non rempli par vous, sans source (non vérifié, ce n’est pas une contre-preuve) : ${scores.fit.profile.declared_false.join(', ')}.`,refs:[]});
  if(scores.fit.profile.observed_weight>0&&scores.fit.profile.missing.length)
   unknown.push({kind:'unknown',text:`Critères ICP non documentés (${100-scores.fit.profile.coverage} % de l’ICP) : ${scores.fit.profile.missing.join(', ')}.`,refs:[]});
  const why_now:Statement[]=[];
@@ -449,6 +478,14 @@ export type Opportunity={
  target:Target;explanation:Explanation;expires_at:string;fingerprint:string;config_version:string;computed_at:string;
 };
 
+// UI-4: a short, deterministic digest of the declaration identity (two 32-bit FNV-1a passes, 16 hex characters) —
+// keeps the fingerprint within its 120-character bound however many criteria the ICP has.
+function declarationHash(entries:string[]):string{
+ const text=entries.join('|');
+ const fnv=(seed:number)=>{let h=seed>>>0;for(let i=0;i<text.length;i++){h^=text.charCodeAt(i);h=Math.imul(h,0x01000193)>>>0}return h.toString(16).padStart(8,'0')};
+ return fnv(0x811c9dc5)+fnv(0x01000193^0x5bd1e995);
+}
+
 export function buildOpportunity(input:NbaInput):Opportunity{
  const config=input.config??NBA_DEFAULT_CONFIG;validateConfig(config);
  const zone=icpZoneOf(input.criteria);
@@ -456,7 +493,8 @@ export function buildOpportunity(input:NbaInput):Opportunity{
  const conversation=relevantConversation(input.publicContent,input.profile,input.now);
  const {scores,primary,corroborating}=scoresOf(input,classified,conversation,config);
  const ctx:Ctx={input,scores,primary,signals:classified,conversation,config,zone};
- const rule=RULES.find(r=>r.when(ctx))!;
+ const rule=RULES.find(r=>r.when(ctx));
+ if(!rule)throw new Error(`NBA: no rule applies (FIT state ${scores.fit.profile.state}, level ${scores.fit.profile.level})`);
  // The driver the decision rests on: for ENGAGE the conversation, for CONTACT the best verified contact signal.
  const driver:Driver|null=rule.action==='ENGAGE'&&conversation?{kind:'conversation',conversation}
   :rule.action==='CONTACT'?(()=>{const s=bestContact(ctx,'VERIFIED');return s?{kind:'signal' as const,signal:s}:primary})()
@@ -482,7 +520,12 @@ export function buildOpportunity(input:NbaInput):Opportunity{
    relevance_reason:`Le contenu mentionne « ${driver.conversation.matched} »${driver.conversation.topic?` (${driver.conversation.topic.label.fr})`:''}.`,
    suggested_angle:driver.conversation.topic?.angle.fr??`Intervenir sur « ${driver.conversation.matched} », un sujet de votre offre.`}:null;
  // The engine version is part of the identity: a new version always re-states its reasons, even for the same action.
- const fingerprint=[config.version,rule.action,primaryOut?.kind==='signal'?primaryOut.signal_id:primaryOut?.kind==='conversation'?primaryOut.content_id:'none'].join(':');
+ const baseFingerprint=[config.version,rule.action,primaryOut?.kind==='signal'?primaryOut.signal_id:primaryOut?.kind==='conversation'?primaryOut.content_id:'none'].join(':');
+ // UI-4: a person's declaration changes the FIT profile without necessarily changing the action or the driver; the
+ // recommendation must then be re-stated, not kept as "unchanged". Only when declarations feed the estimate: without any,
+ // the fingerprint is exactly the historical one.
+ const declared=estimateFit(input.criteria,input.evidence,input.now).declarations;
+ const fingerprint=declared.length?`${baseFingerprint}:ud${declarationHash(declared)}`:baseFingerprint;
  void corroborating;
  return {prospect_id:input.prospect.id,project_id:input.prospect.project_id,recommended_action:rule.action,rule:rule.id,scores,primary:primaryOut,
   signal_ids,public_content_ids,evidence_ids,target,explanation,expires_at:new Date(expires).toISOString(),fingerprint,config_version:config.version,computed_at:input.now.toISOString()};

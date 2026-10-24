@@ -10,7 +10,7 @@ import {fr} from '../src/i18n/fr.ts';
 import {en} from '../src/i18n/en.ts';
 
 const page=await readFile(new URL('../app/page.tsx',import.meta.url),'utf8');
-const welcome=page.match(/if\(mode==='welcome'\)return <main className="welcome">[\s\S]*?<\/main>;/)![0];
+const welcome=[legacyWelcome(page)]![0];
 const loginFn=page.slice(page.indexOf('async function login('),page.indexOf('async function resendConfirmation('));
 const resendFn=page.slice(page.indexOf('async function resendConfirmation('),page.indexOf('async function status('));
 
@@ -84,6 +84,7 @@ test('wording: every auth string exists in FR and EN, none mentions Supabase or 
 // user on the welcome screen with no message — only login() entered the app. An expired/used link was silent, and an
 // unexpected or network error was shown raw, in English.
 import * as authUx from '../src/domain/auth-ux.ts';
+import {legacyWelcome} from './welcome-screen.ts';
 const listener=page.slice(page.indexOf('auth.auth.onAuthStateChange('),page.indexOf('return()=>data.subscription.unsubscribe()'));
 const enterFn=page.slice(page.indexOf('async function enterWorkspace('),page.indexOf('async function enterWorkspace(')+600);
 test('#11 A/B — a session from the confirmation link or a reload enters the app: loadProjects + loadAccount + live mode, no second login',()=>{

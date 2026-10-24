@@ -1,4 +1,4 @@
-// Migration 033 — Self-Outreach on real PostgreSQL (PGlite), full migration chain. Tenant isolation, RLS, provenance,
+// Migration 035 — Self-Outreach on real PostgreSQL (PGlite), full migration chain. Tenant isolation, RLS, provenance,
 // human approval, suppression (opt-out, hard bounce, manual) checked at every step, duplicates, the atomic daily cap
 // and claim, lease expiry → UNCERTAIN (never re-sent), bounded retry, idempotent inbound matching, reply → follow-ups
 // stopped. Fictitious companies, .example domains. Nothing is sent: there is no transport here.
@@ -24,9 +24,9 @@ try{
   grant usage on schema auth,public to anon,authenticated,service_role;grant execute on function auth.uid() to anon,authenticated,service_role;`);
  await db.exec(await readFile(new URL('../db/schema.sql',import.meta.url),'utf8'));
  const files=(await readdir(new URL('../db/migrations/',import.meta.url))).filter(f=>f.endsWith('.sql')).sort();
- assert.ok(files.includes('033_self_outreach.sql'));
+ assert.ok(files.includes('035_self_outreach.sql'));
  for(const f of files)await db.exec(await readFile(new URL(`../db/migrations/${f}`,import.meta.url),'utf8'));
- await db.exec(await readFile(new URL('../db/migrations/checks/033_self_outreach.sql',import.meta.url),'utf8'));
+ await db.exec(await readFile(new URL('../db/migrations/checks/035_self_outreach.sql',import.meta.url),'utf8'));
 
  const U=n=>`00000000-0000-4000-8000-${String(n).padStart(12,'0')}`;const A=U(1),B=U(2);
  for(const [u,e] of [[A,'a@t'],[B,'b@t']])await sql(`insert into auth.users(id,email,email_confirmed_at) values($1,$2,now())`,[u,e]);

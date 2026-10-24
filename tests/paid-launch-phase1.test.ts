@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
+import {legacyWelcome} from './welcome-screen.ts';
 
 // ============================================================
 // Paid launch — phase 1 (commercial layer, Stripe LIVE not activated). What a visitor and a user read and where
@@ -24,7 +25,7 @@ const pricingPage=await read('../src/components/PricingPage.tsx');
 const pricingPlans=await read('../src/components/PricingPlans.tsx');
 const billingSection=await read('../src/components/BillingSection.tsx');
 const tarifsRoute=await read('../app/tarifs/page.tsx');
-const welcome=page.match(/if\(mode==='welcome'\)return <main className="welcome">[\s\S]*?<\/main>;/)![0];
+const welcome=[legacyWelcome(page)]![0];
 
 // ---------------------------------------------------------------- pricing copy
 test('pricing — /tarifs states Solo 49 € and Pro 99 € per month, the trial, Team second, all read from plans.ts',()=>{

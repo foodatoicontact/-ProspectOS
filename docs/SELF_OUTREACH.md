@@ -21,7 +21,7 @@ SIGNAL → QUALIFICATION → PROOF → FIT → TIMING → CONTACT → MESSAGE �
 | Feature flags | `NEXT_BEST_ACTION_ENABLED`, `DISCOVERY_DYNAMIC_ANALYSIS_ENABLED`… (env, server-side) | `SELF_OUTREACH_ENABLED`, `SELF_OUTREACH_SEND_ENABLED` |
 | Audit | `public.events`, append-only `nba_action_events` | `outreach_events` |
 
-## 2. Data model (migration 033)
+## 2. Data model (migration 035)
 
 `outreach_campaigns`, `outreach_contacts`, `outreach_candidates`, `outreach_messages`, `outreach_events`,
 `outreach_suppressions` (global), `outreach_inbound`, `outreach_daily_counters`. RLS on every table; clients read their
@@ -80,7 +80,7 @@ otherwise STARTTLS required), `OUTREACH_SMTP_USER`, `OUTREACH_SMTP_PASSWORD`, `O
 
 ## 8. Activation (each step needs an explicit GO)
 
-1. Apply migration 033 to staging (workflow "Staging migrations").
+1. Apply migration 035 to staging (workflow "Staging migrations").
 2. Preview: `SELF_OUTREACH_ENABLED=true`, `SELF_OUTREACH_ORG_IDS`, send flag OFF → review workflow without sending.
 3. Canary 0 → 3 (one email to an address we control, then 1, 3, at most 10 real prospects a day), with the SMTP/IMAP
    credentials added by the owner, `SELF_OUTREACH_SEND_ENABLED=true` on that environment only, and the cron schedule

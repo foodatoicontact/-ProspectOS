@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
 import {EDITOR, HOSTING, TRANSFERS, MISSING, TO_CONFIRM, MISSING_COMMERCIAL, VAT_REGIME, VAT_PRICE_NOTE, TERMS_VERSION, PRIVACY_VERSION, LEGAL_PAGES, SERVICE_NAME, ACTIVITY_FORMALITY} from '../src/domain/legal.ts';
+import {legacyWelcome} from './welcome-screen.ts';
 
 const legalRoutes=['mentions-legales','cgu','confidentialite','cgv'];
 
@@ -227,7 +228,7 @@ test('E — CNIL complaint right is mentioned',async()=>{
 const page=await readFile(new URL('../app/page.tsx',import.meta.url),'utf8');
 const css=await readFile(new URL('../app/globals.css',import.meta.url),'utf8');
 test('F — the welcome/landing screen renders a site-footer with the copyright line and all 4 legal page links',()=>{
- const welcomeMatch=page.match(/if\(mode==='welcome'\)return <main className="welcome">[\s\S]*?<\/main>;/);
+ const welcomeMatch=[legacyWelcome(page)];
  assert.ok(welcomeMatch,'welcome screen JSX not found');
  const welcome=welcomeMatch[0];
  assert.match(welcome,/className="site-footer"/);
@@ -260,13 +261,13 @@ test('G — the signup checkbox defaults to unchecked (never pre-checked) via us
  assert.match(page,/const \[legalAccepted,setLegalAccepted\]=useState\(false\)/);
 });
 test('G — the CGU/confidentialité links are present in the signup form, opening in a new tab so they remain reachable before ticking the box',()=>{
- const welcomeMatch=page.match(/if\(mode==='welcome'\)return <main className="welcome">[\s\S]*?<\/main>;/);
+ const welcomeMatch=[legacyWelcome(page)];
  const welcome=welcomeMatch![0];
  assert.match(welcome,/href="\/cgu" target="_blank"/);
  assert.match(welcome,/href="\/confidentialite" target="_blank"/);
 });
 test('G — "Créer un compte" is disabled until the checkbox is checked; "Se connecter" (existing accounts) is never gated by it',()=>{
- const welcomeMatch=page.match(/if\(mode==='welcome'\)return <main className="welcome">[\s\S]*?<\/main>;/);
+ const welcomeMatch=[legacyWelcome(page)];
  const welcome=welcomeMatch![0];
  assert.match(welcome,/onClick=\{\(\)=>login\(true\)\}>\{tr\(trialFull\?'landing\.createAccountCta':'landing\.trialCta'\)\}/);
  const createAccountButton=welcome.match(/<button type="button" className="primary" disabled=\{[^}]*\} onClick=\{\(\)=>login\(true\)\}>\{tr\(trialFull\?'landing\.createAccountCta':'landing\.trialCta'\)\}<\/button>/);

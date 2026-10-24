@@ -107,7 +107,30 @@ fonds, nouveau dirigeant, implantation… reprennent celles de l'Intent Engine (
 | 9 | FIT_WITHOUT_TIMING | WAIT | niveau FIT ≥ 50 |
 | 10 | UNKNOWN_FIT_FRESH_SIGNAL | WATCH | FIT **UNKNOWN** + signal non rejeté, fraîcheur ≥ 50 %, pas hors zone (v1.1) |
 | 11 | INCOMPLETE_FIT_FRESH_SIGNAL | WATCH | FIT **INCOMPLETE** (rien de défavorable) + même signal frais (v1.3) |
-| 12 | NOT_ENOUGH | DISMISS | sinon (FIT KNOWN_LOW, ou rien de frais) |
+| 12 | FIT_UNKNOWN_NO_TIMING | DISMISS | FIT **UNKNOWN**, rien de frais pour WATCH — **à documenter**, pas rejeté (v1.3.x) |
+| 13 | FIT_INCOMPLETE_NO_TIMING | DISMISS | FIT **INCOMPLETE**, rien de frais pour WATCH — **à documenter**, pas rejeté (v1.3.x) |
+| 14 | LOW_FIT_NO_TIMING | DISMISS | FIT **KNOWN_LOW** entre 30 et 49 (OFF_TARGET non atteint) — faible adéquation (v1.3.x) |
+
+### NBA v1.3.x — sémantique de l'ancien NOT_ENOUGH (2026-10-18)
+
+L'ancienne règle terminale NOT_ENOUGH (DISMISS) mélangeait trois états : FIT inconnu, FIT incomplet mais favorable, FIT
+faible vérifié. Elle est remplacée par les règles 12–14 ci-dessus, **mêmes actions, mêmes seuils** (contactMin 60,
+engageMin 50, watchMin 50, dismissBelow 30, fraîcheur inchangée) : aucune décision CONTACT / ENGAGE / WATCH / WAIT ne
+change. Les trois cas sont exhaustifs (SUFFISANT est toujours pris par FIT_WITHOUT_TIMING) ; un cas non couvert est une
+erreur, jamais une règle inventée. OFF_TARGET reste le seul rejet fort par inadéquation vérifiée.
+
+*Aujourd'hui* : `hidden.document` compte FIT_UNKNOWN_NO_TIMING et FIT_INCOMPLETE_NO_TIMING (« À documenter · N », compteur
+non interactif dans Today 2.0 : aucune carte, aucun filtre, jamais « en veille ») ; `hidden.dismiss` ne compte plus que
+LOW_FIT_NO_TIMING, OFF_TARGET, CLOSED_PROSPECT. Les recommandations déjà stockées avec `rule = NOT_ENOUGH` ne sont pas
+réécrites : *Aujourd'hui* les lit selon leur `scores.fit.profile.state` stocké (UNKNOWN / INCOMPLETE → à documenter,
+KNOWN_LOW ou absent → écarté).
+
+**Version.** `config_version` reste `nba-v1.3-2026-10`. Il entre dans l'empreinte (`version:action:primary`) qui décide si
+une recommandation ouverte est remplacée et si une recommandation close (REJECTED / DONE) peut être reproposée : le changer
+remplacerait au prochain calcul toutes les recommandations ouvertes (reports SNOOZED compris) et reproposerait celles
+qu'une personne a closes, alors qu'aucune action ni aucun paramètre ne change. La traçabilité est portée par `rule`, stocké
+sur chaque ligne ; l'action et l'empreinte étant identiques, les lignes NOT_ENOUGH existantes restent « inchangées » jusqu'à
+leur prochain vrai changement.
 
 ### NBA v1.3 — FIT semantics + GEO data quality (canary 2, 2026-10-17)
 
@@ -211,3 +234,23 @@ prospect et au tenant. Contrôle post-migration `db/migrations/checks/031_next_b
 - Thèmes de conversation orientés « vente / prospection » ; un projet d'un autre secteur s'appuie sur ses termes INTENT.
 - Calcul à la demande (bouton « Recalculer »), sur les 500 prospects les plus récents d'un projet ; pas de tâche planifiée.
 - Pas encore de canal d'exécution : IONOS / SMTP viendront ensuite, derrière la décision humaine déjà enregistrée ici.
+
+### UI-4 — USER_DECLARED : compléter un critère sans source (2026-10-18)
+
+Une personne peut déclarer, depuis *Aujourd'hui* (Today 2.0, panneau « Que manque-t-il pour décider ? »), qu'un critère de
+l'ICP est rempli ou non, à partir de ce qu'elle sait — **sans source**. Principe : **USER_DECLARED ≠ VERIFIED**.
+
+- **Données (migration 033)** : `evidence.status = 'USER_DECLARED'`, `value` booléen obligatoire, `source_url` et `excerpt`
+  **nuls** (jamais d'URL inventée, interne ou empruntée), `declared_by` posé par le garde depuis la session (`auth.uid()`,
+  jamais par le client ; `verified_by` garde son sens et reste nul), `note` facultative ≤ 280. Migration additive et
+  ré-applicable ; lignes existantes inchangées.
+- **FIT** : une déclaration positive alimente le seul FIT **estimé**, à la confiance manuelle existante (0,7) ; elle
+  n'entre jamais dans `scoreProspect` (FIT vérifié, couverture vérifiée, qualité de preuve), donc **jamais CONTACT**. Une
+  déclaration négative est un FALSE non vérifié : 0 point, **jamais une contre-preuve** (pas d'OFF_TARGET). Une preuve
+  vérifiée l'emporte toujours. Fenêtre de 90 jours comme toute autre ligne. Aucun seuil, aucune règle, aucune version
+  modifiés ; sans déclaration, les sorties sont identiques à main (test d'équivalence).
+- **Outreach** : rien ne change — le modèle factuel, l'angle, les sources de l'IA et le garde-fou ne lisent que des lignes
+  VERIFIED avec source ; une déclaration n'est jamais citée.
+- **Affichage** : *Vérifié* (vert), *Déclaré par vous* (ton neutre `declared`, icône personne), *Estimé, à vérifier*,
+  *Non documenté* / *Déclaré non rempli par vous* ; le niveau 3 montre `USER_DECLARED true / false` brut. Profil FIT :
+  `verified_supporting`, `declared`, `declared_false` (libellés seulement, absents des recommandations antérieures).

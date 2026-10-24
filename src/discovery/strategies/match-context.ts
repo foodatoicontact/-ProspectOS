@@ -92,11 +92,20 @@ const SECTOR=/(?:secteurs?|filieres?|industries?|monde|univers|metiers|tendances
 const QUOTE=/[«"“]|temoign\w*|selon (?:un|une|le|la|les)|declare\w*|explique\w*|according to/;
 const ARTICLE=/(?:tendances?|enquete|etude|barometre|chiffres cles|selon (?:une|un|les)|webinaire|webinar|livre blanc|guide|conseils? pour|comment |pourquoi |actualites? (?:du|de la)|^\d+ (?:conseils|astuces|tendances|erreurs))|\?\s*$/;
 
-export function assessMatch(raw:string,value:string,dimension:Dimension,index?:number):Assessment{
- const kind=lineKind(raw);if(kind!=='CONTENT')return {accepted:false,code:kind};
+// An identity statement (the page's title, its meta description, its h1, a tagline of its own header — never a link,
+// a list item or a menu: observations.ts) is short by nature: "Vins naturels", "Bois · Métal · Verre". There,
+// shortness and separators are not a menu; a list of navigation words still is ("Accueil · Catalogue · Contact").
+const NAV_WORD=/^(?:accueil|home|contact|contactez-nous|nous contacter|a propos|about|qui sommes-nous|l'entreprise|presentation|equipe|blog|actualites?|news|connexion|login|mon compte|panier|cart|mentions legales|plan du site|faq|recrutement|devis|galerie|realisations|references|partenaires|services|produits|catalogue|tarifs?|menu)$/;
+function identityKind(raw:string):LineKind{
+ const kind=lineKind(raw);if(kind!=='NAVIGATION')return kind;
+ const segments=raw.split(/\s[|·•>»/]\s|\s[|·•]|[|·•]\s/).map(s=>norm(s)).filter(Boolean);
+ return segments.some(s=>NAV_WORD.test(s))?'NAVIGATION':'CONTENT';
+}
+export function assessMatch(raw:string,value:string,dimension:Dimension,index?:number,identity=false):Assessment{
+ const kind=identity?identityKind(raw):lineKind(raw);if(kind!=='CONTENT')return {accepted:false,code:kind};
  const n=norm(raw);const words=tokens(raw).length;
  // A short line alone is a heading or a menu entry, never a fact (an address line is a location: kept).
- if(dimension!=='locations'&&words<=3)return {accepted:false,code:'NAVIGATION'};
+ if(!identity&&dimension!=='locations'&&words<=3)return {accepted:false,code:'NAVIGATION'};
  if(dimension==='locations')return {accepted:true,code:'NEUTRAL',score:0.7};
  const at=index??Math.max(0,n.indexOf(norm(value).split(/[^a-z0-9]+/)[0]));
  const before=n.slice(Math.max(0,at-90),at);
@@ -119,11 +128,11 @@ export function assessMatch(raw:string,value:string,dimension:Dimension,index?:n
 export type Best={match:TermMatch;assessment:Extract<Assessment,{accepted:true}>};
 export type Rejected={match:TermMatch;code:RejectCode};
 // The best supporting sentence for any of the values, and what was refused (to explain it).
-export function bestMatch(lines:string[],values:string[],dimension:Dimension):{best:Best|null;rejected:Rejected[]}{
+export function bestMatch(lines:string[],values:string[],dimension:Dimension,identity=false):{best:Best|null;rejected:Rejected[]}{
  let best:Best|null=null;const rejected:Rejected[]=[];
  const kindRank={exact:4,compound:3,inflected:3,concept:2};
  for(const value of values)for(const match of findTermMatches(lines,value)){
-  const a=assessMatch(match.line,value,dimension,match.index);
+  const a=assessMatch(match.line,value,dimension,match.index,identity);
   if(!a.accepted){rejected.push({match,code:a.code});continue}
   if(!best||a.score>best.assessment.score||(a.score===best.assessment.score&&kindRank[match.kind]>kindRank[best.match.kind]))best={match,assessment:a};
  }

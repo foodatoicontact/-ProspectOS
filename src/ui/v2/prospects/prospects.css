@@ -1,0 +1,205 @@
+/* Prospects 2.0 (UI-5A). Scoped to .pos-ui, tokens only. Mobile first: touch cards, one column. ≥ 641 px: dense rows.
+   ≥ 1024 px: the same rounded workspace as Today; the record gets a side column for the human decision (status, channels).
+   No score leads anywhere: the FIT is a word (Vérifié / Estimé / À documenter); the numbers are in "Détails avancés". */
+
+.pos-ui .pos-prospects{min-width:0}
+.pos-ui .pos-prospects__main{padding:var(--pos-space-4) var(--pos-space-4) var(--pos-space-7);min-width:0}
+
+/* ── List ─────────────────────────────────────────────────────────────────────────────────────────────────────────── */
+.pos-ui .pos-plist__head{display:flex;flex-direction:column;align-items:flex-start;gap:var(--pos-space-3);margin-bottom:var(--pos-space-4)}
+.pos-ui .pos-plist__title{margin:0;font-size:var(--pos-text-3xl);font-weight:var(--pos-weight-heavy);letter-spacing:-.04em}
+.pos-ui .pos-plist__count{margin:2px 0 0;font-size:var(--pos-text-sm);color:var(--pos-text-2)}
+.pos-ui .pos-plist__actions{display:flex;flex-wrap:wrap;gap:var(--pos-space-2)}
+.pos-ui .pos-plist__tools{display:grid;grid-template-columns:minmax(0,1fr);gap:var(--pos-space-2);margin-bottom:var(--pos-space-3)}
+.pos-ui .pos-psearch,.pos-ui .pos-pfilter{position:relative;display:flex;align-items:center;margin:0;min-width:0}
+.pos-ui .pos-psearch>.pos-icon{position:absolute;left:12px;color:var(--pos-text-3);pointer-events:none}
+.pos-ui .pos-pfilter>.pos-icon{position:absolute;right:12px;color:var(--pos-text-3);pointer-events:none}
+.pos-ui .pos-psearch input,.pos-ui .pos-pfilter select{width:100%;min-height:var(--pos-size-target);margin:0;border:1px solid var(--pos-border-strong);border-radius:var(--pos-radius-md);
+ background:var(--pos-surface-card);color:var(--pos-text-1);font:inherit;font-size:var(--pos-text-base)}
+.pos-ui .pos-psearch input{padding:0 var(--pos-space-3) 0 40px}
+.pos-ui .pos-psearch input::placeholder{color:var(--pos-text-3)}
+.pos-ui .pos-pfilter select{appearance:none;padding:0 40px 0 var(--pos-space-3);cursor:pointer}
+.pos-ui .pos-psearch input:focus-visible,.pos-ui .pos-pfilter select:focus-visible{outline:2px solid var(--pos-accent);outline-offset:1px}
+.pos-ui .pos-plist__rows{list-style:none;margin:0;padding:0;display:grid;gap:var(--pos-space-2)}
+
+/* A row is one button: the whole card is the hit area (≥ 44 px), the chevron says it opens. */
+.pos-ui .pos-prow{display:grid;grid-template-columns:auto minmax(0,1fr) auto;grid-template-areas:"initial main chevron" "initial facts chevron";align-items:center;
+ gap:var(--pos-space-1) var(--pos-space-3);width:100%;min-height:var(--pos-size-target);padding:var(--pos-space-3) var(--pos-space-3) var(--pos-space-3) var(--pos-space-4);
+ text-align:left;font:inherit;color:var(--pos-text-1);background:var(--pos-surface-card);border:1px solid var(--pos-border);border-radius:var(--pos-radius-lg);
+ box-shadow:var(--pos-shadow-card);cursor:pointer;transition:border-color var(--pos-dur-fast) var(--pos-ease-standard),background-color var(--pos-dur-fast) var(--pos-ease-standard)}
+.pos-ui .pos-prow:hover{border-color:var(--pos-border-strong);background:var(--pos-accent-soft)}
+.pos-ui .pos-prow:disabled{cursor:wait;opacity:.6}
+.pos-ui .pos-prow__initial{grid-area:initial;width:36px;height:36px;border-radius:10px;display:inline-flex;align-items:center;justify-content:center;
+ background:var(--pos-surface-muted);color:var(--pos-text-2);font-family:var(--pos-font-display);font-weight:var(--pos-weight-heavy);font-size:var(--pos-text-base)}
+.pos-ui .pos-prow__main{grid-area:main;display:flex;flex-direction:column;min-width:0}
+.pos-ui .pos-prow__name{font-weight:var(--pos-weight-bold);font-size:var(--pos-text-md);letter-spacing:-.015em;overflow-wrap:anywhere}
+.pos-ui .pos-prow__meta{font-size:var(--pos-text-sm);color:var(--pos-text-2);overflow-wrap:anywhere}
+.pos-ui .pos-prow__facts{grid-area:facts;display:flex;flex-wrap:wrap;align-items:center;gap:var(--pos-space-1) var(--pos-space-2);min-width:0}
+.pos-ui .pos-prow__chevron{grid-area:chevron;color:var(--pos-text-3)}
+/* No known place: said, but quieter than a real one. */
+.pos-ui .pos-prow__meta--unknown{color:var(--pos-text-3);font-size:var(--pos-text-xs)}
+
+/* Commercial status: a neutral label (green stays for the CONTACT action). */
+.pos-ui .pos-pstatus{display:inline-flex;align-items:center;min-height:24px;padding:0 var(--pos-space-2);border-radius:var(--pos-radius-pill);
+ background:var(--pos-surface-muted);color:var(--pos-text-1);font-size:var(--pos-text-xs);font-weight:var(--pos-weight-semibold)}
+.pos-ui .pos-pstatus--muted{background:transparent;border:1px solid var(--pos-border);color:var(--pos-text-2)}
+
+/* FIT as a word: Vérifié (verified green), Estimé (neutral, to confirm), À documenter (amber "to verify" tone). */
+.pos-ui .pos-fit{display:inline-flex;align-items:center;flex-wrap:wrap;gap:4px 6px;font-size:var(--pos-text-xs);font-weight:var(--pos-weight-semibold)}
+.pos-ui .pos-fit>span{display:inline-flex}
+.pos-ui .pos-fit--verified{color:var(--pos-status-verified-fg)}
+.pos-ui .pos-fit--estimated{color:var(--pos-text-2)}
+.pos-ui .pos-fit--document{color:var(--pos-status-verify-fg)}
+.pos-ui .pos-fit__hint{font-weight:var(--pos-weight-regular);color:var(--pos-text-3);font-size:var(--pos-text-xs)}
+.pos-ui .pos-plist__footer{margin-top:var(--pos-space-5)}
+
+/* ── Record ───────────────────────────────────────────────────────────────────────────────────────────────────────── */
+.pos-ui .pos-prec{display:flex;flex-direction:column;gap:var(--pos-space-4);min-width:0}
+.pos-ui .pos-prec__back{align-self:flex-start;margin-left:calc(-1 * var(--pos-space-2))}
+.pos-ui .pos-prec__hero{display:flex;gap:var(--pos-space-3);align-items:flex-start}
+.pos-ui .pos-prec__initial{width:44px;height:44px;flex:none;border-radius:12px;display:inline-flex;align-items:center;justify-content:center;background:var(--pos-surface-muted);
+ color:var(--pos-text-2);font-family:var(--pos-font-display);font-weight:var(--pos-weight-heavy);font-size:var(--pos-text-lg)}
+.pos-ui .pos-prec__id{min-width:0}
+.pos-ui .pos-prec__name{margin:0;font-size:var(--pos-text-3xl);font-weight:var(--pos-weight-heavy);letter-spacing:-.04em;overflow-wrap:anywhere}
+.pos-ui .pos-prec__name:focus{outline:none}
+.pos-ui .pos-prec__name:focus-visible{outline:2px solid var(--pos-accent);outline-offset:4px;border-radius:4px}
+.pos-ui .pos-prec__meta{margin:var(--pos-space-1) 0 0;color:var(--pos-text-2);font-size:var(--pos-text-base);overflow-wrap:anywhere}
+.pos-ui .pos-prec a{color:var(--pos-signal);font-weight:var(--pos-weight-semibold);text-decoration:none;display:inline-flex;align-items:center;gap:3px}
+.pos-ui .pos-prec a:hover{text-decoration:underline}
+.pos-ui .pos-prec a.pos-btn{color:var(--pos-text-1)}
+.pos-ui .pos-prec__tags{margin:var(--pos-space-2) 0 0;display:flex;flex-wrap:wrap;gap:var(--pos-space-2)}
+.pos-ui .pos-prec__situation{margin:0;display:flex;flex-wrap:wrap;align-items:baseline;gap:var(--pos-space-2);font-size:var(--pos-text-base);color:var(--pos-text-1)}
+.pos-ui .pos-prec__situation .pos-fit{font-size:var(--pos-text-sm)}
+.pos-ui .pos-prec__grid{display:grid;gap:var(--pos-space-4);min-width:0}
+.pos-ui .pos-prec__col,.pos-ui .pos-prec__side{display:grid;gap:var(--pos-space-4);align-content:start;min-width:0}
+
+.pos-ui .pos-psec{padding:var(--pos-space-4);background:var(--pos-surface-card);border:1px solid var(--pos-border);border-radius:var(--pos-radius-xl);box-shadow:var(--pos-shadow-card);min-width:0}
+.pos-ui .pos-psec--lead{background:var(--pos-surface-inset);box-shadow:none}
+.pos-ui .pos-psec__head{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:var(--pos-space-2);margin-bottom:var(--pos-space-3)}
+.pos-ui .pos-psec__title{margin:0;font-family:var(--pos-font-ui);font-size:var(--pos-text-xs);font-weight:var(--pos-weight-bold);letter-spacing:.06em;text-transform:uppercase;color:var(--pos-text-3)}
+.pos-ui .pos-psec__actions{display:flex;flex-wrap:wrap;gap:var(--pos-space-1)}
+.pos-ui .pos-psec__sub{margin:var(--pos-space-5) 0 var(--pos-space-2);font-family:var(--pos-font-ui);font-size:var(--pos-text-sm);font-weight:var(--pos-weight-bold);color:var(--pos-text-2)}
+.pos-ui .pos-psec__intro{margin:0 0 var(--pos-space-3);font-size:var(--pos-text-sm);color:var(--pos-text-2)}
+.pos-ui .pos-psec__muted{margin:var(--pos-space-2) 0 0;font-size:var(--pos-text-sm);color:var(--pos-text-3)}
+
+/* Criteria and their evidence. Verified = green check; declared = person icon, slate, never green; to verify = amber. */
+.pos-ui .pos-pcrit__list,.pos-ui .pos-pev__list{list-style:none;margin:0;padding:0}
+.pos-ui .pos-pcrit__list{display:grid;gap:var(--pos-space-1)}
+.pos-ui .pos-pcrit{padding:var(--pos-space-2) 0;border-bottom:1px solid var(--pos-hairline)}
+.pos-ui .pos-pcrit:last-child{border-bottom:0}
+.pos-ui .pos-pcrit__head{display:flex;align-items:flex-start;gap:var(--pos-space-2)}
+.pos-ui .pos-pcrit__icon{flex:none;margin-top:2px}
+.pos-ui .pos-pcrit__icon--ok{color:var(--pos-status-verified-fg)}
+.pos-ui .pos-pcrit__icon--declared{color:var(--pos-status-declared-fg)}
+.pos-ui .pos-pcrit__icon--todo{color:var(--pos-status-verify-dot)}
+.pos-ui .pos-pcrit__icon--alert{color:var(--pos-status-excluded-fg)}
+.pos-ui .pos-pcrit__icon--neutral{color:var(--pos-text-3)}
+.pos-ui .pos-pcrit__label{flex:1;min-width:0;font-size:var(--pos-text-base);line-height:var(--pos-leading-snug);overflow-wrap:anywhere}
+.pos-ui .pos-pcrit__label small{display:block;margin-top:1px;font-size:var(--pos-text-xs);color:var(--pos-text-3)}
+.pos-ui .pos-pcrit[data-state="declared"] .pos-pcrit__label small,.pos-ui .pos-pcrit[data-state="declared_false"] .pos-pcrit__label small{color:var(--pos-status-declared-fg)}
+.pos-ui .pos-pcrit[data-state="verified"] .pos-pcrit__label small{color:var(--pos-status-verified-fg)}
+.pos-ui .pos-pev__list{display:grid;gap:var(--pos-space-2);margin:var(--pos-space-2) 0 0 26px}
+.pos-ui .pos-pev{display:grid;justify-items:start;gap:var(--pos-space-1);padding:var(--pos-space-3);border-radius:var(--pos-radius-md);background:var(--pos-surface-inset);
+ border:1px solid var(--pos-border);border-left-width:3px}
+.pos-ui .pos-pev--verified{border-left-color:var(--pos-status-verified-dot)}
+.pos-ui .pos-pev--declared{border-left-color:var(--pos-status-declared-dot);border-style:dashed;border-left-style:solid}
+.pos-ui .pos-pev--to_verify{border-left-color:var(--pos-status-verify-dot)}
+.pos-ui .pos-pev__text{margin:0;font-size:var(--pos-text-sm);color:var(--pos-text-1);overflow-wrap:anywhere}
+.pos-ui .pos-pev__note{color:var(--pos-text-2)}
+.pos-ui .pos-pev__meta{margin:0;font-size:var(--pos-text-xs);color:var(--pos-text-3)}
+
+/* Message, decision, channels. */
+.pos-ui .pos-pdraft{width:100%;min-height:150px;margin:0 0 var(--pos-space-2);padding:var(--pos-space-3);border:1px solid var(--pos-border-strong);border-radius:var(--pos-radius-md);
+ background:var(--pos-surface-card);color:var(--pos-text-1);font:inherit;font-size:var(--pos-text-base);line-height:var(--pos-leading-normal);resize:vertical}
+.pos-ui .pos-pdraft[readonly]{background:var(--pos-surface-inset)}
+.pos-ui .pos-pdraft:focus-visible{outline:2px solid var(--pos-accent);outline-offset:1px}
+.pos-ui .pos-pdraft__empty{margin:0 0 var(--pos-space-3);color:var(--pos-text-2);font-size:var(--pos-text-sm)}
+.pos-ui .pos-pdraft__status{font-size:var(--pos-text-xs);font-weight:var(--pos-weight-bold);letter-spacing:.06em;color:var(--pos-text-2)}
+.pos-ui .pos-pactions{display:flex;flex-wrap:wrap;align-items:center;gap:var(--pos-space-2);margin-top:var(--pos-space-3)}
+.pos-ui .pos-pcheck{display:flex;gap:var(--pos-space-2);align-items:flex-start;margin:var(--pos-space-2) 0 0;font-size:var(--pos-text-sm);font-weight:var(--pos-weight-regular);color:var(--pos-text-2)}
+.pos-ui .pos-pcheck input{width:20px;height:20px;margin:0;flex:none;accent-color:var(--pos-accent)}
+.pos-ui .pos-perror{margin:var(--pos-space-2) 0 0;color:var(--pos-status-excluded-fg);font-size:var(--pos-text-sm)}
+.pos-ui .pos-pfilter--full{width:100%}
+.pos-ui .pos-pchannels{list-style:none;margin:0;padding:0;display:grid;gap:var(--pos-space-2)}
+.pos-ui .pos-pchannels li{display:grid;grid-template-columns:auto minmax(0,1fr);gap:0 var(--pos-space-2);font-size:var(--pos-text-sm)}
+.pos-ui .pos-pchannels b{text-transform:capitalize}
+.pos-ui .pos-pchannels span{overflow-wrap:anywhere}
+.pos-ui .pos-pchannels small{grid-column:2;color:var(--pos-text-3);font-size:var(--pos-text-xs)}
+.pos-ui .pos-pdetails{border:1px solid var(--pos-border);border-radius:var(--pos-radius-lg);background:var(--pos-surface-card);padding:0 var(--pos-space-4)}
+.pos-ui .pos-pdetails>summary{display:flex;align-items:center;justify-content:space-between;gap:var(--pos-space-2);min-height:var(--pos-size-target);cursor:pointer;
+ list-style:none;font-weight:var(--pos-weight-semibold);color:var(--pos-text-2)}
+.pos-ui .pos-pdetails>summary::-webkit-details-marker{display:none}
+.pos-ui .pos-pdetails>summary .pos-icon{transition:transform var(--pos-dur-base) var(--pos-ease-standard)}
+.pos-ui .pos-pdetails[open]>summary .pos-icon{transform:rotate(180deg)}
+.pos-ui .pos-pdetails[open]{padding-bottom:var(--pos-space-4)}
+.pos-ui .pos-phistory{list-style:none;margin:0;padding:0;display:grid;gap:var(--pos-space-2);font-size:var(--pos-text-sm)}
+.pos-ui .pos-phistory small{color:var(--pos-text-3)}
+
+/* ── Island: the existing panels (observations, signals, public content, style, feedback) in v2 colours ──────────────
+   Their markup and behaviour are unchanged; only their legacy look (app/globals.css) is re-said with tokens here. */
+.pos-ui .pos-island{min-width:0;color:var(--pos-text-1);font-size:var(--pos-text-sm)}
+.pos-ui .pos-island:empty{display:none}
+.pos-ui .pos-island+.pos-island{margin-top:var(--pos-space-4)}
+.pos-ui .pos-island :where(p,li){color:var(--pos-text-2)}
+.pos-ui .pos-island :where(h3,h4){font-family:var(--pos-font-ui);font-size:var(--pos-text-sm);font-weight:var(--pos-weight-bold);letter-spacing:0;margin:0;color:var(--pos-text-1)}
+.pos-ui .pos-island :where(a){color:var(--pos-signal)}
+.pos-ui .pos-island .muted,.pos-ui .pos-island small{color:var(--pos-text-3)}
+.pos-ui .pos-island .section-title{margin:var(--pos-space-3) 0 var(--pos-space-2)}
+.pos-ui .pos-island button{min-height:36px;border:1px solid var(--pos-border-strong);background:var(--pos-surface-card);color:var(--pos-text-1);border-radius:var(--pos-radius-md);
+ font-size:var(--pos-text-sm);font-weight:var(--pos-weight-semibold)}
+.pos-ui .pos-island button:hover{background:var(--pos-accent-soft)}
+.pos-ui .pos-island button.primary{background:var(--pos-accent);border-color:var(--pos-accent);color:var(--pos-on-accent)}
+.pos-ui .pos-island button.primary:hover{background:var(--pos-accent-hover)}
+.pos-ui .pos-island button.text-button{border:0;background:transparent;color:var(--pos-accent);min-height:36px;padding:var(--pos-space-2) var(--pos-space-1)}
+.pos-ui .pos-island :where(input,textarea,select){border:1px solid var(--pos-border-strong);background:var(--pos-surface-card);color:var(--pos-text-1);border-radius:var(--pos-radius-md)}
+.pos-ui .pos-island label{color:var(--pos-text-1)}
+.pos-ui .pos-island .note{background:var(--pos-surface-inset);border:1px solid var(--pos-border);color:var(--pos-text-2)}
+.pos-ui .pos-island .pill{background:var(--pos-surface-muted);color:var(--pos-text-2)}
+.pos-ui .pos-island .evidence-card{background:var(--pos-surface-inset);border-color:var(--pos-border);color:var(--pos-text-1)}
+/* The quoted source excerpt: the legacy rule paints it a fixed light background while its text follows the theme —
+   unreadable in dark mode. Here both come from the theme, a card surface on the inset card, in light and dark. */
+.pos-ui .pos-island .observations blockquote{background:var(--pos-surface-card);border-left-color:var(--pos-border-strong);color:var(--pos-text-1)}
+.pos-ui .pos-island .intent-pill{display:none} /* the INTENT score lives in "Détails avancés" */
+.pos-ui .pos-island :focus-visible{outline:2px solid var(--pos-accent);outline-offset:2px}
+
+/* ── Mobile polish (≤ 640 px) ──────────────────────────────────────────────────────────────────────────────────────
+   "Ajouter un prospect" leads; "Exporter en CSV" stays one tap away as a quiet action after it. Cards stay compact:
+   status and FIT on one line, the FIT hint on one line (full text in its title). */
+@media (max-width:640px){
+ .pos-ui .pos-plist__actions{align-items:center;gap:var(--pos-space-1) var(--pos-space-2)}
+ .pos-ui .pos-btn.pos-plist__export{order:1;background:transparent;border-color:transparent;color:var(--pos-text-2);font-weight:var(--pos-weight-medium)}
+ .pos-ui .pos-btn.pos-plist__export:hover{background:var(--pos-accent-soft);color:var(--pos-text-1)}
+ .pos-ui .pos-prow{padding:var(--pos-space-2) var(--pos-space-2) var(--pos-space-2) var(--pos-space-3);gap:2px var(--pos-space-3)}
+ .pos-ui .pos-prow__facts{flex-wrap:nowrap;min-width:0;overflow:hidden}
+ .pos-ui .pos-prow__facts .pos-pstatus{flex:none}
+ .pos-ui .pos-prow .pos-fit{flex-wrap:nowrap;min-width:0}
+ .pos-ui .pos-prow .pos-fit>span{flex:none}
+ .pos-ui .pos-prow .pos-fit__hint{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+}
+/* Below 360 px a truncated hint says nothing: the FIT word stays, its detail is in the title and in the record. */
+@media (max-width:359px){.pos-ui .pos-prow .pos-fit__hint{display:none}}
+
+/* ── Tablet / desktop ─────────────────────────────────────────────────────────────────────────────────────────────── */
+@media (min-width:641px){
+ .pos-ui .pos-prospects__main{padding:var(--pos-space-6) var(--pos-space-6) var(--pos-space-8)}
+ .pos-ui .pos-plist__head{flex-direction:row;align-items:flex-end;justify-content:space-between;flex-wrap:wrap}
+ .pos-ui .pos-plist__tools{grid-template-columns:minmax(0,1fr) 220px}
+ /* Dense rows: one line — name and place, then status and FIT, then the chevron. */
+ .pos-ui .pos-plist__rows{gap:0;border:1px solid var(--pos-border);border-radius:var(--pos-radius-lg);overflow:hidden;background:var(--pos-surface-card);box-shadow:var(--pos-shadow-card)}
+ .pos-ui .pos-plist__rows li+li .pos-prow{border-top:1px solid var(--pos-hairline)}
+ .pos-ui .pos-prow{grid-template-columns:auto minmax(0,1fr) minmax(0,auto) auto;grid-template-areas:"initial main facts chevron";border:0;border-radius:0;box-shadow:none;
+  padding:var(--pos-space-2) var(--pos-space-3) var(--pos-space-2) var(--pos-space-4)}
+ .pos-ui .pos-prow__facts{justify-content:flex-end}
+ .pos-ui .pos-psec{padding:var(--pos-space-5)}
+}
+@media (min-width:1024px){
+ .pos-ui .pos-prospects{min-height:calc(100dvh - 2 * var(--pos-shell-gap,12px));border-radius:26px;overflow:hidden;background:var(--pos-surface-shell);
+  border:1px solid var(--pos-glass-border);box-shadow:var(--pos-glass-highlight),var(--pos-shadow-float)}
+ .pos-ui .pos-prospects__main{max-width:1120px;margin:0 auto;padding:var(--pos-space-8)}
+ .pos-ui .pos-prec__grid{grid-template-columns:minmax(0,1fr) 300px;align-items:start}
+ .pos-ui .pos-prec__side{position:sticky;top:var(--pos-space-4)}
+}
+@media (prefers-reduced-motion:reduce){
+ .pos-ui .pos-prow,.pos-ui .pos-pdetails>summary .pos-icon{transition:none}
+}
+@media (forced-colors:active){.pos-ui .pos-prow,.pos-ui .pos-psec,.pos-ui .pos-pev{border:1px solid CanvasText}}

@@ -215,3 +215,13 @@ test('no code path builds the real transport except the cron route, behind both 
  assert.match(cron,/if\(!selfOutreachSendEnabled\(process\.env\)\)out\.sends=\{skipped:'SEND_DISABLED'\}/);
  const vercel=await readFile(new URL('../vercel.json',import.meta.url),'utf8');assert.doesNotMatch(vercel,/self-outreach/,'not scheduled without approval');
 });
+
+test('merge with main — the fragments that other blocks’ byte-identical pins set aside are exactly the known ones',async()=>{
+ const {withoutSelfOutreach}=await import('./self-outreach-strip.ts');
+ const {readFileSync}=await import('node:fs');
+ const page=readFileSync(new URL('../app/page.tsx',import.meta.url),'utf8');
+ const stripped=withoutSelfOutreach(page);
+ assert.equal(page.length-stripped.length>300,true,'import, flag state x2, nav entry and panel are present');
+ assert.ok(page.includes("<SelfOutreachPanel key={`so-${projectId}`}"));
+ for(const f of ['../src/i18n/fr.ts','../src/i18n/en.ts'])assert.doesNotThrow(()=>withoutSelfOutreach(readFileSync(new URL(f,import.meta.url),'utf8')),f);
+});

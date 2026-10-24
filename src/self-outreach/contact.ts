@@ -2,7 +2,7 @@
 // company_website / public_profile / public_document / press (a public page: its URL and an excerpt that writes the
 // email literally) or direct_exchange (the person gave it). There is no "pattern" source: prenom.nom@ computed from a
 // name is refused, and so is any address the excerpt does not contain. The person and the role need their own source.
-// The database re-checks all of it (migration 033 outreach_contacts constraints).
+// The database re-checks all of it (migration 035 outreach_contacts constraints).
 export const EMAIL_SOURCES=['company_website','public_profile','public_document','press','direct_exchange'] as const;
 export type EmailSource=typeof EMAIL_SOURCES[number];
 export type ContactInput={prospect_id:string;contact_name:string;contact_role:string;role_source_url:string;email:string;email_source:string;email_source_url?:string|null;email_source_excerpt?:string|null};

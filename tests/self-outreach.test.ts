@@ -271,3 +271,13 @@ test('035 is frozen as applied: its bytes are the ones the staging runner record
  const doc=await readFile(new URL('../docs/SELF_OUTREACH.md',import.meta.url),'utf8');
  assert.match(doc,/No API role can do it: the table has no grant to `anon`, `authenticated` or\n   `service_role`/);
 });
+
+test('panel display — labelled counters, no endless loader after a refusal, its own legacy page heading',async()=>{
+ const panel=await readFile(new URL('../src/components/SelfOutreachPanel.tsx',import.meta.url),'utf8');
+ assert.doesNotMatch(panel,/<span key=\{k\} className="pill">\{k\} /,'never the raw metric key on screen');
+ assert.match(panel,/\{!data\?\(error\?null:<p>\{tr\('so\.loading'\)\}<\/p>\):/,'a refusal shows its message only');
+ const {fr}=await import('../src/i18n/fr.ts');const {en}=await import('../src/i18n/en.ts');
+ for(const k of ['qualified','needsReview','approved','sent','replied','positive','demo','paid'])for(const d of [fr,en] as Record<string,string>[])assert.ok(d[`so.metric.${k}`],k);
+ const page=await readFile(new URL('../app/page.tsx',import.meta.url),'utf8');
+ assert.ok(page.includes("view==='outreach'?tr('so.pageTitle'):")&&page.includes("view==='outreach'?tr('so.pageSubtitle'):"),'not the overview title above the panel');
+});

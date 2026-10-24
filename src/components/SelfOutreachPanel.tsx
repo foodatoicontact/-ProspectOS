@@ -47,6 +47,10 @@ function Card({item,sig,evidence,now,locale,busy,act}:{item:Item;sig:Sig|undefin
  </article>;
 }
 
+// The funnel counters of outreach_metrics, with their labels (never the raw keys on screen).
+const METRICS:readonly [string,TKey][]=[['qualified','so.metric.qualified'],['needs_review','so.metric.needsReview'],['approved','so.metric.approved'],['sent','so.metric.sent'],
+ ['replied','so.metric.replied'],['positive','so.metric.positive'],['demo','so.metric.demo'],['paid','so.metric.paid']];
+
 export function SelfOutreachPanel({projectId,api,locale}:{projectId:string;api:Api;locale:Locale}){
  const tr=(k:TKey)=>translate(locale,k);
  const [data,setData]=useState<{items:Item[];signals:Sig[];evidence:Ev[];now:string}|null>(null);
@@ -58,8 +62,9 @@ export function SelfOutreachPanel({projectId,api,locale}:{projectId:string;api:A
  return <section className="panel" data-testid="self-outreach">
   <h2>{tr('so.title')}</h2><p className="muted">{tr('so.subtitle')}</p>
   {error&&<p className="error" role="alert">{error}</p>}
-  {metrics&&<p className="nba-chips">{['qualified','needs_review','approved','sent','replied','positive','demo','paid'].map(k=><span key={k} className="pill">{k} {String(metrics[k]??0)}</span>)}</p>}
-  {!data?<p>{tr('so.loading')}</p>:data.items.length===0?<p>{tr('so.empty')}</p>:
+  {metrics&&<p className="nba-chips">{METRICS.map(([k,label])=><span key={k} className="pill">{tr(label)} {String(metrics[k]??0)}</span>)}</p>}
+  {/* A refused or failed load shows its message only, never a loader that never ends. */}
+  {!data?(error?null:<p>{tr('so.loading')}</p>):data.items.length===0?<p>{tr('so.empty')}</p>:
    data.items.map(i=><Card key={i.id} item={i} sig={data.signals.find(s=>s.id===i.signal_id)} evidence={data.evidence.filter(e=>(i.evidence_ids??[]).includes(e.id))} now={data.now} locale={locale} busy={busy} act={act}/>)}
  </section>;
 }

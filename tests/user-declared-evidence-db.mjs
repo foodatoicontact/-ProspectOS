@@ -19,7 +19,7 @@ try{
   grant usage on schema auth,public to anon,authenticated,service_role;grant execute on function auth.uid() to anon,authenticated,service_role;`);
  await db.exec(await readFile(new URL('../db/schema.sql',import.meta.url),'utf8'));
  const files=(await readdir(new URL('../db/migrations/',import.meta.url))).filter(f=>f.endsWith('.sql')).sort();
- assert.equal(files.at(-1),'033_user_declared_evidence.sql','033 is the last migration');
+ assert.equal(files.at(-2),'033_user_declared_evidence.sql','033 precedes only 034 (one-off legacy TEST billing release, no evidence change)');
  for(const f of files.slice(0,-1))await db.exec(await readFile(new URL(`../db/migrations/${f}`,import.meta.url),'utf8'));
 
  const U=n=>`00000000-0000-4000-8000-${String(n).padStart(12,'0')}`;const A=U(1),B=U(2);

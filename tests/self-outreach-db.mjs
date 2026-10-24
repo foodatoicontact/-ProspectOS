@@ -201,7 +201,29 @@ try{
   await refused(()=>as(A,`select count(*) from public.outreach_suppressions`),/permission denied/,'read suppressions');
   await refused(()=>as(A,`select public.claim_outreach_sends(array[$1]::uuid[],'s@x.example',5,10,60)`,[oa]),/permission denied/,'member claims');
   await refused(()=>as(A,`select public.record_outreach_inbound('{}'::jsonb)`),/permission denied/,'member inbound');
-  await refused(()=>as(undefined,`select public.outreach_is_suppressed('a@b.example')`),/permission denied|Authentication/,'anon');
+  // The global suppression list is never queryable by a client (it would tell one customer who refused another's emails).
+  await refused(()=>as(undefined,`select public.outreach_is_suppressed('a@b.example')`),/permission denied/,'anon lookup');
+  await refused(()=>as(A,`select public.outreach_is_suppressed('a@b.example')`),/permission denied/,'member lookup');
+  await refused(()=>as(B,`select public.outreach_is_suppressed('a@b.example')`),/permission denied/,'other member lookup');
+  const suppressed=(await one(sql(`select email from public.outreach_suppressions order by email limit 1`))).email;
+  assert.equal((await service(`select public.outreach_is_suppressed($1) s`,[suppressed])).rows[0].s,true,'server sees a suppression');
+  assert.equal((await service(`select public.outreach_is_suppressed($1) s`,[' '+suppressed.toUpperCase()+' '])).rows[0].s,true,'normalized');
+  assert.equal((await service(`select public.outreach_is_suppressed('nobody@never.example') s`)).rows[0].s,false);
+  // Execute rights of every Self-Outreach function, by role (PUBLIC grants included).
+  const rights=async(role,fn)=>(await sql(`select has_function_privilege($1,to_regprocedure($2),'EXECUTE') r`,[role,fn])).rows[0].r;
+  const MEMBER=['public.create_outreach_campaign(uuid,text,boolean,integer)','public.add_outreach_contact(uuid,text,text,text,text,text,text,text)','public.create_outreach_candidate(uuid,uuid,uuid,uuid[],jsonb,jsonb)','public.review_outreach_message(uuid,text,text,text,text)','public.set_outreach_outcome(uuid,text,text)','public.suppress_outreach_email(uuid,text,text)','public.outreach_metrics(uuid)'];
+  const SERVER=['public.outreach_is_suppressed(text)','public.claim_outreach_sends(uuid[],text,integer,integer,integer)','public.outreach_send_permitted(uuid,uuid)','public.complete_outreach_send(uuid,uuid,text,text,text,integer)','public.outreach_followups_due(uuid[],integer)','public.create_outreach_followup(uuid,text,text,jsonb,jsonb)','public.record_outreach_inbound(jsonb)'];
+  for(const f of MEMBER)assert.deepEqual([await rights('anon',f),await rights('authenticated',f)],[false,true],f);
+  for(const f of SERVER)assert.deepEqual([await rights('anon',f),await rights('authenticated',f),await rights('service_role',f)],[false,false,true],f);
+  // Every public function migration 035 creates is in one of the two lists above.
+  const created=[...(await readFile(new URL('../db/migrations/035_self_outreach.sql',import.meta.url),'utf8')).matchAll(/create or replace function public\.(\w+)\(/g)].map(m=>m[1]);
+  assert.deepEqual([...new Set(created)].filter(n=>![...MEMBER,...SERVER].some(f=>f.startsWith(`public.${n}(`))),[],'every public Self-Outreach function is classified');
+  assert.equal(new Set(created).size,MEMBER.length+SERVER.length);
+  // The migration check refuses a reopened lookup (and is green again once revoked).
+  const checkSql=await readFile(new URL('../db/migrations/checks/035_self_outreach.sql',import.meta.url),'utf8');
+  await sql('reset role');await sql('grant execute on function public.outreach_is_suppressed(text) to authenticated');
+  await refused(()=>db.exec(checkSql),/check 035: public\.outreach_is_suppressed\(text\) callable by clients/,'reopened lookup');
+  await sql('revoke execute on function public.outreach_is_suppressed(text) from authenticated');await db.exec(checkSql);
   // The org allowlist of the claim: organization B's approved messages are never claimed for A's sender.
   assert.ok((await service(`select public.claim_outreach_sends(array[$1]::uuid[],'s@x.example',5,10,60) r`,[ob])).rows[0].r.length===0);
  });

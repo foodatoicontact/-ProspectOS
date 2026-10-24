@@ -23,7 +23,8 @@
 --
 -- Members (RLS, security definer, empty search_path): create campaign / contact / candidate, review (approve / edit /
 -- reject), outcome, manual suppression, metrics. The server (service_role only): claim sends, check right before
--- sending, complete, create follow-up drafts, record inbound mail. No client writes any table directly.
+-- sending, complete, create follow-up drafts, record inbound mail, look up the global suppression list. No client writes
+-- any table directly, and no client can query the suppression list.
 --
 -- Rollback: drop the functions below, then drop table public.outreach_inbound, public.outreach_events,
 -- public.outreach_messages, public.outreach_candidates, public.outreach_contacts, public.outreach_campaigns,
@@ -230,7 +231,8 @@ drop policy if exists outreach_events_read on public.outreach_events;
 create policy outreach_events_read on public.outreach_events for select to authenticated using(prospectos_private.is_member(organization_id));
 drop policy if exists outreach_inbound_read on public.outreach_inbound;
 create policy outreach_inbound_read on public.outreach_inbound for select to authenticated using(organization_id is not null and prospectos_private.is_member(organization_id));
--- Suppressions and daily counters: no client policy at all (global data; read through outreach_is_suppressed only).
+-- Suppressions and daily counters: no client policy at all (global data; read only inside the functions below, and by the
+-- server through outreach_is_suppressed).
 revoke all on public.outreach_campaigns,public.outreach_contacts,public.outreach_candidates,public.outreach_messages,public.outreach_events,
  public.outreach_suppressions,public.outreach_inbound,public.outreach_daily_counters from public,anon,authenticated;
 grant select on public.outreach_campaigns,public.outreach_contacts,public.outreach_candidates,public.outreach_messages,public.outreach_events,public.outreach_inbound to authenticated;
@@ -290,14 +292,16 @@ revoke all on function prospectos_private.outreach_text_refused(text) from publi
 -- ------------------------------------------------------------
 -- Members
 -- ------------------------------------------------------------
+-- Server only. The suppression list is global (every organization's opt-outs and hard bounces): answering "is this
+-- address suppressed?" to any signed-in member would tell one customer who refused another's emails. Members never
+-- need it — every member path (add contact, create candidate, approve) already refuses a suppressed address itself,
+-- through the private helper — so only the server (service_role) may ask.
 create or replace function public.outreach_is_suppressed(p_email text) returns boolean
-language plpgsql stable security definer set search_path='' as $$
-begin
- if auth.uid() is null then raise exception 'Authentication required' using errcode='42501'; end if;
- return prospectos_private.outreach_is_suppressed_email(p_email);
-end $$;
-revoke all on function public.outreach_is_suppressed(text) from public,anon;
-grant execute on function public.outreach_is_suppressed(text) to authenticated;
+language sql stable security definer set search_path='' as $$
+ select prospectos_private.outreach_is_suppressed_email(p_email)
+$$;
+revoke all on function public.outreach_is_suppressed(text) from public,anon,authenticated;
+grant execute on function public.outreach_is_suppressed(text) to service_role;
 
 create or replace function public.create_outreach_campaign(p_project_id uuid,p_name text,p_followup_enabled boolean,p_followup_delay_days int) returns jsonb
 language plpgsql security definer set search_path='' as $$

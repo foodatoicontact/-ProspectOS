@@ -13,6 +13,9 @@ export const outreachScoreThreshold=(env:Env)=>int(env.OUTREACH_SCORE_THRESHOLD,
 export const maxNewOutreachPerDay=(env:Env)=>int(env.MAX_NEW_OUTREACH_PER_DAY,10,0,500);
 // The only organizations whose campaigns the server works for (ProspectOS's own). Empty = none.
 export const selfOutreachOrganizations=(env:Env)=>(env.SELF_OUTREACH_ORG_IDS??'').split(',').map(s=>s.trim().toLowerCase()).filter(s=>/^[0-9a-f-]{36}$/.test(s));
+// What the account may show: the workflow flag AND the account's own organization in the list — the same test the routes
+// apply (api.ts), so no other customer ever sees an entry the server would refuse.
+export const selfOutreachEnabledFor=(env:Env,organizationId:string|null|undefined)=>selfOutreachEnabled(env)&&!!organizationId&&selfOutreachOrganizations(env).includes(organizationId.trim().toLowerCase());
 
 export type SmtpConfig={host:string;port:number;secure:boolean;user:string;password:string;fromEmail:string;fromName:string};
 export type ImapConfig={host:string;port:number;user:string;password:string};

@@ -225,3 +225,33 @@ test('merge with main — the fragments that other blocks’ byte-identical pins
  assert.ok(page.includes("<SelfOutreachPanel key={`so-${projectId}`}"));
  for(const f of ['../src/i18n/fr.ts','../src/i18n/en.ts'])assert.doesNotThrow(()=>withoutSelfOutreach(readFileSync(new URL(f,import.meta.url),'utf8')),f);
 });
+
+test('account flag — shown only to the organizations the routes serve (flag AND SELF_OUTREACH_ORG_IDS)',async()=>{
+ const {selfOutreachEnabledFor}=await import('../src/self-outreach/config.ts');
+ const ORG='4f802de0-fabe-4e89-93bc-3ed63257a74f',OTHER='be37bcbd-1ab9-4572-bcd4-91d3ac81a805';
+ assert.equal(selfOutreachEnabledFor({SELF_OUTREACH_ENABLED:'true',SELF_OUTREACH_ORG_IDS:ORG},ORG),true);
+ assert.equal(selfOutreachEnabledFor({SELF_OUTREACH_ENABLED:'true',SELF_OUTREACH_ORG_IDS:ORG},` ${ORG.toUpperCase()} `),true);
+ assert.equal(selfOutreachEnabledFor({SELF_OUTREACH_ENABLED:'true',SELF_OUTREACH_ORG_IDS:ORG},OTHER),false,'another customer');
+ assert.equal(selfOutreachEnabledFor({SELF_OUTREACH_ENABLED:'true'},ORG),false,'empty list = none');
+ assert.equal(selfOutreachEnabledFor({SELF_OUTREACH_ENABLED:'false',SELF_OUTREACH_ORG_IDS:ORG},ORG),false,'flag off');
+ assert.equal(selfOutreachEnabledFor({SELF_OUTREACH_ENABLED:'true',SELF_OUTREACH_ORG_IDS:ORG},null),false);
+ const route=await readFile(new URL('../app/api/v1/[...path]/route.ts',import.meta.url),'utf8');
+ assert.match(route,/self_outreach_enabled:selfOutreachEnabledFor\(process\.env,membership\?\.organization_id\?\?null\),/);
+ assert.doesNotMatch(route,/selfOutreachEnabled\(process\.env\)/,'never the bare flag');
+});
+
+test('v2 shell — reached from the account menu (like Bêta Analytics), rendered by the same panel as the legacy screen',async()=>{
+ const {viewTitle,navForView}=await import('../src/ui/v2/shell/nav.ts');
+ assert.equal(viewTitle('outreach','fr'),'Outreach ProspectOS');assert.equal(viewTitle('outreach','en'),'ProspectOS outreach');
+ assert.equal(navForView('outreach',{live:true,today:true,actions:true},'activity'),null,'no primary entry is current on this screen');
+ const menu=await readFile(new URL('../src/ui/v2/shell/UserMenu.tsx',import.meta.url),'utf8');
+ assert.match(menu,/\{live&&p\.selfOutreach&&<Item icon="contact" label=\{t\.selfOutreach\} onClick=\{act\(p\.selfOutreach\)\}\/>\}/,'live accounts the server allows only');
+ const page=await readFile(new URL('../app/page.tsx',import.meta.url),'utf8');
+ assert.ok(page.includes(",selfOutreach:mode==='live'&&soOn?()=>{setV2Nav(null);setView('outreach');setFromList(false)}:null}}"),'v2 entry: same flag as the legacy one');
+ // One panel for both shells: it lives in the shared workspace, which the v2 shell renders for a view without a v2 screen.
+ const workspace=page.slice(page.indexOf(' const workspace=<>'),page.indexOf(' const overlays=<>'));
+ assert.equal(workspace.split('<SelfOutreachPanel ').length-1,1);
+ assert.ok(page.indexOf('<SelfOutreachPanel ')<page.indexOf(' if(v2){'),'defined before the v2 branch, never duplicated in it');
+ const v2=page.slice(page.indexOf(' if(v2){'),page.indexOf(' return <div className="shell">'));
+ assert.match(v2,/:undefined\}>\n  <div className=\{contentClass\}>\{banners\}\{workspace\}<\/div><\/Shell>/,'no v2 screen for outreach: the shared workspace');
+});

@@ -33,6 +33,10 @@ try{
  const oa=(await as(A,`select public.create_organization('ProspectOS') id`)).rows[0].id,ob=(await as(B,`select public.create_organization('Other') id`)).rows[0].id;
  const pa=(await as(A,`insert into public.projects(organization_id,name,offer) values($1,'Self','ProspectOS aide les équipes commerciales à choisir quels comptes contacter, et pourquoi maintenant.') returning id`,[oa])).rows[0].id;
  const pb=(await as(B,`insert into public.projects(organization_id,name) values($1,'P') returning id`,[ob])).rows[0].id;
+ // The database's own list of served organizations (operator SQL): ProspectOS only. Organization B is a customer.
+ const allow=async org=>{await sql('reset role');await sql('insert into prospectos_private.self_outreach_organizations(organization_id) values($1) on conflict do nothing',[org])};
+ const disallow=async org=>{await sql('reset role');await sql('delete from prospectos_private.self_outreach_organizations where organization_id=$1',[org])};
+ await allow(oa);
  const prospect=async(name)=>(await as(A,`insert into public.prospects(organization_id,project_id,name,website) values($1,$2,$3,$4) returning id`,[oa,pa,name,`https://${name.toLowerCase()}.example`])).rows[0].id;
  const signal=async(pr,status='VERIFIED')=>{const ex=`${pr} recrute son premier SDR pour construire le pipeline outbound.`;
   const id=(await owner(A,`insert into public.signals(organization_id,project_id,prospect_id,provider,signal_type,title,excerpt,source_url,source_type,observed_at,published_at,confidence,content_hash,event_key)
@@ -149,7 +153,7 @@ try{
  await check('K — reply matching: In-Reply-To → REPLIED + follow-ups stopped; idempotent; sender-only → NEEDS_REVIEW; ambiguous → all NEEDS_REVIEW',async()=>{
   await drain();
   const k=await candidate(await prospect('Lima'),'claire@lima.example');await approve(k.message_id);const [m]=await claim();await complete(m,'SENT');
-  await service(`select public.create_outreach_followup($1,'Lima : relance','Bonjour Claire, je reviens simplement vers vous au sujet de mon message.', '{}'::jsonb,'{}'::jsonb)`,[k.candidate.id]);
+  await service(`select public.create_outreach_followup($1,'Lima : relance','Bonjour Claire, je reviens simplement vers vous au sujet de mon message.', '{}'::jsonb,'{}'::jsonb)`,[k.candidate.id])
   const rfc=(await msgOf(k.candidate.id)).rfc_message_id;
   const inbound={mailbox_key:'<r1@mail.example>',from_email:'claire@lima.example',subject:'Re',in_reply_to:rfc,references_ids:[rfc],received_at:new Date().toISOString(),auto_submitted:false,is_dsn:false,body_excerpt:'Oui volontiers',proposed_outcome:'POSITIVE'};
   const r=(await service(`select public.record_outreach_inbound($1::jsonb) r`,[JSON.stringify(inbound)])).rows[0].r;assert.equal(r.match_method,'IN_REPLY_TO');
@@ -170,6 +174,8 @@ try{
   const sB=(await owner(B,`insert into public.signals(organization_id,project_id,prospect_id,provider,signal_type,title,excerpt,source_url,source_type,observed_at,published_at,confidence,content_hash,event_key)
    values($1,$2,$3,'web_search','hiring_role','Offre SDR',$4,'https://jobs.example/zulu','job_board',now(),now(),0.8,$5,'hiring:zulu') returning id`,[ob,pb,prB,exB,h(exB)])).rows[0].id;
   await as(B,`select public.review_signal($1,'verify',null)`,[sB]);
+  // A second served organization with the same recipient: the ambiguity spans organizations.
+  await allow(ob);
   const campB=(await as(B,`select public.create_outreach_campaign($1,'Campagne B',true,3) c`,[pb])).rows[0].c;
   const cB=(await as(B,`select public.add_outreach_contact($1,'Claire Martin','CEO','https://x.example/team','claire@mike.example','company_website','https://x.example/team','claire@mike.example') c`,[prB])).rows[0].c;
   const kB=(await as(B,`select public.create_outreach_candidate($1,$2,$3,'{}'::uuid[],$4::jsonb,$5::jsonb) r`,[campB.id,cB.id,sB,SCORES(),MSG])).rows[0].r;
@@ -180,6 +186,7 @@ try{
   assert.equal(r4.match_method,'AMBIGUOUS');
   assert.equal((await one(sql(`select reply_status from public.outreach_candidates where id=$1`,[kB.candidate.id]))).reply_status,'NEEDS_REVIEW');
   assert.equal((await one(sql(`select organization_id from public.outreach_inbound where mailbox_key='<r4@mail.example>'`))).organization_id,null,'an ambiguous mail is attached to no tenant');
+  await disallow(ob);
  });
  await check('L — DSN 5.x.x → BOUNCED + suppression; reply proposing UNSUBSCRIBE → global OPT_OUT',async()=>{
   await drain();
@@ -224,8 +231,75 @@ try{
   await sql('reset role');await sql('grant execute on function public.outreach_is_suppressed(text) to authenticated');
   await refused(()=>db.exec(checkSql),/check 035: public\.outreach_is_suppressed\(text\) callable by clients/,'reopened lookup');
   await sql('revoke execute on function public.outreach_is_suppressed(text) from authenticated');await db.exec(checkSql);
+  // …and every other regression of the served-organizations controls.
+  await sql('grant select on prospectos_private.self_outreach_organizations to authenticated');
+  await refused(()=>db.exec(checkSql),/served organizations list exposed/,'list readable');
+  await sql('revoke select on prospectos_private.self_outreach_organizations from authenticated');
+  await db.exec(`drop policy outreach_campaigns_read on public.outreach_campaigns;create policy outreach_campaigns_read on public.outreach_campaigns for select to authenticated using(prospectos_private.is_member(organization_id))`);
+  await refused(()=>db.exec(checkSql),/policy outreach_campaigns_read on outreach_campaigns must be SELECT and require self_outreach_member/,'policy without the list');
+  await db.exec(`drop policy outreach_campaigns_read on public.outreach_campaigns;create policy outreach_campaigns_read on public.outreach_campaigns for select to authenticated using(prospectos_private.self_outreach_member(organization_id))`);
+  await sql('grant execute on function prospectos_private.self_outreach_member(uuid) to anon');
+  await refused(()=>db.exec(checkSql),/self_outreach_member execute rights/,'helper callable by anon');
+  await sql('revoke execute on function prospectos_private.self_outreach_member(uuid) from anon');
+  await sql('alter function public.outreach_metrics(uuid) security invoker');
+  await refused(()=>db.exec(checkSql),/outreach_metrics\(uuid\) must be security definer/,'member function as invoker');
+  await sql('alter function public.outreach_metrics(uuid) security definer');
+  await db.exec(checkSql);
   // The org allowlist of the claim: organization B's approved messages are never claimed for A's sender.
   assert.ok((await service(`select public.claim_outreach_sends(array[$1]::uuid[],'s@x.example',5,10,60) r`,[ob])).rows[0].r.length===0);
+ });
+ await check('O — an organization absent from the database list writes and reads nothing, even calling Supabase directly',async()=>{
+  const NOT=/self_outreach_org_not_allowed/;
+  // B is a member of its own organization and project: require_member passes, the list refuses.
+  const prB=(await as(B,`insert into public.prospects(organization_id,project_id,name,website) values($1,$2,'Zulu','https://zulu.example') returning id`,[ob,pb])).rows[0].id;
+  await refused(()=>as(B,`select public.create_outreach_campaign($1,'Campagne X',false,5)`,[pb]),NOT,'campaign');
+  await refused(()=>as(B,`select public.add_outreach_contact($1,'Zoé','CEO','https://zulu.example/team','zoe@zulu.example','company_website','https://zulu.example/team','Contact : zoe@zulu.example')`,[prB]),NOT,'contact');
+  await refused(()=>as(B,`select public.suppress_outreach_email($1,'zoe@zulu.example','MANUAL')`,[pb]),NOT,'manual suppression');
+  await refused(()=>as(B,`select public.outreach_metrics($1)`,[pb]),NOT,'metrics');
+  // Data created while B was served, then B removed: every member function, read and send path stops.
+  await allow(ob);
+  const campB=(await as(B,`select public.create_outreach_campaign($1,'Campagne Zulu',true,3) c`,[pb])).rows[0].c;
+  const exB=`Zulu recrute son premier SDR pour construire le pipeline outbound.`;
+  const sB=(await owner(B,`insert into public.signals(organization_id,project_id,prospect_id,provider,signal_type,title,excerpt,source_url,source_type,observed_at,published_at,confidence,content_hash,event_key)
+   values($1,$2,$3,'web_search','hiring_role','Offre SDR',$4,'https://jobs.example/zulu','job_board',now(),now()-interval '2 days',0.8,$5,'hiring:zulu') returning id`,[ob,pb,prB,exB,h(exB)])).rows[0].id;
+  await as(B,`select public.review_signal($1,'verify',null)`,[sB]);
+  const evB=(await owner(B,`insert into public.evidence(organization_id,prospect_id,criterion,value,status,source_url,excerpt,observed_at,verified_by) values($1,$2,'target_fit',true,'VERIFIED','https://zulu.example/a','Éditeur SaaS B2B.',now()-interval '1 day',$3) returning id`,[ob,prB,B])).rows[0].id;
+  const ctB=(await as(B,`select public.add_outreach_contact($1,'Zoé','CEO','https://zulu.example/team','zoe@zulu.example','company_website','https://zulu.example/team','Contact : zoe@zulu.example') c`,[prB])).rows[0].c;
+  const kB=(await as(B,`select public.create_outreach_candidate($1,$2,$3,$4::uuid[],$5::jsonb,$6::jsonb) r`,[campB.id,ctB.id,sB,[evB],SCORES(),MSG])).rows[0].r;
+  await as(B,`select public.review_outreach_message($1,'APPROVE',null,null,'zulu.example')`,[kB.message_id]);
+  await disallow(ob);
+  await refused(()=>as(B,`select public.create_outreach_candidate($1,$2,$3,$4::uuid[],$5::jsonb,$6::jsonb)`,[campB.id,ctB.id,sB,[evB],SCORES(),MSG]),NOT,'candidate');
+  await refused(()=>as(B,`select public.review_outreach_message($1,'REJECT',null,null,null)`,[kB.message_id]),NOT,'review');
+  await refused(()=>as(B,`select public.set_outreach_outcome($1,'NOT_INTERESTED',null)`,[kB.candidate.id]),NOT,'outcome');
+  for(const t of ['outreach_campaigns','outreach_contacts','outreach_candidates','outreach_messages','outreach_events'])
+   assert.equal((await as(B,`select count(*)::int n from public.${t}`)).rows[0].n,0,`B reads its ${t} no more`);
+  // Server: even listed in the call (a stale SELF_OUTREACH_ORG_IDS), B's approved message is never claimed or followed up.
+  assert.equal((await service(`select public.claim_outreach_sends($1::uuid[],'s@x.example',5,10,60) r`,[[ob]])).rows[0].r.length,0,'claim');
+  assert.equal((await service(`select public.outreach_followups_due($1::uuid[],10) r`,[[ob]])).rows[0].r.length,0,'follow-ups due');
+  await refused(()=>service(`select public.create_outreach_followup($1,'Re','Relance',null,null)`,[kB.candidate.id]),NOT,'follow-up draft');
+  // A send claimed while B was served is refused right before SMTP once B is removed, and can still be closed.
+  await allow(ob);
+  const got=(await service(`select public.claim_outreach_sends($1::uuid[],'s@x.example',5,10,60) r`,[[ob]])).rows[0].r;
+  assert.equal(got.length,1);
+  await disallow(ob);
+  assert.equal((await service(`select public.outreach_send_permitted($1,$2) r`,[got[0].message_id,got[0].lease_token])).rows[0].r,false,'send refused');
+  await service(`select public.complete_outreach_send($1,$2,'ABORTED',null,null,60)`,[got[0].message_id,got[0].lease_token]);
+  // The global suppression keeps working for a removed organization: an unsubscribe reply reaches the list.
+  const m=await msgOf(kB.candidate.id);
+  await service(`select public.record_outreach_inbound($1::jsonb)`,[JSON.stringify({mailbox_key:'<zulu1@mail.example>',from_email:'zoe@zulu.example',subject:'Re',in_reply_to:m.rfc_message_id,references_ids:[],received_at:new Date().toISOString(),auto_submitted:false,is_dsn:false,body_excerpt:'Désinscrivez-moi, merci.',proposed_outcome:'UNSUBSCRIBE'})]);
+  assert.equal((await one(sql(`select reason from public.outreach_suppressions where email='zoe@zulu.example'`))).reason,'OPT_OUT','unsubscribe reaches the global list');
+  // The list itself: never readable or writable by a client; the policy helper answers only about the caller's own organizations.
+  for(const r of [undefined,A,B]){
+   await refused(()=>as(r,`select count(*) from prospectos_private.self_outreach_organizations`),/permission denied/,`read list as ${r??'anon'}`);
+   await refused(()=>as(r,`insert into prospectos_private.self_outreach_organizations(organization_id) values($1)`,[ob]),/permission denied/,`write list as ${r??'anon'}`);
+   await refused(()=>as(r,`select prospectos_private.self_outreach_org_allowed($1)`,[oa]),/permission denied/,`allowed() as ${r??'anon'}`);
+   await refused(()=>as(r,`select prospectos_private.require_self_outreach_org($1)`,[oa]),/permission denied/,`require() as ${r??'anon'}`);
+  }
+  await refused(()=>as(undefined,`select prospectos_private.self_outreach_member($1)`,[oa]),/permission denied/,'member() as anon');
+  assert.equal((await as(B,`select prospectos_private.self_outreach_member($1) r`,[oa])).rows[0].r,false,'B learns nothing about A');
+  assert.equal((await as(A,`select prospectos_private.self_outreach_member($1) r`,[oa])).rows[0].r,true);
+  // A, still served, is untouched.
+  assert.ok((await as(A,`select count(*)::int n from public.outreach_candidates`)).rows[0].n>0);
  });
  await check('N — outcome UNSUBSCRIBE by a person → suppression; metrics funnel counts',async()=>{
   const k=await candidate(await prospect('Quebec'),'claire@quebec.example');

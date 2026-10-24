@@ -20,6 +20,11 @@
 -- 7. public.outreach_inbound     — replies read from the mailbox (headers + a bounded excerpt): match method and the
 --    classification proposed by rules; never answered automatically.
 -- 8. public.outreach_daily_counters — the atomic daily cap (Europe/Paris day, per sender).
+-- 9. prospectos_private.self_outreach_organizations — the organizations Self-Outreach serves, held by the database
+--    itself. The server's SELF_OUTREACH_ORG_IDS is only checked by the Next.js routes; a member calling these functions
+--    directly through Supabase skips them, so every member function, every read policy and the send / follow-up path
+--    also require the organization to be listed here. Both lists must agree for anything to happen. Rows are added by
+--    an operator (SQL, service role); no client role can read or write the table.
 --
 -- Members (RLS, security definer, empty search_path): create campaign / contact / candidate, review (approve / edit /
 -- reject), outcome, manual suppression, metrics. The server (service_role only): claim sends, check right before
@@ -28,7 +33,7 @@
 --
 -- Rollback: drop the functions below, then drop table public.outreach_inbound, public.outreach_events,
 -- public.outreach_messages, public.outreach_candidates, public.outreach_contacts, public.outreach_campaigns,
--- public.outreach_suppressions, public.outreach_daily_counters.
+-- public.outreach_suppressions, public.outreach_daily_counters, prospectos_private.self_outreach_organizations.
 begin;
 
 create table if not exists public.outreach_campaigns (
@@ -211,6 +216,34 @@ create table if not exists public.outreach_daily_counters (
  primary key(day,sender)
 );
 
+-- The organizations Self-Outreach serves (see 9 above). Private: no grant to anon / authenticated.
+create table if not exists prospectos_private.self_outreach_organizations (
+ organization_id uuid primary key references public.organizations(id) on delete cascade,
+ added_at timestamptz not null default now(),
+ note text check(note is null or length(note)<=200)
+);
+revoke all on prospectos_private.self_outreach_organizations from public,anon,authenticated;
+create or replace function prospectos_private.self_outreach_org_allowed(tenant uuid) returns boolean
+language sql stable security definer set search_path='' as $$
+ select exists(select 1 from prospectos_private.self_outreach_organizations where organization_id=tenant)
+$$;
+revoke all on function prospectos_private.self_outreach_org_allowed(uuid) from public,anon,authenticated;
+create or replace function prospectos_private.require_self_outreach_org(tenant uuid) returns void
+language plpgsql stable security definer set search_path='' as $$
+begin
+ if tenant is null or not prospectos_private.self_outreach_org_allowed(tenant) then
+  raise exception 'self_outreach_org_not_allowed' using errcode='42501'; end if;
+end $$;
+revoke all on function prospectos_private.require_self_outreach_org(uuid) from public,anon,authenticated;
+-- The read policies' test: a member of THIS organization, and the organization is served. It answers only about the
+-- caller's own organizations (is_member first), so it reveals nothing about any other one.
+create or replace function prospectos_private.self_outreach_member(tenant uuid) returns boolean
+language sql stable security definer set search_path='' as $$
+ select prospectos_private.is_member(tenant) and prospectos_private.self_outreach_org_allowed(tenant)
+$$;
+revoke all on function prospectos_private.self_outreach_member(uuid) from public,anon;
+grant execute on function prospectos_private.self_outreach_member(uuid) to authenticated;
+
 alter table public.outreach_campaigns enable row level security;
 alter table public.outreach_contacts enable row level security;
 alter table public.outreach_candidates enable row level security;
@@ -220,17 +253,17 @@ alter table public.outreach_suppressions enable row level security;
 alter table public.outreach_inbound enable row level security;
 alter table public.outreach_daily_counters enable row level security;
 drop policy if exists outreach_campaigns_read on public.outreach_campaigns;
-create policy outreach_campaigns_read on public.outreach_campaigns for select to authenticated using(prospectos_private.is_member(organization_id));
+create policy outreach_campaigns_read on public.outreach_campaigns for select to authenticated using(prospectos_private.self_outreach_member(organization_id));
 drop policy if exists outreach_contacts_read on public.outreach_contacts;
-create policy outreach_contacts_read on public.outreach_contacts for select to authenticated using(prospectos_private.is_member(organization_id));
+create policy outreach_contacts_read on public.outreach_contacts for select to authenticated using(prospectos_private.self_outreach_member(organization_id));
 drop policy if exists outreach_candidates_read on public.outreach_candidates;
-create policy outreach_candidates_read on public.outreach_candidates for select to authenticated using(prospectos_private.is_member(organization_id));
+create policy outreach_candidates_read on public.outreach_candidates for select to authenticated using(prospectos_private.self_outreach_member(organization_id));
 drop policy if exists outreach_messages_read on public.outreach_messages;
-create policy outreach_messages_read on public.outreach_messages for select to authenticated using(prospectos_private.is_member(organization_id));
+create policy outreach_messages_read on public.outreach_messages for select to authenticated using(prospectos_private.self_outreach_member(organization_id));
 drop policy if exists outreach_events_read on public.outreach_events;
-create policy outreach_events_read on public.outreach_events for select to authenticated using(prospectos_private.is_member(organization_id));
+create policy outreach_events_read on public.outreach_events for select to authenticated using(prospectos_private.self_outreach_member(organization_id));
 drop policy if exists outreach_inbound_read on public.outreach_inbound;
-create policy outreach_inbound_read on public.outreach_inbound for select to authenticated using(organization_id is not null and prospectos_private.is_member(organization_id));
+create policy outreach_inbound_read on public.outreach_inbound for select to authenticated using(organization_id is not null and prospectos_private.self_outreach_member(organization_id));
 -- Suppressions and daily counters: no client policy at all (global data; read only inside the functions below, and by the
 -- server through outreach_is_suppressed).
 revoke all on public.outreach_campaigns,public.outreach_contacts,public.outreach_candidates,public.outreach_messages,public.outreach_events,
@@ -310,6 +343,7 @@ begin
  select organization_id into tenant from public.projects where id=p_project_id;
  if tenant is null then raise exception 'Project not found' using errcode='P0002'; end if;
  perform prospectos_private.require_member(tenant);
+ perform prospectos_private.require_self_outreach_org(tenant);
  insert into public.outreach_campaigns(organization_id,project_id,name,followup_enabled,followup_delay_days,created_by)
  values(tenant,p_project_id,trim(p_name),coalesce(p_followup_enabled,false),coalesce(p_followup_delay_days,5),auth.uid()) returning * into row;
  perform prospectos_private.outreach_event(tenant,p_project_id,null,null,'campaign.created',null,'ACTIVE',jsonb_build_object('campaign_id',row.id));
@@ -325,6 +359,7 @@ begin
  select * into p from public.prospects where id=p_prospect_id;
  if not found then raise exception 'Prospect not found' using errcode='P0002'; end if;
  perform prospectos_private.require_member(p.organization_id);
+ perform prospectos_private.require_self_outreach_org(p.organization_id);
  if prospectos_private.outreach_is_suppressed_email(e) then raise exception 'outreach_email_suppressed' using errcode='42501'; end if;
  insert into public.outreach_contacts(organization_id,project_id,prospect_id,contact_name,contact_role,role_source_url,email,email_source,email_source_url,email_source_excerpt,created_by)
  values(p.organization_id,p.project_id,p.id,trim(p_name),trim(p_role),p_role_source_url,e,p_email_source,p_email_source_url,p_email_source_excerpt,auth.uid()) returning * into row;
@@ -347,6 +382,7 @@ begin
  select * into camp from public.outreach_campaigns where id=p_campaign_id;
  if not found then raise exception 'Campaign not found' using errcode='P0002'; end if;
  perform prospectos_private.require_member(camp.organization_id);
+ perform prospectos_private.require_self_outreach_org(camp.organization_id);
  if camp.status<>'ACTIVE' then raise exception 'outreach_campaign_not_active' using errcode='22023'; end if;
  select * into ct from public.outreach_contacts where id=p_contact_id and organization_id=camp.organization_id and project_id=camp.project_id;
  if not found then raise exception 'Contact not found' using errcode='P0002'; end if;
@@ -386,6 +422,7 @@ begin
  select * into m from public.outreach_messages where id=p_message_id for update;
  if not found then raise exception 'Message not found' using errcode='P0002'; end if;
  perform prospectos_private.require_member(m.organization_id);
+ perform prospectos_private.require_self_outreach_org(m.organization_id);
  select * into k from public.outreach_candidates where id=m.candidate_id for update;
  if p_decision not in ('APPROVE','EDIT','REJECT') then raise exception 'Invalid decision' using errcode='22023'; end if;
  if m.review_status<>'PENDING' or m.send_status<>'DRAFT' then raise exception 'outreach_message_not_reviewable' using errcode='22023'; end if;
@@ -433,6 +470,7 @@ begin
  select * into k from public.outreach_candidates where id=p_candidate_id for update;
  if not found then raise exception 'Candidate not found' using errcode='P0002'; end if;
  perform prospectos_private.require_member(k.organization_id);
+ perform prospectos_private.require_self_outreach_org(k.organization_id);
  if p_outcome is not null then
   if p_outcome not in ('POSITIVE','NEUTRAL','OBJECTION','NOT_INTERESTED','UNSUBSCRIBE','BOUNCE','UNKNOWN') then raise exception 'Invalid outcome' using errcode='22023'; end if;
   update public.outreach_candidates set outcome=p_outcome,outcome_by=auth.uid(),outcome_at=now(),updated_at=now() where id=k.id;
@@ -462,6 +500,7 @@ begin
  select organization_id into tenant from public.projects where id=p_project_id;
  if tenant is null then raise exception 'Project not found' using errcode='P0002'; end if;
  perform prospectos_private.require_member(tenant);
+ perform prospectos_private.require_self_outreach_org(tenant);
  if p_reason not in ('OPT_OUT','MANUAL','COMPLIANCE') then raise exception 'Invalid reason' using errcode='22023'; end if;
  if e !~ '^[^@[:space:]]+@[^@[:space:]]+\.[a-z]{2,}$' then raise exception 'Invalid email' using errcode='22023'; end if;
  perform pg_advisory_xact_lock(hashtextextended('outreach:'||e,0));
@@ -480,6 +519,7 @@ begin
  select organization_id into tenant from public.projects where id=p_project_id;
  if tenant is null then raise exception 'Project not found' using errcode='P0002'; end if;
  perform prospectos_private.require_member(tenant);
+ perform prospectos_private.require_self_outreach_org(tenant);
  with k as (select c.*,(select bool_or(m.send_status='SENT') from public.outreach_messages m where m.candidate_id=c.id) sent from public.outreach_candidates c where c.project_id=p_project_id)
  select jsonb_build_object(
   'discovered',count(*),'qualified',count(*) filter (where status<>'DISCOVERED'),'needs_review',count(*) filter (where status='NEEDS_REVIEW'),
@@ -523,7 +563,7 @@ begin
  for m in select x.*,k.status kstatus,k.reply_status,c.status cstatus from public.outreach_messages x
    join public.outreach_candidates k on k.id=x.candidate_id join public.outreach_campaigns c on c.id=k.campaign_id
    where x.send_status='READY' and x.review_status='APPROVED' and x.scheduled_for<=now() and (x.next_attempt_at is null or x.next_attempt_at<=now())
-     and x.organization_id=any(p_organization_ids)
+     and x.organization_id=any(p_organization_ids) and prospectos_private.self_outreach_org_allowed(x.organization_id)
    order by x.scheduled_for,x.id limit p_limit for update of x,k skip locked loop
   if prospectos_private.outreach_is_suppressed_email(m.to_email) then perform prospectos_private.outreach_stop_email(m.to_email,'SUPPRESSED_AT_CLAIM'); continue; end if;
   if m.reply_status<>'NONE' or m.cstatus<>'ACTIVE' or (m.kind='INITIAL' and m.kstatus<>'READY_TO_SEND') or (m.kind='FOLLOW_UP' and m.kstatus<>'SENT') then
@@ -553,6 +593,8 @@ declare m public.outreach_messages; k public.outreach_candidates;
 begin
  select * into m from public.outreach_messages where id=p_message_id;
  if not found or m.send_status<>'SENDING' or m.lease_token is distinct from p_lease_token or m.lease_until<now() then return false; end if;
+ -- An organization removed from the list since the claim sends nothing more.
+ if not prospectos_private.self_outreach_org_allowed(m.organization_id) then return false; end if;
  perform pg_advisory_xact_lock(hashtextextended('outreach:'||m.to_email,0));
  select * into k from public.outreach_candidates where id=m.candidate_id;
  if prospectos_private.outreach_is_suppressed_email(m.to_email) or k.reply_status<>'NONE' or k.status in ('REPLIED','BOUNCED','SUPPRESSED','REJECTED','FAILED') then return false; end if;
@@ -564,6 +606,8 @@ grant execute on function public.outreach_send_permitted(uuid,uuid) to service_r
 -- p_result: SENT | RETRY (not accepted, temporary: bounded) | FAILED (not accepted, permanent) | BOUNCED (recipient
 -- refused: hard bounce → suppression) | UNCERTAIN (outcome unknown: never re-sent) | ABORTED (not attempted: back to
 -- READY, nothing counted). Every result but SENT / UNCERTAIN gives the daily slot back.
+-- Not gated by self_outreach_organizations on purpose: a send already claimed must still be closed (counted, bounced →
+-- suppressed), even if its organization was removed from the list in between.
 create or replace function public.complete_outreach_send(p_message_id uuid,p_lease_token uuid,p_result text,p_provider_message_id text,p_error_code text,p_retry_after_seconds int) returns jsonb
 language plpgsql security definer set search_path='' as $$
 declare m public.outreach_messages; k public.outreach_candidates;
@@ -615,7 +659,7 @@ language sql stable security definer set search_path='' as $$
   ,'[]'::jsonb) from (select k.* from public.outreach_candidates k
   join public.outreach_campaigns c on c.id=k.campaign_id
   join public.outreach_messages m0 on m0.candidate_id=k.id and m0.sequence=0 and m0.send_status='SENT'
-  where k.organization_id=any(p_organization_ids) and k.status='SENT' and k.reply_status='NONE' and c.status='ACTIVE' and c.followup_enabled
+  where k.organization_id=any(p_organization_ids) and prospectos_private.self_outreach_org_allowed(k.organization_id) and k.status='SENT' and k.reply_status='NONE' and c.status='ACTIVE' and c.followup_enabled
    and m0.sent_at<=now()-make_interval(days=>c.followup_delay_days)
    and (select count(*) from public.outreach_messages f where f.candidate_id=k.id)<=c.max_followups
    and not exists(select 1 from public.outreach_messages f where f.candidate_id=k.id and f.send_status in ('DRAFT','READY','SENDING','UNCERTAIN'))
@@ -633,6 +677,7 @@ declare k public.outreach_candidates; c public.outreach_campaigns; seq int; e te
 begin
  select * into k from public.outreach_candidates where id=p_candidate_id for update;
  if not found then raise exception 'Candidate not found' using errcode='P0002'; end if;
+ perform prospectos_private.require_self_outreach_org(k.organization_id);
  select * into c from public.outreach_campaigns where id=k.campaign_id;
  select email into e from public.outreach_contacts where id=k.contact_id;
  if k.status<>'SENT' or k.reply_status<>'NONE' or not c.followup_enabled or c.status<>'ACTIVE' or prospectos_private.outreach_is_suppressed_email(e) then
@@ -657,6 +702,8 @@ grant execute on function public.create_outreach_followup(uuid,text,text,jsonb,j
 --   AMBIGUOUS                several candidates → all NEEDS_REVIEW, follow-ups stopped;
 --   NONE                     nothing changes.
 -- A proposed UNSUBSCRIBE suppresses the sender's address globally, matched or not (the safe direction).
+-- Not gated by self_outreach_organizations on purpose: a reply, a bounce or an unsubscribe must always reach the global
+-- suppression list and stop the follow-ups, whatever happened to the organization's place in the list.
 create or replace function public.record_outreach_inbound(p jsonb) returns jsonb
 language plpgsql security definer set search_path='' as $$
 declare ids text[]; hit public.outreach_messages; k public.outreach_candidates; method text:='NONE'; n int; frm text:=lower(trim(p->>'from_email'));

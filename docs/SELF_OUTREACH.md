@@ -81,7 +81,13 @@ otherwise STARTTLS required), `OUTREACH_SMTP_USER`, `OUTREACH_SMTP_PASSWORD`, `O
 ## 8. Activation (each step needs an explicit GO)
 
 1. Apply migration 035 to staging (workflow "Staging migrations").
-2. Preview: `SELF_OUTREACH_ENABLED=true`, `SELF_OUTREACH_ORG_IDS`, send flag OFF → review workflow without sending.
+2. Preview: `SELF_OUTREACH_ENABLED=true`, `SELF_OUTREACH_ORG_IDS`, send flag OFF → review workflow without sending. The same
+   organization must also be listed in the database by an operator (SQL editor, service role):
+   `insert into prospectos_private.self_outreach_organizations(organization_id,note) values('<uuid>','ProspectOS');`
+   Both lists must agree: the Next.js routes check `SELF_OUTREACH_ORG_IDS`; the SQL functions, read policies and the
+   send / follow-up path check the database list (a member calling Supabase directly skips the routes). Removing a row
+   stops new writes, reads, claims, follow-ups and pending sends at once; replies, bounces and unsubscribes are still
+   recorded and still feed the global suppression list.
 3. Canary 0 → 3 (one email to an address we control, then 1, 3, at most 10 real prospects a day), with the SMTP/IMAP
    credentials added by the owner, `SELF_OUTREACH_SEND_ENABLED=true` on that environment only, and the cron schedule
    (`/api/cron/self-outreach`) added to `vercel.json`. Checked at each step: duplicate_send = 0, unexpected_send = 0,

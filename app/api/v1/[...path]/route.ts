@@ -1,5 +1,6 @@
 import {z} from 'zod';
 import {handleDiscovery} from '../../../../src/discovery/api';
+import {handlePublicRecords} from '../../../../src/discovery/public-records-api';
 import {projectCriteria} from '../../../../src/domain/relations';
 import {authenticatedDb} from '../../../../src/server/db';
 import {analyzeOffer,AnalyzeOfferError} from '../../../../src/server/ai';
@@ -76,6 +77,10 @@ async function handler(request:Request,context:{params:Promise<{path:string[]}>}
  let body:Record<string,any>={};
  if(!['GET','HEAD'].includes(request.method)){const raw=await request.text();if(raw.length>20000)return json({error:'Corps trop volumineux'},413);try{body=JSON.parse(raw||'{}')}catch{return json({error:'JSON invalide'},400)}if(!body||Array.isArray(body))return json({error:'Objet requis'},400)}
  const discoveryResponse=await handleDiscovery(request,path,body,db,user);if(discoveryResponse)return discoveryResponse;
+ // Public registers of one prospect (src/discovery/public-records-api.ts): company register + public procurement awards,
+ // gated and metered like "Analyser le site"; its plan unit is released through the privileged client on failure.
+ const publicRecordsResponse=await handlePublicRecords(request,path,body,db,json,{requireEntitlement:()=>requireActiveEntitlement(db,user.id),
+  release:()=>releaseCommercialUse(createAdminClient(),user.id,'analysis'),log:event=>console.info(JSON.stringify({component:'public_records',...event}))});if(publicRecordsResponse)return publicRecordsResponse;
  // Signal Engine (src/signals/api.ts): signals, review, site scan and intent profile. The site scan shares the
  // authorization, audit and plan unit of "Analyser le site"; its audit writer is the server's privileged client.
  const signalsResponse=await handleSignals(request,path,body,db,json,{

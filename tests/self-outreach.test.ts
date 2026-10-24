@@ -255,3 +255,12 @@ test('v2 shell — reached from the account menu (like Bêta Analytics), rendere
  const v2=page.slice(page.indexOf(' if(v2){'),page.indexOf(' return <div className="shell">'));
  assert.match(v2,/:undefined\}>\n  <div className=\{contentClass\}>\{banners\}\{workspace\}<\/div><\/Shell>/,'no v2 screen for outreach: the shared workspace');
 });
+
+test('035 is frozen as applied: its bytes are the ones the staging runner recorded',async()=>{
+ const {createHash}=await import('node:crypto');
+ const m=await readFile(new URL('../db/migrations/035_self_outreach.sql',import.meta.url),'utf8');
+ // Recorded on Staging (supabase_migrations.schema_migrations, 2026-10-24): any edit makes the runner refuse to run.
+ assert.equal(createHash('md5').update(m).digest('hex'),'981a5a5ea61ec390def9d66249f5ccd2');
+ const doc=await readFile(new URL('../docs/SELF_OUTREACH.md',import.meta.url),'utf8');
+ assert.match(doc,/No API role can do it: the table has no grant to `anon`, `authenticated` or\n   `service_role`/);
+});

@@ -298,6 +298,15 @@ try{
   await refused(()=>as(undefined,`select prospectos_private.self_outreach_member($1)`,[oa]),/permission denied/,'member() as anon');
   assert.equal((await as(B,`select prospectos_private.self_outreach_member($1) r`,[oa])).rows[0].r,false,'B learns nothing about A');
   assert.equal((await as(A,`select prospectos_private.self_outreach_member($1) r`,[oa])).rows[0].r,true);
+  // The operator statement documented in docs/SELF_OUTREACH.md, verbatim: adds a known organization once, never an unknown one.
+  const doc=await readFile(new URL('../docs/SELF_OUTREACH.md',import.meta.url),'utf8');
+  const addSql=doc.match(/`(insert into prospectos_private\.self_outreach_organizations[^`]*)`/)[1];
+  await sql('reset role');
+  assert.equal((await sql(addSql.replace('<uuid>',ob))).rows.length,1,'added');
+  assert.equal((await sql(addSql.replace('<uuid>',ob))).rows.length,0,'idempotent');
+  assert.equal((await sql(addSql.replace('<uuid>','99999999-9999-4999-8999-999999999999'))).rows.length,0,'unknown organization refused');
+  const delSql=doc.match(/`(delete from prospectos_private\.self_outreach_organizations[^`]*)`/)[1];
+  assert.equal((await sql(delSql.replace('<uuid>',ob))).rows.length,1,'removed');
   // A, still served, is untouched.
   assert.ok((await as(A,`select count(*)::int n from public.outreach_candidates`)).rows[0].n>0);
  });

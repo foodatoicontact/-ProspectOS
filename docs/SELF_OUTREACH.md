@@ -82,8 +82,13 @@ otherwise STARTTLS required), `OUTREACH_SMTP_USER`, `OUTREACH_SMTP_PASSWORD`, `O
 
 1. Apply migration 035 to staging (workflow "Staging migrations").
 2. Preview: `SELF_OUTREACH_ENABLED=true`, `SELF_OUTREACH_ORG_IDS`, send flag OFF → review workflow without sending. The same
-   organization must also be listed in the database by an operator (SQL editor, service role):
-   `insert into prospectos_private.self_outreach_organizations(organization_id,note) values('<uuid>','ProspectOS');`
+   organization must also be listed in the database by an operator, from the Supabase SQL editor of that project (it
+   runs as the `postgres` owner). No API role can do it: the table has no grant to `anon`, `authenticated` or
+   `service_role` (the migration header's "SQL, service role" is inaccurate — the file stays as applied, its MD5 is
+   recorded by the staging runner). Add (idempotent, refuses an unknown organization):
+   `insert into prospectos_private.self_outreach_organizations(organization_id,note) select id,'ProspectOS' from public.organizations where id='<uuid>' on conflict (organization_id) do nothing returning organization_id;`
+   Check: `select organization_id,note,added_at from prospectos_private.self_outreach_organizations;`
+   Remove: `delete from prospectos_private.self_outreach_organizations where organization_id='<uuid>' returning organization_id;`
    Both lists must agree: the Next.js routes check `SELF_OUTREACH_ORG_IDS`; the SQL functions, read policies and the
    send / follow-up path check the database list (a member calling Supabase directly skips the routes). Removing a row
    stops new writes, reads, claims, follow-ups and pending sends at once; replies, bounces and unsubscribes are still

@@ -37,7 +37,7 @@ import {STATUSES} from '../../../../src/domain/statuses';
 import {handleOutreachIntelligence,PUBLIC_CONTENT_COLUMNS} from '../../../../src/outreach/api';
 import {handleNextBestActions,nextBestActionEnabled} from '../../../../src/nba/api';
 import {handleSelfOutreach} from '../../../../src/self-outreach/api';
-import {selfOutreachEnabledFor} from '../../../../src/self-outreach/config';
+import {selfOutreachEnabledForAny} from '../../../../src/self-outreach/config';
 import {composeRuleBased} from '../../../../src/outreach/compose';
 import {generateOutreachWithAi,type AiGenerateResult} from '../../../../src/outreach/ai-generate';
 import {aiOutreachEnabled,withAiOutreachUsage} from '../../../../src/outreach/ai-switch';
@@ -383,8 +383,9 @@ async function handler(request:Request,context:{params:Promise<{path:string[]}>}
   next_best_action_enabled:nextBestActionEnabled(process.env),
   // ZF org canary: the organization of the account's own membership (resolved above), never one the client sends.
   zero_friction_today_enabled:zeroFrictionTodayEnabledFor(process.env,membership?.organization_id??null),
-  // Self-Outreach: the flag AND the account's own organization in SELF_OUTREACH_ORG_IDS (the routes' own test).
-  self_outreach_enabled:selfOutreachEnabledFor(process.env,membership?.organization_id??null),
+  // Self-Outreach: the flag AND one of the account's own organizations in SELF_OUTREACH_ORG_IDS. Not only the workspace
+  // chosen above (a team membership wins there): the routes and the database then check each project's organization.
+  self_outreach_enabled:selfOutreachEnabledForAny(process.env,memberships.map((m:any)=>m.organization_id)),
   billing:billingAnswer.error?null:billingAnswer.data??null,
   billing_offers:checkoutAvailability(billingConfig()),
  });

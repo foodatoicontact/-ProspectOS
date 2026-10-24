@@ -236,7 +236,14 @@ test('account flag — shown only to the organizations the routes serve (flag AN
  assert.equal(selfOutreachEnabledFor({SELF_OUTREACH_ENABLED:'false',SELF_OUTREACH_ORG_IDS:ORG},ORG),false,'flag off');
  assert.equal(selfOutreachEnabledFor({SELF_OUTREACH_ENABLED:'true',SELF_OUTREACH_ORG_IDS:ORG},null),false);
  const route=await readFile(new URL('../app/api/v1/[...path]/route.ts',import.meta.url),'utf8');
- assert.match(route,/self_outreach_enabled:selfOutreachEnabledFor\(process\.env,membership\?\.organization_id\?\?null\),/);
+ assert.match(route,/self_outreach_enabled:selfOutreachEnabledForAny\(process\.env,memberships\.map\(\(m:any\)=>m\.organization_id\)\),/);
+ // An owner of the served organization who also joined another team (whose membership becomes the workspace) still sees it.
+ const {selfOutreachEnabledForAny}=await import('../src/self-outreach/config.ts');
+ const env={SELF_OUTREACH_ENABLED:'true',SELF_OUTREACH_ORG_IDS:ORG};
+ assert.equal(selfOutreachEnabledForAny(env,[OTHER,ORG]),true,'served organization among the memberships');
+ assert.equal(selfOutreachEnabledForAny(env,[OTHER]),false,'none served');
+ assert.equal(selfOutreachEnabledForAny(env,[]),false);
+ assert.equal(selfOutreachEnabledForAny({...env,SELF_OUTREACH_ENABLED:'false'},[ORG]),false,'flag off');
  assert.doesNotMatch(route,/selfOutreachEnabled\(process\.env\)/,'never the bare flag');
 });
 

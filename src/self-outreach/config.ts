@@ -16,6 +16,9 @@ export const selfOutreachOrganizations=(env:Env)=>(env.SELF_OUTREACH_ORG_IDS??''
 // What the account may show: the workflow flag AND the account's own organization in the list — the same test the routes
 // apply (api.ts), so no other customer ever sees an entry the server would refuse.
 export const selfOutreachEnabledFor=(env:Env,organizationId:string|null|undefined)=>selfOutreachEnabled(env)&&!!organizationId&&selfOutreachOrganizations(env).includes(organizationId.trim().toLowerCase());
+// An account can belong to several organizations (its own, plus a team it joined): the entry is shown when ANY of them is
+// served. Access itself is decided per project — the routes test the project's organization, the database its list.
+export const selfOutreachEnabledForAny=(env:Env,organizationIds:readonly (string|null|undefined)[])=>organizationIds.some(id=>selfOutreachEnabledFor(env,id));
 
 export type SmtpConfig={host:string;port:number;secure:boolean;user:string;password:string;fromEmail:string;fromName:string};
 export type ImapConfig={host:string;port:number;user:string;password:string};

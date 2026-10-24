@@ -274,7 +274,8 @@ test('035 is frozen as applied: its bytes are the ones the staging runner record
 
 test('panel display — labelled counters, no endless loader after a refusal, its own legacy page heading',async()=>{
  const panel=await readFile(new URL('../src/components/SelfOutreachPanel.tsx',import.meta.url),'utf8');
- assert.doesNotMatch(panel,/<span key=\{k\} className="pill">\{k\} /,'never the raw metric key on screen');
+ assert.ok(!panel.includes("['qualified','needs_review','approved','sent','replied','positive','demo','paid'].map"),'never the raw metric keys on screen');
+ assert.match(panel,/\{METRICS\.map\(\(\[k,label\]\)=><span key=\{k\} className="pill">\{tr\(label\)\} /);
  assert.match(panel,/\{!data\?\(error\?null:<p>\{tr\('so\.loading'\)\}<\/p>\):/,'a refusal shows its message only');
  const {fr}=await import('../src/i18n/fr.ts');const {en}=await import('../src/i18n/en.ts');
  for(const k of ['qualified','needsReview','approved','sent','replied','positive','demo','paid'])for(const d of [fr,en] as Record<string,string>[])assert.ok(d[`so.metric.${k}`],k);

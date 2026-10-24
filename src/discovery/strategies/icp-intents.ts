@@ -259,7 +259,7 @@ const publicProcurement:Intent={
 // Headcount: an explicit count of employees, checked against the range the label itself states ("10 à 100
 // salariés"). A count outside the range is a contextual note, never a proposal ("270 professionnels").
 const STAFF="salaries|collaborateurs|collaboratrices|employes|personnes|compagnons|employees|professionnels|agents";
-function labelRange(label:string):{min:number;max:number}|null{
+export function labelRange(label:string):{min:number;max:number}|null{
  const tolerance=/environ|approximativement|~/.test(label)?.2:0;
  const range=/(\d{1,5})\s*(?:a|-|–|et)\s*(\d{1,5})\s*(?:salaries|collaborateurs|employes|personnes|employees)/.exec(label);
  if(range){const a=Number(range[1]),b=Number(range[2]);return {min:Math.floor(Math.min(a,b)*(1-tolerance)),max:Math.ceil(Math.max(a,b)*(1+tolerance))}}

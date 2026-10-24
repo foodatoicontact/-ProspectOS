@@ -1,4 +1,4 @@
-// Migration 035 — evidence provenance at the moment of use, on real PostgreSQL (PGlite) with the full migration chain.
+// Migration 036 — evidence provenance at the moment of use, on real PostgreSQL (PGlite) with the full migration chain.
 // A message quotes evidence that was VERIFIED when it was generated (the factual template only ever uses verified
 // proofs). If a person later sends the observation back to review or contradicts it — or the evidence status changes
 // or the row disappears — the message may still be edited, discarded or regenerated, but never approved
@@ -21,7 +21,7 @@ try{
   grant usage on schema auth,public to anon,authenticated,service_role;grant execute on function auth.uid() to anon,authenticated,service_role;`);
  await db.exec(await readFile(new URL('../db/schema.sql',import.meta.url),'utf8'));
  const files=(await readdir(new URL('../db/migrations/',import.meta.url))).filter(f=>f.endsWith('.sql')).sort();
- const target=files.find(f=>f.startsWith('035_'));
+ const target=files.find(f=>f.startsWith('036_'));
  const before=files.filter(f=>!target||f<target),after=target?files.filter(f=>f>=target):[];
  for(const f of before)await db.exec(await readFile(new URL(`../db/migrations/${f}`,import.meta.url),'utf8'));
  const U=n=>`00000000-0000-4000-8000-${String(n).padStart(12,'0')}`;const A=U(1),B=U(2);
@@ -53,8 +53,8 @@ try{
  const events=async id=>(await sql(`select count(*)::int n from public.events where payload->>'record_id'=$1`,[id])).rows[0].n;
  const refusedUnchanged=async(id,op,what)=>{const r0=await row(id),e0=await events(id);await refused(op,NOT_VERIFIED,what);assert.deepEqual(await row(id),r0,`${what}: the message is unchanged`);assert.equal(await events(id),e0,`${what}: no event recorded`)};
 
- await check('MIGRATION 035 present and applied on top of 001–034',async()=>{assert.ok(target,'a 035_* migration exists');for(const f of after)await db.exec(await readFile(new URL(`../db/migrations/${f}`,import.meta.url),'utf8'))});
- await check('IDEMPOTENT: re-applying 035 changes nothing (one trigger, one function)',async()=>{
+ await check('MIGRATION 036 present and applied on top of every earlier migration',async()=>{assert.ok(target,'a 036_* migration exists');for(const f of after)await db.exec(await readFile(new URL(`../db/migrations/${f}`,import.meta.url),'utf8'))});
+ await check('IDEMPOTENT: re-applying 036 changes nothing (one trigger, one function)',async()=>{
   for(const f of after)await db.exec(await readFile(new URL(`../db/migrations/${f}`,import.meta.url),'utf8'));
   assert.equal((await sql(`select count(*)::int n from pg_trigger where tgname='outreach_provenance_guard' and not tgisinternal`)).rows[0].n,1);
   assert.equal((await sql(`select count(*)::int n from pg_proc p join pg_namespace s on s.oid=p.pronamespace where s.nspname='prospectos_private' and p.proname='guard_outreach_provenance'`)).rows[0].n,1);

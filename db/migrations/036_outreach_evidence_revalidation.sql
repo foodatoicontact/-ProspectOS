@@ -16,6 +16,7 @@
 -- caller's own RLS: an evidence the caller can no longer read counts as not verified — fail-closed), empty
 -- search_path, not callable by clients. The trigger (029) is unchanged.
 --
+-- Numbered 036: 035 is taken by feat/self-outreach (its own campaign tables; it does not touch this guard).
 -- Rollback: re-apply db/migrations/029_outreach_provenance_revalidation.sql (restores the 029 function body).
 begin;
 

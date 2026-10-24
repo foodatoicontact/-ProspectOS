@@ -60,7 +60,7 @@ try {
   `);
   await db.exec(await readFile(new URL('../db/schema.sql', import.meta.url), 'utf8'));
   const migrations = (await readdir(new URL('../db/migrations/', import.meta.url))).filter(f => f.endsWith('.sql')).sort();
-  assert.deepEqual(migrations.slice(migrations.indexOf('034_release_legacy_test_billing.sql')), ['034_release_legacy_test_billing.sql', '035_self_outreach.sql'], '034 is followed only by 035 (Self-Outreach: its own tables, no billing or entitlement row)');
+  assert.deepEqual(migrations.slice(migrations.indexOf('034_release_legacy_test_billing.sql')), ['034_release_legacy_test_billing.sql', '035_self_outreach.sql', '036_outreach_evidence_revalidation.sql'], '034 is followed only by 035 (Self-Outreach: its own tables) and 036 (outreach evidence provenance: one refusing trigger function); neither writes a billing or entitlement row');
 
   await check('FILE: one DO block, no persistent object, no audit or Stripe event write', async () => {
     assert.match(code, /^do \$\$/m);

@@ -24,9 +24,9 @@ async function projectProspects(db:SupabaseClient,projectId:string){const rows=a
 const uuid=z.string().uuid();
 // Refusals of "Analyser le site" decided by the server-side authorization or by robots.txt.
 const ANALYSIS_REFUSALS:Record<string,[string,number]>={
- SOURCE_POLICY_REQUIRED:['Analyse bloquée : ce site n’a pas été découvert et accepté via ProspectOS, et l’opérateur ne l’a pas autorisé (DISCOVERY_ALLOWED_HOSTS).',503],
+ SOURCE_POLICY_REQUIRED:['Ce prospect a été ajouté à la main : ProspectOS n’analyse automatiquement que les sites trouvés par sa recherche et acceptés par vous. Ajoutez vos preuves avec « ＋ Preuve » ou « Analyser un texte » ; elles comptent après votre validation.',503],
  DYNAMIC_ANALYSIS_DISABLED:['Analyse des sites découverts désactivée par l’opérateur pour le moment.',503],
- DISCOVERY_CAPABILITY_INVALID:['Analyse bloquée : ce prospect ne provient pas d’un site officiel découvert et accepté.',403],
+ DISCOVERY_CAPABILITY_INVALID:['Ce prospect ne provient pas d’un site officiel trouvé et accepté via la recherche ProspectOS : l’analyse automatique n’est pas disponible. Ajoutez vos preuves avec « ＋ Preuve » ou « Analyser un texte ».',403],
  WEBSITE_MISMATCH:['Analyse bloquée : le site du prospect ne correspond plus au site découvert et accepté.',403],
  ROBOTS_DENIED:['Analyse refusée : le robots.txt du site ne l’autorise pas. Aucune preuve validée.',422],
  ROBOTS_UNAVAILABLE:['Analyse impossible : le robots.txt du site est inaccessible (accès refusé ou erreur serveur). Par prudence, rien n’a été lu.',422],

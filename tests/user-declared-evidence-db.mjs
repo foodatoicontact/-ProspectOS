@@ -19,8 +19,11 @@ try{
   grant usage on schema auth,public to anon,authenticated,service_role;grant execute on function auth.uid() to anon,authenticated,service_role;`);
  await db.exec(await readFile(new URL('../db/schema.sql',import.meta.url),'utf8'));
  const files=(await readdir(new URL('../db/migrations/',import.meta.url))).filter(f=>f.endsWith('.sql')).sort();
- assert.deepEqual(files.slice(files.indexOf('033_user_declared_evidence.sql')),['033_user_declared_evidence.sql','034_release_legacy_test_billing.sql','035_self_outreach.sql'],'033 is followed only by 034 (one-off legacy TEST billing release) and 035 (Self-Outreach: its own tables); neither changes evidence');
- for(const f of files.slice(0,-1))await db.exec(await readFile(new URL(`../db/migrations/${f}`,import.meta.url),'utf8'));
+ // Migrations after 033, each reviewed: none changes how evidence is written (034 one-off legacy TEST billing release;
+ // 035 Self-Outreach, its own tables only; 036 only re-checks cited evidence when a message is approved or copied).
+ const i033=files.indexOf('033_user_declared_evidence.sql');
+ assert.deepEqual(files.slice(i033+1),['034_release_legacy_test_billing.sql','035_self_outreach.sql','036_outreach_evidence_revalidation.sql'],'033 precedes only reviewed migrations');
+ for(const f of files.slice(0,i033+1))await db.exec(await readFile(new URL(`../db/migrations/${f}`,import.meta.url),'utf8'));
 
  const U=n=>`00000000-0000-4000-8000-${String(n).padStart(12,'0')}`;const A=U(1),B=U(2);
  for(const [u,e] of [[A,'a@t'],[B,'b@t']])await sql(`insert into auth.users(id,email,email_confirmed_at) values($1,$2,now())`,[u,e]);

@@ -179,7 +179,7 @@ function CriterionBlock({c,locale,busy,onVerify,onReview}:{c:CriterionView;local
  return <li className="pos-pcrit" data-state={c.state}>
   <div className="pos-pcrit__head">
    <Icon name={m.icon} size={18} className={`pos-pcrit__icon pos-pcrit__icon--${m.tone}`}/>
-   <span className="pos-pcrit__label">{c.label}<small data-testid="criterion-state">{c.stateLabel}</small></span>
+   <span className="pos-pcrit__label">{c.label}<small data-testid="criterion-state">{c.stateLabel}</small>{c.contraryLabel&&<small className="pos-pcrit__contrary" data-testid="criterion-contrary" role="note">{c.contraryLabel}</small>}</span>
    {c.reviewAnchor&&<Button variant="quiet" size="sm" onClick={()=>onReview(c.reviewAnchor!)}>{t.review}</Button>}
   </div>
   {c.items.length>0&&<ul className="pos-pev__list">{c.items.map(i=><EvidenceRow key={i.id} item={i} locale={locale} busy={busy} onVerify={onVerify}/>)}</ul>}

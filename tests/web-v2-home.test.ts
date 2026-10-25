@@ -6,7 +6,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createHash} from 'node:crypto';
-import {readFileSync} from 'node:fs';
+import {readFileSync,statSync} from 'node:fs';
 import {HOME_COPY,demoCompanies,HERO_DEMO_ID} from '../src/ui/v2/home/copy.ts';
 import {light,dark} from '../src/ui/v2/tokens.ts';
 import {composite,contrastRatio} from '../src/ui/v2/color.ts';
@@ -54,7 +54,7 @@ test('demo — invented companies only, labelled as such; no real brand, logo or
  assert.doesNotMatch(css,/\burl\(/,'no background image either');
  assert.match(HOME_COPY.fr.demo.label,/fictif/i);assert.match(HOME_COPY.en.demo.label,/fictitious/i);
  assert.match(HOME_COPY.fr.demo.caption,/inventée/);
- assert.equal((home.match(/\{d\.label\}|\{copy\.demo\.label\}/g)??[]).length,2,'the hero card and every preview say "Exemple fictif"');
+ assert.doesNotMatch(home,/demoCompanies|DemoCard|TodayPreview/,'the demo companies appear only in the video, whose label says they are invented');
  assert.doesNotMatch(allCopy,/client|utilise(nt)? ProspectOS|use ProspectOS|trust(ed)? by|nous font confiance/i,'no company presented as a customer');
 });
 test('copy — the hero, positioning and workflow asked for; no generic SaaS claims',()=>{
@@ -110,8 +110,25 @@ test('accessibility guards — reduced motion, reduced transparency, forced colo
  assert.match(read('../src/ui/v2/public/styles.ts'),/\.locale-switch>\*\{display:inline-flex;align-items:center;justify-content:center;min-width:40px;min-height:44px/,'shared header: 44 px language targets');
  assert.match(css,/input\[type="password"\]\{display:block;width:100%;min-height:var\(--pos-size-target\)/);
  assert.match(read('../src/ui/v2/public/styles.ts'),/@media \(max-width:359px\)/,'320 px: the logo mark alone');
- assert.match(home,/aria-hidden="true" inert/,'the product previews are pictures, never focusable');
- assert.match(home,/role="img" aria-label=\{theme==='light'\?p\.mockAria:p\.mockDarkAria\}/);
- assert.match(home,/aria-expanded=\{panel==='why'\} aria-controls="pos-home-panel"/);
+ // Short page (mobile feedback, oct. 2026): hero, video, the three pillars with the guarantee, sign-up. Nothing else.
+ const order=['id="pos-home-title"','<PresentationVideo ','id="pos-home-positioning"','{copy.workflow.guarantee}','id="pos-home-signup"'].map(k=>home.indexOf(k));
+ assert.ok(order.every((x,i)=>x>0&&(i===0||x>order[i-1]!)),`sections in order: ${order}`);
+ assert.equal((home.match(/<section /g)??[]).length,4,'four sections only');
+ assert.doesNotMatch(home,/pos-home-workflow|pos-home-product|pos-home__dark/,'no step list and no light / dark previews any more');
+ assert.match(home,/href="#presentation">\{copy\.hero\.how\}<\/a>/,'"Voir comment ça fonctionne" leads to the video');
  assert.match(home,/<div className="pos-legacy">\{children\}<\/div>/,'the legacy pricing dialog keeps its own styles');
+});
+test('presentation video — silent, never auto-played against reduced motion, controls and a readable text alternative',()=>{
+ assert.match(home,/const HOME_VIDEO_SRC='\/videos\/prospectos-presentation\.mp4';/);
+ const size=statSync(new URL('../public/videos/prospectos-presentation.mp4',import.meta.url)).size;
+ assert.ok(size>0&&size<10*1024*1024,`the video file ships with the site and stays light (${size} bytes)`);
+ assert.match(home,/<video ref=\{ref\} src=\{HOME_VIDEO_SRC\} muted loop playsInline controls preload="metadata" aria-label=\{v\.label\}/);
+ assert.doesNotMatch(home,/autoPlay|autoplay/,'started by script only, while on screen');
+ assert.match(home,/matchMedia\('\(prefers-reduced-motion: no-preference\)'\)/,'no automatic playback when the visitor asked for reduced motion');
+ assert.match(home,/<details className="pos-home__transcript">/,'the on-screen text is readable without the video');
+ for(const l of ['fr','en'] as const){
+  assert.ok(HOME_COPY[l].video.transcript.length>=6);
+  assert.match(HOME_COPY[l].video.label,/inventées|invented/,'the video says its companies are invented');
+ }
+ assert.match(home,/onClick=\{onDemo\}>\{demoLabel\}/,'the demo link of app/page.tsx stays on the page, next to the video');
 });

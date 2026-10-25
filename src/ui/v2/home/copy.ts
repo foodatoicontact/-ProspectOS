@@ -18,6 +18,7 @@ export type HomeCopy={
  product:{title:string;body:string;darkTitle:string;darkBody:string;mockAria:string;mockDarkAria:string;today:string;project:string;
   filters:string;counts:{contact:string;verify:string;watch:string};none:string};
  signup:{title:string;body:string;points:string[]};
+ video:{title:string;body:string;label:string;transcriptLabel:string;transcript:string[]};
 };
 
 export const HOME_COPY:Record<Locale,HomeCopy>={
@@ -61,6 +62,17 @@ export const HOME_COPY:Record<Locale,HomeCopy>={
    counts:{contact:'à contacter',verify:'à vérifier',watch:'en veille'},none:'Rien à faire pour l’instant.'},
   signup:{title:'Essayez ProspectOS sur votre cible.',body:'Créez votre compte, décrivez votre cible : vos premières recommandations arrivent avec leurs sources.',
    points:['Recommandations expliquées','Sources visibles','Décision humaine']},
+  video:{title:'ProspectOS en 80 secondes.',body:'De votre liste aux entreprises à contacter maintenant, avec leurs sources. Vidéo sans son.',
+   label:'Vidéo de présentation de ProspectOS, sans son, avec des entreprises inventées pour la démonstration.',
+   transcriptLabel:'Lire le texte de la vidéo',
+   transcript:['Vous prospectez toute votre liste ? Des centaines de messages. Presque aucune réponse.',
+    'Le problème n’est pas votre offre. C’est le moment où vous contactez.',
+    'Une liste vous dit qui existe. ProspectOS vous dit qui mérite votre attention maintenant.',
+    'Votre journée commence par l’essentiel : qui contacter, et pourquoi maintenant.',
+    'Chaque signal renvoie à sa source : lien, extrait, date.',
+    'Ce qui manque pour décider est signalé. Jamais inventé.',
+    'Aucun envoi automatique. Vous gardez la main.',
+    'L’IA propose. Vous vérifiez. Vous décidez.']},
   },
  en:{
   nav:{nav:'Main navigation',pricing:'Pricing',home:'ProspectOS — home',menu:'Menu'},
@@ -102,11 +114,22 @@ export const HOME_COPY:Record<Locale,HomeCopy>={
    counts:{contact:'to contact',verify:'to verify',watch:'watching'},none:'Nothing to do for now.'},
   signup:{title:'Try ProspectOS on your own target.',body:'Create your account, describe your target: your first recommendations come with their sources.',
    points:['Explained recommendations','Visible sources','Human decision']},
+  video:{title:'ProspectOS in 80 seconds.',body:'From your list to the companies to contact now, with their sources. Silent video, in French.',
+   label:'ProspectOS presentation video, silent and in French, with companies invented for the demo.',
+   transcriptLabel:'Read the video text (English translation)',
+   transcript:['Are you prospecting your whole list? Hundreds of messages. Almost no replies.',
+    'The problem is not your offer. It is the moment you reach out.',
+    'A list tells you who exists. ProspectOS tells you who deserves your attention now.',
+    'Your day starts with what matters: who to contact, and why now.',
+    'Every signal links to its source: link, excerpt, date.',
+    'What is missing to decide is flagged. Never invented.',
+    'Nothing is sent automatically. You stay in control.',
+    'AI suggests. You check. You decide.']},
   },
 };
 
-// The demo companies: invented names, no logo, no photo. "Maison Alba" is the hero card; the others only appear in the
-// Today preview.
+// The demo companies: invented names, no logo, no photo. The homepage no longer renders them (they appear in the presentation
+// video, labelled as invented); the guard tests keep pinning them.
 export function demoCompanies(locale:Locale):DemoCompany[]{
  const fr=locale==='fr';
  return [

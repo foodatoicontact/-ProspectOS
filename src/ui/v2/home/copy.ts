@@ -128,8 +128,8 @@ export const HOME_COPY:Record<Locale,HomeCopy>={
   },
 };
 
-// The demo companies: invented names, no logo, no photo. "Maison Alba" is the hero card; the others only appear in the
-// Today preview.
+// The demo companies: invented names, no logo, no photo. The homepage no longer renders them (they appear in the presentation
+// video, labelled as invented); the guard tests keep pinning them.
 export function demoCompanies(locale:Locale):DemoCompany[]{
  const fr=locale==='fr';
  return [

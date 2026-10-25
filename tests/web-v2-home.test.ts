@@ -6,7 +6,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createHash} from 'node:crypto';
-import {readFileSync} from 'node:fs';
+import {readFileSync,statSync} from 'node:fs';
 import {HOME_COPY,demoCompanies,HERO_DEMO_ID} from '../src/ui/v2/home/copy.ts';
 import {light,dark} from '../src/ui/v2/tokens.ts';
 import {composite,contrastRatio} from '../src/ui/v2/color.ts';
@@ -114,4 +114,18 @@ test('accessibility guards — reduced motion, reduced transparency, forced colo
  assert.match(home,/role="img" aria-label=\{theme==='light'\?p\.mockAria:p\.mockDarkAria\}/);
  assert.match(home,/aria-expanded=\{panel==='why'\} aria-controls="pos-home-panel"/);
  assert.match(home,/<div className="pos-legacy">\{children\}<\/div>/,'the legacy pricing dialog keeps its own styles');
+});
+test('presentation video — silent, never auto-played against reduced motion, controls and a readable text alternative',()=>{
+ assert.match(home,/const HOME_VIDEO_SRC='\/videos\/prospectos-presentation\.mp4';/);
+ const size=statSync(new URL('../public/videos/prospectos-presentation.mp4',import.meta.url)).size;
+ assert.ok(size>0&&size<10*1024*1024,`the video file ships with the site and stays light (${size} bytes)`);
+ assert.match(home,/<video ref=\{ref\} src=\{HOME_VIDEO_SRC\} muted loop playsInline controls preload="metadata" aria-label=\{v\.label\}/);
+ assert.doesNotMatch(home,/autoPlay|autoplay/,'started by script only, while on screen');
+ assert.match(home,/matchMedia\('\(prefers-reduced-motion: no-preference\)'\)/,'no automatic playback when the visitor asked for reduced motion');
+ assert.match(home,/<details className="pos-home__transcript">/,'the on-screen text is readable without the video');
+ for(const l of ['fr','en'] as const){
+  assert.ok(HOME_COPY[l].video.transcript.length>=6);
+  assert.match(HOME_COPY[l].video.label,/inventées|invented/,'the video says its companies are invented');
+ }
+ assert.ok(home.indexOf('<PresentationVideo copy={copy}/>')>home.indexOf('<HeroDemo '),'right after the hero');
 });

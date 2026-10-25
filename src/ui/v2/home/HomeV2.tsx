@@ -90,6 +90,28 @@ function TodayPreview({locale,copy,theme}:{locale:Locale;copy:HomeCopy;theme:'li
  </figure>;
 }
 
+// The 80-second presentation video (silent, invented companies). It plays muted only while on screen and never by itself when
+// the visitor asked for reduced motion; the controls stay available, and the on-screen text is readable below it.
+const HOME_VIDEO_SRC='/videos/prospectos-presentation.mp4';
+function PresentationVideo({copy}:{copy:HomeCopy}){
+ const v=copy.video;
+ const ref=useRef<HTMLVideoElement>(null);
+ useEffect(()=>{const el=ref.current;if(!el||typeof IntersectionObserver==='undefined')return;
+  const motion=window.matchMedia('(prefers-reduced-motion: no-preference)');
+  const io=new IntersectionObserver(([e])=>{if(!e)return;
+   if(e.isIntersecting&&motion.matches)el.play().catch(()=>{});else if(!e.isIntersecting)el.pause()},{threshold:.4});
+  io.observe(el);return()=>io.disconnect();
+ },[]);
+ return <section className="pos-home__section pos-home__wrap pos-home__video" aria-labelledby="pos-home-video">
+  <div className="pos-home__intro"><h2 id="pos-home-video" className="pos-home__h2">{v.title}</h2><p>{v.body}</p></div>
+  <div className="pos-home__video-frame">
+   <video ref={ref} src={HOME_VIDEO_SRC} muted loop playsInline controls preload="metadata" aria-label={v.label} data-testid="home-video"/>
+  </div>
+  <details className="pos-home__transcript"><summary>{v.transcriptLabel}</summary>
+   <ol>{v.transcript.map(l=><li key={l}>{l}</li>)}</ol></details>
+ </section>;
+}
+
 export function HomeV2({locale,localeSwitch,authCard,onLocale,cta,demoLabel,onDemo,loginLabel,onLogin,contactLabel,children}:HomeV2Props){
  const copy=HOME_COPY[locale];
  const [panel,setPanel]=useState<Panel>(null);
@@ -127,6 +149,8 @@ export function HomeV2({locale,localeSwitch,authCard,onLocale,cta,demoLabel,onDe
     </div>
     <HeroDemo locale={locale} copy={copy} panel={panel} setPanel={setPanel}/>
    </section>
+
+   <PresentationVideo copy={copy}/>
 
    <section className="pos-home__section pos-home__wrap" aria-labelledby="pos-home-positioning">
     <h2 id="pos-home-positioning" className="pos-home__statement"><span>{copy.positioning.line1}</span> <span className="pos-home__accent">{copy.positioning.line2}</span></h2>

@@ -33,6 +33,7 @@
     "test:outreach-evidence-provenance-db": "node tests/outreach-evidence-provenance-db.mjs",
     "test:public-records-db": "node --experimental-strip-types tests/public-records-db.mjs",
     "test:staging-migrate-realpg": "bash tests/staging-migrate-realpg.sh",
+    "test:production-migrate-realpg": "bash tests/production-migrate-realpg.sh",
     "test:team-pool-concurrency-realpg": "bash tests/team-pool-concurrency-realpg.sh",
     "test:discovery-trust-db": "node tests/discovery-trust-boundary-db.mjs",
     "test:ai-quota-db": "node tests/ai-quota-db.mjs",

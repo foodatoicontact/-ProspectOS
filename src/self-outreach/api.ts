@@ -9,6 +9,7 @@ import {checkContact} from './contact.ts';
 import {outreachScore,scoresPayload} from './score.ts';
 import {generateInitial,checkHumanEdit} from './message.ts';
 import {loadCandidateSource} from './source.ts';
+import {generateBookingReply,checkBookingText,normalizeBookingUrl} from './booking.ts';
 type Json=(value:unknown,status?:number)=>Response;
 export type SelfOutreachDeps={env:Env;now:()=>Date;requireEntitlement:()=>Promise<void>};
 const uuid=z.string().uuid();
@@ -26,12 +27,35 @@ const KNOWN:Record<string,[string,number]>={
  outreach_candidates_campaign_id_prospect_id_key:['Cette entreprise est déjà dans la campagne.',409],
  outreach_candidates_campaign_id_contact_id_key:['Ce contact est déjà dans la campagne.',409],
  outreach_contacts_organization_id_email_key:['Ce contact existe déjà.',409],
+ outreach_booking_url_missing:['Ajoutez d’abord le lien de prise de rendez-vous de la campagne.',409],
+ outreach_candidate_not_bookable:['Le lien de rendez-vous ne s’envoie qu’après une réponse marquée positive.',409],
+ outreach_booking_link_missing:['Le message doit contenir le lien de rendez-vous actuel de la campagne.',422],
+ outreach_booking_already_sent:['La réponse avec le lien de rendez-vous a déjà été validée ou envoyée.',409],
+ outreach_meeting_needs_reply:['Un rendez-vous ne s’enregistre qu’après une réponse du prospect.',409],
+ outreach_meeting_invalid_time:['Date de rendez-vous hors limites (60 jours avant à un an après).',422],
+ outreach_meeting_not_scheduled:['Ce rendez-vous n’est plus planifié.',409],
+ outreach_meeting_in_future:['Un rendez-vous ne peut être marqué tenu ou manqué qu’une fois passé.',409],
+ outreach_meetings_one_scheduled:['Ce prospect a déjà un rendez-vous planifié.',409],
+ outreach_campaigns_booking_url_check:['Lien de rendez-vous invalide (https uniquement, sans ponctuation finale).',422],
 };
 function refuse(json:Json,e:unknown){const msg=String((e as {message?:string;cause?:{message?:string}})?.cause?.message??(e as {message?:string})?.message??'');
  for(const [k,[error,status]] of Object.entries(KNOWN))if(msg.includes(k))return json({error,code:k.toUpperCase()},status);
  if(/not found/i.test(msg))return json({error:'Introuvable.'},404);
  return json({error:'Opération refusée : vérifiez vos droits et les données.'},400)}
 async function rpc(db:SupabaseClient,fn:string,args:Record<string,unknown>){const {data,error}=await db.rpc(fn,args);if(error)throw Error(error.message);return data}
+
+
+// The BOOKING draft for one candidate: the campaign's link, the contact's first name, the original subject. Returns the
+// database's answer, or a refusal code (no link, unsafe text) — never a weaker text.
+async function draftBooking(db:SupabaseClient,env:Env,candidateId:string):Promise<{status:'DRAFTED'|'ALREADY';message:unknown}|{status:'NO_LINK'|'REFUSED';reason:string}>{
+ const k=await checked(db.from('outreach_candidates').select('id,prospects(name),outreach_contacts(contact_name),outreach_campaigns(booking_url),outreach_messages(sequence,subject)').eq('id',candidateId).single()) as any;
+ const url=normalizeBookingUrl(k?.outreach_campaigns?.booking_url);if(!url)return {status:'NO_LINK',reason:'OUTREACH_BOOKING_URL_MISSING'};
+ const initial=(k.outreach_messages??[]).find((m:any)=>m.sequence===0);
+ const d=generateBookingReply({contactName:k.outreach_contacts?.contact_name??'',senderName:(env.OUTREACH_FROM_NAME??'').trim(),bookingUrl:url,originalSubject:initial?.subject??'',company:k.prospects?.name??''});
+ if(!d.ok)return {status:'REFUSED',reason:d.reason};
+ const r=await rpc(db,'create_outreach_booking_reply',{p_candidate_id:candidateId,p_subject:d.subject,p_content:d.text});
+ return {status:r?.already?'ALREADY':'DRAFTED',message:r};
+}
 
 export function isSelfOutreachPath(path:readonly string[]){return path[0]==='self-outreach'}
 export async function handleSelfOutreach(request:Request,path:string[],body:unknown,db:SupabaseClient,json:Json,deps:SelfOutreachDeps):Promise<Response|null>{
@@ -48,7 +72,7 @@ export async function handleSelfOutreach(request:Request,path:string[],body:unkn
   if(resource==='projects'&&id){
    const g=await gate('projects',id);if(g)return g;
    if(method==='GET'&&sub==='queue'){
-    const rows=await checked(db.from('outreach_candidates').select('*,prospects(name),outreach_contacts(contact_name,contact_role,email,email_source,email_source_url,email_verified_at,role_source_url),outreach_messages(*)')
+    const rows=await checked(db.from('outreach_candidates').select('*,prospects(name),outreach_contacts(contact_name,contact_role,email,email_source,email_source_url,email_verified_at,role_source_url),outreach_messages(*),outreach_meetings(*),outreach_campaigns(booking_url)')
      .eq('project_id',id).in('status',['NEEDS_REVIEW','READY_TO_SEND','SENDING','SENT','REPLIED']).order('outreach_score',{ascending:false}).limit(100));
     const signalIds=[...new Set((rows??[]).map((r:any)=>r.signal_id))];
     const evIds=[...new Set((rows??[]).flatMap((r:any)=>r.evidence_ids??[]))];
@@ -57,6 +81,7 @@ export async function handleSelfOutreach(request:Request,path:string[],body:unkn
     return json({items:rows??[],signals,evidence,now:deps.now().toISOString()});
    }
    if(method==='GET'&&sub==='metrics')return json(await rpc(db,'outreach_metrics',{p_project_id:id}));
+   if(method==='GET'&&sub==='campaigns')return json({items:await checked(db.from('outreach_campaigns').select('id,name,status,booking_url,followup_enabled,followup_delay_days').eq('project_id',id).order('created_at',{ascending:true}))});
    if(method==='POST'&&sub==='campaigns'){
     const x=z.object({name:z.string().trim().min(2).max(120),followup_enabled:z.boolean().default(false),followup_delay_days:z.number().int().min(3).max(30).default(5)}).strict().parse(b);
     return json(await rpc(db,'create_outreach_campaign',{p_project_id:id,p_name:x.name,p_followup_enabled:x.followup_enabled,p_followup_delay_days:x.followup_delay_days}),201);
@@ -93,8 +118,13 @@ export async function handleSelfOutreach(request:Request,path:string[],body:unkn
   if(resource==='messages'&&id&&sub==='review'&&method==='POST'){
    const g=await gate('outreach_messages',id);if(g)return g;
    const x=z.object({decision:z.enum(['APPROVE','EDIT','REJECT']),subject:z.string().trim().min(3).max(140).optional(),content:z.string().min(20).max(2000).optional()}).strict().parse(b);
-   const m=await checked(db.from('outreach_messages').select('id,candidate_id,generated_content,human_edit').eq('id',id).single());
-   if(x.decision==='EDIT'){
+   const m=await checked(db.from('outreach_messages').select('id,candidate_id,kind,generated_content,human_edit').eq('id',id).single());
+   if(x.decision==='EDIT'&&m.kind==='BOOKING'){
+    if(!x.content)return json({error:'Texte requis.'},400);
+    const k=await checked(db.from('outreach_candidates').select('prospects(name),outreach_contacts(contact_name),outreach_campaigns(booking_url)').eq('id',m.candidate_id).single()) as any;
+    const check=checkBookingText(x.content,{company:k.prospects?.name??'',contactName:k.outreach_contacts?.contact_name??'',senderName:(deps.env.OUTREACH_FROM_NAME??'').trim()},k.outreach_campaigns?.booking_url??'');
+    if(!check.ok)return json({error:'Le texte doit garder le lien de rendez-vous et ne rien affirmer d’autre (ni chiffre, ni autre lien, ni formule interdite).',code:check.reason},422);
+   }else if(x.decision==='EDIT'){
     if(!x.content)return json({error:'Texte requis.'},400);
     // The same rules as the generator: an edit may not add an unsourced fact or a forbidden offer.
     const k=await checked(db.from('outreach_candidates').select('prospect_id,signal_id,evidence_ids,outreach_contacts(contact_name)').eq('id',m.candidate_id).single());
@@ -109,7 +139,37 @@ export async function handleSelfOutreach(request:Request,path:string[],body:unkn
    const g=await gate('outreach_candidates',id);if(g)return g;
    const x=z.object({outcome:z.enum(['POSITIVE','NEUTRAL','OBJECTION','NOT_INTERESTED','UNSUBSCRIBE','BOUNCE','UNKNOWN']).optional(),milestone:z.enum(['DEMO','PAID']).optional()}).strict()
     .refine(v=>!!v.outcome||!!v.milestone).parse(b);
-   return json(await rpc(db,'set_outreach_outcome',{p_candidate_id:id,p_outcome:x.outcome??null,p_milestone:x.milestone??null}));
+   const r=await rpc(db,'set_outreach_outcome',{p_candidate_id:id,p_outcome:x.outcome??null,p_milestone:x.milestone??null});
+   // POSITIVE on a reply → the booking reply is drafted at once (still a DRAFT a person approves). Its absence never
+   // undoes the outcome: no link yet, or a candidate that cannot be booked, is reported and left as it is.
+   if(x.outcome!=='POSITIVE')return json(r);
+   try{return json({...r,booking:await draftBooking(db,deps.env,id)})}
+   catch(e){const msg=String((e as Error)?.message??'');const code=Object.keys(KNOWN).find(k=>msg.includes(k));return json({...r,booking:{status:'REFUSED',reason:code?code.toUpperCase():'BOOKING_NOT_DRAFTED'}})}
+  }
+  if(resource==='candidates'&&id&&sub==='booking'&&method==='POST'){
+   const g=await gate('outreach_candidates',id);if(g)return g;
+   z.object({}).strict().parse(b);
+   const d=await draftBooking(db,deps.env,id);
+   if(d.status==='NO_LINK')return json({error:KNOWN.outreach_booking_url_missing[0],code:d.reason},409);
+   if(d.status==='REFUSED')return json({error:'Aucun message de rendez-vous sûr ne peut être généré.',code:d.reason},422);
+   return json(d,d.status==='DRAFTED'?201:200);
+  }
+  if(resource==='candidates'&&id&&sub==='meetings'&&method==='POST'){
+   const g=await gate('outreach_candidates',id);if(g)return g;
+   const x=z.object({scheduled_for:z.string().datetime({offset:true})}).strict().parse(b);
+   return json(await rpc(db,'record_outreach_meeting',{p_candidate_id:id,p_scheduled_for:x.scheduled_for}),201);
+  }
+  if(resource==='meetings'&&id&&sub==='status'&&method==='POST'){
+   const g=await gate('outreach_meetings',id);if(g)return g;
+   const x=z.object({status:z.enum(['HELD','NO_SHOW','CANCELLED'])}).strict().parse(b);
+   return json(await rpc(db,'set_outreach_meeting_status',{p_meeting_id:id,p_status:x.status}));
+  }
+  if(resource==='campaigns'&&id&&sub==='booking'&&method==='POST'){
+   const g=await gate('outreach_campaigns',id);if(g)return g;
+   const x=z.object({booking_url:z.string().max(300).nullable()}).strict().parse(b);
+   const url=x.booking_url===null||x.booking_url.trim()===''?null:normalizeBookingUrl(x.booking_url);
+   if(x.booking_url!==null&&x.booking_url.trim()!==''&&!url)return json({error:KNOWN.outreach_campaigns_booking_url_check[0],code:'OUTREACH_BOOKING_URL_INVALID'},422);
+   return json(await rpc(db,'set_outreach_campaign_booking',{p_campaign_id:id,p_booking_url:url}));
   }
   return json({error:'Route ou action non disponible'},404);
  }catch(e){

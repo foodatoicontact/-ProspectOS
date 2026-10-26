@@ -219,7 +219,7 @@ test('14 — no migration was added by this bloc: the RPCs, RLS and evidence_gua
  // evidence RLS change (tests/outreach-intelligence-db.mjs checks evidence rows stay untouched). 028 (AI outreach units
  // and cost operation) touches neither. 029 (provenance at the moment of use) only adds a trigger refusing APPROVED/USED
  // while a cited public content or signal is no longer verified: no evidence, observation or policy change (checked below).
- assert.deepEqual(files.slice(files.indexOf('015_dynamic_safe_analysis.sql')),['015_dynamic_safe_analysis.sql','016_beta_commercial_quotas.sql','017_stripe_billing.sql','018_deleted_accounts_release_beta_capacity.sql','019_discovery_registry_provider.sql','020_public_trial_availability.sql','021_discovery_failed_run_not_billed.sql','022_team_pro.sql','023_team_offer.sql','024_signals.sql','025_pipeline_feedback.sql','026_signal_monitoring.sql','027_outreach_intelligence.sql','028_outreach_ai_generation.sql','029_outreach_provenance_revalidation.sql','030_signal_discovery.sql','031_next_best_action.sql','032_signal_legacy_geo.sql','033_user_declared_evidence.sql','034_release_legacy_test_billing.sql','035_self_outreach.sql','036_outreach_evidence_revalidation.sql']);
+ assert.deepEqual(files.slice(files.indexOf('015_dynamic_safe_analysis.sql')),['015_dynamic_safe_analysis.sql','016_beta_commercial_quotas.sql','017_stripe_billing.sql','018_deleted_accounts_release_beta_capacity.sql','019_discovery_registry_provider.sql','020_public_trial_availability.sql','021_discovery_failed_run_not_billed.sql','022_team_pro.sql','023_team_offer.sql','024_signals.sql','025_pipeline_feedback.sql','026_signal_monitoring.sql','027_outreach_intelligence.sql','028_outreach_ai_generation.sql','029_outreach_provenance_revalidation.sql','030_signal_discovery.sql','031_next_best_action.sql','032_signal_legacy_geo.sql','033_user_declared_evidence.sql','034_release_legacy_test_billing.sql','035_self_outreach.sql','036_outreach_evidence_revalidation.sql','037_outreach_booking_meetings.sql']);
  // 019 (register provider) only widens the provider checks and start_discovery's provider list.
  // 020 (public trial availability) only adds a boolean read of the beta seats; 021 ties a Discovery unit to its run.
  for(const f of ['016_beta_commercial_quotas.sql','017_stripe_billing.sql','018_deleted_accounts_release_beta_capacity.sql','019_discovery_registry_provider.sql','020_public_trial_availability.sql','021_discovery_failed_run_not_billed.sql','022_team_pro.sql','023_team_offer.sql','029_outreach_provenance_revalidation.sql']){
@@ -267,6 +267,10 @@ test('14 — no migration was added by this bloc: the RPCs, RLS and evidence_gua
  // refuse APPROVED/USED while a cited proof is no longer VERIFIED; it writes no row and changes no policy nor grant.
  const m036=(await readFile(new URL('../db/migrations/036_outreach_evidence_revalidation.sql',import.meta.url),'utf8')).split('\n').filter(l=>!l.trim().startsWith('--')).join('\n');
  assert.doesNotMatch(m036,/(insert into|update|delete from) public\.|prospect_observations|policy|grant |row level security/i);
+ // 037 (Self-Outreach booking link and meetings) touches its own tables and functions only: never evidence, observations
+ // nor their policies.
+ const m037=(await readFile(new URL('../db/migrations/037_outreach_booking_meetings.sql',import.meta.url),'utf8')).split('\n').filter(l=>!l.trim().startsWith('--')).join('\n');
+ assert.doesNotMatch(m037,/(insert into|update|delete from) public\.(evidence|prospect_observations)|on public\.(evidence|prospect_observations)/i);
  const client=await readFile(new URL('../src/components/evidence-presentation.ts',import.meta.url),'utf8');
  assert.doesNotMatch(client,/service_role|SUPABASE_SERVICE|process\.env/);
 });

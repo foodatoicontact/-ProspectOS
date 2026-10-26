@@ -99,3 +99,33 @@ otherwise STARTTLS required), `OUTREACH_SMTP_USER`, `OUTREACH_SMTP_PASSWORD`, `O
    suppression violations = 0, reply_stop failures = 0, credential exposure = 0.
 
 Dry run: `npm run test:self-outreach-dry-run`.
+
+## 9. Booking link and meetings (migration 037)
+
+Goal: measure what the engine is for — meetings in a calendar — and shorten the path from a positive reply to a
+booked slot, **without ever answering automatically**.
+
+```
+REPLY → a person sets POSITIVE → BOOKING draft (campaign link) → a person approves → sent in the prospect's thread
+      → a person records the MEETING → HELD / NO_SHOW / CANCELLED → metrics (meetings, last 30 days)
+```
+
+| Rule | Where |
+|---|---|
+| The link is the campaign's own scheduling page: https, a host, URL characters only, no trailing punctuation | `outreach_campaigns_booking_url_check`, `normalizeBookingUrl` (`src/self-outreach/booking.ts`) |
+| A booking reply exists only for a REPLIED candidate a person marked POSITIVE; one per candidate (sequence 3) | `create_outreach_booking_reply` |
+| Marking POSITIVE drafts it at once (still a DRAFT); no link yet → the outcome is kept, the screen says what is missing | API `candidates/:id/outcome` |
+| The text states no fact, no number, no other URL, no free offer; keeps the opt-out line | `generateBookingReply` / `checkBookingText` (fact guard, NBA forbidden checks), `outreach_text_refused` |
+| The approved text must contain the campaign's **current** link (changed link → approval refused, or cancelled at claim) | `review_outreach_message`, `claim_outreach_sends`, `outreach_send_permitted` |
+| Any other outcome cancels a pending booking reply; POSITIVE again re-opens the same slot (never one already approved or sent) | `set_outreach_outcome`, `create_outreach_booking_reply` |
+| Suppression wins as everywhere: at draft, approval, claim and right before SMTP | same functions |
+| Threaded on the prospect's own reply (its Message-ID), else on our initial message | `claim_outreach_sends` |
+| Does not consume the daily cap of NEW outreach (bounded by positive replies, one per candidate); new outreach keeps its cap | `claim_outreach_sends` |
+| A meeting needs a real reply; recorded by a person (source MANUAL); one SCHEDULED at a time; between 60 days ago and a year ahead | `record_outreach_meeting` |
+| HELD / NO_SHOW only once the time has passed; HELD sets the DEMO milestone to the meeting time | `set_outreach_meeting_status` |
+| Metrics: every 035 key unchanged; `meetings` (scheduled, held, no_show, cancelled, upcoming) and `last_30_days` (sent, replied, positive, meetings_booked, meetings_held) | `outreach_metrics` |
+
+Not in this version: reading bookings from a scheduling tool (webhook). The `source` column is a closed list (`MANUAL`)
+so that a later source is an explicit, reviewed migration.
+
+Tests: `npm run test:outreach-booking-db` (fails without 037), `tests/self-outreach-booking.test.ts`.

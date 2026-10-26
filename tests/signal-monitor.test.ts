@@ -91,7 +91,10 @@ test('route and schedule: GET only, only the Authorization header is read; daily
  assert.doesNotMatch(route,/export async function (POST|PATCH|PUT|DELETE)|request\.(json|text)\(|searchParams/);
  assert.match(route,/cronAuthorized\(request\.headers\.get\('authorization'\),process\.env\.CRON_SECRET\)/);
  const vercel=JSON.parse(await readFile(new URL('../vercel.json',import.meta.url),'utf8'));
- assert.deepEqual(vercel.crons,[{path:'/api/cron/signals',schedule:'17 5 * * *'}]);
+ // The signals job keeps its single daily schedule. The other entry is the Self-Outreach daily job (approved 2026-10-26,
+ // pinned in tests/self-outreach.test.ts); no other job may appear.
+ assert.deepEqual(vercel.crons.filter((c:any)=>c.path==='/api/cron/signals'),[{path:'/api/cron/signals',schedule:'17 5 * * *'}]);
+ assert.deepEqual(vercel.crons.map((c:any)=>c.path).sort(),['/api/cron/self-outreach','/api/cron/signals']);
  const src=await readFile(new URL('../src/signals/monitor.ts',import.meta.url),'utf8');
  assert.doesNotMatch(src,/linkedin|anthropic|openai/i);
 });

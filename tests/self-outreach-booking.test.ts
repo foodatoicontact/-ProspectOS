@@ -79,8 +79,47 @@ test('API: meetings take an ISO date with offset and a closed list of statuses',
  assert.equal((await call(f,['self-outreach','meetings',ID,'status'],{status:'HELD'}))!.status,200);
  assert.deepEqual(f.calls.map(c=>c[0]),['record_outreach_meeting','set_outreach_meeting_status']);
 });
-test('nothing new can send: the booking module and routes never build a transport; the cron is still unscheduled',async()=>{
+test('nothing new can send: the booking module and routes never build a transport; one daily job, behind the send flag',async()=>{
  for(const f of ['src/self-outreach/booking.ts','src/self-outreach/api.ts','src/components/SelfOutreachPanel.tsx'])
   assert.doesNotMatch(await readFile(new URL(`../${f}`,import.meta.url),'utf8'),/createSmtpTransport|nodemailer/,f);
- assert.doesNotMatch(await readFile(new URL('../vercel.json',import.meta.url),'utf8'),/self-outreach/);
+ // The daily job is the only path that can send, and only behind SELF_OUTREACH_SEND_ENABLED (tests/self-outreach.test.ts).
+ assert.equal(JSON.parse(await readFile(new URL('../vercel.json',import.meta.url),'utf8')).crons.filter((c:any)=>c.path==='/api/cron/self-outreach').length,1);
+});
+
+// ------------------------------------------------------------ "Préparer un envoi" (POST projects/:id/prepare)
+function prepDb(o:{signalStatus?:string;signalProject?:string;campaigns?:any[];contacts?:any[]}={}){
+ const calls:[string,any][]=[];
+ const tables:Record<string,any>={signals:{id:ID,prospect_id:'33333333-3333-4333-8333-333333333331',project_id:o.signalProject??ID,status:o.signalStatus??'VERIFIED'},projects:{organization_id:ORG}};
+ const q=(t:string)=>{const self:any={select:()=>self,eq:()=>self,order:()=>self,in:()=>self,limit:()=>self,
+  maybeSingle:async()=>({data:{organization_id:ORG}}),single:async()=>({data:tables[t]??{organization_id:ORG},error:null}),
+  then:(r:any)=>r({data:t==='outreach_campaigns'?(o.campaigns??[]):t==='outreach_contacts'?(o.contacts??[]):[],error:null})};return self};
+ return {calls,db:{from:(t:string)=>q(t),rpc:async(fn:string,a:any)=>{calls.push([fn,a]);return {data:{id:fn==='create_outreach_campaign'?'camp1':'c1'},error:null}}} as any};
+}
+const prep=(f:ReturnType<typeof prepDb>,body:any)=>handleSelfOutreach(new Request('http://x/api',{method:'POST'}),['self-outreach','projects',ID,'prepare'],body,f.db,json,{env:ENV,now:()=>new Date('2026-10-26T12:00:00Z'),requireEntitlement:async()=>{}});
+const NEW={prospect_id:'33333333-3333-4333-8333-333333333331',contact_name:'Claire Martin',contact_role:'CEO',role_source_url:'https://acme.example/equipe',email:'claire@acme.example',email_source:'company_website',
+ email_source_url:'https://acme.example/contact',email_source_excerpt:'Écrire à claire@acme.example'};
+test('prepare: a generic or free-webmail address is refused with a readable reason, before any write',async()=>{
+ for(const [email,code] of [['contact@acme.example','EMAIL_ROLE_MAILBOX'],['claire.martin@gmail.com','EMAIL_NOT_PROFESSIONAL']]){
+  const f=prepDb();const r=await prep(f,{signal_id:ID,contact:{...NEW,email,email_source_excerpt:`Écrire à ${email}`}});
+  assert.equal(r!.status,422);const j=await r!.json();assert.equal(j.code,code);assert.doesNotMatch(j.error,/EMAIL_/,'a sentence, not a code');assert.equal(f.calls.length,0,'nothing written');
+ }
+ const f=prepDb();const r=await prep(f,{signal_id:ID,contact:{...NEW,email_source_excerpt:'Écrire à la direction'}});
+ assert.equal((await r!.json()).code,'EMAIL_NOT_IN_SOURCE');assert.equal(f.calls.length,0);
+});
+test('prepare: the signal must be VERIFIED and of this project; contact_id XOR a new contact',async()=>{
+ assert.equal((await (await prep(prepDb({signalStatus:'PENDING_REVIEW'}),{signal_id:ID,contact:NEW}))!.json()).code,'OUTREACH_SIGNAL_NOT_VERIFIED');
+ assert.equal((await prep(prepDb({signalProject:'11111111-1111-4111-8111-111111111111'}),{signal_id:ID,contact:NEW}))!.status,409);
+ assert.equal((await prep(prepDb(),{signal_id:ID}))!.status,400,'no contact at all');
+ assert.equal((await prep(prepDb(),{signal_id:ID,contact_id:ID,contact:NEW}))!.status,400,'both');
+ assert.equal((await (await prep(prepDb(),{signal_id:ID,contact:{...NEW,prospect_id:'33333333-3333-4333-8333-333333333332'}}))!.json()).code,'OUTREACH_SIGNAL_NOT_OF_COMPANY','contact of another company');
+});
+test('prepare: the first time creates the project campaign (follow-ups after five days) and the contact; later ones reuse them',async()=>{
+ const f=prepDb();await prep(f,{signal_id:ID,contact:NEW});
+ const fns=f.calls.map(c=>c[0]);assert.ok(fns.includes('add_outreach_contact'));
+ const camp=f.calls.find(c=>c[0]==='create_outreach_campaign');assert.ok(camp,'campaign created');assert.equal(camp![1].p_followup_enabled,true);assert.equal(camp![1].p_followup_delay_days,5);
+ const g=prepDb({campaigns:[{id:'existing',status:'ACTIVE'}],contacts:[{id:'c0',prospect_id:'33333333-3333-4333-8333-333333333331'}]});await prep(g,{signal_id:ID,contact:NEW});
+ assert.ok(!g.calls.some(c=>c[0]==='create_outreach_campaign'),'campaign reused');assert.ok(!g.calls.some(c=>c[0]==='add_outreach_contact'),'contact reused');
+ const h=prepDb({contacts:[{id:'c9',prospect_id:'33333333-3333-4333-8333-33333333333f'}]});const r=await prep(h,{signal_id:ID,contact:NEW});
+ assert.equal((await r!.json()).code,'OUTREACH_CONTACT_OTHER_COMPANY');
+ assert.equal(f.calls.filter(c=>/send|claim/.test(c[0])).length,0,'nothing is sent');
 });

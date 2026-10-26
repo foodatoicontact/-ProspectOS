@@ -77,6 +77,66 @@ function Card({item,sig,evidence,now,locale,busy,act}:{item:Item;sig:Sig|undefin
  </article>;
 }
 
+
+// "Préparer un envoi" (POST self-outreach/projects/:id/prepare): a company with a VERIFIED signal, the contact (existing,
+// or new with the provenance of the role and of the email), then the message is generated and goes to the review queue.
+// Nothing here sends. Copy is local (the i18n files are frozen).
+const PREP={fr:{open:'Préparer un envoi',close:'Fermer',loading:'Chargement des entreprises…',none:'Aucune entreprise de ce projet n’a encore de signal vérifié : vérifiez un signal pour pouvoir préparer un envoi.',
+  company:'Entreprise',signal:'Signal vérifié',contact:'Contact',newContact:'Nouveau contact',name:'Nom et prénom',role:'Rôle',roleUrl:'Lien de la page où ce rôle est indiqué',
+  email:'Email',source:'Où cet email est-il écrit ?',srcUrl:'Lien de cette page',excerpt:'Extrait de la page, avec l’email tel qu’il est écrit',submit:'Générer le message',
+  active:'déjà en cours',review:'Message prêt : relisez-le dans la file ci-dessous.',qualified:'Gardé, mais pas en relecture : score {s} pour un seuil de {t}.',gates:'Bloqué :',
+  sources:{company_website:'Site de l’entreprise',public_profile:'Profil public',public_document:'Document public',press:'Presse',direct_exchange:'Échange direct (la personne me l’a donné)'} as Record<string,string>},
+ en:{open:'Prepare an email',close:'Close',loading:'Loading companies…',none:'No company of this project has a verified signal yet: verify a signal to prepare an email.',
+  company:'Company',signal:'Verified signal',contact:'Contact',newContact:'New contact',name:'Full name',role:'Role',roleUrl:'Link to the page stating this role',
+  email:'Email',source:'Where is this email written?',srcUrl:'Link to that page',excerpt:'Excerpt of the page, with the email as written',submit:'Generate the message',
+  active:'already in progress',review:'Message ready: review it in the queue below.',qualified:'Kept, but not in review: score {s} for a threshold of {t}.',gates:'Blocked:',
+  sources:{company_website:'Company website',public_profile:'Public profile',public_document:'Public document',press:'Press',direct_exchange:'Direct exchange (the person gave it to me)'} as Record<string,string>}} as const;
+type Src={prospect:{id:string;name:string;website:string|null};signals:{id:string;title:string;excerpt:string;source_domain:string|null;event_date:string|null;published_at:string|null}[];
+ contacts:{id:string;contact_name:string;contact_role:string;email:string}[];active:boolean};
+function PrepareOutreach({projectId,api,locale,onDone}:{projectId:string;api:Api;locale:Locale;onDone:()=>void}){
+ const t=PREP[locale==='en'?'en':'fr'];
+ const [open,setOpen]=useState(false);const [items,setItems]=useState<Src[]|null>(null);const [busy,setBusy]=useState(false);const [msg,setMsg]=useState('');const [err,setErr]=useState('');
+ const [pid,setPid]=useState('');const [sid,setSid]=useState('');const [cid,setCid]=useState('new');
+ const [f,setF]=useState({contact_name:'',contact_role:'',role_source_url:'',email:'',email_source:'company_website',email_source_url:'',email_source_excerpt:''});
+ const show=async()=>{setOpen(true);setErr('');try{setItems((await api(`self-outreach/projects/${projectId}/sources`))?.items??[])}catch(e){setErr(String((e as Error).message))}};
+ const cur=items?.find(i=>i.prospect.id===pid);
+ const submit=async()=>{setBusy(true);setErr('');setMsg('');
+  try{
+   const body:Record<string,unknown>={signal_id:sid};
+   if(cid!=='new')body.contact_id=cid;
+   else body.contact={prospect_id:pid,...f,email_source_url:f.email_source==='direct_exchange'?null:f.email_source_url,email_source_excerpt:f.email_source==='direct_exchange'?null:f.email_source_excerpt};
+   const r=await api(`self-outreach/projects/${projectId}/prepare`,'POST',body);
+   const st=r?.candidate?.status;const sc=r?.score;
+   setMsg(st==='NEEDS_REVIEW'?t.review:t.qualified.replace('{s}',String(sc?.outreach??'—')).replace('{t}',String(sc?.threshold??'—'))+(sc?.gates?.length?` ${t.gates} ${sc.gates.join(', ')}`:''));
+   onDone();
+  }catch(e){setErr(String((e as Error).message))}finally{setBusy(false)}};
+ const set=(k:keyof typeof f)=>(e:{target:{value:string}})=>setF({...f,[k]:e.target.value});
+ const ready=!!pid&&!!sid&&(cid!=='new'||(f.contact_name&&f.contact_role&&f.role_source_url&&f.email&&(f.email_source==='direct_exchange'||(f.email_source_url&&f.email_source_excerpt))));
+ if(!open)return <div className="actions"><button className="primary" onClick={show}>{t.open}</button></div>;
+ return <div className="so-prepare" data-testid="so-prepare">
+  <div className="actions"><b>{t.open}</b><button onClick={()=>{setOpen(false);setMsg('');setErr('')}}>{t.close}</button></div>
+  {err&&<p className="error" role="alert">{err}</p>}{msg&&<p className="muted" role="status">{msg}</p>}
+  {!items?<p>{t.loading}</p>:items.length===0?<p className="muted">{t.none}</p>:<>
+   <label>{t.company} <select value={pid} onChange={e=>{setPid(e.target.value);setSid('');setCid('new')}}><option value=""></option>
+    {items.map(i=><option key={i.prospect.id} value={i.prospect.id}>{i.prospect.name}{i.active?` (${t.active})`:''}</option>)}</select></label>
+   {cur&&<fieldset><legend>{t.signal}</legend>{cur.signals.map(sg=><label key={sg.id} className="so-signal"><input type="radio" name="so-signal" checked={sid===sg.id} onChange={()=>setSid(sg.id)}/>
+    {' '}<b>{sg.title}</b> — « {sg.excerpt.slice(0,180)} » {sg.source_domain??''} {(sg.event_date??sg.published_at??'').slice(0,10)}</label>)}</fieldset>}
+   {cur&&<label>{t.contact} <select value={cid} onChange={e=>setCid(e.target.value)}><option value="new">{t.newContact}</option>
+    {cur.contacts.map(c=><option key={c.id} value={c.id}>{c.contact_name} — {c.contact_role} — {c.email}</option>)}</select></label>}
+   {cur&&cid==='new'&&<div className="so-contact-form">
+    <input placeholder={t.name} aria-label={t.name} value={f.contact_name} onChange={set('contact_name')}/>
+    <input placeholder={t.role} aria-label={t.role} value={f.contact_role} onChange={set('contact_role')}/>
+    <input type="url" placeholder={t.roleUrl} aria-label={t.roleUrl} value={f.role_source_url} onChange={set('role_source_url')}/>
+    <input type="email" placeholder={t.email} aria-label={t.email} value={f.email} onChange={set('email')}/>
+    <label>{t.source} <select value={f.email_source} onChange={set('email_source')}>{Object.entries(t.sources).map(([k,v])=><option key={k} value={k}>{v}</option>)}</select></label>
+    {f.email_source!=='direct_exchange'&&<><input type="url" placeholder={t.srcUrl} aria-label={t.srcUrl} value={f.email_source_url} onChange={set('email_source_url')}/>
+     <textarea placeholder={t.excerpt} aria-label={t.excerpt} rows={3} value={f.email_source_excerpt} onChange={set('email_source_excerpt')}/></>}
+   </div>}
+   <div className="actions"><button className="primary" disabled={busy||!ready} onClick={submit}>{t.submit}</button></div>
+  </>}
+ </div>;
+}
+
 // The funnel counters of outreach_metrics, with their labels (never the raw keys on screen).
 const METRICS:readonly [string,TKey][]=[['qualified','so.metric.qualified'],['needs_review','so.metric.needsReview'],['approved','so.metric.approved'],['sent','so.metric.sent'],
  ['replied','so.metric.replied'],['positive','so.metric.positive'],['demo','so.metric.demo'],['paid','so.metric.paid']];
@@ -96,6 +156,7 @@ export function SelfOutreachPanel({projectId,api,locale}:{projectId:string;api:A
  return <section className="panel" data-testid="self-outreach">
   <h2>{tr('so.title')}</h2><p className="muted">{tr('so.subtitle')}</p>
   {error&&<p className="error" role="alert">{error}</p>}
+  <PrepareOutreach projectId={projectId} api={api} locale={locale} onDone={()=>{void load()}}/>
   {notice&&<p className="muted" role="status">{notice}</p>}
   {metrics&&<p className="nba-chips">{METRICS.map(([k,label])=><span key={k} className="pill">{tr(label)} {String(metrics[k]??0)}</span>)}
    <span className="pill">{bk(locale,'mScheduled')} {String(m?.meetings?.scheduled??0)}</span><span className="pill">{bk(locale,'mHeld')} {String(m?.meetings?.held??0)}</span></p>}

@@ -57,6 +57,28 @@ async function draftBooking(db:SupabaseClient,env:Env,candidateId:string):Promis
  return {status:r?.already?'ALREADY':'DRAFTED',message:r};
 }
 
+// One candidate: its company's source (signal, evidence, offer), the explained score, the generated message, then the
+// database function (which re-checks the signal, the evidence, the suppression list and the campaign).
+async function createCandidate(db:SupabaseClient,deps:SelfOutreachDeps,json:Json,id:string,x:{campaign_id:string;contact_id:string;signal_id:string}):Promise<Response>{
+ const contact=await checked(db.from('outreach_contacts').select('id,prospect_id,project_id,contact_name,contact_role,email').eq('id',x.contact_id).single());
+ if(contact.project_id!==id)return json({error:'Contact hors projet.'},409);
+ const src=await loadCandidateSource(db,contact.prospect_id,x.signal_id,deps.now());
+ if(!src)return json({error:'Signal introuvable pour cette entreprise.',code:'OUTREACH_SIGNAL_NOT_OF_COMPANY'},409);
+ const score=outreachScore(src.opportunity,src.signal,src.classified,outreachScoreThreshold(deps.env));
+ const evidence=src.evidence.filter((e:any)=>e.status==='VERIFIED'&&e.verified_by&&src.opportunity.evidence_ids.includes(e.id));
+ const msg=generateInitial({company:src.prospect.name,contactName:contact.contact_name,offer:src.project.offer,senderName:(deps.env.OUTREACH_FROM_NAME??'').trim(),
+  signal:src.signal as any,commercialType:src.classified?.commercial_type??'OTHER',evidence});
+ if(!msg.ok)return json({error:'Aucun message sûr ne peut être généré pour ce signal.',code:msg.reason,score},422);
+ const created=await rpc(db,'create_outreach_candidate',{p_campaign_id:x.campaign_id,p_contact_id:x.contact_id,p_signal_id:x.signal_id,p_evidence_ids:evidence.map((e:any)=>e.id),
+  p_scores:scoresPayload(score,src.classified?.commercial_type??'OTHER'),p_message:{subject:msg.subject,generated_content:msg.text,evidence_refs:msg.evidence_refs,generation_meta:msg.generation_meta}});
+ return json({...created,score},201);
+}
+const CONTACT_REFUSAL:Record<string,string>={EMAIL_INVALID:'Adresse email invalide.',EMAIL_SOURCE_NOT_ALLOWED:'Source de l’email non reconnue.',
+ EMAIL_NOT_PROFESSIONAL:'Adresse de messagerie gratuite (Gmail, Outlook…) : une adresse professionnelle est requise.',
+ EMAIL_ROLE_MAILBOX:'Adresse générique (contact@, info@…) : il faut l’adresse d’une personne.',CONTACT_INCOMPLETE:'Nom et rôle requis.',
+ ROLE_SOURCE_REQUIRED:'Lien de la page où le rôle est indiqué requis.',EMAIL_SOURCE_URL_REQUIRED:'Lien de la page où l’email est publié requis.',
+ EMAIL_NOT_IN_SOURCE:'L’extrait doit contenir l’adresse email telle qu’elle est écrite sur la page.'};
+
 export function isSelfOutreachPath(path:readonly string[]){return path[0]==='self-outreach'}
 export async function handleSelfOutreach(request:Request,path:string[],body:unknown,db:SupabaseClient,json:Json,deps:SelfOutreachDeps):Promise<Response|null>{
  if(!isSelfOutreachPath(path))return null;
@@ -97,18 +119,43 @@ export async function handleSelfOutreach(request:Request,path:string[],body:unkn
    if(method==='POST'&&sub==='candidates'){
     await deps.requireEntitlement();
     const x=z.object({campaign_id:uuid,contact_id:uuid,signal_id:uuid}).strict().parse(b);
-    const contact=await checked(db.from('outreach_contacts').select('id,prospect_id,project_id,contact_name,contact_role,email').eq('id',x.contact_id).single());
-    if(contact.project_id!==id)return json({error:'Contact hors projet.'},409);
-    const src=await loadCandidateSource(db,contact.prospect_id,x.signal_id,deps.now());
-    if(!src)return json({error:'Signal introuvable pour cette entreprise.',code:'OUTREACH_SIGNAL_NOT_OF_COMPANY'},409);
-    const score=outreachScore(src.opportunity,src.signal,src.classified,outreachScoreThreshold(deps.env));
-    const evidence=src.evidence.filter((e:any)=>e.status==='VERIFIED'&&e.verified_by&&src.opportunity.evidence_ids.includes(e.id));
-    const msg=generateInitial({company:src.prospect.name,contactName:contact.contact_name,offer:src.project.offer,senderName:(deps.env.OUTREACH_FROM_NAME??'').trim(),
-     signal:src.signal as any,commercialType:src.classified?.commercial_type??'OTHER',evidence});
-    if(!msg.ok)return json({error:'Aucun message sûr ne peut être généré pour ce signal.',code:msg.reason,score},422);
-    const created=await rpc(db,'create_outreach_candidate',{p_campaign_id:x.campaign_id,p_contact_id:x.contact_id,p_signal_id:x.signal_id,p_evidence_ids:evidence.map((e:any)=>e.id),
-     p_scores:scoresPayload(score,src.classified?.commercial_type??'OTHER'),p_message:{subject:msg.subject,generated_content:msg.text,evidence_refs:msg.evidence_refs,generation_meta:msg.generation_meta}});
-    return json({...created,score},201);
+    return await createCandidate(db,deps,json,id,x);
+   }
+   // Every VERIFIED signal of the project's companies, with the company, its existing outreach contacts and whether it
+   // is already in an active outreach: what "Préparer un envoi" can start from. Read as the member (RLS).
+   if(method==='GET'&&sub==='sources'){
+    const sigs=await checked(db.from('signals').select('id,prospect_id,title,excerpt,source_url,source_domain,event_date,published_at,observed_at').eq('project_id',id).eq('status','VERIFIED').order('observed_at',{ascending:false}).limit(200));
+    const pids=[...new Set((sigs??[]).map((r:any)=>r.prospect_id))];
+    const prospects=pids.length?await checked(db.from('prospects').select('id,name,website').in('id',pids)):[];
+    const contacts=pids.length?await checked(db.from('outreach_contacts').select('id,prospect_id,contact_name,contact_role,email,email_source').in('prospect_id',pids)):[];
+    const active=pids.length?await checked(db.from('outreach_candidates').select('prospect_id,status').in('prospect_id',pids).in('status',['DISCOVERED','QUALIFIED','NEEDS_REVIEW','APPROVED','READY_TO_SEND','SENDING','SENT','REPLIED'])):[];
+    return json({items:(prospects??[]).map((p:any)=>({prospect:p,signals:(sigs??[]).filter((s:any)=>s.prospect_id===p.id),contacts:(contacts??[]).filter((c:any)=>c.prospect_id===p.id),
+     active:(active??[]).some((a:any)=>a.prospect_id===p.id)})).sort((a:any,b:any)=>Number(a.active)-Number(b.active))});
+   }
+   // "Préparer un envoi": the project's campaign (created once), the contact (an existing one, or a new one with its
+   // provenance, checked like POST contacts), then the candidate and its generated message (same path as POST candidates).
+   // Nothing is sent: a candidate at or above the threshold lands in the review queue; below it, it is kept with its score.
+   if(method==='POST'&&sub==='prepare'){
+    await deps.requireEntitlement();
+    const x=z.object({signal_id:uuid,contact_id:uuid.optional(),contact:z.object({prospect_id:uuid,contact_name:z.string().max(120),contact_role:z.string().max(120),role_source_url:z.string().max(2048),
+     email:z.string().max(254),email_source:z.string().max(40),email_source_url:z.string().max(2048).nullable().optional(),email_source_excerpt:z.string().max(1000).nullable().optional()}).strict().optional()})
+     .strict().refine(v=>!!v.contact_id!==!!v.contact,'contact_id or contact').parse(b);
+    const sig=await checked(db.from('signals').select('id,prospect_id,project_id,status').eq('id',x.signal_id).single());
+    if(sig.project_id!==id)return json({error:'Signal hors projet.'},409);
+    if(sig.status!=='VERIFIED')return json({error:'Le signal doit être vérifié par une personne avant tout envoi.',code:'OUTREACH_SIGNAL_NOT_VERIFIED'},409);
+    let contactId=x.contact_id??null;
+    if(x.contact){
+     if(x.contact.prospect_id!==sig.prospect_id)return json({error:'Ce contact n’appartient pas à l’entreprise du signal.',code:'OUTREACH_SIGNAL_NOT_OF_COMPANY'},409);
+     const c=checkContact(x.contact);if(!c.ok)return json({error:CONTACT_REFUSAL[c.reason]??'Contact refusé : provenance de l’email ou du rôle insuffisante.',code:c.reason},422);
+     const k=c.contact;
+     const existing=await checked(db.from('outreach_contacts').select('id,prospect_id').eq('project_id',id).eq('email',k.email).limit(1));
+     if(existing?.length){if(existing[0].prospect_id!==sig.prospect_id)return json({error:'Cette adresse est déjà le contact d’une autre entreprise.',code:'OUTREACH_CONTACT_OTHER_COMPANY'},409);contactId=existing[0].id}
+     else contactId=(await rpc(db,'add_outreach_contact',{p_prospect_id:k.prospect_id,p_name:k.contact_name,p_role:k.contact_role,p_role_source_url:k.role_source_url,p_email:k.email,
+      p_email_source:k.email_source,p_email_source_url:k.email_source_url??null,p_email_source_excerpt:k.email_source_excerpt??null}))?.id;
+    }
+    const camps=await checked(db.from('outreach_campaigns').select('id,status').eq('project_id',id).eq('status','ACTIVE').order('created_at',{ascending:true}).limit(1));
+    const campaignId=camps?.[0]?.id??(await rpc(db,'create_outreach_campaign',{p_project_id:id,p_name:'Prospection',p_followup_enabled:true,p_followup_delay_days:5}))?.id;
+    return await createCandidate(db,deps,json,id,{campaign_id:campaignId,contact_id:contactId!,signal_id:x.signal_id});
    }
    if(method==='POST'&&sub==='suppressions'){
     const x=z.object({email:z.string().trim().max(254),reason:z.enum(['OPT_OUT','MANUAL','COMPLIANCE'])}).strict().parse(b);

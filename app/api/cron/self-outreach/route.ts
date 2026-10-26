@@ -8,7 +8,8 @@ import {loadCandidateSource} from '../../../../src/self-outreach/source';
 import {generateFollowUp} from '../../../../src/self-outreach/message';
 // Self-Outreach jobs (docs/SELF_OUTREACH.md). Same authorization as the signals cron: "Authorization: Bearer
 // <CRON_SECRET>". Nothing runs unless SELF_OUTREACH_ENABLED; nothing is SENT unless SELF_OUTREACH_SEND_ENABLED and the
-// SMTP configuration is complete. Not scheduled in vercel.json yet: adding the schedule is a manual, approved step.
+// SMTP configuration is complete. Scheduled once a day in vercel.json (approved 2026-10-26); with the send flag off it
+// only reads replies and drafts follow-ups for approval.
 // The response is a summary of counts: no address, no content, no configuration value.
 export const runtime='nodejs';
 export const maxDuration=60;

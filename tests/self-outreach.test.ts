@@ -213,7 +213,9 @@ test('no code path builds the real transport except the cron route, behind both 
  for(const f of files)assert.doesNotMatch(await readFile(new URL(`../${f}`,import.meta.url),'utf8'),/createSmtpTransport|nodemailer/,f);
  const cron=await readFile(new URL('../app/api/cron/self-outreach/route.ts',import.meta.url),'utf8');
  assert.match(cron,/if\(!selfOutreachSendEnabled\(process\.env\)\)out\.sends=\{skipped:'SEND_DISABLED'\}/);
- const vercel=await readFile(new URL('../vercel.json',import.meta.url),'utf8');assert.doesNotMatch(vercel,/self-outreach/,'not scheduled without approval');
+ // Scheduled once a day after Kevin's GO (2026-10-26). The job sends nothing unless SELF_OUTREACH_SEND_ENABLED is on (asserted above).
+ const vercel=JSON.parse(await readFile(new URL('../vercel.json',import.meta.url),'utf8'));
+ assert.deepEqual(vercel.crons.filter((c:any)=>c.path==='/api/cron/self-outreach'),[{path:'/api/cron/self-outreach',schedule:'40 7 * * *'}],'once a day, approved');
 });
 
 test('merge with main — the fragments that other blocks’ byte-identical pins set aside are exactly the known ones',async()=>{

@@ -28,6 +28,8 @@ await db.exec(await readFile(new URL('../db/schema.sql',import.meta.url),'utf8')
 for(const f of (await readdir(new URL('../db/migrations/',import.meta.url))).filter(f=>f.endsWith('.sql')).sort())await db.exec(await readFile(new URL(`../db/migrations/${f}`,import.meta.url),'utf8'));
 const A='00000000-0000-4000-8000-000000000001';await sql(`insert into auth.users(id,email) values($1,'kevin@t')`,[A]);
 const org=(await as(A,`select public.create_organization('ProspectOS') id`)).rows[0].id;
+// The operator-held allow-list (docs/SELF_OUTREACH.md §8 step 2) — same insert an operator runs as the owner.
+await sql(`insert into prospectos_private.self_outreach_organizations(organization_id,note) values($1,'dry run') on conflict (organization_id) do nothing`,[org]);
 const OFFER='ProspectOS aide les équipes commerciales à identifier les comptes qui correspondent à leur cible et à documenter pourquoi les contacter maintenant.';
 const project=(await as(A,`insert into public.projects(organization_id,name,offer) values($1,'Vendre ProspectOS',$2) returning id`,[org,OFFER])).rows[0].id;
 const CRITERIA=[{key:'icp',label:'Éditeur SaaS B2B en France',weight:70,rules:{type:'target_fit',config:{locations:['France'],match:'any_defined'}}},{key:'team',label:'Équipe commerciale à construire',weight:30}];

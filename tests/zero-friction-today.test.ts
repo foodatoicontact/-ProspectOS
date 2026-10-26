@@ -5,6 +5,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
 import {execSync} from 'node:child_process';
+import {withoutSelfOutreach} from './self-outreach-strip.ts';
 import {zeroFrictionTodayEnabled,shouldRecompute,changesNbaInputs,TODAY_RECOMPUTE_TTL_MS} from '../src/ux/zero-friction.ts';
 import {buildTodayModel,cardOf,primaryActionOf,type TodayRow} from '../src/nba/today.ts';
 import {buildOpportunity,type NbaSignal} from '../src/nba/engine.ts';
@@ -58,7 +59,7 @@ test('2 — flag ON + a project with prospects: Today becomes the destination, o
  const page=await read('app/page.tsx');
  assert.match(page,/if\(mode==='live'&&zfOn&&project&&prospects\.length>0&&!zfLanded\.current&&view==='prospects'&&!selected&&!showQuickStart\)\{zfLanded\.current=true;setView\('today'\)\}/);
  for(const v of ["'prospects'","'dashboard'","'icp'","'actions'"])assert.ok(page.includes(`[${v}`)||page.includes(`view===${v}`),v);
- const nav=await read('src/discovery/back-navigation.ts');assert.match(nav,/'actions', 'today'\] as const/);
+ const nav=await read('src/discovery/back-navigation.ts');assert.match(nav,/'actions', 'today'(, 'outreach')?\] as const/); // 'outreach': Self-Outreach (035), behind its own flag
 });
 
 // ------------------------------------------------------------ 3 automatic recomputation
@@ -212,9 +213,9 @@ test('11 — commercial copy is NOT changed by ZF1 (the trial stays as on main u
 });
 
 // ------------------------------------------------------------ 12 isolation
+// Self-Outreach (035) is now merged with its own dependencies and fragments of app/page.tsx: the ZF code itself still
+// depends on none of it, and app/page.tsx is read without the known Self-Outreach fragments (tests/self-outreach-strip.ts).
 test('12 — no Self-Outreach dependency or code',async()=>{
- const pkg=JSON.parse(await read('package.json'));
- for(const d of ['nodemailer','imapflow','mailparser'])assert.ok(!pkg.dependencies[d],d);
  for(const f of ['src/nba/today.ts','src/components/TodayPanel.tsx','src/ux/zero-friction.ts','src/ux/zf-session.ts','app/page.tsx','src/nba/api.ts'])
-  assert.doesNotMatch(await read(f),/self-outreach|nodemailer|imap|smtp/i,f);
+  assert.doesNotMatch(f==='app/page.tsx'?withoutSelfOutreach(await read(f)):await read(f),/self-outreach|nodemailer|imap|smtp/i,f);
 });

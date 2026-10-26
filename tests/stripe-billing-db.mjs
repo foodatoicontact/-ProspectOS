@@ -82,9 +82,12 @@ try {
   const migrations = (await readdir(new URL('../db/migrations/', import.meta.url))).filter(f => f.endsWith('.sql')).sort();
   // 017 is this bloc's migration; 018 (deleted accounts release their beta seat) only re-creates account/trial functions.
   // 019 (Discovery register provider) only widens the Discovery provider checks and start_discovery: no billing object.
-  assert.deepEqual(migrations.slice(migrations.indexOf('017_stripe_billing.sql')), ['017_stripe_billing.sql', '018_deleted_accounts_release_beta_capacity.sql', '019_discovery_registry_provider.sql', '020_public_trial_availability.sql', '021_discovery_failed_run_not_billed.sql', '022_team_pro.sql', '023_team_offer.sql', '024_signals.sql', '025_pipeline_feedback.sql', '026_signal_monitoring.sql', '027_outreach_intelligence.sql', '028_outreach_ai_generation.sql', '029_outreach_provenance_revalidation.sql', '030_signal_discovery.sql', '031_next_best_action.sql', '032_signal_legacy_geo.sql', '033_user_declared_evidence.sql','034_release_legacy_test_billing.sql', '036_outreach_evidence_revalidation.sql']);
+  assert.deepEqual(migrations.slice(migrations.indexOf('017_stripe_billing.sql')), ['017_stripe_billing.sql', '018_deleted_accounts_release_beta_capacity.sql', '019_discovery_registry_provider.sql', '020_public_trial_availability.sql', '021_discovery_failed_run_not_billed.sql', '022_team_pro.sql', '023_team_offer.sql', '024_signals.sql', '025_pipeline_feedback.sql', '026_signal_monitoring.sql', '027_outreach_intelligence.sql', '028_outreach_ai_generation.sql', '029_outreach_provenance_revalidation.sql', '030_signal_discovery.sql', '031_next_best_action.sql', '032_signal_legacy_geo.sql', '033_user_declared_evidence.sql','034_release_legacy_test_billing.sql', '035_self_outreach.sql', '036_outreach_evidence_revalidation.sql', '037_outreach_booking_meetings.sql']);
+  // 037 (Self-Outreach booking link and meetings) has no billing object.
+  assert.doesNotMatch((await readFile(new URL('../db/migrations/037_outreach_booking_meetings.sql', import.meta.url), 'utf8')).split('\n').filter(l => !l.trim().startsWith('--')).join('\n'), /stripe|billing|entitlement/i);
   // 036 (outreach evidence provenance: one refusing trigger function) has no billing object.
   assert.doesNotMatch((await readFile(new URL('../db/migrations/036_outreach_evidence_revalidation.sql', import.meta.url), 'utf8')).split('\n').filter(l => !l.trim().startsWith('--')).join('\n'), /stripe|billing|entitlement/i);
+
   // 028 (AI outreach units) READS the caller's entitlement period to count units; it never writes an entitlement nor any Stripe state.
   assert.doesNotMatch((await readFile(new URL('../db/migrations/028_outreach_ai_generation.sql', import.meta.url), 'utf8')).split('\n').filter(l => !l.trim().startsWith('--')).join('\n'), /stripe|billing|(insert into|update|delete from) public\.account_entitlements/i);
   // 029 (outreach provenance at the moment of use: one refusing trigger) has no billing object.
@@ -92,6 +95,7 @@ try {
   // 030 (Signal-first Discovery) reuses the existing Discovery reservation; it has no billing object of its own.
   assert.doesNotMatch((await readFile(new URL('../db/migrations/030_signal_discovery.sql', import.meta.url), 'utf8')).split('\n').filter(l => !l.trim().startsWith('--')).join('\n'), /stripe|billing|entitlement/i);
   // 031 (Next Best Action: recommendations and human decisions) and 032 (legacy place backfill) have no billing object.
+  assert.doesNotMatch((await readFile(new URL('../db/migrations/035_self_outreach.sql', import.meta.url), 'utf8')).split('\n').filter(l => !l.trim().startsWith('--')).join('\n'), /stripe|billing|entitlement/i);
   assert.doesNotMatch((await readFile(new URL('../db/migrations/032_signal_legacy_geo.sql', import.meta.url), 'utf8')).split('\n').filter(l => !l.trim().startsWith('--')).join('\n'), /stripe|billing|entitlement/i);
   assert.doesNotMatch((await readFile(new URL('../db/migrations/031_next_best_action.sql', import.meta.url), 'utf8')).split('\n').filter(l => !l.trim().startsWith('--')).join('\n'), /stripe|billing|entitlement/i);
   // 033 (UI-4 USER_DECLARED evidence) has no billing object.

@@ -37,6 +37,8 @@ import {DEFAULT_CRITERIA,OUTREACH_STATUSES,validateCriteria,generateOutreach,sco
 import {STATUSES} from '../../../../src/domain/statuses';
 import {handleOutreachIntelligence,PUBLIC_CONTENT_COLUMNS} from '../../../../src/outreach/api';
 import {handleNextBestActions,nextBestActionEnabled} from '../../../../src/nba/api';
+import {handleSelfOutreach} from '../../../../src/self-outreach/api';
+import {selfOutreachEnabledForAny} from '../../../../src/self-outreach/config';
 import {composeRuleBased} from '../../../../src/outreach/compose';
 import {generateOutreachWithAi,type AiGenerateResult} from '../../../../src/outreach/ai-generate';
 import {aiOutreachEnabled,withAiOutreachUsage} from '../../../../src/outreach/ai-switch';
@@ -106,6 +108,7 @@ async function handler(request:Request,context:{params:Promise<{path:string[]}>}
  const outreachResponse=await handleOutreachIntelligence(request,path,body,db,json,{requireEntitlement:()=>requireActiveEntitlement(db,user.id)});if(outreachResponse)return outreachResponse;
  // Next Best Action (src/nba/api.ts, migration 031): decisions and drafts only — nothing is sent. Flag off = 404.
  const nbaResponse=await handleNextBestActions(request,path,body,db,json,{enabled:nextBestActionEnabled(process.env)||zeroFrictionTodayGate(process.env),now:()=>new Date(),requireEntitlement:()=>requireActiveEntitlement(db,user.id)});if(nbaResponse)return nbaResponse;
+ const selfOutreachResponse=await handleSelfOutreach(request,path,body,db,json,{env:process.env,now:()=>new Date(),requireEntitlement:()=>requireActiveEntitlement(db,user.id)});if(selfOutreachResponse)return selfOutreachResponse;
  const checked=async(query:PromiseLike<any>)=>{const {data,error}=await query;if(error)throw Error('DATABASE_REQUEST_FAILED');return data};
  if(resource==='organizations'){
  if(request.method==='GET')return json(await checked(db.from('organizations').select('*')));
@@ -385,6 +388,9 @@ async function handler(request:Request,context:{params:Promise<{path:string[]}>}
   next_best_action_enabled:nextBestActionEnabled(process.env),
   // ZF org canary: the organization of the account's own membership (resolved above), never one the client sends.
   zero_friction_today_enabled:zeroFrictionTodayEnabledFor(process.env,membership?.organization_id??null),
+  // Self-Outreach: the flag AND one of the account's own organizations in SELF_OUTREACH_ORG_IDS. Not only the workspace
+  // chosen above (a team membership wins there): the routes and the database then check each project's organization.
+  self_outreach_enabled:selfOutreachEnabledForAny(process.env,memberships.map((m:any)=>m.organization_id)),
   billing:billingAnswer.error?null:billingAnswer.data??null,
   billing_offers:checkoutAvailability(billingConfig()),
  });

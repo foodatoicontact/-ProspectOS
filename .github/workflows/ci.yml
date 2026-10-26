@@ -39,3 +39,5 @@ jobs:
       - run: npm run test:commercial-quotas-db
       - run: npm run test:stripe-billing-db
       - run: npm run test:public-records-db
+      - run: npm run test:self-outreach-db
+      - run: npm run test:outreach-booking-db

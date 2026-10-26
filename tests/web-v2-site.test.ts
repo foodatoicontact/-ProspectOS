@@ -7,6 +7,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createHash} from 'node:crypto';
+import {withoutSelfOutreach} from './self-outreach-strip.ts';
 import {readFileSync,readdirSync,existsSync} from 'node:fs';
 import {webV2Enabled} from '../src/ui/v2/public/flag.ts';
 import {seoPages,sitemapEntries} from '../src/domain/seo.ts';
@@ -75,7 +76,8 @@ test('freeze — legal text, SEO content, prices, quotas, trial, plans, i18n and
   'src/i18n/en.ts':'5a1bb3c567731cd1e47d8ccef3ffee29f79f5ed2c21cf5c8f222fb163b38700c',
   'src/domain/demo.ts':'70a67774e17b28d664f696846572febeac3c64ecaa320e7a85d8ecc9235e84ee',
  };
- for(const [f,h] of Object.entries(FROZEN))assert.equal(sha(read(f)),h,`${f} changed — WEB-2 must not touch it`);
+ // Self-Outreach (035) adds its own i18n keys: the frozen texts are compared without them (tests/self-outreach-strip.ts).
+ for(const [f,h] of Object.entries(FROZEN))assert.equal(sha(f.startsWith('src/i18n/')?withoutSelfOutreach(read(f)):read(f)),h,`${f} changed — WEB-2 must not touch it`);
 });
 
 test('SEO v2 render — same H1, sections, blocks, FAQ, call to action, related links and structured data',()=>{

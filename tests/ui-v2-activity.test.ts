@@ -8,11 +8,13 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {execSync} from 'node:child_process';
+import {withoutSelfOutreach} from './self-outreach-strip.ts';
 
 const ROOT=new URL('..',import.meta.url);
 const read=(p:string)=>readFileSync(new URL(p,import.meta.url),'utf8');
 const git=(c:string)=>execSync(c,{cwd:ROOT,encoding:'utf8'});
-const page=read('../app/page.tsx'),panel=read('../src/components/ActionsPanel.tsx'),ui=read('../src/ui/v2/activity/ActivityV2.tsx'),css=read('../src/ui/v2/activity/activity.css');
+const page=withoutSelfOutreach(read('../app/page.tsx')),// Self-Outreach (035) fragments aside
+ panel=read('../src/components/ActionsPanel.tsx'),ui=read('../src/ui/v2/activity/ActivityV2.tsx'),css=read('../src/ui/v2/activity/activity.css');
 const BASE='eb0d7de';
 const legacy=page.slice(0,page.indexOf(' if(v2){')),v2=page.slice(page.indexOf(' if(v2){'),page.indexOf(' return <div className="shell">'));
 

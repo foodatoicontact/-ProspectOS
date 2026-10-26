@@ -8,12 +8,14 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {execSync} from 'node:child_process';
+import {withoutSelfOutreach} from './self-outreach-strip.ts';
 import {verificationOf,scoreText} from '../src/ui/v2/search/model.ts';
 
 const ROOT=new URL('..',import.meta.url);
 const read=(p:string)=>readFileSync(new URL(p,import.meta.url),'utf8');
 const git=(c:string)=>execSync(c,{cwd:ROOT,encoding:'utf8'});
-const page=read('../app/page.tsx'),panel=read('../src/components/DiscoveryPanel.tsx'),nat=read('../src/ui/v2/search/SearchNative.tsx'),css=read('../src/ui/v2/search/search.css');
+const page=withoutSelfOutreach(read('../app/page.tsx')),// Self-Outreach (035) fragments aside
+ panel=read('../src/components/DiscoveryPanel.tsx'),nat=read('../src/ui/v2/search/SearchNative.tsx'),css=read('../src/ui/v2/search/search.css');
 const MAIN='836d8e9';
 const legacy=page.slice(0,page.indexOf(' if(v2){')),v2=page.slice(page.indexOf(' if(v2){'),page.indexOf(' return <div className="shell">'));
 const el=(src:string)=>{const i=src.indexOf('<DiscoveryPanel ');return src.slice(i,src.indexOf("}}",src.indexOf('onAdded=',i))+2)};

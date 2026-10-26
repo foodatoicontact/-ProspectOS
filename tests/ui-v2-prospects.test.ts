@@ -8,6 +8,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {execSync} from 'node:child_process';
+import {withoutSelfOutreach} from './self-outreach-strip.ts';
 import {prospectRows,fitBadge,criteriaView,situationOf,advancedOf,criterionStateLabel} from '../src/ui/v2/prospects/model.ts';
 import {BENCH_CRITERIA,benchProspects} from '../src/ui/v2/prospects/fixture.ts';
 import {scoreProspect,type Prospect} from '../src/domain/core.ts';
@@ -157,7 +158,7 @@ test('accessibility — labelled controls, keyboard rows, 44 px targets, reduced
 });
 test('flag OFF — the legacy Prospects screen is unchanged (its markup is byte-identical to main)',()=>{
  const before=execSync('git show 8a927c4:app/page.tsx',{cwd:new URL('..',import.meta.url),encoding:'utf8'});
- const page=read('../app/page.tsx');
+ const page=withoutSelfOutreach(read('../app/page.tsx')); // Self-Outreach (035) fragments aside
  const region=(src:string)=>src.slice(src.indexOf(" {view==='prospects'&&!showQuickStart&&<div className="),src.indexOf(' const overlays=<>'));
  assert.ok(region(before).length>1000);
  assert.equal(region(page),region(before),'legacy list + record');

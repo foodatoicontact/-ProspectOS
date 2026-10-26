@@ -6,7 +6,7 @@ import type {IconName} from '../icons.ts';
 
 export type NavKey='today'|'prospects'|'search'|'activity'|'sources'|'settings';
 // The views app/page.tsx already renders (its `view` state).
-export type AppView='today'|'prospects'|'discovery'|'actions'|'dashboard'|'icp'|'beta-analytics';
+export type AppView='today'|'prospects'|'discovery'|'actions'|'dashboard'|'icp'|'beta-analytics'|'outreach';
 // What this account can see today: "Aujourd'hui" (ZF1) and "À faire" (NBA) exist only for a live account with their flag.
 export type NavCaps={live:boolean;today:boolean;actions:boolean};
 
@@ -35,8 +35,8 @@ export function viewForNav(key:NavKey,caps:NavCaps):AppView{
  }
 }
 // Which entry is current for a view. Two entries can lead to the same screen (e.g. Recherche / Sources): the one the
-// user chose stays current; otherwise the first in navigation order. A screen no entry leads to (Bêta Analytics,
-// reached from the account menu) has no current entry.
+// user chose stays current; otherwise the first in navigation order. A screen no entry leads to (Bêta Analytics and
+// Self-Outreach, reached from the account menu for the accounts allowed to see them) has no current entry.
 export function navForView(view:AppView,caps:NavCaps,chosen:NavKey|null):NavKey|null{
  if(chosen&&viewForNav(chosen,caps)===view)return chosen;
  return NAV_ORDER.find(k=>viewForNav(k,caps)===view)??null;
@@ -55,5 +55,6 @@ export function viewTitle(view:AppView,locale:Locale):string{
   case 'dashboard':return NAV_LABEL[locale].activity;
   case 'icp':return fr?'Offre & cible':'Offer & target';
   case 'beta-analytics':return 'Bêta Analytics';
+  case 'outreach':return fr?'Outreach ProspectOS':'ProspectOS outreach';
  }
 }

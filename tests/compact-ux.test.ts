@@ -151,7 +151,9 @@ test('Mobile — touch targets ≥ 44 px on the new controls; no new dependency'
  const {execSync}=await import('node:child_process');
  const before=JSON.parse(execSync('git show f1cc9da:package.json',{cwd:new URL('..',import.meta.url),encoding:'utf8'}));
  const pkg=JSON.parse(await readFile(new URL('../package.json',import.meta.url),'utf8'));
- assert.deepEqual(pkg.dependencies,before.dependencies);assert.deepEqual(pkg.devDependencies,before.devDependencies);
+ // Later, documented additions (Self-Outreach, server-only mail transport: docs/SELF_OUTREACH.md) are not this bloc's.
+ const later=(o:Record<string,string>)=>Object.fromEntries(Object.entries(o).filter(([k])=>!['nodemailer','imapflow','mailparser','@types/nodemailer','@types/mailparser'].includes(k)));
+ assert.deepEqual(later(pkg.dependencies),before.dependencies);assert.deepEqual(later(pkg.devDependencies),before.devDependencies);
 });
 
 // ---------------------------------------------------------------- desktop (P0-b desktop hardening)

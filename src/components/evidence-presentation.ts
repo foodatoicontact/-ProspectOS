@@ -12,6 +12,7 @@ import {isContactChannelCriterion} from '../discovery/strategies/contact-channel
 import {isCommercialSignalCriterion,COMMERCIAL_SIGNAL_TYPES} from '../discovery/strategies/commercial-signal.ts';
 import {TARGET_FIT_KEYS} from '../discovery/strategies/target-fit.ts';
 import {NEED_FIT_KEYS} from '../discovery/strategies/need-fit.ts';
+import {isWebPresenceType,webPresenceTitle,WEB_PRESENCE_NOTE_EN} from '../discovery/strategies/web-presence-labels.ts';
 
 type Key=keyof typeof fr;
 const t=(locale:Locale,key:Key)=>(locale==='fr'?fr:en)[key];
@@ -110,6 +111,9 @@ export function presentObservation(o:StoredObservation,criteria:Criterion[],loca
  // A match refused for its context (match-context.ts): the reason is the note, so the reviewer sees why the
  // criterion stays to confirm. The stored reason is French; the English interface shows its own sentence.
  else if(/_OUT_OF_CONTEXT$/.test(o.observation_type)){title=t(locale,'evidence.titleOutOfContext');subtitle=criterion?`${t(locale,'evidence.possibleCriterion')} ${criterion.label}`:null;note=locale==='fr'?o.claim:t(locale,'evidence.outOfContextNote')}
+ // Website diagnostic (strategies/web-presence.ts): always context — its own title, and its claim as the note
+ // (it says what was read and how far it goes). The stored claim is French; English shows its own sentence.
+ else if(isWebPresenceType(o.observation_type)){title=webPresenceTitle(o.observation_type,locale);note=locale==='fr'?o.claim:WEB_PRESENCE_NOTE_EN}
  else if(o.status==='UNKNOWN'){title=t(locale,'evidence.titleUnknown')}
  else {title=t(locale,'evidence.titleGeneric');if(!o.evidence_id)note=t(locale,'evidence.contextNote')}
  const source=sourceOf(o,locale);

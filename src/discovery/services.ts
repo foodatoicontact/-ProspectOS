@@ -7,6 +7,7 @@ import {diagnoseDiscoveryFailure,type DiscoveryStage} from './failure-diagnostic
 import {mergeSameEntityCandidates,sameCanonicalOrganization} from './admissibility.ts';
 import {pageIntentsFor,internalLinkScore} from './strategies/icp-intents.ts';
 import {officialAddressIn,addressCity} from './strategies/address.ts';
+import {webPresenceObservations} from './strategies/web-presence.ts';
 import {eligibleNoveltyCounts,isEligibleCandidate,noveltyRates,type ProjectMemory,type Novelty} from './novelty.ts';
 import {ProjectNovelty} from './novelty-engine.ts';
 import {reviewPriority} from './review-priority.ts';
@@ -214,10 +215,13 @@ export class CompanyAnalysisService {
  // A weak proposal (a menu heading such as "Tarifs & planning") does not make the page behind it useless.
  const covered=new Set(firstObservations.filter(o=>o.criterion&&o.value===true&&o.confidence>=COVERED_CONFIDENCE).map(o=>o.criterion!));
  let failedPages=0;for(const url of selectInternalPages([...links].map(([url,text])=>({url,text})),criteria,covered)){try{pages.push(await this.fetchPage(url))}catch{failedPages++}}
- const observations=prioritizeObservations([...firstObservations,...pages.slice(1).flatMap(item=>extractor.extract(item.html,item.url,criteria,sourceType))].map(o=>ObservationSchema.parse(o)));const proposed=new EvidenceProposalService().propose(observations,criteria);const saved=await this.repo.saveObservations(prospectId,observations);
+ // The web presence diagnostic (strategies/web-presence.ts) reads the pages already fetched — no extra request —
+ // and only on the organization's own site: context notes after the ICP's own observations, never a proposal.
+ const presence=sourceType==='official_website'?webPresenceObservations(pages,sourceType):[];
+ const observations=prioritizeObservations([...firstObservations,...pages.slice(1).flatMap(item=>extractor.extract(item.html,item.url,criteria,sourceType)),...presence].map(o=>ObservationSchema.parse(o)));const proposed=new EvidenceProposalService().propose(observations,criteria);const saved=await this.repo.saveObservations(prospectId,observations);
  // The official address, read on the authorized site itself: reported to the prospect card while its city is empty.
  const address=sourceType==='official_website'?observations.map(o=>o.observation_type==='OFFICIAL_ADDRESS'?officialAddressIn([o.source_excerpt]):null).find(Boolean):null;
- let cityFilled=0;if(address&&this.repo.fillProspectCity){try{await this.repo.fillProspectCity(prospectId,addressCity(address));cityFilled=1}catch{/* The observation is saved; the card keeps "à confirmer". */}}this.log({provider:'http_html',duration_ms:Date.now()-start,pages:pages.length,failed_pages:failedPages,proposed_evidence:proposed.length,official_address:address?1:0,city_filled:cityFilled,ai_tokens:0,ai_cost_estimate:0});return {observations:saved,pages_analyzed:pages.length,failed_pages:failedPages,proposals:proposed.length,ai_tokens:0,ai_cost_estimate:0};
+ let cityFilled=0;if(address&&this.repo.fillProspectCity){try{await this.repo.fillProspectCity(prospectId,addressCity(address));cityFilled=1}catch{/* The observation is saved; the card keeps "à confirmer". */}}this.log({provider:'http_html',duration_ms:Date.now()-start,pages:pages.length,failed_pages:failedPages,proposed_evidence:proposed.length,official_address:address?1:0,city_filled:cityFilled,web_presence:presence.length,ai_tokens:0,ai_cost_estimate:0});return {observations:saved,pages_analyzed:pages.length,failed_pages:failedPages,proposals:proposed.length,ai_tokens:0,ai_cost_estimate:0};
  // The original cause (never sent to the client — the route always returns the generic mapped
  // message) is logged here so a real failure stays diagnosable from server logs alone.
  // Each failure gets a precise code (analysisFailureCode) so the user knows WHY — never an address, a host or

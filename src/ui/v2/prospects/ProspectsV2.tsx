@@ -16,17 +16,18 @@ import type {FitDisplay} from '../../../domain/score-display.ts';
 import type {ReviewSummary} from '../../../components/evidence-presentation.ts';
 import {statusLabel,outreachStatusLabel} from '../../../i18n/labels.ts';
 import {Button,Icon,StatusBadge} from '../primitives.tsx';
-import {prospectRows,fitBadge,criteriaView,situationOf,advancedOf,type ProspectRow,type CriterionView,type EvidenceItem,type FitKind} from './model.ts';
+import {prospectRows,workingList,IGNORED_STATUS,fitBadge,criteriaView,situationOf,advancedOf,type ProspectRow,type CriterionView,type EvidenceItem,type FitKind} from './model.ts';
 
 export const PROSPECTS_TEXT:Record<Locale,{
- title:string;export:string;add:string;createProject:string;search:string;searchPlaceholder:string;filter:string;all:string;count:(n:number,total:number)=>string;
+ title:string;export:string;add:string;createProject:string;search:string;searchPlaceholder:string;filter:string;all:string;hiddenIgnored:(n:number)=>string;showIgnored:string;count:(n:number,total:number)=>string;
  noMatchTitle:string;noMatchBody:string;reset:string;open:(name:string)=>string;placeUnknown:string;
  situation:string;context:string;evidence:string;evidenceIntro:string;observations:string;publicContent:string;action:string;message:string;decision:string;
  channels:string;history:string;advanced:string;advancedNote:string;criteria:string;addEvidence:string;analyze:string;addChannel:string;review:string;source:string;
  verify:string;website:string;status:string;contacted:string;ignore:string;prepare:string;regenerate:string;save:string;approve:string;copy:string;linkedin:string;
  noEvidence:string;fitLabel:string;channelToConfirm:string;channelVerified:string;dismiss:string;signalHint:string}>={
  fr:{title:'Prospects',export:'Exporter en CSV',add:'Ajouter un prospect',createProject:'Créer un projet',search:'Rechercher un prospect',
-  searchPlaceholder:'Rechercher par nom…',filter:'Filtrer par statut',all:'Tous les statuts',
+  searchPlaceholder:'Rechercher par nom…',filter:'Filtrer par statut',all:'Tous les statuts (hors ignorés)',
+  hiddenIgnored:(n:number)=>`${n} prospect${n>1?'s':''} ignoré${n>1?'s':''} masqué${n>1?'s':''}.`,showIgnored:'Afficher les ignorés',
   count:(n,total)=>n===total?`${total} prospect${total>1?'s':''}`:`${n} sur ${total} prospect${total>1?'s':''}`,
   noMatchTitle:'Aucun prospect ne correspond.',noMatchBody:'Modifiez la recherche ou le statut choisi.',reset:'Effacer la recherche et le filtre',
   open:name=>`Ouvrir la fiche de ${name}`,placeUnknown:'Localisation à confirmer',
@@ -40,7 +41,8 @@ export const PROSPECTS_TEXT:Record<Locale,{
   noEvidence:'Aucune preuve listée ici.',fitLabel:'FIT',channelToConfirm:'à confirmer',channelVerified:'vérifié',dismiss:'Fermer le message',
   signalHint:'Les signaux récents et leur source.'},
  en:{title:'Prospects',export:'Export CSV',add:'Add a prospect',createProject:'Create a project',search:'Search a prospect',
-  searchPlaceholder:'Search by name…',filter:'Filter by status',all:'All statuses',
+  searchPlaceholder:'Search by name…',filter:'Filter by status',all:'All statuses (except ignored)',
+  hiddenIgnored:(n:number)=>`${n} ignored prospect${n>1?'s':''} hidden.`,showIgnored:'Show ignored',
   count:(n,total)=>n===total?`${total} prospect${total>1?'s':''}`:`${n} of ${total} prospect${total>1?'s':''}`,
   noMatchTitle:'No prospect matches.',noMatchBody:'Change the search or the chosen status.',reset:'Clear search and filter',
   open:name=>`Open ${name}’s record`,placeUnknown:'Location to confirm',
@@ -113,7 +115,8 @@ function Banners({p}:{p:ProspectsV2Props}){
 
 function List({p}:{p:ProspectsV2Props}){
  const t=PROSPECTS_TEXT[p.locale];
- const rows=prospectRows(p.visible,p.criteria,p.locale,new Date());
+ const working=workingList(p.visible,p.filter);
+ const rows=prospectRows(working.shown,p.criteria,p.locale,new Date());
  const refs=useRef(new Map<string,HTMLButtonElement>());
  const refFor=(id:string,el:HTMLButtonElement|null)=>{if(el)refs.current.set(id,el);else refs.current.delete(id)};
  // Back from a record: the row of the prospect just closed gets the focus again.
@@ -126,7 +129,7 @@ function List({p}:{p:ProspectsV2Props}){
   const next=items[e.key==='ArrowDown'?Math.min(items.length-1,i+1):Math.max(0,i-1)];
   if(next){e.preventDefault();next.focus()}
  };
- const filtered=p.total>0&&!rows.length;
+ const filtered=p.total>0&&!rows.length&&!working.hiddenIgnored;
  return <section className="pos-plist" aria-labelledby="pos-plist-title">
   <div className="pos-plist__head">
    <div className="pos-plist__titles"><h2 id="pos-plist-title" className="pos-plist__title">{t.title}</h2>
@@ -144,6 +147,8 @@ function List({p}:{p:ProspectsV2Props}){
      <option value="Tous">{t.all}</option>{p.statuses.map(s=><option key={s} value={s}>{statusLabel(s,p.locale)}</option>)}</select>
     <Icon name="chevron-down" size={16}/></label>
   </div>}
+  {working.hiddenIgnored>0&&<p className="pos-psec__muted" data-testid="prospects-hidden-ignored">{t.hiddenIgnored(working.hiddenIgnored)}{' '}
+   <Button variant="quiet" size="sm" onClick={()=>p.onFilter(IGNORED_STATUS)}>{t.showIgnored}</Button></p>}
   {rows.length>0&&<ul className="pos-plist__rows" onKeyDown={onKeyDown}>{rows.map(r=><Row key={r.id} row={r} locale={p.locale} busy={p.busy} onOpen={p.onOpen} refFor={refFor}/>)}</ul>}
   {filtered&&<div className="pos-empty" data-testid="prospects-no-match"><p className="pos-empty__title">{t.noMatchTitle}</p><p className="pos-empty__body">{t.noMatchBody}</p>
    <Button variant="secondary" size="sm" onClick={()=>{p.onQuery('');p.onFilter('Tous')}}>{t.reset}</Button></div>}

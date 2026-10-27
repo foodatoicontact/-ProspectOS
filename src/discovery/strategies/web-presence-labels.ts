@@ -18,3 +18,5 @@ const TITLES:Record<'fr'|'en',Record<WebPresenceType,string>>={
 };
 export function webPresenceTitle(type:WebPresenceType,locale:'fr'|'en'):string{return TITLES[locale][type]}
 export const WEB_PRESENCE_NOTE_EN='Website diagnostic: context only, never counted in the score. Check it on the source.';
+// Title of the folded section that groups these facts in the evidence review: neutral, for every trade.
+export const WEB_PRESENCE_SECTION:Record<'fr'|'en',string>={fr:'Site web : diagnostic technique (pour information)',en:'Website: technical check (for information)'};

@@ -33,6 +33,9 @@ téléchargées par « Analyser le site » (aucune requête de plus).
   n'est jamais émis sur une page quasi vide (site dessiné en JavaScript, que l'analyse n'exécute pas) ni sans titre.
 - **Site officiel seulement.** Rien n'est lu sur une page tierce (`source_type` différent de `official_website`).
 - **Au plus 8 faits** par analyse, placés après les observations des critères de l'ICP.
+- **Pour tous les métiers.** ProspectOS n'est pas réservé aux prestataires web : ces faits ont leur propre section
+  repliée dans la revue des preuves (« Site web : diagnostic technique (pour information) »), séparée des autres
+  éléments trouvés. Celui qui ne vend rien autour des sites n'a qu'à ne pas l'ouvrir.
 
 ## Origine
 

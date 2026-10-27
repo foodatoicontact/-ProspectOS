@@ -6,7 +6,7 @@ import {load} from 'cheerio';
 import {diagnoseWebPresence,webPresenceObservations,isGrounded,visibleText,detectAgencyCredit,staleCopyright,WEB_PRESENCE_TYPES,MAX_WEB_PRESENCE_FACTS,type WebPage} from '../src/discovery/strategies/web-presence.ts';
 import {EvidenceProposalService} from '../src/discovery/observations.ts';
 import {CompanyAnalysisService,type DiscoveryRepository} from '../src/discovery/services.ts';
-import {presentObservation} from '../src/components/evidence-presentation.ts';
+import {presentObservation,presentObservations} from '../src/components/evidence-presentation.ts';
 import {DEFAULT_CRITERIA,scoreProspect} from '../src/domain/core.ts';
 import type {Observation,StoredObservation} from '../src/discovery/types.ts';
 
@@ -195,4 +195,14 @@ test('a page drawn by JavaScript (almost no text) states no absence — only wha
  const spa='<html><head><title>Garage Martin</title><script src="https://cdn.shopify.com/app.js"></script></head><body><div id="root"></div></body></html>';
  const facts=diagnoseWebPresence([page(spa,'https://garage-martin.fr/')],NOW);
  assert.deepEqual(types(facts),['WEB_CMS']);
+});
+
+test('every trade: the website diagnostic has its own folded section and never mixes with other findings',()=>{
+ const stored=(o:Observation,i:number):StoredObservation=>({...o,id:'o'+i,prospect_id:'p',organization_id:'a',evidence_id:null,review_status:'NOT_VERIFIED'});
+ const phone:Observation={...webPresenceObservations([page(PLOMBIER)],'official_website',NOW)[0],observation_type:'PHONE_RAW',source_excerpt:'05 59 00 00 00',claim:'Numéro public'};
+ const rows=[...webPresenceObservations([page(PLOMBIER)],'official_website',NOW),phone].map(stored);
+ const view=presentObservations(rows,DEFAULT_CRITERIA,'fr');
+ assert.ok(view.site.length>0&&view.site.every(c=>c.row.observation_type.startsWith('WEB_')));
+ assert.deepEqual(view.others.map(c=>c.row.observation_type),['PHONE_RAW']);
+ assert.equal(view.groups.length,0);
 });

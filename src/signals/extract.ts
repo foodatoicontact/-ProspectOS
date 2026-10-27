@@ -19,15 +19,25 @@ const LEXICON:Array<[SignalType,RegExp]>=[
  ['hiring_role',/\b(recrute|recrutons|recrutement|offres? d'emploi|nous rejoindre|rejoignez(-nous)?|h\/f|f\/h|cdi|cdd|alternance|we'?re hiring|is hiring|join (our|the) team|job opening)\b/],
  ['new_site',/\b(ouvre (un|une|son|sa|ses|de nouveaux|de nouvelles)|ouverture d'(un|une)|inaugure|inauguration|nouveaux locaux|nouveau (site|siege|bureau|entrepot|magasin|agence|atelier|showroom)|nouvelle (agence|usine|implantation|boutique)|demenage|opens? (a |its )?new)\b/],
  ['expansion',/\b(s'implante|implantation|s'etend|developpement a l'international|a l'international|nouveaux? marches?|expansion|expands?|expanding)\b/],
- ['certification',/\b(certifie(e)?s?|certification|iso ?\d{4,5}|qualiopi|label(lise|isee)?|hds|secnumcloud|certified)\b/],
+ ['certification',/\b(certifie(e)?s?|certification|iso ?\d{4,5}|qualiopi|label(?:l?isee?s?)?|hds|secnumcloud|certified)\b/],
  ['partnership',/\b(partenariat|nouveau partenaire|s'associe (a|avec)|signe un accord|alliance avec|partnership|partners with|teams up with)\b/],
  ['product_launch',/\b(lance(ment)?|devoile|nouvelle (offre|gamme|version|solution|application)|nouveau (produit|service|logiciel)|launch(es|ed)?|unveils?|introduces?)\b/],
  ['tech_change',/\b(migre|migration (vers|de)|deploie|deploiement d(e|u)|adopte|nouvel erp|nouveau (crm|erp|logiciel de)|passe (au|a) (cloud|sap|salesforce)|moves? to|migrat(es|ed) to|rolls? out)\b/],
  ['event',/\b(salon|conference|webinaire|webinar|table ronde|stand [a-z0-9]|rendez-vous sur|journee portes ouvertes|meetup|keynote|trade show)\b/],
 ];
 // The event type a text describes, or null. Read on the title and excerpt together (folded).
-export function classifySignal(text:string):SignalType|null{
- const t=fold(text);
+// companyName: the prospect's own name is never read as an event. "Label'O Plomberie" is not a label (certification),
+// "Lancement Conseil" is not a product launch, "Salon Marie" is not a trade show: the name, matched by whole words
+// whatever its punctuation ("Label Ô" = "Label'O"), is blanked before the lexicon is read. Without it, unchanged.
+export function classifySignal(text:string,companyName?:string):SignalType|null{
+ let t=fold(text);
+ if(companyName){
+  const tokens=companyTokens(companyName).split(' ').filter(Boolean);
+  if(tokens.length&&tokens.join(' ').length>=2){
+   const name=new RegExp(`(?<![a-z0-9])${tokens.map(x=>x.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')).join('[^a-z0-9]+')}(?![a-z0-9])`,'g');
+   t=t.replace(name,' ');
+  }
+ }
  for(const [type,re] of LEXICON)if(re.test(t))return type;
  return null;
 }

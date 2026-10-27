@@ -4,7 +4,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
-import {resolveCompany,fetchAwards,registryObservations,enrichFromPublicRecords,knownSirenOf,comparableName,PublicRecordsError,
+import {resolveCompany,fetchAwards,registryObservations,enrichFromPublicRecords,registryCity,knownSirenOf,comparableName,PublicRecordsError,
  DECP_RESOURCE_DEFAULT,SIRENE_PAGE,type SireneCompany,type DecpRow,type PublicRecordsRepository} from '../src/discovery/public-records.ts';
 import {ObservationSchema,type Observation} from '../src/discovery/types.ts';
 import {EvidenceProposalService} from '../src/discovery/observations.ts';
@@ -165,4 +165,30 @@ test('wiring — its own route module (discovery/api.ts untouched): gated, meter
  assert.match(router,/handlePublicRecords\(request,path,body,db,json,\{requireEntitlement:\(\)=>requireActiveEntitlement\(db,user\.id\),\n  release:\(\)=>releaseCommercialUse\(createAdminClient\(\),user\.id,'analysis'\)/);
  const ui=readFileSync(new URL('../src/components/ObservationsReview.tsx',import.meta.url),'utf8');
  assert.match(ui,/\{mode==='live'&&<PublicRecordsControl prospectId=\{prospect\.id\}/);
+});
+
+// ——— city from the register ———
+test('city — an empty "Localisation à confirmer" is filled from the identified company’s headquarters, never overwritten', async () => {
+ const filled:string[]=[];
+ const base=fakeRepo();
+ const empty:PublicRecordsRepository={...base.repo,prospectIdentity:async()=>({id:'p1',project_id:'pr1',name:'SA La Garonne',city:null}),fillProspectCity:async(_id,c)=>{filled.push(c)}};
+ await enrichFromPublicRecords({repo:empty,prospectId:'p1',siren:'560800583',fetch:fakeFetch(registry([GARONNE])).fetch,now:NOW});
+ assert.equal(filled.length,1);
+ assert.equal(filled[0],registryCity(GARONNE));
+ assert.match(filled[0],/\(Haute-Garonne\)$/);
+ // A card that already has a city is left as it is.
+ const kept:string[]=[];
+ const withCity:PublicRecordsRepository={...base.repo,fillProspectCity:async(_id,c)=>{kept.push(c)}};
+ await enrichFromPublicRecords({repo:withCity,prospectId:'p1',fetch:fakeFetch(registry([GARONNE])).fetch,now:NOW});
+ assert.deepEqual(kept,[]);
+});
+test('city — a non-diffusible company never gives its address to the card (GDPR)', () => {
+ assert.equal(registryCity({...GARONNE,statut_diffusion:'P'}),null);
+ assert.equal(registryCity({...GARONNE,siege:{...GARONNE.siege,libelle_commune:null}}),null);
+});
+test('city — wiring: the route passes the repository’s empty-only fill', () => {
+ const api=readFileSync(new URL('../src/discovery/public-records-api.ts',import.meta.url),'utf8');
+ assert.match(api,/fillProspectCity:\(pid,city\)=>repo\.fillProspectCity\(pid,city\)/);
+ const repoSrc=readFileSync(new URL('../src/discovery/repository.ts',import.meta.url),'utf8');
+ assert.match(repoSrc,/fillProspectCity\(id:string,city:string\)\{await checked\(this\.db\.from\('prospects'\)\.update\(\{city:city\.slice\(0,120\)\}\)\.eq\('id',id\)\.or\('city\.is\.null,city\.eq\.'\)\)\}/);
 });

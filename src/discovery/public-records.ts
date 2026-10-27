@@ -184,7 +184,17 @@ export type PublicRecordsRepository={
  projectCriteria(projectId:string):Promise<Criterion[]>;
  consumeAnalysis(id:string):Promise<void>;
  saveObservations(id:string,observations:Observation[]):Promise<unknown[]>;
+ // Fills the prospect's city only while it is still empty (the repository's own condition): never overwrites one.
+ fillProspectCity?(id:string,city:string):Promise<void>;
 };
+// The town the card may show from the register: the headquarters' commune, with its department, for a company whose
+// data is public (statut_diffusion 'O') only — a non-diffusible company's address is never shown (GDPR).
+export function registryCity(company:SireneCompany):string|null{
+ if(company.statut_diffusion!=='O')return null;
+ const commune=(company.siege?.libelle_commune??'').replace(/\s+/g,' ').trim();if(commune.length<2||commune.length>80)return null;
+ const dep=department(company.siege?.departement);
+ return dep?`${commune} (${dep.name})`:commune;
+}
 // Identify, then read both registers, then save. The plan unit is reserved only once the company is identified
 // (a question back to the person costs nothing); a register that fails after that releases it (route: releaseOnFailure).
 // The procurement data is optional: when it cannot be read, the company register's facts are still saved.
@@ -201,6 +211,10 @@ export async function enrichFromPublicRecords(d:{repo:PublicRecordsRepository;pr
  else procurement='unavailable';
  const observations=registryObservations(company,awards,criteria,now);
  const saved=await d.repo.saveObservations(d.prospectId,observations);
- d.log?.({provider:'public_records',duration_ms:Date.now()-start,observations:observations.length,awards:awards.rows.length,procurement});
+ // "Localisation à confirmer" on a card whose own site publishes no full postal address: the identified company's
+ // headquarters commune (the REGISTRY_HEADQUARTERS row just saved is its source). Best effort, empty city only.
+ const city=!p.city?.trim()?registryCity(company):null;let cityFilled=0;
+ if(city&&d.repo.fillProspectCity){try{await d.repo.fillProspectCity(d.prospectId,city);cityFilled=1}catch{/* The facts are saved; the card keeps "à confirmer". */}}
+ d.log?.({provider:'public_records',duration_ms:Date.now()-start,observations:observations.length,awards:awards.rows.length,procurement,city_filled:cityFilled});
  return {company:candidateOf(company),observations:saved,awards:awards.rows.length,procurement};
 }

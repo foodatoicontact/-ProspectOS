@@ -123,3 +123,19 @@ test('purity: no model, no network, no clock read',async()=>{
  const src=await readFile(new URL('../src/signals/extract.ts',import.meta.url),'utf8');
  assert.doesNotMatch(src,/fetch\(|anthropic|openai|Math\.random|Date\.now\(\)|new Date\(\)/);
 });
+
+test('the prospect’s own name is never read as an event (Label’O Plomberie is not a certification)',async()=>{
+ const {classifySignal}=await import('../src/signals/extract.ts');
+ const home='Plombier Chauffagiste Climaticien | Label\'O Plomberie Plombier Chauffagiste Climaticien | Label\'O Plomberie — Artisan plombier, chauffagiste et climaticien à Anglet, Bayonne, Biarritz et Capbreton. Dépannage rapide, climatisation, chauffage. Devis gratuit.';
+ // Without the name: the old reading, unchanged.
+ assert.equal(classifySignal(home),'certification');
+ // With the prospect's name, whatever its punctuation ("Label Ô" on the card, "Label'O" on the site): no event.
+ assert.equal(classifySignal(home,'Label Ô Plomberie'),null);
+ assert.equal(classifySignal('Lancement Conseil accompagne les PME','Lancement Conseil SARL'),null);
+ assert.equal(classifySignal('Salon Marie, coiffure à Pau','Salon Marie'),null);
+ // A real event next to the name is still read.
+ assert.equal(classifySignal('Label\'O Plomberie obtient la certification RGE','Label Ô Plomberie'),'certification');
+ assert.equal(classifySignal('Lancement Conseil recrute 12 consultants','Lancement Conseil'),'headcount_growth');
+ // Whole words only: another word that merely starts like the name is not blanked.
+ assert.equal(classifySignal('Labelo labellisée Qualibat','Label'),'certification');
+});

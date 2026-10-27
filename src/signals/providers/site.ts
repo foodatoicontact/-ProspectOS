@@ -20,7 +20,7 @@ export class OfficialSiteSignalProvider implements SignalProvider{
  supports(){return true}
  takeRejections(){const r=this.rejected;this.rejected={};return r}
  private reject(code:string){this.rejected[code]=(this.rejected[code]??0)+1}
- async searchSignals({now}:SignalSearchInput):Promise<RawSignal[]>{
+ async searchSignals({now,target}:SignalSearchInput):Promise<RawSignal[]>{
   this.lastReport={pages:0,failed_pages:0};this.lastError=null;
   let home;
   try{home=await this.fetchPage(this.homeUrl)}catch(error){this.lastError=error;throw error}
@@ -50,7 +50,7 @@ export class OfficialSiteSignalProvider implements SignalProvider{
    for(const item of extractPageItems(page.html,{careersPage:page.careers,now})){
     const day=item.published_at?parseDay(item.published_at,now):null;
     if(day&&day<oldest){this.reject('TOO_OLD');continue}
-    const type=item.kind==='job'?'hiring_role':classifySignal(`${item.title} ${item.excerpt}`);
+    const type=item.kind==='job'?'hiring_role':classifySignal(`${item.title} ${item.excerpt}`,target?.name);
     if(!type){this.reject('NO_SIGNAL_TYPE');continue}
     out.push({signal_type:type,title:item.title,excerpt:item.excerpt,source_url:page.url,source_type:'official_website',
      published_at:item.published_at,event_date:item.event_date,metadata:{extraction:item.source,page_kind:page.careers?'careers':page.url===home.url?'home':'news'}});

@@ -30,7 +30,8 @@ export async function handlePublicRecords(request:Request,path:string[],body:unk
  const records:PublicRecordsRepository={
   prospectIdentity:async pid=>checked(db.from('prospects').select('id,project_id,name,city').eq('id',pid).single()),
   storedObservations:async pid=>checked(db.from('prospect_observations').select('observation_type,source_url').eq('prospect_id',pid).eq('observation_type','REGISTRY_IDENTITY')),
-  projectCriteria:pid=>repo.projectCriteria(pid),consumeAnalysis:pid=>tracked.repo.consumeAnalysis(pid),saveObservations:(pid,o)=>repo.saveObservations(pid,o)};
+  projectCriteria:pid=>repo.projectCriteria(pid),consumeAnalysis:pid=>tracked.repo.consumeAnalysis(pid),saveObservations:(pid,o)=>repo.saveObservations(pid,o),
+  fillProspectCity:(pid,city)=>repo.fillProspectCity(pid,city)};
  try{return json(await releaseOnFailure(()=>enrichFromPublicRecords({repo:records,prospectId:id,siren:parsed.data.siren??null,fetch:deps.fetch,log:deps.log}),tracked.reserved,deps.release))}
  catch(e){
   if(!(e instanceof PublicRecordsError))throw e;

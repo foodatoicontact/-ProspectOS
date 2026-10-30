@@ -22,6 +22,8 @@ import {parseUxHeader,UX_HEADER} from '../../../../src/ux/variant';
 import {createHash} from 'node:crypto';
 import {handleSignals} from '../../../../src/signals/api';
 import {handleSignalDiscovery,signalDiscoveryEnabled} from '../../../../src/signal-discovery/api';
+import {handleRegistrySignals} from '../../../../src/registry-signals/api';
+import {registrySignalsConfig} from '../../../../src/registry-signals/config';
 import {BraveSignalSearchProvider} from '../../../../src/signal-discovery/brave';
 import {BodaccSignalProvider,bodaccEnabled} from '../../../../src/signals/providers/bodacc';
 import {intentProfileOf,verifiedSignalsOf,recordContactSnapshot} from '../../../../src/signals/context';
@@ -104,6 +106,13 @@ async function handler(request:Request,context:{params:Promise<{path:string[]}>}
   meter:(run,requestCount)=>recordApiUsage({organizationId:run.organization_id,projectId:run.project_id,userId:user.id,provider:'brave',operation:'search',requestCount}),
   log:line=>console.info(JSON.stringify(line)),
  });if(signalDiscoveryResponse)return signalDiscoveryResponse;
+ // Signaux SIRENE (src/registry-signals/api.ts, migration 038): recent establishments from the register, matched on Google
+ // Places, saved as NEW candidates a person reviews. Same Discovery unit; flag off = 404.
+ const registrySignalsResponse=await handleRegistrySignals(request,path,body,db,json,{
+  config:registrySignalsConfig(process.env),userId:user.id,now:()=>new Date(),env:process.env,
+  requireEntitlement:()=>requireActiveEntitlement(db,user.id),writer:()=>createAdminClient(),
+  log:line=>console.info(JSON.stringify(line)),
+ });if(registrySignalsResponse)return registrySignalsResponse;
  // O1/O2 (src/outreach/api.ts): the caller's own style profile, and public content (pasted by a person, reviewed by a person).
  const outreachResponse=await handleOutreachIntelligence(request,path,body,db,json,{requireEntitlement:()=>requireActiveEntitlement(db,user.id)});if(outreachResponse)return outreachResponse;
  // Next Best Action (src/nba/api.ts, migration 031): decisions and drafts only — nothing is sent. Flag off = 404.

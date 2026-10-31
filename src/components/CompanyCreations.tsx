@@ -5,7 +5,7 @@
 import Link from 'next/link';
 import type {Metadata} from 'next';
 import {SITE_URL,socialImage,type SeoPage} from '../domain/seo';
-import {ACTIVITY_RULES,BODACC_LICENSE,BODACC_PUBLIC_PAGE,CREATIONS_DEPARTMENTS,CREATIONS_HUB,CREATIONS_REGIONS,MIN_COMMUNE_NOTICES,creationsPath,creationsTitle,monthLabel,percentChange,regionOf,shortMonthLabel,
+import {ACTIVITY_RULES,BODACC_LICENSE,BODACC_PUBLIC_PAGE,CREATIONS_DEPARTMENTS,CREATIONS_HUB,CREATIONS_REGIONS,MIN_COMMUNE_NOTICES,creationsPath,creationsTitle,last12Months,monthLabel,percentChange,regionOf,shortMonthLabel,
  type CreationsDepartment,type CreationsRegion,type DepartmentCreations,type MonthCount,type ZoneCreations} from '../domain/company-creations';
 
 const nf=new Intl.NumberFormat('fr-FR');
@@ -41,6 +41,14 @@ const PROSPECTING_BLOCKS=(where:string):SeoPage['sections'][number]['blocks']=>[
  {type:'p',text:'ProspectOS cherche les entreprises du registre public par secteur (codes NAF), zone et effectif, rattache chaque observation à sa source et vous laisse confirmer chaque fait avant de [prioriser votre liste de prospects](/prioriser-liste-prospects). Pour les entreprises que vous suivez, il signale les annonces BODACC (nouvel établissement, changement de dirigeant, transfert de siège).'},
 ];
 
+// "How many businesses a year?" is what people search; the annual reports (INSEE, Bpifrance) count more than the register.
+const span=(y:{from:string;to:string})=>`de ${monthLabel(y.from)} à ${monthLabel(y.to)}`;
+function yearlyFaq(trend:readonly MonthCount[],where:string):SeoPage['faq']{
+ const y=last12Months(trend);if(!y)return [];
+ return [{q:`Combien d’entreprises sont créées chaque année ${where} ?`,
+  a:`Sur les 12 derniers mois (${span(y)}), ${n(y.total)} annonces de création d’entreprise ont été publiées au BODACC ${where}. Ce total ne compte que les immatriculations au registre du commerce et des sociétés : les bilans annuels de l’INSEE et de Bpifrance, qui incluent les micro-entrepreneurs non commerçants, les artisans et les professions libérales, sont plus élevés.`}];
+}
+
 export function departmentSeoPage(d:DepartmentCreations):SeoPage{
  const dep=d.department,month=monthLabel(d.month);
  const change=percentChange(d.total,d.previous?.count),yoy=percentChange(d.total,d.lastYear?.count);
@@ -64,6 +72,7 @@ export function departmentSeoPage(d:DepartmentCreations):SeoPage{
   ],
   faq:[
    {q:`Combien d’entreprises ont été créées ${dep.in} en ${month} ?`,a:`${n(d.total)} annonces de création ont été publiées au BODACC ${dep.in} en ${month} : ${n(d.kinds.company+d.kinds.companyNoActivity)} sociétés et ${n(d.kinds.individual)} entrepreneurs individuels inscrits au registre du commerce. Les artisans hors RCS et les professions libérales ne sont pas comptés.`},
+   ...yearlyFaq(d.trend,dep.in),
    {q:`Où trouver la liste des nouvelles entreprises ${dep.in} ?`,a:'Les annonces nominatives sont publiques sur bodacc.fr, et chaque entreprise a sa fiche officielle sur l’Annuaire des entreprises (annuaire-entreprises.data.gouv.fr). Cette page ne publie que des totaux. Pour constituer une liste ciblée et vérifiée, ProspectOS cherche dans le registre public par secteur et par zone : voir [la prospection B2B fondée sur des preuves](/prospection-b2b).'},
    {q:'Pourquoi ces chiffres diffèrent-ils de ceux de l’INSEE ?',a:'L’INSEE compte toutes les créations, y compris les micro-entrepreneurs non commerçants, les artisans et les professions libérales. Le BODACC ne publie que les immatriculations au registre du commerce et des sociétés, datées de leur publication. Les deux séries ne se comparent pas directement.'},
    {q:'Les activités sont-elles des codes NAF officiels ?',a:'Non. Elles sont classées par mots-clés d’après l’activité déclarée dans l’annonce, selon les règles listées dans la méthode. C’est une répartition indicative, utile pour repérer les secteurs qui créent le plus.'},
@@ -96,6 +105,7 @@ export function zoneSeoPage(z:ZoneCreations|null,place:{slug:string;name:string;
   ],
   faq:[
    {q:`Quel département crée le plus d’entreprises ${place.in} ?`,a:z&&month&&first?`En ${month}, le département qui compte le plus d’annonces de création au BODACC ${place.in} est ${first.department.name} (${first.department.code}), avec ${n(first.count)} annonces.`:'Le classement est recalculé chaque mois à partir des annonces du BODACC.'},
+   ...(z?yearlyFaq(z.trend,place.in):[]),
    {q:'D’où viennent ces chiffres ?',a:'Des annonces de la famille « Créations » du BODACC, publiées par la DILA en données ouvertes sous Licence Ouverte 2.0, comptées par département et par mois de publication.'},
    {q:'Pourquoi ces chiffres diffèrent-ils de ceux de l’INSEE ?',a:'L’INSEE compte toutes les créations, y compris les micro-entrepreneurs non commerçants, les artisans et les professions libérales. Le BODACC ne publie que les immatriculations au registre du commerce et des sociétés, datées de leur publication.'},
   ],
@@ -217,11 +227,17 @@ function Trend({trend,place}:{trend:MonthCount[];place:string}){
  </section>;
 }
 
-function Kpis({total,month,previous,lastYear}:{total:number;month:string;previous:MonthCount|null;lastYear:MonthCount|null}){
+function YearTile({trend}:{trend:readonly MonthCount[]}){
+ const y=last12Months(trend);if(!y)return null;
+ return <div className="pos-creations__kpi"><dt>Sur les 12 derniers mois</dt><dd>{n(y.total)}<small>{span(y)}</small></dd></div>;
+}
+
+function Kpis({total,month,previous,lastYear,trend}:{total:number;month:string;previous:MonthCount|null;lastYear:MonthCount|null;trend:readonly MonthCount[]}){
  return <>
   <div className="pos-creations__kpi"><dt>Annonces de création, {monthLabel(month)}</dt><dd>{n(total)}</dd></div>
   <div className="pos-creations__kpi"><dt>Par rapport au mois précédent</dt><dd>{signed(percentChange(total,previous?.count))}<small>{previous?`${n(previous.count)} en ${monthLabel(previous.month)}`:'—'}</small></dd></div>
   <div className="pos-creations__kpi"><dt>Sur un an</dt><dd>{signed(percentChange(total,lastYear?.count))}<small>{lastYear?`${n(lastYear.count)} en ${monthLabel(lastYear.month)}`:'—'}</small></dd></div>
+  <YearTile trend={trend}/>
  </>;
 }
 
@@ -238,6 +254,7 @@ export function DepartmentCreationsBlock({d,page}:{d:DepartmentCreations;page:Se
    <div className="pos-creations__kpi"><dt>Par rapport au mois précédent</dt><dd>{signed(percentChange(d.total,d.previous?.count))}<small>{d.previous?`${n(d.previous.count)} en ${monthLabel(d.previous.month)}`:'—'}</small></dd></div>
    <div className="pos-creations__kpi"><dt>Sur un an</dt><dd>{signed(percentChange(d.total,d.lastYear?.count))}<small>{d.lastYear?`${n(d.lastYear.count)} en ${monthLabel(d.lastYear.month)}`:'—'}</small></dd></div>
    <div className="pos-creations__kpi"><dt>Part des sociétés</dt><dd>{d.total?pct(companies/d.total):'—'}<small>{n(companies)} sociétés, {n(d.kinds.individual)} entrepreneurs individuels</small></dd></div>
+   <YearTile trend={d.trend}/>
   </dl>
   <Trend trend={d.trend} place={d.department.name}/>
   <div className="pos-creations__grid">
@@ -279,7 +296,7 @@ export function ZoneCreationsBlock({z,page,region}:{z:ZoneCreations|null;page:Se
   <Styles/>
   {z&&<script type="application/ld+json" dangerouslySetInnerHTML={{__html:datasetJsonLd(page.h1,page.description,`${SITE_URL}/${page.slug}`,page.updated,`${place}${region?', France':''}`)}}/>}
   <section className="pos-creations__card"><ZonePicker current={region?.slug}/></section>
-  {z&&<><dl className="pos-creations__kpis"><Kpis total={z.total} month={z.month} previous={z.previous} lastYear={z.lastYear}/></dl>
+  {z&&<><dl className="pos-creations__kpis"><Kpis total={z.total} month={z.month} previous={z.previous} lastYear={z.lastYear} trend={z.trend}/></dl>
    <Trend trend={z.trend} place={region?region.name:'France entière'}/></>}
   {z&&areas&&<section className="pos-creations__card" aria-labelledby="creations-areas">
    <h2 id="creations-areas">Par région, {monthLabel(z.month)}</h2>

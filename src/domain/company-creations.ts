@@ -1,5 +1,5 @@
 // Company-creation barometer: monthly counts of the creation notices published in the BODACC (Bulletin officiel des
-// annonces civiles et commerciales, DILA — Licence Ouverte 2.0) for each department of Occitanie.
+// annonces civiles et commerciales, DILA — Licence Ouverte 2.0) for every French department, region and the whole country.
 //  - Only TOTALS are ever published: never a name, an address or a registration number. The export asks for neither the
 //    trader's name nor the register number; the activity text and the address are read in memory to count, then dropped.
 //  - A commune is shown only when it gathers at least MIN_COMMUNE_NOTICES notices, so no row points at one person.
@@ -11,25 +11,58 @@ import {DEPARTMENTS} from '../discovery/geo-fr.ts';
 export const BODACC_DATASET='https://bodacc-datadila.opendatasoft.com/api/explore/v2.1/catalog/datasets/annonces-commerciales';
 export const BODACC_PUBLIC_PAGE='https://www.bodacc.fr/';
 export const BODACC_LICENSE='https://www.etalab.gouv.fr/licence-ouverte-open-licence/';
-const OCCITANIE_REGION_CODE=76;
 const RECORDS_TIMEOUT_MS=20000,EXPORT_TIMEOUT_MS=45000,MAX_RECORDS_BYTES=500_000,MAX_EXPORT_BYTES=12_000_000;
 export const MIN_COMMUNE_NOTICES=5;
 const TOP_COMMUNES=10,TREND_MONTHS=13;
 
-// ── Departments ────────────────────────────────────────────────────────────────────────────────────────────────────────
-// The French preposition differs by department ("en Haute-Garonne", "dans le Gers", "dans l'Aude"): written by hand.
-const PLACE:Record<string,{slug:string;in:string}>={
- '09':{slug:'ariege',in:'en Ariège'},'11':{slug:'aude',in:'dans l’Aude'},'12':{slug:'aveyron',in:'en Aveyron'},
- '30':{slug:'gard',in:'dans le Gard'},'31':{slug:'haute-garonne',in:'en Haute-Garonne'},'32':{slug:'gers',in:'dans le Gers'},
- '34':{slug:'herault',in:'dans l’Hérault'},'46':{slug:'lot',in:'dans le Lot'},'48':{slug:'lozere',in:'en Lozère'},
- '65':{slug:'hautes-pyrenees',in:'dans les Hautes-Pyrénées'},'66':{slug:'pyrenees-orientales',in:'dans les Pyrénées-Orientales'},
- '81':{slug:'tarn',in:'dans le Tarn'},'82':{slug:'tarn-et-garonne',in:'dans le Tarn-et-Garonne'},
+// ── Zones: every department, and every region that has more than one ────────────────────────────────────────────────
+// The French preposition differs by place ("en Haute-Garonne", "dans le Gers", "dans l’Aude", "à Paris"): written by hand.
+const IN:Record<string,string>={
+ '01':'dans l’Ain','02':'dans l’Aisne','03':'dans l’Allier','04':'dans les Alpes-de-Haute-Provence','05':'dans les Hautes-Alpes',
+ '06':'dans les Alpes-Maritimes','07':'en Ardèche','08':'dans les Ardennes','09':'en Ariège','10':'dans l’Aube','11':'dans l’Aude',
+ '12':'en Aveyron','13':'dans les Bouches-du-Rhône','14':'dans le Calvados','15':'dans le Cantal','16':'en Charente',
+ '17':'en Charente-Maritime','18':'dans le Cher','19':'en Corrèze','2A':'en Corse-du-Sud','2B':'en Haute-Corse','21':'en Côte-d’Or',
+ '22':'dans les Côtes-d’Armor','23':'dans la Creuse','24':'en Dordogne','25':'dans le Doubs','26':'dans la Drôme','27':'dans l’Eure',
+ '28':'en Eure-et-Loir','29':'dans le Finistère','30':'dans le Gard','31':'en Haute-Garonne','32':'dans le Gers','33':'en Gironde',
+ '34':'dans l’Hérault','35':'en Ille-et-Vilaine','36':'dans l’Indre','37':'en Indre-et-Loire','38':'en Isère','39':'dans le Jura',
+ '40':'dans les Landes','41':'en Loir-et-Cher','42':'dans la Loire','43':'en Haute-Loire','44':'en Loire-Atlantique','45':'dans le Loiret',
+ '46':'dans le Lot','47':'en Lot-et-Garonne','48':'en Lozère','49':'en Maine-et-Loire','50':'dans la Manche','51':'dans la Marne',
+ '52':'en Haute-Marne','53':'en Mayenne','54':'en Meurthe-et-Moselle','55':'dans la Meuse','56':'dans le Morbihan','57':'en Moselle',
+ '58':'dans la Nièvre','59':'dans le Nord','60':'dans l’Oise','61':'dans l’Orne','62':'dans le Pas-de-Calais','63':'dans le Puy-de-Dôme',
+ '64':'dans les Pyrénées-Atlantiques','65':'dans les Hautes-Pyrénées','66':'dans les Pyrénées-Orientales','67':'dans le Bas-Rhin',
+ '68':'dans le Haut-Rhin','69':'dans le Rhône','70':'en Haute-Saône','71':'en Saône-et-Loire','72':'dans la Sarthe','73':'en Savoie',
+ '74':'en Haute-Savoie','75':'à Paris','76':'en Seine-Maritime','77':'en Seine-et-Marne','78':'dans les Yvelines','79':'dans les Deux-Sèvres',
+ '80':'dans la Somme','81':'dans le Tarn','82':'dans le Tarn-et-Garonne','83':'dans le Var','84':'dans le Vaucluse','85':'en Vendée',
+ '86':'dans la Vienne','87':'en Haute-Vienne','88':'dans les Vosges','89':'dans l’Yonne','90':'dans le Territoire de Belfort',
+ '91':'dans l’Essonne','92':'dans les Hauts-de-Seine','93':'en Seine-Saint-Denis','94':'dans le Val-de-Marne','95':'dans le Val-d’Oise',
+ '971':'en Guadeloupe','972':'en Martinique','973':'en Guyane','974':'à La Réunion','976':'à Mayotte',
 };
-export type CreationsDepartment={code:string;name:string;prefecture:string;slug:string;in:string};
-export const CREATIONS_DEPARTMENTS:readonly CreationsDepartment[]=DEPARTMENTS.filter(d=>d.code in PLACE).map(d=>({code:d.code,name:d.name,prefecture:d.prefecture,...PLACE[d.code]!}));
+const REGION_IN:Record<string,string>={
+ 'Auvergne-Rhône-Alpes':'en Auvergne-Rhône-Alpes','Bourgogne-Franche-Comté':'en Bourgogne-Franche-Comté','Bretagne':'en Bretagne',
+ 'Centre-Val de Loire':'en Centre-Val de Loire','Corse':'en Corse','Grand Est':'dans le Grand Est','Hauts-de-France':'dans les Hauts-de-France',
+ 'Île-de-France':'en Île-de-France','Normandie':'en Normandie','Nouvelle-Aquitaine':'en Nouvelle-Aquitaine','Occitanie':'en Occitanie',
+ 'Pays de la Loire':'dans les Pays de la Loire','Provence-Alpes-Côte d’Azur':'en Provence-Alpes-Côte d’Azur',
+};
+export const slugOf=(name:string)=>name.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'');
+export type CreationsDepartment={code:string;name:string;prefecture:string;slug:string;in:string;region:string};
+export type CreationsRegion={name:string;slug:string;in:string;departments:CreationsDepartment[]};
+export const CREATIONS_DEPARTMENTS:readonly CreationsDepartment[]=DEPARTMENTS.map(d=>({code:d.code,name:d.name,prefecture:d.prefecture,slug:slugOf(d.name),in:IN[d.code]??`dans le département ${d.name}`,region:d.region}));
+// A region of one department (the overseas ones) is that department's page: no second page with the same figures.
+export const CREATIONS_REGIONS:readonly CreationsRegion[]=[...new Set(CREATIONS_DEPARTMENTS.map(d=>d.region))]
+ .map(name=>({name,slug:slugOf(name),in:REGION_IN[name]??`en ${name}`,departments:CREATIONS_DEPARTMENTS.filter(d=>d.region===name)}))
+ .filter(r=>r.departments.length>1)
+ .sort((a,b)=>a.name.localeCompare(b.name,'fr'));
 export const CREATIONS_HUB='creations-entreprises';
-export const creationsPath=(d:CreationsDepartment)=>`${CREATIONS_HUB}/${d.slug}`;
+export const creationsPath=(z:{slug:string})=>`${CREATIONS_HUB}/${z.slug}`;
 export const departmentBySlug=(slug:string)=>CREATIONS_DEPARTMENTS.find(d=>d.slug===slug)??null;
+export const regionBySlug=(slug:string)=>CREATIONS_REGIONS.find(r=>r.slug===slug)??null;
+export const regionOf=(d:CreationsDepartment)=>CREATIONS_REGIONS.find(r=>r.name===d.region)??null;
+export type CreationsZone={kind:'department';department:CreationsDepartment}|{kind:'region';region:CreationsRegion};
+export function zoneBySlug(slug:string):CreationsZone|null{
+ const department=departmentBySlug(slug);if(department)return {kind:'department',department};
+ const region=regionBySlug(slug);if(region)return {kind:'region',region};
+ return null;
+}
 
 // ── Months ─────────────────────────────────────────────────────────────────────────────────────────────────────────────
 // A month is 'YYYY-MM' (UTC). The reported month is the last COMPLETE one: on 31 October, September.
@@ -84,11 +117,27 @@ export function noticeOf(row:BodaccRow):CreationNotice{
  const kind=legalKind(category);
  const list=parse(row.listeetablissements) as {etablissement?:unknown}|null;
  const raw=list?.etablissement;
- const sites=(Array.isArray(raw)?raw:raw?[raw]:[]) as Array<{activite?:unknown}>;
+ const sites=(Array.isArray(raw)?raw:raw?[raw]:[]) as Array<{activite?:unknown;adresse?:{codePostal?:unknown}}>;
  const activityText=sites.map(s=>typeof s?.activite==='string'?s.activite:'').find(a=>a.trim())??null;
  const activity:ActivityKey=kind==='COMPANY_NO_ACTIVITY'&&!activityText?'NO_ACTIVITY':classifyActivity(activityText);
- const commune=typeof row.ville==='string'&&row.ville.trim()?row.ville.trim().replace(/\s+/g,' '):null;
- return {kind,activity,commune};
+ const ville=typeof row.ville==='string'&&row.ville.trim()?row.ville.trim().replace(/\s+/g,' '):null;
+ const postal=sites.map(s=>typeof s?.adresse?.codePostal==='string'?s.adresse.codePostal.trim():'').find(Boolean)??null;
+ return {kind,activity,commune:ville?arrondissement(ville,postal)??ville:null};
+}
+
+// Paris, Lyon and Marseille are one commune each in the register: their arrondissement, read from the postal code of the
+// same notice, is what tells a reader where things happen. Any other postal code leaves the commune as written.
+const ARRONDISSEMENTS:Array<{city:string;postal:RegExp;max:number}>=[
+ {city:'paris',postal:/^75(?:0(\d\d)|1(16))$/,max:20},{city:'lyon',postal:/^6900(\d)$/,max:9},{city:'marseille',postal:/^130(\d\d)$/,max:16},
+];
+export function arrondissement(ville:string,postal:string|null):string|null{
+ const city=fold(ville).replace(/[^a-z]+/g,' ').trim().replace(/ \d.*$/,'');
+ const rule=ARRONDISSEMENTS.find(a=>a.city===city);
+ const m=rule&&postal?rule.postal.exec(postal):null;
+ if(!rule||!m)return null;
+ const n=Number(m[1]??(m[2]==='16'?16:NaN));
+ if(!Number.isInteger(n)||n<1||n>rule.max)return null;
+ return `${ville.replace(/\s+\d.*$/,'').trim()} ${n}${n===1?'er':'e'}`;
 }
 
 // ── Aggregation ────────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -124,7 +173,7 @@ export function aggregate(notices:CreationNotice[]){
 export class CreationsUnavailableError extends Error{}
 type Fetch=typeof fetch;
 const MONTH=/^\d{4}-(?:0[1-9]|1[0-2])$/;
-const DEPT=/^(?:\d{2}|2[AB])$/;
+const DEPT=/^(?:\d{2}|2[AB]|97\d)$/;
 const creationWhere=(scope:string,from:string,to:string)=>`familleavis="creation" and ${scope} and dateparution>=date'${monthStart(from)}' and dateparution<date'${monthStart(to)}'`;
 const deptScope=(code:string)=>{if(!DEPT.test(code))throw new CreationsUnavailableError('INVALID_DEPARTMENT');return `numerodepartement="${code}"`};
 const MONTH_KEY="date_format(dateparution,'yyyy-MM')";
@@ -138,12 +187,14 @@ export function monthlyCountsUrl(code:string,from:string,to:string):string{
  u.searchParams.set('limit','100');
  return u.href;
 }
-export function regionCountsUrl(from:string,to:string):string{
+// Counts per department and month for a set of departments (an explicit list of exact, validated codes — never a region
+// name matched as text), or for the whole country when no list is given.
+export function zoneCountsUrl(codes:readonly string[]|null,from:string,to:string):string{
  const u=new URL(`${BODACC_DATASET}/records`);
  u.searchParams.set('select','count(*) as n');
- u.searchParams.set('where',creationWhere(`region_code=${OCCITANIE_REGION_CODE}`,from,to));
+ u.searchParams.set('where',creationWhere(codes?`(${codes.map(deptScope).join(' or ')})`:'numerodepartement is not null',from,to));
  u.searchParams.set('group_by',`numerodepartement as dep, ${MONTH_KEY} as mois`);
- u.searchParams.set('limit','100');
+ u.searchParams.set('limit','2000');
  return u.href;
 }
 // The fields needed to count — and nothing else: no trader name (commercant), no register number (registre), no people list.
@@ -204,27 +255,43 @@ export async function fetchDepartmentCreations(department:CreationsDepartment,{f
   source:{dataset:BODACC_PUBLIC_PAGE,query:exportUrl,retrievedAt:now.toISOString()}};
 }
 
-export type RegionRow={department:CreationsDepartment;count:number;previous:number};
-export async function fetchRegionCreations({fetchImpl=fetch,now=new Date()}:{fetchImpl?:Fetch;now?:Date}={}):Promise<{month:string;rows:RegionRow[];total:number}>{
- const month=reportMonth(now),from=addMonths(month,-1),to=addMonths(month,1);
- const data=await getBodaccJson(regionCountsUrl(from,to),fetchImpl,{timeoutMs:RECORDS_TIMEOUT_MS,maxBytes:MAX_RECORDS_BYTES});
+export type ZoneRow={department:CreationsDepartment;count:number;previous:number;lastYear:number};
+export type ZoneCreations={month:string;total:number;previous:MonthCount|null;lastYear:MonthCount|null;trend:MonthCount[];rows:ZoneRow[];source:{dataset:string;query:string;retrievedAt:string}};
+// A region or the whole country: one grouped query (departments × 13 months). A department code the list does not know
+// is left out, so the total is always the sum of the rows shown.
+async function fetchZoneCreations(departments:readonly CreationsDepartment[],codes:readonly string[]|null,{fetchImpl=fetch,now=new Date()}:{fetchImpl?:Fetch;now?:Date}):Promise<ZoneCreations>{
+ const month=reportMonth(now),from=addMonths(month,-(TREND_MONTHS-1)),to=addMonths(month,1);
+ const url=zoneCountsUrl(codes,from,to);
  const counts=new Map<string,number>();
- for(const r of resultsOf(data)){
+ for(const r of resultsOf(await getBodaccJson(url,fetchImpl,{timeoutMs:RECORDS_TIMEOUT_MS,maxBytes:MAX_RECORDS_BYTES}))){
   if(typeof r.dep!=='string'||typeof r.mois!=='string'||!MONTH.test(r.mois))throw new CreationsUnavailableError('MALFORMED');
   counts.set(`${r.dep}|${r.mois}`,countOf(r.n));
  }
- const rows=CREATIONS_DEPARTMENTS.map(department=>({department,count:counts.get(`${department.code}|${month}`)??0,previous:counts.get(`${department.code}|${from}`)??0}))
+ const at=(code:string,m:string)=>counts.get(`${code}|${m}`)??0;
+ const rows=departments.map(department=>({department,count:at(department.code,month),previous:at(department.code,addMonths(month,-1)),lastYear:at(department.code,addMonths(month,-12))}))
   .sort((a,b)=>b.count-a.count||a.department.name.localeCompare(b.department.name,'fr'));
- const total=rows.reduce((s,r)=>s+r.count,0);
+ const trend:MonthCount[]=[];for(let m=from;m<to;m=addMonths(m,1))trend.push({month:m,count:departments.reduce((s,d)=>s+at(d.code,m),0)});
+ const total=trend[trend.length-1]!.count;
  if(!total)throw new CreationsUnavailableError('EMPTY');
- return {month,rows,total};
+ const find=(m:string)=>trend.find(t=>t.month===m)??null;
+ return {month,total,previous:find(addMonths(month,-1)),lastYear:find(addMonths(month,-12)),trend,rows,source:{dataset:BODACC_PUBLIC_PAGE,query:url,retrievedAt:now.toISOString()}};
 }
+export const fetchRegionCreations=(region:CreationsRegion,opts:{fetchImpl?:Fetch;now?:Date}={})=>fetchZoneCreations(region.departments,region.departments.map(d=>d.code),opts);
+export const fetchFranceCreations=(opts:{fetchImpl?:Fetch;now?:Date}={})=>fetchZoneCreations(CREATIONS_DEPARTMENTS,null,opts);
 
 export const percentChange=(now:number,before:number|null|undefined)=>before?Math.round((now-before)/before*100):null;
 
-// Sitemap: the hub and every department page. Their content changes when a month closes, so their date is the first day
+// Sitemap: the hub, every region page and every department page. Their content changes when a month closes, so their date is the first day
 // of the current month — a real data change, never the build date.
 export function creationsSitemapEntries(siteUrl:string,now:Date){
  const lastModified=`${now.getUTCFullYear()}-${pad(now.getUTCMonth()+1)}-01`;
- return [CREATIONS_HUB,...CREATIONS_DEPARTMENTS.map(creationsPath)].map(path=>({url:`${siteUrl}/${path}`,lastModified,changeFrequency:'monthly' as const,priority:path===CREATIONS_HUB?.7:.6}));
+ return [CREATIONS_HUB,...CREATIONS_REGIONS.map(creationsPath),...CREATIONS_DEPARTMENTS.map(creationsPath)].map(path=>({url:`${siteUrl}/${path}`,lastModified,changeFrequency:'monthly' as const,priority:path===CREATIONS_HUB?.7:.6}));
+}
+
+// Page title within 75 characters: with the brand when it fits, then without it, then without the department code.
+export function creationsTitle(place:string,code:string|null,month:string|null):string{
+ const tail=month?` : ${month}`:' par département';
+ const bases=[...(code?[`Créations d’entreprises ${place} (${code})${tail}`]:[]),`Créations d’entreprises ${place}${tail}`];
+ const candidates=[...bases.map(b=>`${b} | ProspectOS`),...bases];
+ return candidates.find(t=>t.length<=75)??bases[bases.length-1]!;
 }

@@ -7,7 +7,7 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {
  BODACC_DATASET,CREATIONS_DEPARTMENTS,CREATIONS_HUB,CREATIONS_REGIONS,CreationsUnavailableError,EXPORT_FIELDS,MIN_COMMUNE_NOTICES,
- addMonths,aggregate,arrondissement,classifyActivity,creationsPath,creationsSitemapEntries,departmentBySlug,fetchDepartmentCreations,fetchFranceCreations,fetchRegionCreations,
+ addMonths,aggregate,arrondissement,last12Months,classifyActivity,creationsPath,creationsSitemapEntries,departmentBySlug,fetchDepartmentCreations,fetchFranceCreations,fetchRegionCreations,
  creationsTitle,getBodaccJson,legalKind,monthExportUrl,monthlyCountsUrl,monthlySeries,noticeOf,percentChange,regionBySlug,regionOf,reportMonth,slugOf,zoneBySlug,zoneCountsUrl,
 } from '../src/domain/company-creations.ts';
 
@@ -56,6 +56,17 @@ test('months — the reported month is the last complete one, across a year boun
  assert.equal(percentChange(80,100),-20);
  assert.equal(percentChange(5,0),null,'no base, no percentage');
  assert.equal(percentChange(5,null),null);
+});
+
+test('12 months — the last 12 complete months of the series, never a partial year',()=>{
+ const trend=Array.from({length:13},(_,i)=>({month:addMonths('2025-09',i),count:i+1}));
+ assert.deepEqual(last12Months(trend),{total:90,from:'2025-10',to:'2026-09'},'2+3+…+13: the oldest month (sept. 2025) is left out');
+ assert.equal(last12Months(trend.slice(2)),null,'11 months are not a year');
+ const src=read('src/components/CompanyCreations.tsx');
+ assert.match(src,/<dt>Sur les 12 derniers mois<\/dt>/,'a tile on every zone page');
+ assert.match(src,/=>\/\^\[aeiouyàâéèêëîïôûüœ\]\/i\.test\(label\)\?`d’\$\{label\}`:`de \$\{label\}`/,'« d’octobre », never « de octobre »');
+ assert.match(src,/Combien d’entreprises sont créées chaque année \$\{where\} \?/,'the yearly question people search');
+ assert.match(src,/les bilans annuels de l’INSEE et de Bpifrance, qui incluent les micro-entrepreneurs non commerçants, les artisans et les professions libérales, sont plus élevés/,'never presented as the official yearly total');
 });
 
 test('activities — deterministic first match, real wordings of the register',()=>{

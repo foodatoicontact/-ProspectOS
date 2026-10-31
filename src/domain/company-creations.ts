@@ -279,6 +279,13 @@ async function fetchZoneCreations(departments:readonly CreationsDepartment[],cod
 export const fetchRegionCreations=(region:CreationsRegion,opts:{fetchImpl?:Fetch;now?:Date}={})=>fetchZoneCreations(region.departments,region.departments.map(d=>d.code),opts);
 export const fetchFranceCreations=(opts:{fetchImpl?:Fetch;now?:Date}={})=>fetchZoneCreations(CREATIONS_DEPARTMENTS,null,opts);
 
+// The last 12 complete months of a trend (the 13-month series minus its first month): the yearly figure people search for.
+export function last12Months(trend:readonly MonthCount[]):{total:number;from:string;to:string}|null{
+ const months=trend.slice(-12);
+ if(months.length<12)return null;
+ return {total:months.reduce((s,m)=>s+m.count,0),from:months[0]!.month,to:months[months.length-1]!.month};
+}
+
 export const percentChange=(now:number,before:number|null|undefined)=>before?Math.round((now-before)/before*100):null;
 
 // Sitemap: the hub, every region page and every department page. Their content changes when a month closes, so their date is the first day

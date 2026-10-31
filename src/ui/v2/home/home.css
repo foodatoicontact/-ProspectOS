@@ -203,3 +203,5 @@
  .pos-ui .pos-home__auth .primary,.pos-ui .pos-home__auth .auth-switch button{border:1px solid ButtonText}
  .pos-ui .pos-home__auth .auth-switch button.active{outline:2px solid Highlight;outline-offset:-3px}
 }
+/* The public proof under the hero CTAs: a plain link to the company-creation barometer, never a second call to action. */
+.pos-ui .pos-home__barometer{display:flex;margin-top:var(--pos-space-4);font-size:var(--pos-text-sm)}

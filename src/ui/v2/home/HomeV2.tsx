@@ -18,6 +18,9 @@ export type HomeV2Props={locale:Locale;localeSwitch:ReactNode;authCard:ReactNode
 // The 80-second presentation video (silent, invented companies). It plays muted only while on screen and never by itself when
 // the visitor asked for reduced motion; the controls stay available, and the on-screen text is readable below it.
 const HOME_VIDEO_SRC='/videos/prospectos-presentation.mp4';
+// Shown before playback (Safari draws nothing otherwise): a frame of the same video — the "why this recommendation" panel, its
+// source and excerpt, with the video's own "Exemple fictif · entreprises inventées" label. Not a logo, not a photo.
+const HOME_VIDEO_POSTER='/videos/prospectos-presentation-poster.jpg';
 function PresentationVideo({copy,demoLabel,onDemo}:{copy:HomeCopy;demoLabel:string;onDemo:()=>void}){
  const v=copy.video;
  const ref=useRef<HTMLVideoElement>(null);
@@ -31,7 +34,7 @@ function PresentationVideo({copy,demoLabel,onDemo}:{copy:HomeCopy;demoLabel:stri
   <div className="pos-home__intro"><h2 id="pos-home-video" className="pos-home__h2">{v.title}</h2><p>{v.body}</p>
    <button type="button" className="pos-home__textlink" onClick={onDemo}>{demoLabel} <span aria-hidden="true">↗</span></button></div>
   <div className="pos-home__video-frame">
-   <video ref={ref} src={HOME_VIDEO_SRC} muted loop playsInline controls preload="metadata" aria-label={v.label} data-testid="home-video"/>
+   <video ref={ref} src={HOME_VIDEO_SRC} muted loop playsInline controls preload="metadata" aria-label={v.label} poster={HOME_VIDEO_POSTER} data-testid="home-video"/>
   </div>
   <details className="pos-home__transcript"><summary>{v.transcriptLabel}</summary>
    <ol>{v.transcript.map(l=><li key={l}>{l}</li>)}</ol></details>
@@ -64,11 +67,13 @@ export function HomeV2({locale,localeSwitch,authCard,onLocale,cta,demoLabel,onDe
      <p className="pos-home__eyebrow">{copy.hero.eyebrow}</p>
      <h1 id="pos-home-title" className="pos-home__title">{copy.hero.title}</h1>
      <p className="pos-home__lines">{copy.hero.lines.map((l,i)=><span key={l} className={`pos-home__line pos-home__line--${i}`}>{l}</span>)}</p>
+     <p className="pos-home__lead">{copy.hero.audience}</p>
      <div className="pos-home__ctas">
       <a className="pos-btn pos-btn--primary pos-btn--lg" href="#inscription" data-testid="home-cta">{cta.label}</a>
       <a className="pos-btn pos-btn--secondary pos-btn--lg" href="#presentation">{copy.hero.how}</a>
      </div>
      {cta.sub&&<p className="pos-home__cta-sub">{cta.sub}</p>}
+     <a className="pos-home__textlink pos-home__barometer" href="/creations-entreprises">{copy.hero.barometer} <span aria-hidden="true">→</span></a>
     </div>
    </section>
 

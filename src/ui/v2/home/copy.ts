@@ -9,7 +9,9 @@ export type DemoCompany={id:string;name:string;signal:string;meta:string;status:
 export type HomeCopy={
  nav:{nav:string;pricing:string;home:string;menu:string};
  footer:{discover:string;legal:string};
- hero:{eyebrow:string;title:string;lines:[string,string,string];subtitle:string;how:string;human:string};
+ hero:{eyebrow:string;title:string;lines:[string,string,string];subtitle:string;how:string;human:string;
+  // Who it is for, and the public proof a visitor can check before any account: the company-creation barometer.
+  audience:string;barometer:string};
  demo:{label:string;why:string;whyTitle:string;now:string;nowText:string;source:string;sourceText:string;matching:string;
   matchingItems:string[];missing:string;missingItems:string[];completeTitle:string;completeText:string;caption:string;
   signalPrefix:string;verified:string;todo:string;close:string};
@@ -28,7 +30,9 @@ export const HOME_COPY:Record<Locale,HomeCopy>={
   hero:{eyebrow:'Logiciel de prospection B2B',title:'Arrêtez de prospecter toute votre liste.',
    lines:['Qui contacter.','Pourquoi maintenant.','Avec quelles preuves.'],
    subtitle:'ProspectOS détecte les entreprises qui correspondent à votre cible et les signaux qui rendent le timing pertinent.',
-   how:'Voir comment ça fonctionne',human:'Aucun envoi automatique : vous gardez la main.'},
+   how:'Voir comment ça fonctionne',human:'Aucun envoi automatique : vous gardez la main.',
+   audience:'Pour les indépendants, les agences et les PME qui prospectent eux‑mêmes.',
+   barometer:'Combien d’entreprises se créent dans votre département ? Les chiffres du mois, sans compte'},
   demo:{label:'Exemple fictif',why:'Voir pourquoi',whyTitle:'Pourquoi cette recommandation ?',now:'Pourquoi maintenant',
    nowText:'Ouverture d’un nouvel établissement annoncée il y a 4 jours.',source:'Source',sourceText:'Article de presse locale, avec lien et extrait.',
    matching:'Ce qui correspond déjà',matchingItems:['Restauration avec point de vente physique','Implantée dans votre zone'],
@@ -80,7 +84,9 @@ export const HOME_COPY:Record<Locale,HomeCopy>={
   hero:{eyebrow:'B2B prospecting software',title:'Stop prospecting your whole list.',
    lines:['Who to contact.','Why now.','With what evidence.'],
    subtitle:'ProspectOS detects the companies that match your target and the signals that make the timing right.',
-   how:'See how it works',human:'Nothing is sent automatically: you stay in control.'},
+   how:'See how it works',human:'Nothing is sent automatically: you stay in control.',
+   audience:'For self-employed professionals, agencies and small businesses who do their own prospecting.',
+   barometer:'How many businesses open in each French department? This month’s figures, no account needed (in French)'},
   demo:{label:'Fictitious example',why:'See why',whyTitle:'Why this recommendation?',now:'Why now',
    nowText:'Opening of a new location announced 4 days ago.',source:'Source',sourceText:'Local press article, with link and excerpt.',
    matching:'Already matching',matchingItems:['Restaurant with a physical point of sale','Located in your area'],

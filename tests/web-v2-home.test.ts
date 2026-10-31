@@ -50,7 +50,14 @@ test('demo — invented companies only, labelled as such; no real brand, logo or
  assert.equal(demoCompanies('fr').find(c=>c.id===HERO_DEMO_ID)!.name,'Maison Alba');
  const REAL=/\b(Quick|Mojo|O.?Crousti|McDonald|Burger King|KFC|Starbucks|Subway|Domino|Five Guys|Paul|Brioche Dorée|Pizza Hut|Buffalo Grill|Hippopotamus|Courtepaille|Flunch|Del Arte|Big Fernand|Pret A Manger|Carrefour|Leclerc|Auchan|Decathlon|Fnac|Darty)\b/i;
  assert.doesNotMatch(allCopy+home,REAL);
- assert.doesNotMatch(home+css,/<img|<Image|\.png|\.jpe?g|\.webp|\.svg['"]/i,'no logo or photo');
+ // The one image (31 oct. 2026): the video's poster, a frame of the same video (the "why this recommendation" panel with its
+ // "Exemple fictif · entreprises inventées" label), so Safari shows something before playback. Still no logo and no photo.
+ const POSTER="const HOME_VIDEO_POSTER='/videos/prospectos-presentation-poster.jpg';";
+ assert.ok(home.includes(POSTER),'the poster is the named frame of the presentation video');
+ assert.match(home,/aria-label=\{v\.label\} poster=\{HOME_VIDEO_POSTER\}/,'used only as the video poster');
+ const poster=statSync(new URL('../public/videos/prospectos-presentation-poster.jpg',import.meta.url)).size;
+ assert.ok(poster>0&&poster<200*1024,`the poster stays light (${poster} bytes)`);
+ assert.doesNotMatch(home.replace(POSTER,'')+css,/<img|<Image|\.png|\.jpe?g|\.webp|\.svg['"]/i,'no logo or photo');
  assert.doesNotMatch(css,/\burl\(/,'no background image either');
  assert.match(HOME_COPY.fr.demo.label,/fictif/i);assert.match(HOME_COPY.en.demo.label,/fictitious/i);
  assert.match(HOME_COPY.fr.demo.caption,/inventée/);

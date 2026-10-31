@@ -255,6 +255,11 @@ test('routes — on-demand ISR, no register call at build for zones, a build-onl
  assert.match(shell,/const creations=<Link className="pos-public__navlink" href="\/creations-entreprises">/);
  assert.equal((shell.match(/\{creations\}/g)??[]).length,2,'in the header bar (desktop) and in the menu (phones)');
  assert.match(read('src/ui/v2/home/HomeV2.tsx'),/creations:locale==='en'\?'New businesses \(FR\)':'Créations d’entreprises'/,'the homepage header too, in its language');
+ // The homepage hero says who it is for and links the public proof (the barometer) under its calls to action.
+ const home=read('src/ui/v2/home/HomeV2.tsx');
+ assert.match(home,/<p className="pos-home__lead">\{copy\.hero\.audience\}<\/p>/);
+ assert.match(home,/<a className="pos-home__textlink pos-home__barometer" href="\/creations-entreprises">\{copy\.hero\.barometer\}/);
+ assert.ok(home.indexOf('pos-home__barometer')>home.indexOf('data-testid="home-cta"'),'below the trial call to action, never above it');
 });
 
 test('sitemap — France, 13 regions and 101 departments, dated by the month that closed, not by the build',()=>{

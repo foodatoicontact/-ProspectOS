@@ -42,7 +42,9 @@ const PROSPECTING_BLOCKS=(where:string):SeoPage['sections'][number]['blocks']=>[
 ];
 
 // "How many businesses a year?" is what people search; the annual reports (INSEE, Bpifrance) count more than the register.
-const span=(y:{from:string;to:string})=>`de ${monthLabel(y.from)} à ${monthLabel(y.to)}`;
+// French elision: « d’octobre », « d’avril », « d’août », but « de mars ».
+export const fromMonth=(label:string)=>/^[aeiouyàâéèêëîïôûüœ]/i.test(label)?`d’${label}`:`de ${label}`;
+const span=(y:{from:string;to:string})=>`${fromMonth(monthLabel(y.from))} à ${monthLabel(y.to)}`;
 function yearlyFaq(trend:readonly MonthCount[],where:string):SeoPage['faq']{
  const y=last12Months(trend);if(!y)return [];
  return [{q:`Combien d’entreprises sont créées chaque année ${where} ?`,

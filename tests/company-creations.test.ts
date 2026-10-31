@@ -64,6 +64,7 @@ test('12 months — the last 12 complete months of the series, never a partial y
  assert.equal(last12Months(trend.slice(2)),null,'11 months are not a year');
  const src=read('src/components/CompanyCreations.tsx');
  assert.match(src,/<dt>Sur les 12 derniers mois<\/dt>/,'a tile on every zone page');
+ assert.match(src,/=>\/\^\[aeiouyàâéèêëîïôûüœ\]\/i\.test\(label\)\?`d’\$\{label\}`:`de \$\{label\}`/,'« d’octobre », never « de octobre »');
  assert.match(src,/Combien d’entreprises sont créées chaque année \$\{where\} \?/,'the yearly question people search');
  assert.match(src,/les bilans annuels de l’INSEE et de Bpifrance, qui incluent les micro-entrepreneurs non commerçants, les artisans et les professions libérales, sont plus élevés/,'never presented as the official yearly total');
 });

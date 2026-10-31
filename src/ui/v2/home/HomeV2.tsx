@@ -53,7 +53,7 @@ export function HomeV2({locale,localeSwitch,authCard,onLocale,cta,demoLabel,onDe
   if(lang==='fr'||lang==='en'){onLocale(lang);u.searchParams.delete('lang');window.history.replaceState(window.history.state,'',u.toString())}
   if(u.hash==='#connexion')login();
  },[]);// eslint-disable-line react-hooks/exhaustive-deps
- const header=<PublicHeader labels={{...copy.nav,login:loginLabel}} locale={localeSwitch}
+ const header=<PublicHeader labels={{...copy.nav,login:loginLabel,creations:locale==='en'?'New businesses (FR)':'Créations d’entreprises'}} locale={localeSwitch}
   login={<button type="button" className="pos-pbtn pos-pbtn--secondary pos-pbtn--sm" onClick={login}>{loginLabel}</button>}/>;
  return <PublicSiteShell className="pos-home" lang={locale} header={header} footer={<PublicFooter labels={{...copy.footer,contact:contactLabel}}/>}>
   <div data-testid="home-v2">

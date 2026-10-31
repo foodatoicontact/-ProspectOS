@@ -26,17 +26,20 @@ export function StaticLocaleSwitch(){
  </div>;
 }
 
-export type HeaderLabels={nav:string;home:string;pricing:string;menu:string;login:string};
-export const HEADER_FR:HeaderLabels={nav:'Navigation principale',home:'ProspectOS — accueil',pricing:'Tarifs',menu:'Menu',login:'Me connecter'};
+// `creations`: the company-creation barometer (/creations-entreprises), the one public tool reachable from the header.
+export type HeaderLabels={nav:string;home:string;pricing:string;menu:string;login:string;creations?:string};
+export const HEADER_FR:HeaderLabels={nav:'Navigation principale',home:'ProspectOS — accueil',pricing:'Tarifs',menu:'Menu',login:'Me connecter',creations:'Créations d’entreprises'};
 
-// One header for every public page: ProspectOS · Tarifs · FR | EN · Me connecter. Phones: the brand and "Me connecter" stay in
-// the bar, Tarifs and the language go into a native <details> menu (works without JavaScript).
+// One header for every public page: ProspectOS · Créations d’entreprises · Tarifs · FR | EN · Me connecter. Phones: the brand and
+// "Me connecter" stay in the bar, the barometer, Tarifs and the language go into a native <details> menu (works without JavaScript).
 export function PublicHeader({labels=HEADER_FR,locale,login}:{labels?:HeaderLabels;locale?:ReactNode;login?:ReactNode}){
  const loc=locale??<StaticLocaleSwitch/>;
+ const creations=<Link className="pos-public__navlink" href="/creations-entreprises">{labels.creations??HEADER_FR.creations}</Link>;
  return <header className="pos-public__top" id="top">
   <div className="pos-public__wrap pos-public__bar">
    <Link className="pos-public__brand" href="/" aria-label={labels.home}><Mark/><span>ProspectOS</span></Link>
    <nav className="pos-public__nav" aria-label={labels.nav}>
+    {creations}
     <Link className="pos-public__navlink" href="/tarifs">{labels.pricing}</Link>
     <div className="pos-public__locale">{loc}</div>
    </nav>
@@ -44,6 +47,7 @@ export function PublicHeader({labels=HEADER_FR,locale,login}:{labels?:HeaderLabe
    <details className="pos-public__menu">
     <summary><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg><span className="pos-public__sr">{labels.menu}</span></summary>
     <div className="pos-public__menu-panel">
+     {creations}
      <Link className="pos-public__navlink" href="/tarifs">{labels.pricing}</Link>
      <div className="pos-public__locale">{loc}</div>
     </div>

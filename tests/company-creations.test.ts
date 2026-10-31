@@ -251,6 +251,10 @@ test('routes — on-demand ISR, no register call at build for zones, a build-onl
  assert.match(go,/new URL\(path,request\.nextUrl\.origin\)/,'same-origin redirect');
  assert.match(read('src/components/CompanyCreations.tsx'),/action=\{`\/\$\{CREATIONS_HUB\}\/aller`\} method="get"/,'the picker works without JavaScript');
  assert.match(read('src/ui/v2/public/PublicSite.tsx'),/<li><Link href="\/creations-entreprises">Créations d’entreprises<\/Link><\/li>/,'linked from every public page');
+ const shell=read('src/ui/v2/public/PublicSite.tsx');
+ assert.match(shell,/const creations=<Link className="pos-public__navlink" href="\/creations-entreprises">/);
+ assert.equal((shell.match(/\{creations\}/g)??[]).length,2,'in the header bar (desktop) and in the menu (phones)');
+ assert.match(read('src/ui/v2/home/HomeV2.tsx'),/creations:locale==='en'\?'New businesses \(FR\)':'Créations d’entreprises'/,'the homepage header too, in its language');
 });
 
 test('sitemap — France, 13 regions and 101 departments, dated by the month that closed, not by the build',()=>{

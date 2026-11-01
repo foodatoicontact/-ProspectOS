@@ -1,6 +1,7 @@
 import {z} from 'zod';
 import {handleDiscovery} from '../../../../src/discovery/api';
 import {handlePublicRecords} from '../../../../src/discovery/public-records-api';
+import {handleMorningDigest} from '../../../../src/digest/api';
 import {projectCriteria} from '../../../../src/domain/relations';
 import {authenticatedDb} from '../../../../src/server/db';
 import {analyzeOffer,AnalyzeOfferError} from '../../../../src/server/ai';
@@ -108,6 +109,8 @@ async function handler(request:Request,context:{params:Promise<{path:string[]}>}
  const outreachResponse=await handleOutreachIntelligence(request,path,body,db,json,{requireEntitlement:()=>requireActiveEntitlement(db,user.id)});if(outreachResponse)return outreachResponse;
  // Next Best Action (src/nba/api.ts, migration 031): decisions and drafts only — nothing is sent. Flag off = 404.
  const nbaResponse=await handleNextBestActions(request,path,body,db,json,{enabled:nextBestActionEnabled(process.env)||zeroFrictionTodayGate(process.env),now:()=>new Date(),requireEntitlement:()=>requireActiveEntitlement(db,user.id)});if(nbaResponse)return nbaResponse;
+ // Morning recap (src/digest/api.ts, migration 040): the member's own choice — nothing is enabled without it.
+ const morningDigestResponse=await handleMorningDigest(request,path,body,db,json,{env:process.env,userId:user.id});if(morningDigestResponse)return morningDigestResponse;
  const selfOutreachResponse=await handleSelfOutreach(request,path,body,db,json,{env:process.env,now:()=>new Date(),requireEntitlement:()=>requireActiveEntitlement(db,user.id)});if(selfOutreachResponse)return selfOutreachResponse;
  const checked=async(query:PromiseLike<any>)=>{const {data,error}=await query;if(error)throw Error('DATABASE_REQUEST_FAILED');return data};
  if(resource==='organizations'){

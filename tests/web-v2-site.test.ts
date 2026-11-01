@@ -65,7 +65,8 @@ test('freeze — legal text, SEO content, prices, quotas, trial, plans, i18n and
  const FROZEN:Record<string,string>={
   'app/cgu/page.tsx':'7287810445b66f0b67763eb06e8713b3fe42127521502eefe3cf15d6a485121c',
   'app/cgv/page.tsx':'49c80e19478f219668144f1c4039fca7464a15d5003584193db990bfb0269208',
-  'app/confidentialite/page.tsx':'f946116a09e376cfced852bbee31713556a5039c6408443bc510f2a22b3d06a1',
+  // 1 nov. 2026 (migration 040): the privacy policy also describes the opt-in morning recap (sections 3.7, 5, 6, 8).
+  'app/confidentialite/page.tsx':'233a4b11e0939ad62c6aaec67f75a5241c3f8ea05498e9873ff799f18307c894',
   'app/mentions-legales/page.tsx':'2efbad023e459aa36de624415f119b61f8372d80cecd1c60722f1a9f23b0f65e',
   'src/domain/legal.ts':'7ec1712b16eb08ebc978b00a3a26b49d0b34caceb9d131eff91278ac66b32e7f',
   // WEB-2.1 / 2.2: the /a-propos entry (demo wording, recommendation instead of score, its date) and the /prospection-b2b

@@ -54,6 +54,8 @@ export default function Page(){
 
    <h3>3.6 Demandes « 3 prospects de votre zone » (sans compte)</h3>
    <p>Si vous utilisez le formulaire de la page <a href="/prospects-de-votre-zone">3 prospects de votre zone</a> : l’activité que vous vendez, vos clients idéaux et une précision si vous en saisissez, votre département et votre adresse email. Ces informations ne sont pas enregistrées dans la base de données de ProspectOS : elles sont transmises par email à la messagerie professionnelle de l’éditeur, qui vous répond depuis cette messagerie.</p>
+   <h3>3.7 Récap du matin (si vous l’activez)</h3>
+   <p>Si vous cochez « Recevoir mon récap chaque matin par email » dans l’écran « Aujourd’hui » : votre choix, la date de votre consentement ou de votre désinscription, et les dates des derniers envois. Le récap est envoyé à l’adresse email de votre compte. Il ne contient que des informations sur les entreprises que vous suivez (nouveaux signaux et leur source publique), jamais de données sur une personne. Il est désactivé par défaut ; aucun email n’est envoyé les jours sans nouveauté.</p>
   </section>
 
   <section>
@@ -72,6 +74,7 @@ export default function Page(){
     <li><b>Analyse assistée par IA de votre propre offre commerciale</b> — exécution du contrat, à votre initiative explicite (fonctionnalité « Analyser un texte »).</li>
     <li><b>Sécurité, prévention des abus, quotas et facturation d’usage</b> — intérêt légitime de ProspectOS et de ses utilisateurs à un service fiable et correctement mesuré.</li>
     <li><b>Réponse à une demande « 3 prospects de votre zone »</b> — votre consentement, donné en cochant la case du formulaire ; vous pouvez le retirer à tout moment en écrivant à l’adresse de contact.</li>
+    <li><b>Envoi du récap du matin</b> — votre consentement, donné en l’activant ; vous pouvez le retirer à tout moment, en un clic depuis chaque email ou dans l’écran « Aujourd’hui ».</li>
     <li><b>Gestion de l’essai gratuit et des abonnements</b> (durée, quotas, paiement, accès) — exécution du contrat (voir l’article 3 des <a href="/cgu">CGU</a> et les <a href="/cgv">CGV</a>).</li>
    </ul>
   </section>
@@ -84,7 +87,7 @@ export default function Page(){
     <li><b>Vercel Inc.</b> — hébergement applicatif (exécution du site et de l’API ProspectOS).</li>
     <li><b>Anthropic</b> — lorsque la fonctionnalité d’analyse IA de votre offre est utilisée : reçoit le texte que vous soumettez volontairement à l’analyse (votre propre proposition commerciale, jamais une donnée de prospect saisie automatiquement), ainsi que, si vous utilisez votre clé personnelle (BYOK), cette clé — jamais en clair côté ProspectOS, transmise directement au fournisseur pour authentifier l’appel.</li>
     <li><b>Stripe</b> — lorsque vous souscrivez ou gérez une offre payante : traite le paiement, l’abonnement et les factures ; reçoit l’adresse email et l’identifiant technique de votre compte, ainsi que les informations que vous saisissez sur sa page de paiement.</li>
-    <li><b>IONOS</b> — hébergement de la messagerie professionnelle de l’éditeur : reçoit les demandes envoyées depuis le formulaire « 3 prospects de votre zone » et les emails que vous adressez à ProspectOS.</li>
+    <li><b>IONOS</b> — hébergement de la messagerie professionnelle de l’éditeur : reçoit les demandes envoyées depuis le formulaire « 3 prospects de votre zone » et les emails que vous adressez à ProspectOS, et envoie le récap du matin à ceux qui l’ont activé.</li>
     <li><b>Brave Search</b> — lorsque la recherche de prospects (Discovery) est utilisée en mode réel (non démonstration) : reçoit les termes de recherche que vous avez saisis (secteur d’activité, localisation) — jamais une donnée à caractère personnel identifiée individuellement.</li>
    </ul>
    <h3>Transferts internationaux</h3>
@@ -110,6 +113,7 @@ export default function Page(){
     <li><b>Accès (essai et abonnement)</b> : les dates de début et de fin d’accès sont conservées comme historique de compte. Les données d’abonnement sont conservées, y compris après suppression du compte, pour rattacher les factures émises par le prestataire de paiement.</li>
     <li><b>Journal d’usage et de facturation (api_usage_events)</b> : conservé de façon permanente et immuable par construction technique (aucune mise à jour ni suppression n’est possible sur cette table), à des fins de facturation, d’audit et de preuve de coût. Ce journal ne contient pas de contenu de conversation IA ni de donnée de prospect.</li>
     <li><b>Demandes « 3 prospects de votre zone »</b> : conservées dans la messagerie le temps de vous répondre et d’échanger avec vous, puis supprimées au plus tard 12 mois après le dernier échange.</li>
+    <li><b>Récap du matin</b> : votre choix et ses dates sont conservés tant que votre compte existe, et supprimés avec lui.</li>
     <li><b>Références d’audit</b> (auteur d’une preuve vérifiée, actions historisées) : conservées même après le départ d’un membre, afin de préserver l’intégrité et la traçabilité des preuves partagées au sein d’une organisation — voir section 9.</li>
    </ul>
   </section>

@@ -12,6 +12,7 @@ import type {Locale} from '../../../i18n/locale.ts';
 import {Button,Chip,ChipGroup,Icon,StatusBadge} from '../primitives.tsx';
 import {ContextPanel} from '../panels.tsx';
 import {todayV2,type V2Card,type V2Signal} from './model.ts';
+import {MorningDigestToggle} from './MorningDigestToggle.tsx';
 
 type Api=(path:string,method?:string,body?:unknown)=>Promise<any>;
 type Filter='contact'|'verify'|'watch';
@@ -250,6 +251,8 @@ export function TodayV2({projectId,api,locale,dirty,onCleaned,onOpenProspect,cri
    {visible.length>0&&<ol className="pos-today__list">
     {visible.map(c=><Card key={c.id} card={c} locale={locale} busy={busy} onAct={act} onWhy={x=>openPanel(x,'why')} whyOpen={panel?.id===c.id&&panel.mode==='why'}/>)}
    </ol>}
+   {/* Morning recap (migration 040): the member's own opt-in, shown only where the server can send it. */}
+   <MorningDigestToggle api={api} locale={locale}/>
   </div>
   <ContextPanel open={!!current} onClose={()=>setPanel(null)} title={panelTitle} locale={locale}>
    {current&&panel?.mode==='why'&&<>

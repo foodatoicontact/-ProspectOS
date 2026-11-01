@@ -42,3 +42,4 @@ jobs:
       - run: npm run test:self-outreach-db
       - run: npm run test:outreach-booking-db
       - run: npm run test:bodacc-sales-db
+      - run: npm run test:morning-digest-db

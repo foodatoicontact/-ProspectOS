@@ -280,6 +280,7 @@ test('sitemap — France, 13 regions and 101 departments, dated by the month tha
  assert.ok(entries.every(e=>e.lastModified==='2026-10-01'));
  assert.equal(new Set(entries.map(e=>e.url)).size,115);
  const sitemap=read('app/sitemap.ts');
- assert.match(sitemap,/\.\.\.sitemapEntries,\.\.\.creationsSitemapEntries\(SITE_URL,new Date\(\)\)/);
+ assert.match(sitemap,/\.\.\.sitemapEntries,offer,\.\.\.creationsSitemapEntries\(SITE_URL,new Date\(\)\)/);
+ assert.match(sitemap,/url:`\$\{SITE_URL\}\/prospects-de-votre-zone`,lastModified:'2026-11-01'/,'the offer page, dated by its own last edit');
  assert.match(sitemap,/export const revalidate=86400;/);
 });

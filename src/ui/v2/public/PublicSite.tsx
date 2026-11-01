@@ -65,7 +65,7 @@ export function PublicFooter({labels=FOOTER_FR}:{labels?:FooterLabels}){
   <div className="pos-public__wrap pos-public__footer-grid">
    <div className="pos-public__footer-brand"><Link className="pos-public__brand" href="/"><Mark/><span>ProspectOS</span></Link></div>
    <nav aria-label={labels.discover}><p className="pos-public__footer-h">{labels.discover}</p>
-    <ul>{seoPages.map(p=><li key={p.slug}><Link href={`/${p.slug}`}>{p.navLabel}</Link></li>)}<li><Link href="/creations-entreprises">Créations d’entreprises</Link></li></ul></nav>
+    <ul>{seoPages.map(p=><li key={p.slug}><Link href={`/${p.slug}`}>{p.navLabel}</Link></li>)}<li><Link href="/creations-entreprises">Créations d’entreprises</Link></li><li><Link href="/prospects-de-votre-zone">3 prospects de votre zone</Link></li></ul></nav>
    <nav aria-label={labels.legal}><p className="pos-public__footer-h">{labels.legal}</p>
     <ul>{LEGAL_PAGES.map(p=><li key={p.href}><Link href={p.href}>{p.label}</Link></li>)}<li><a href={CONTACT_MAILTO}>{labels.contact}</a></li></ul></nav>
   </div>

@@ -79,7 +79,7 @@ export function departmentSeoPage(d:DepartmentCreations):SeoPage{
    {q:'Pourquoi ces chiffres diffèrent-ils de ceux de l’INSEE ?',a:'L’INSEE compte toutes les créations, y compris les micro-entrepreneurs non commerçants, les artisans et les professions libérales. Le BODACC ne publie que les immatriculations au registre du commerce et des sociétés, datées de leur publication. Les deux séries ne se comparent pas directement.'},
    {q:'Les activités sont-elles des codes NAF officiels ?',a:'Non. Elles sont classées par mots-clés d’après l’activité déclarée dans l’annonce, selon les règles listées dans la méthode. C’est une répartition indicative, utile pour repérer les secteurs qui créent le plus.'},
   ],
-  cta:{title:'Trouvez et vérifiez vos prochains clients',text:`Cherchez ${dep.in} les entreprises de votre cible dans le registre public, avec une source pour chaque fait.`,href:'/',label:'Explorer la démonstration'},
+  cta:{title:`Recevez 3 entreprises ${dep.in} à contacter maintenant`,text:'Dites-moi ce que vous vendez : je vous envoie 3 entreprises de votre zone qui ont une raison concrète d’être contactées, chacune avec sa source officielle. Sans compte.',href:'/prospects-de-votre-zone',label:'Recevoir mes 3 prospects'},
   related:RELATED,
  };
 }
@@ -111,7 +111,7 @@ export function zoneSeoPage(z:ZoneCreations|null,place:{slug:string;name:string;
    {q:'D’où viennent ces chiffres ?',a:'Des annonces de la famille « Créations » du BODACC, publiées par la DILA en données ouvertes sous Licence Ouverte 2.0, comptées par département et par mois de publication.'},
    {q:'Pourquoi ces chiffres diffèrent-ils de ceux de l’INSEE ?',a:'L’INSEE compte toutes les créations, y compris les micro-entrepreneurs non commerçants, les artisans et les professions libérales. Le BODACC ne publie que les immatriculations au registre du commerce et des sociétés, datées de leur publication.'},
   ],
-  cta:{title:'Trouvez et vérifiez vos prochains clients',text:'Cherchez dans le registre public les entreprises de votre cible, dans votre zone, avec une source pour chaque fait.',href:'/',label:'Explorer la démonstration'},
+  cta:{title:'Recevez 3 entreprises de votre zone à contacter maintenant',text:'Dites-moi ce que vous vendez et où : je vous envoie 3 entreprises qui ont une raison concrète d’être contactées, chacune avec sa source officielle. Sans compte.',href:'/prospects-de-votre-zone',label:'Recevoir mes 3 prospects'},
   related:RELATED,
  };
 }

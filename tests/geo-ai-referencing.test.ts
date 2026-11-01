@@ -61,7 +61,7 @@ test('schema.org: the software with its real offers, the organization, FAQ and b
  assert.ok(Array.isArray(app.featureList)&&app.featureList.length>=5);
  assert.equal(app.aggregateRating,undefined,'never an invented rating');assert.equal(app.review,undefined,'never an invented review');
  const org=organizationJsonLd as any;
- assert.equal(org['@type'],'Organization');assert.equal(org.name,'ProspectOS');assert.equal(org.url,SITE_URL);assert.equal(org.email,'prospectos.contact@gmail.com');
+ assert.equal(org['@type'],'Organization');assert.equal(org.name,'ProspectOS');assert.equal(org.url,SITE_URL);assert.equal(org.email,'contact@prospectos.fr');
  const page=getSeoPage('prospection-b2b');
  const faq=faqJsonLd(page) as any;
  assert.equal(faq['@type'],'FAQPage');assert.equal(faq.mainEntity.length,page.faq.length);

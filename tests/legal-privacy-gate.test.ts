@@ -45,7 +45,7 @@ test('B — the owner-provided identity fields are recorded exactly as given, ne
  assert.equal(EDITOR.address,'1 rue Edmond Haraucourt, 31100 Toulouse, France');
  assert.equal(EDITOR.publicationDirector,'Kevin Cardia');
  assert.equal(EDITOR.phone,'06 35 15 10 66');
- assert.equal(EDITOR.legalEmail,'prospectos.contact@gmail.com');
+ assert.equal(EDITOR.legalEmail,'contact@prospectos.fr');
 });
 test('B — capital social is explicitly stated as not applicable (EI has no share capital), never a fabricated figure',()=>{
  assert.match(EDITOR.capital,/[Nn]on applicable/);

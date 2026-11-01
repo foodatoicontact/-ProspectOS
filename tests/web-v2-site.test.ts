@@ -59,21 +59,24 @@ test('flag OFF parity — the legacy envelopes are byte-for-byte main’s once t
 });
 
 test('freeze — legal text, SEO content, prices, quotas, trial, plans, i18n and demo data are main’s (119bb30)',()=>{
+ // Owner decision (1 nov. 2026): the contact address becomes contact@prospectos.fr everywhere (legal.ts, the FR/EN texts, the
+ // SEO content), and the privacy policy describes the "3 prospects de votre zone" form (sections 3.6, 5, 6, 8; PRIVACY_VERSION).
+ // Nothing else in these files changed: their hashes below are those of that change.
  const FROZEN:Record<string,string>={
   'app/cgu/page.tsx':'7287810445b66f0b67763eb06e8713b3fe42127521502eefe3cf15d6a485121c',
   'app/cgv/page.tsx':'49c80e19478f219668144f1c4039fca7464a15d5003584193db990bfb0269208',
-  'app/confidentialite/page.tsx':'67c9da27841bf6b5d676d2cdc5143fec596f1c9f73a35a31bb679a70c1150882',
+  'app/confidentialite/page.tsx':'f946116a09e376cfced852bbee31713556a5039c6408443bc510f2a22b3d06a1',
   'app/mentions-legales/page.tsx':'2efbad023e459aa36de624415f119b61f8372d80cecd1c60722f1a9f23b0f65e',
-  'src/domain/legal.ts':'5459dff4cf999b21c4b969d0a8d1479e3a3ece3e5b5e57bec2352b3f893bf937',
+  'src/domain/legal.ts':'7ec1712b16eb08ebc978b00a3a26b49d0b34caceb9d131eff91278ac66b32e7f',
   // WEB-2.1 / 2.2: the /a-propos entry (demo wording, recommendation instead of score, its date) and the /prospection-b2b
   // closing call to action only; every other page is main's text.
-  'src/domain/seo-content.ts':'b73ef4b2e5f236eb1d0b8584b21697702e56708ae9e2e97efcf3c4ac7923d9b9',
+  'src/domain/seo-content.ts':'5202902e6a9168767c96b0dcd75ed483ad434b2089239a40be1c67f3c463f9cd',
   'src/domain/seo.ts':'0dbabc3c3959c1bf11e814fbdd0ba89dca12c9e99c7b825fccf6c28fbabc7a01',
   'src/components/PricingPage.tsx':'ae1fc88997a3974738d90d9fd0097108dc1fbf246e9d2025656a59def966cc02',
   'src/components/PricingPlans.tsx':'fc49929e18df6b472f2b70bb36c80bd53dcfb4c85b9f86192b1e142ddb691773',
   'src/domain/plans.ts':'cf5e701c415bb9cfbadf4caf1d60e3e9b6d80822de5d30ed3648b7d1c2e60a02',
-  'src/i18n/fr.ts':'affbccca0d1b93f397cdc348909a07707b5ea7faba44cee580c187026e81d150',
-  'src/i18n/en.ts':'5a1bb3c567731cd1e47d8ccef3ffee29f79f5ed2c21cf5c8f222fb163b38700c',
+  'src/i18n/fr.ts':'812d1fd6093bbe5050efcf4baad844087903aea58a69773e78f8a0dee1264441',
+  'src/i18n/en.ts':'9566a8fb876434760291cf4bf4d41e5f2dda6f844b523d1d10684fd18546d801',
   'src/domain/demo.ts':'70a67774e17b28d664f696846572febeac3c64ecaa320e7a85d8ecc9235e84ee',
  };
  // Self-Outreach (035) adds its own i18n keys: the frozen texts are compared without them (tests/self-outreach-strip.ts).

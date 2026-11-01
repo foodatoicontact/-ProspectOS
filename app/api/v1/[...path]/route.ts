@@ -417,7 +417,7 @@ async function handler(request:Request,context:{params:Promise<{path:string[]}>}
  // construction (see migration 012) — safe to call on every login, never re-extends an existing row.
  const {data,error:rpcError}=await db.rpc('activate_trial');
  if(rpcError){
-  if(rpcError.message?.includes('BETA_CAPACITY_REACHED'))return json({error:'Les places d’essai gratuit sont momentanément complètes. Choisissez une offre pour continuer, ou écrivez-nous à prospectos.contact@gmail.com.',code:'BETA_CAPACITY_REACHED'},409);
+  if(rpcError.message?.includes('BETA_CAPACITY_REACHED'))return json({error:'Les places d’essai gratuit sont momentanément complètes. Choisissez une offre pour continuer, ou écrivez-nous à contact@prospectos.fr.',code:'BETA_CAPACITY_REACHED'},409);
   throw Error('DATABASE_REQUEST_FAILED');
  }
  return json(data,201);

@@ -51,7 +51,7 @@ export const EDITOR = {
  phone: '06 35 15 10 66',
  // A dedicated public/legal/RGPD contact channel — deliberately distinct from the registered business
  // address above, and never the owner's personal address repurposed as this contact.
- legalEmail: 'prospectos.contact@gmail.com',
+ legalEmail: 'contact@prospectos.fr',
  // The entrepreneur individuel themselves, in the absence of any separate legal entity or board to
  // designate a distinct director of publication (LCEN art. 6-III).
  publicationDirector: 'Kevin Cardia',
@@ -98,7 +98,7 @@ export const TRANSFERS = {
 // Auth's own user_metadata, see app/page.tsx's signUp() call) at the moment a new account accepts them,
 // so a specific version can always be tied to a specific acceptance timestamp without a new table.
 export const TERMS_VERSION = '2026-10-11';
-export const PRIVACY_VERSION = '2026-10-11';
+export const PRIVACY_VERSION = '2026-11-01';
 
 export const LEGAL_PAGES = [
  {href: '/mentions-legales', label: 'Mentions légales'},

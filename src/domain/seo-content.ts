@@ -445,7 +445,7 @@ export const seoPages:SeoPage[]=[
     sections:[
       {h2:'L’éditeur de ProspectOS',blocks:[
         {type:'p',text:'ProspectOS est édité par Kevin Cardia, entrepreneur individuel (régime de la micro-entreprise) établi à Toulouse, en France. Les informations légales complètes figurent dans les [mentions légales](/mentions-legales), et le traitement des données personnelles est décrit dans la [politique de confidentialité](/confidentialite).'},
-        {type:'p',text:'Le contact se fait par e-mail à prospectos.contact@gmail.com. ProspectOS est une application web, utilisable en français et en anglais, sans installation.'},
+        {type:'p',text:'Le contact se fait par e-mail à contact@prospectos.fr. ProspectOS est une application web, utilisable en français et en anglais, sans installation.'},
       ]},
       {h2:'Les principes qui guident le produit',blocks:[
         {type:'ol',items:[
@@ -476,7 +476,7 @@ export const seoPages:SeoPage[]=[
     ],
     faq:[
       {q:'Qui édite ProspectOS ?',a:'Kevin Cardia, entrepreneur individuel basé à Toulouse. Les informations légales complètes sont dans les [mentions légales](/mentions-legales).'},
-      {q:'Comment contacter ProspectOS ?',a:'Par e-mail à prospectos.contact@gmail.com, y compris pour l’offre Entreprise / White Label.'},
+      {q:'Comment contacter ProspectOS ?',a:'Par e-mail à contact@prospectos.fr, y compris pour l’offre Entreprise / White Label.'},
       {q:'Où sont décrits les prix ?',a:'Sur la page des [tarifs](/tarifs) : essai gratuit de 7 jours, offres Solo, Pro et Équipe, offre Entreprise sur devis.'},
     ],
     cta:{title:'Découvrir ProspectOS',text:'La démonstration publique est accessible sans compte, sur des exemples issus de données publiques.'},

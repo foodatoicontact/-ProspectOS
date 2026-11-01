@@ -7,5 +7,7 @@ import {creationsSitemapEntries} from '../src/domain/company-creations';
 // complete month became available (src/domain/company-creations.ts), so the sitemap is regenerated daily too.
 export const revalidate=86400;
 export default function sitemap():MetadataRoute.Sitemap{
-  return [...sitemapEntries,...creationsSitemapEntries(SITE_URL,new Date())].map(entry=>({...entry,lastModified:new Date(entry.lastModified)}));
+  // The "3 prospects de votre zone" offer page (static; dated by its own last edit).
+  const offer={url:`${SITE_URL}/prospects-de-votre-zone`,lastModified:'2026-11-01',changeFrequency:'monthly' as const,priority:.8};
+  return [...sitemapEntries,offer,...creationsSitemapEntries(SITE_URL,new Date())].map(entry=>({...entry,lastModified:new Date(entry.lastModified)}));
 }

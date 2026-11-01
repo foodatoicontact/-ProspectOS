@@ -20,19 +20,22 @@ import {verificationOf,scoreText,shortReasons,priorityChip,type VerificationKind
 
 export const NATIVE_TEXT:Record<Locale,{settings:string;searchSummary:(q:string,l:string)=>string;edit:string;searching:string;results:(n:number)=>string;
  why:string;source:string;verification:string;advanced:string;runDetails:string;noResults:string;noResultsBody:string;startTitle:string;startBody:string;
- targeting:string;thirdParty:string;history:string;filters:string;kind:string;confidence:string;sources:string}>={
+ targeting:string;thirdParty:string;history:string;filters:string;kind:string;confidence:string;sources:string;
+ editCriteria:string}>={
  fr:{settings:'Plus de réglages',searchSummary:(q,l)=>`${q} · ${l}`,edit:'Modifier la recherche',searching:'Recherche en cours…',
   results:n=>n===1?'1 entreprise trouvée':`${n} entreprises trouvées`,why:'Pourquoi elle correspond',source:'Source',verification:'Vérification',
   advanced:'Détails avancés',runDetails:'Détails de la recherche',noResults:'Aucune entreprise trouvée.',
   noResultsBody:'Élargissez la zone, retirez une catégorie ou reformulez la requête.',startTitle:'Lancez une recherche',
   startBody:'Décrivez l’activité recherchée et la zone. Les résultats s’affichent ici, chacun à vérifier à la source.',
-  targeting:'Ciblage utilisé',thirdParty:'trouvée via une source tierce',history:'Historique des recherches',filters:'Filtrer les résultats',kind:'Type de résultat',confidence:'Lecture du résultat',sources:'Sources'},
+  targeting:'Ciblage utilisé',thirdParty:'trouvée via une source tierce',history:'Historique des recherches',filters:'Filtrer les résultats',kind:'Type de résultat',confidence:'Lecture du résultat',sources:'Sources',
+  editCriteria:'Modifier les critères'},
  en:{settings:'More settings',searchSummary:(q,l)=>`${q} · ${l}`,edit:'Edit the search',searching:'Searching…',
   results:n=>n===1?'1 company found':`${n} companies found`,why:'Why it matches',source:'Source',verification:'Verification',
   advanced:'Advanced details',runDetails:'Search details',noResults:'No company found.',
   noResultsBody:'Widen the area, remove a category or rephrase the query.',startTitle:'Run a search',
   startBody:'Describe the activity and the area. Results show here, each to be checked at its source.',
-  targeting:'Targeting used',thirdParty:'found via a third-party source',history:'Search history',filters:'Filter results',kind:'Result type',confidence:'Result reading',sources:'Sources'},
+  targeting:'Targeting used',thirdParty:'found via a third-party source',history:'Search history',filters:'Filter results',kind:'Result type',confidence:'Result reading',sources:'Sources',
+  editCriteria:'Edit the criteria'},
 };
 // "Lecture du résultat": how sure the automatic reading of this search result is, and where it came from — in words, never
 // a provider id ("fixture", "brave"). The legacy line (discoveryFoundNote) stays for the legacy screen.
@@ -220,7 +223,8 @@ function History({m}:{m:DiscoveryView}){
  </section>;
 }
 
-export function SearchNative({m}:{m:DiscoveryView}){
+// onEditTargeting: opens « Offre et cible » (the ICP editor), where every criterion and its rule can be changed.
+export function SearchNative({m,onEditTargeting}:{m:DiscoveryView;onEditTargeting?:()=>void}){
  const {tr}=m;const t=NATIVE_TEXT[m.locale];
  return <div className="pos-snative" data-testid="search-native">
   {m.mode==='demo'&&<p className="pos-snote">{tr('discovery.demoNote')}</p>}
@@ -229,6 +233,7 @@ export function SearchNative({m}:{m:DiscoveryView}){
    <summary><span>{t.targeting} · {m.projectName}</span><Icon name="chevron-down" size={16}/></summary>
    <p><b>{tr('discovery.offerUsed')}</b> {m.offer.trim()||tr('discovery.noOffer')}</p>
    <p><b>{tr('discovery.icpUsed')}</b> {m.criteria.map(c=>c.label).join(' · ')||tr('discovery.noCriteria')}</p>
+   {onEditTargeting&&<button type="button" className="pos-slink" onClick={onEditTargeting}>{t.editCriteria}</button>}
   </details>
   {m.replayed&&<p className="pos-snote" role="status">{tr('discovery.replayNote')}</p>}
   {m.busy&&m.deepPending&&<p className="pos-snote" role="status">{tr('deep.running')}</p>}

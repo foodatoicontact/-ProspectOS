@@ -50,8 +50,10 @@ test('flag OFF — app/page.tsx before the v2 branch and the legacy return are b
 test('flag ON — the same DiscoveryPanel element, plus view={SearchNative}',()=>{
  assert.equal((v2.match(/<DiscoveryPanel /g)??[]).length,1);
  assert.equal(el(v2),el(legacy),'same props');
- assert.match(v2,/onAdded=\{p=>\{[^}]*\}\} view=\{m=><v2\.SearchNative m=\{m\}\/>\}\/>\}\/>\n/); // UI-5C: Activité follows in the same chain
+ // 1 nov. 2026: « Modifier les critères » in the targeting summary opens « Offre et cible » (the settings entry of the account menu).
+ assert.match(v2,/onAdded=\{p=>\{[^}]*\}\} view=\{m=><v2\.SearchNative m=\{m\} onEditTargeting=\{\(\)=>v2Navigate\('settings'\)\}\/>\}\/>\}\/>\n/); // UI-5C: Activité follows in the same chain
  assert.match(read('../src/ui/v2/shell/AppShell.tsx'),/export \{SearchNative\} from '\.\.\/search\/SearchNative\.tsx';/);
+ assert.match(nat,/\{onEditTargeting&&<button type="button" className="pos-slink" onClick=\{onEditTargeting\}>\{t\.editCriteria\}<\/button>\}/,'the targeting summary leads to the ICP editor');
 });
 test('actions parity — the v2 card offers exactly the legacy actions, same conditions, same handlers',()=>{
  for(const [legacyRe,v2Re] of [

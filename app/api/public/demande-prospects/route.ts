@@ -1,10 +1,9 @@
 import {randomUUID} from 'node:crypto';
-import {CONTACT_EMAIL} from '../../../../src/domain/contact';
-import {createThrottle,notificationMail,parseProspectRequest} from '../../../../src/domain/prospect-request';
+import {PROSPECT_REQUEST_TO,createThrottle,notificationMail,parseProspectRequest} from '../../../../src/domain/prospect-request';
 import {smtpConfig} from '../../../../src/self-outreach/config';
 import {smtpTransportFrom} from '../../../../src/self-outreach/transport';
 
-// "3 prospects de votre zone" (src/domain/prospect-request.ts). The request is emailed to ProspectOS's own contact address
+// "3 prospects de votre zone" (src/domain/prospect-request.ts). The request is emailed to ProspectOS's own mailbox
 // and nowhere else: the recipient is a constant, nothing is ever sent to the requester, nothing is stored. It reuses the
 // SMTP configuration of the self-outreach engine for this single internal notification; the prospecting transport itself
 // stays behind its two flags in the cron route. Same-origin form posts only, small bodies, a honeypot, a burst throttle.
@@ -29,7 +28,7 @@ export async function POST(request:Request){
  const mail=notificationMail(parsed.request,new Date());
  const transport=smtpTransportFrom(cfg,await import('nodemailer'));
  try{
-  const sent=await transport.send({to:CONTACT_EMAIL,subject:mail.subject,text:mail.text,messageId:`<demande-${randomUUID()}@${cfg.fromEmail.split('@')[1]}>`});
+  const sent=await transport.send({to:PROSPECT_REQUEST_TO,subject:mail.subject,text:mail.text,messageId:`<demande-${randomUUID()}@${cfg.fromEmail.split('@')[1]}>`});
   return sent.kind==='SENT'?json(200,{ok:true}):json(503,{error:'UNAVAILABLE'});
  }finally{await transport.close()}
 }

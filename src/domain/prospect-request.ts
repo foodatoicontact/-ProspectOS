@@ -5,6 +5,9 @@
 // Pure: validation, cleaning, throttling state and the notification text; app/api/public/demande-prospects sends it.
 import {CREATIONS_DEPARTMENTS} from './company-creations.ts';
 
+// Where the requests go: the founder's professional mailbox (IONOS, 1 nov. 2026). The legal contact of the site (EDITOR)
+// is changed separately, with the legal pages.
+export const PROSPECT_REQUEST_TO='contact@prospectos.fr';
 export const REQUEST_LIMITS={activity:160,target:160,email:200,message:600} as const;
 const EMAIL=/^[^\s@<>()",;:]+@[^\s@<>()",;:]+\.[a-z]{2,}$/i;
 // Free consumer mailboxes are accepted (many freelancers use one) but flagged so the answer is not mistaken for a company.

@@ -3,7 +3,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
-import {cleanLine,createThrottle,notificationMail,parseProspectRequest} from '../src/domain/prospect-request.ts';
+import {PROSPECT_REQUEST_TO,cleanLine,createThrottle,notificationMail,parseProspectRequest} from '../src/domain/prospect-request.ts';
 
 const read=(p:string)=>readFileSync(new URL(`../${p}`,import.meta.url),'utf8');
 const VALID={activity:'Création de sites web',target:'Restaurants',department:'31',email:'Kevin@Agence-Exemple.fr',message:'',consent:true,website:''};
@@ -59,7 +59,8 @@ test('route — same origin, bounded body, the notification goes to ProspectOS o
  assert.match(route,/new URL\(origin\)\.host!==host\)return json\(403/,'same-origin form posts only');
  assert.match(route,/if\(raw\.length>4000\)return json\(413/);
  assert.match(route,/parsed\.error==='SPAM'\?json\(200,\{ok:true\}\)/,'a robot is answered like a success and never emailed');
- assert.match(route,/transport\.send\(\{to:CONTACT_EMAIL,/,'the recipient is a constant');
+ assert.equal(PROSPECT_REQUEST_TO,'contact@prospectos.fr','the founder\'s professional mailbox, not the old Gmail');
+ assert.match(route,/transport\.send\(\{to:PROSPECT_REQUEST_TO,/,'the recipient is a constant');
  assert.equal((route.match(/\.send\(/g)??[]).length,1,'one email per request');
  assert.doesNotMatch(route,/to:parsed|to:request|request\.email|createClient|supabase|insert\(/i,'never sent to the requester, never stored');
  assert.doesNotMatch(route,/createSmtpTransport/,'the prospecting transport (behind its two flags) is not used here');

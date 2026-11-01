@@ -66,9 +66,11 @@ test('demo — invented companies only, labelled as such; no real brand, logo or
 });
 test('copy — the hero, positioning and workflow asked for; no generic SaaS claims',()=>{
  const fr=HOME_COPY.fr;
- assert.equal(fr.hero.title,'Arrêtez de prospecter toute votre liste.');
+ // Owner decision (1 nov. 2026, after Lucas Iannone's feedback): the title says what the visitor gets, not what to stop.
+ assert.equal(fr.hero.title,'Chaque matin, les entreprises à contacter, et pourquoi maintenant.');
+ assert.match(home,/<h1 id="pos-home-title" className="pos-home__title">\{copy\.hero\.title\}<\/h1>\n     <p className="pos-home__lead pos-home__subtitle">\{copy\.hero\.subtitle\}<\/p>/,'the subtitle under the title');
  assert.deepEqual(fr.hero.lines,['Qui contacter.','Pourquoi maintenant.','Avec quelles preuves.']);
- assert.equal(fr.hero.subtitle,'ProspectOS détecte les entreprises qui correspondent à votre cible et les signaux qui rendent le timing pertinent.');
+ assert.equal(fr.hero.subtitle,'Créations, ouvertures, recrutements : ProspectOS repère les bons moments dans des sources publiques, avec la source de chaque fait. Vous n’appelez plus au hasard.');
  assert.equal(fr.hero.how,'Voir comment ça fonctionne');
  assert.equal(fr.positioning.line1,'Une liste vous dit qui existe.');
  assert.equal(fr.positioning.line2,'ProspectOS vous dit qui mérite votre attention maintenant.');

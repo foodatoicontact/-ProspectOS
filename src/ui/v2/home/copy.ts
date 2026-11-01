@@ -27,9 +27,9 @@ export const HOME_COPY:Record<Locale,HomeCopy>={
  fr:{
   nav:{nav:'Navigation principale',pricing:'Tarifs',home:'ProspectOS — accueil',menu:'Menu'},
   footer:{discover:'Découvrir ProspectOS',legal:'Informations légales'},
-  hero:{eyebrow:'Logiciel de prospection B2B',title:'Arrêtez de prospecter toute votre liste.',
+  hero:{eyebrow:'Logiciel de prospection B2B',title:'Chaque matin, les entreprises à contacter, et pourquoi maintenant.',
    lines:['Qui contacter.','Pourquoi maintenant.','Avec quelles preuves.'],
-   subtitle:'ProspectOS détecte les entreprises qui correspondent à votre cible et les signaux qui rendent le timing pertinent.',
+   subtitle:'Créations, ouvertures, recrutements : ProspectOS repère les bons moments dans des sources publiques, avec la source de chaque fait. Vous n’appelez plus au hasard.',
    how:'Voir comment ça fonctionne',human:'Aucun envoi automatique : vous gardez la main.',
    audience:'Pour les indépendants, les agences et les PME qui prospectent eux‑mêmes.',
    barometer:'Combien d’entreprises se créent dans votre département ? Les chiffres du mois, sans compte'},
@@ -81,9 +81,9 @@ export const HOME_COPY:Record<Locale,HomeCopy>={
  en:{
   nav:{nav:'Main navigation',pricing:'Pricing',home:'ProspectOS — home',menu:'Menu'},
   footer:{discover:'Discover ProspectOS',legal:'Legal information'},
-  hero:{eyebrow:'B2B prospecting software',title:'Stop prospecting your whole list.',
+  hero:{eyebrow:'B2B prospecting software',title:'Every morning, the companies to contact, and why now.',
    lines:['Who to contact.','Why now.','With what evidence.'],
-   subtitle:'ProspectOS detects the companies that match your target and the signals that make the timing right.',
+   subtitle:'New businesses, openings, hiring: ProspectOS spots the right moments in public sources, with the source of every fact. No more calling at random.',
    how:'See how it works',human:'Nothing is sent automatically: you stay in control.',
    audience:'For self-employed professionals, agencies and small businesses who do their own prospecting.',
    barometer:'How many businesses open in each French department? This month’s figures, no account needed (in French)'},

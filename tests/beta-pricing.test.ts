@@ -264,7 +264,8 @@ test('J — a real Discovery is charged at launch whatever it finds; a fixture r
  // is the one recorded by start_discovery — 'registry' is billed like 'brave' by the unchanged line above.
  assert.match(services,/const provider=createDiscoveryProvider\(name,process\.env\);/);
  const factory=readFileSync(new URL('../src/discovery/providers/index.ts',import.meta.url),'utf8');
- assert.match(factory,/if\(id==='brave'\)return new BraveProvider\(env\.BRAVE_SEARCH_API_KEY\?\?''\);\n if\(id==='registry'\)return new RegistryProvider\(\);\n return new FixtureProvider\(\);/,'brave→Brave, registry→register, anything else→TEST fixture');
+ assert.match(factory,/if\(id==='brave'\)return new BraveProvider\(env\.BRAVE_SEARCH_API_KEY\?\?''\);\n if\(id==='registry'\)return new RegistryProvider\(\);\n if\(id==='bodacc_sales'\)return new BodaccSalesProvider\(\);\n return new FixtureProvider\(\);/,'brave→Brave, registry→register, bodacc_sales→BODACC purchases, anything else→TEST fixture');
+ // Migration 039 (1 nov. 2026) added the BODACC purchases source: billed by the same unchanged line (p_provider<>'fixture').
 });
 
 // ---------------------------------------------------------------- K: beta capacity message

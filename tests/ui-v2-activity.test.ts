@@ -84,7 +84,7 @@ test('benches — never served in Production; the activity bench uses frozen dat
 test('Recherche — the advanced "Lecture du résultat" line says it in words, never a provider id',async()=>{
  const src=read('../src/ui/v2/search/SearchNative.tsx');
  assert.match(src,/confidence:'Lecture du résultat'/);
- assert.ok(src.includes("SOURCE_NAME:Record<Locale,Record<string,string>>={fr:{brave:'recherche web',registry:'registre des entreprises',fixture:'données de test'}"));
+ assert.ok(src.includes("SOURCE_NAME:Record<Locale,Record<string,string>>={fr:{brave:'recherche web',registry:'registre des entreprises',bodacc_sales:'annonces de reprise du BODACC',fixture:'données de test'}"));
  assert.ok(!src.includes('discoveryFoundNote('),'the legacy line is no longer used by the v2 view');
  assert.match(read('../src/components/DiscoveryPanel.tsx'),/discoveryFoundNote\(/,'the legacy screen keeps its line');
 });

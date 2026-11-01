@@ -4,14 +4,16 @@ import type {DiscoveryProvider} from '../types.ts';
 import {BraveProvider} from './brave.ts';
 import {FixtureProvider} from './fixture.ts';
 import {RegistryProvider} from './registry.ts';
+import {BodaccSalesProvider,BODACC_SALES_LABEL} from './bodacc-sales.ts';
 
-export type DiscoveryProviderId='fixture'|'brave'|'registry';
+export type DiscoveryProviderId='fixture'|'brave'|'registry'|'bodacc_sales';
 type Env=Record<string,string|undefined>;
 export const REGISTRY_LABEL='Registre des entreprises — données publiques';
 
 export function createDiscoveryProvider(id:DiscoveryProviderId|undefined,env:Env):DiscoveryProvider{
  if(id==='brave')return new BraveProvider(env.BRAVE_SEARCH_API_KEY??'');
  if(id==='registry')return new RegistryProvider();
+ if(id==='bodacc_sales')return new BodaccSalesProvider();
  return new FixtureProvider();
 }
 
@@ -21,6 +23,8 @@ export function discoveryProviderConfig(env:Env){
   {id:'brave' as const,available:!!env.BRAVE_SEARCH_API_KEY,mode:'live' as const,label:'Brave Search API'},
   // Public data, no key: always available in live mode.
   {id:'registry' as const,available:true,mode:'live' as const,label:REGISTRY_LABEL},
+  // Recent business purchases (BODACC « Ventes et cessions »): public data, no key, always available in live mode.
+  {id:'bodacc_sales' as const,available:true,mode:'live' as const,label:BODACC_SALES_LABEL},
  ],website_policy:'Domaines autorisés par l’opérateur et robots.txt vérifié',max_results_transport:100};
 }
 

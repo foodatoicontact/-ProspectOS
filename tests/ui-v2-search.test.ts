@@ -36,7 +36,10 @@ test('legacy untouched — DiscoveryPanel only gains factsOf (expressions moved 
  const cardNow=card(panel);assert.ok(cardNow.length>2000);
  assert.equal(cardNow.replace(/ \/\/ Recherche 2\.0 \(UI-5B\)[^]*?<\/>;\n/,''),card(before),'the legacy result card, byte for byte');
  const logic=(s:string)=>s.slice(s.indexOf(' const tr=(key:TKey)=>'),s.indexOf(' const resultCard=')).replace(/ \/\/ Everything a result card says[^]*$/,'');
- assert.equal(logic(panel),logic(before),'state, effects, search, accept, ignore, history, novelty: unchanged');
+ // 1 nov. 2026 (migration 039): the run summary written after a search also names the BODACC purchases source —
+ // the only change to the panel's logic, removed here before the byte comparison.
+ const withoutSales=(s:string)=>s.replace("provider==='bodacc_sales'?'bodacc_sales':",'');
+ assert.equal(withoutSales(logic(panel)),logic(before),'state, effects, search, accept, ignore, history, novelty: unchanged');
  const factsBody=panel.slice(panel.indexOf(' const factsOf='),panel.indexOf('  return {meta,cls,canAdd'));
  for(const expr of factsBody.split(/;\n?|\n/).map(x=>x.trim()).filter(x=>x.startsWith('const ')&&!x.startsWith('const factsOf')))
   assert.ok(before.includes(expr),`moved verbatim: ${expr}`);

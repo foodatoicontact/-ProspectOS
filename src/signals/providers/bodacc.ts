@@ -103,11 +103,11 @@ export class BodaccSignalProvider implements SignalProvider{
  }
 }
 
-// The SIREN ProspectOS itself read in the public register when the prospect was accepted (server-written discovery
-// results, migration 014): never a number typed by a member.
+// The SIREN ProspectOS itself read in the public register — or in the BODACC purchase notice (bodacc_sales) — when the
+// prospect was accepted (server-written discovery results, migration 014): never a number typed by a member.
 export function sirenOf(accepted:Array<{provider:string;raw_payload:unknown}>):string|null{
  for(const r of accepted){
-  if(r.provider!=='registry')continue;
+  if(r.provider!=='registry'&&r.provider!=='bodacc_sales')continue;
   const p=r.raw_payload as {siren?:unknown;registry?:{siren?:unknown}}|null;
   const s=typeof p?.siren==='string'?p.siren:typeof p?.registry?.siren==='string'?p.registry.siren:null;
   if(s&&/^\d{9}$/.test(s))return s;

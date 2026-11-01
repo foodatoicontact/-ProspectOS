@@ -3,7 +3,9 @@
 // SELF_OUTREACH_ENABLED) are on and the SMTP configuration is complete; otherwise createSmtpTransport throws and no
 // code path can send. Errors are reduced to a code: never a server response, a host, a user or a password.
 import {selfOutreachSendEnabled,smtpConfig,type Env,type SmtpConfig} from './config.ts';
-export type OutgoingMail={to:string;subject:string;text:string;messageId:string;inReplyTo?:string|null};
+// unsubscribeUrl: a signed one-click link (RFC 8058) offered next to the mailto (the morning recap, src/digest); the
+// prospecting emails keep the mailto alone.
+export type OutgoingMail={to:string;subject:string;text:string;messageId:string;inReplyTo?:string|null;unsubscribeUrl?:string|null};
 // SENT accepted by the server · RETRY not accepted, temporary · FAILED not accepted, permanent · BOUNCED recipient
 // refused · UNCERTAIN the server may have accepted it (never re-sent automatically) · AUTH authorization problem: stop.
 export type SendResult={kind:'SENT';providerMessageId:string|null}|{kind:'RETRY';code:string;retryAfterSeconds:number}|{kind:'FAILED'|'BOUNCED'|'UNCERTAIN'|'AUTH';code:string};
@@ -39,7 +41,9 @@ export function smtpTransportFrom(cfg:SmtpConfig,nodemailer:Nodemailer|{default:
    try{
     const info=await t.sendMail({from:{name:cfg.fromName||cfg.fromEmail,address:cfg.fromEmail},to:m.to,subject:m.subject,text:m.text,messageId:m.messageId,
      ...(m.inReplyTo?{inReplyTo:m.inReplyTo,references:[m.inReplyTo]}:{}),
-     headers:{'List-Unsubscribe':`<mailto:${cfg.fromEmail}?subject=STOP>`}});
+     headers:m.unsubscribeUrl&&/^https:\/\/[^\s<>,]+$/.test(m.unsubscribeUrl)
+      ?{'List-Unsubscribe':`<${m.unsubscribeUrl}>, <mailto:${cfg.fromEmail}?subject=STOP>`,'List-Unsubscribe-Post':'List-Unsubscribe=One-Click'}
+      :{'List-Unsubscribe':`<mailto:${cfg.fromEmail}?subject=STOP>`}});
     if((info.rejected??[]).length&&!(info.accepted??[]).length)return {kind:'BOUNCED',code:'SMTP_RECIPIENT_REJECTED'};
     return {kind:'SENT',providerMessageId:typeof info.messageId==='string'?info.messageId.slice(0,300):null};
    }catch(e){return classifySmtpError(e)}

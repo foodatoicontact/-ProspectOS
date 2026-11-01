@@ -193,7 +193,9 @@ test('11 — commercial copy is NOT changed by ZF1 (the trial stays as on main u
 
  // WEB-2.1 / 2.2 (owner decision): only the /a-propos wording about the demo and the score (and its date) changed. Every other page is main's text,
  // and the commercial lines of /a-propos (trial, prices, offers) are main's too.
- {const main=execSync('git show cca808c:src/domain/seo-content.ts',{cwd:new URL('..',import.meta.url),encoding:'utf8'});const now=await read('src/domain/seo-content.ts');
+ // Owner decision (1 nov. 2026): the contact address moved from the Gmail to contact@prospectos.fr everywhere; that change
+ // alone is applied to main's text before comparing.
+ {const main=execSync('git show cca808c:src/domain/seo-content.ts',{cwd:new URL('..',import.meta.url),encoding:'utf8'}).replaceAll('prospectos.contact@gmail.com','contact@prospectos.fr');const now=await read('src/domain/seo-content.ts');
   const ABOUT="slug:'a-propos'";
   // WEB-2.2: plus the closing call to action of /prospection-b2b ("score expliqué" → explained recommendation).
   const outside=(t:string)=>t.split(ABOUT)[0]!.replace(/cta:\{title:'Voir la méthode appliquée',text:'[^']*'\}/,'CTA');

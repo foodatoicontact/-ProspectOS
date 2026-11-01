@@ -72,7 +72,7 @@ begin
    -- is never claimed, nor an account that belongs to no organization any more.
    and u.email is not null and u.email not like '%@deleted.invalid'
    and exists(select 1 from public.memberships m where m.user_id=s.user_id)
-  order by s.claimed_at nulls first limit p_limit for update skip locked
+  order by s.claimed_at nulls first limit p_limit for update of s skip locked
  ), claimed as (
   update public.morning_digest_subscriptions s set claimed_at=now(),updated_at=now() from due where s.user_id=due.user_id
   returning s.user_id,coalesce(s.last_checked_at,s.consented_at) since,s.claimed_at

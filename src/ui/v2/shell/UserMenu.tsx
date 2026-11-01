@@ -17,13 +17,13 @@ export type UserMenuProps={
 };
 
 export const MENU_TEXT:Record<Locale,{title:string;trigger:string;demo:string;account:string;team:string;offer:string;sources:string;
- language:string;theme:string;privacy:string;privacyPolicy:string;beta:string;selfOutreach:string;signOut:string;exitDemo:string;resetDemo:string}>={
+ language:string;theme:string;privacy:string;privacyPolicy:string;creations:string;beta:string;selfOutreach:string;signOut:string;exitDemo:string;resetDemo:string}>={
  fr:{title:'Compte',trigger:'Menu du compte : langue, thème, compte, déconnexion',demo:'Démo sur cet appareil',account:'Compte',
   team:'Organisation et équipe',offer:'Offre et cible',sources:'Sources',language:'Langue',theme:'Thème',privacy:'Données et confidentialité',
-  privacyPolicy:'Politique de confidentialité',beta:'Bêta Analytics',selfOutreach:'Outreach ProspectOS',signOut:'Se déconnecter',exitDemo:'Quitter la démo',resetDemo:'Réinitialiser la démo'},
+  privacyPolicy:'Politique de confidentialité',creations:'Créations d’entreprises',beta:'Bêta Analytics',selfOutreach:'Outreach ProspectOS',signOut:'Se déconnecter',exitDemo:'Quitter la démo',resetDemo:'Réinitialiser la démo'},
  en:{title:'Account',trigger:'Account menu: language, theme, account, sign out',demo:'Demo on this device',account:'Account',
   team:'Organization and team',offer:'Offer and target',sources:'Sources',language:'Language',theme:'Theme',privacy:'Data and privacy',
-  privacyPolicy:'Privacy policy',beta:'Beta Analytics',selfOutreach:'ProspectOS outreach',signOut:'Sign out',exitDemo:'Exit demo',resetDemo:'Reset demo'},
+  privacyPolicy:'Privacy policy',creations:'New businesses (France)',beta:'Beta Analytics',selfOutreach:'ProspectOS outreach',signOut:'Sign out',exitDemo:'Exit demo',resetDemo:'Reset demo'},
 };
 
 function Item({icon,label,onClick,disabled,danger}:{icon:IconName;label:string;onClick:()=>void;disabled?:boolean;danger?:boolean}){
@@ -44,6 +44,9 @@ export function UserMenuContent(p:UserMenuProps&{onDone:()=>void}){
    {live&&<Item icon="prospects" label={t.team} onClick={act(p.onTeam)}/>}
    <Item icon="settings" label={t.offer} onClick={act(p.onOfferTarget)}/>
    <Item icon="sources" label={t.sources} onClick={act(p.onSources)}/>
+   {/* The public company-creation barometer, opened beside the app (live and demo alike). */}
+   <li><a className="pos-menu__item" href="/creations-entreprises" target="_blank" rel="noopener" onClick={p.onDone}>
+    <Icon name="signal" size={18}/><span className="pos-menu__label">{t.creations}</span><Icon name="external" size={14}/></a></li>
    {live&&<Item icon="info" label={t.privacy} onClick={act(p.onPrivacy)}/>}
    {live&&p.internal&&<Item icon="activity" label={t.beta} onClick={act(p.onBetaAnalytics)}/>}
    {live&&p.selfOutreach&&<Item icon="contact" label={t.selfOutreach} onClick={act(p.selfOutreach)}/>}

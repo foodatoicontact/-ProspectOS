@@ -273,6 +273,15 @@ test('routes — on-demand ISR, no register call at build for zones, a build-onl
  assert.ok(home.indexOf('pos-home__barometer')>home.indexOf('data-testid="home-cta"'),'below the trial call to action, never above it');
 });
 
+test('app — the logged-in space links the barometer: "Aujourd’hui" empty state and the account menu, opened beside the app',()=>{
+ const today=read('src/ui/v2/today/TodayV2.tsx');
+ assert.match(today,/<a className="pos-empty__link" href="\/creations-entreprises" target="_blank" rel="noopener">\{t\.creations\}/);
+ assert.match(today,/creations:'Voir les entreprises créées ce mois-ci dans votre département'/);
+ const menu=read('src/ui/v2/shell/UserMenu.tsx');
+ assert.match(menu,/<a className="pos-menu__item" href="\/creations-entreprises" target="_blank" rel="noopener" onClick=\{p\.onDone\}>/,'the menu closes, the app stays open');
+ assert.match(menu,/creations:'Créations d’entreprises'/);
+});
+
 test('sitemap — France, 13 regions and 101 departments, dated by the month that closed, not by the build',()=>{
  const entries=creationsSitemapEntries('https://prospectos.fr',NOW);
  assert.equal(entries.length,115);

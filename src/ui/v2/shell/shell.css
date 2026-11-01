@@ -117,3 +117,6 @@
  .pos-ui .pos-nav__item[aria-current="page"],.pos-ui .pos-menu__item[aria-current="true"]{outline:2px solid Highlight;outline-offset:-2px}
  .pos-ui .pos-project,.pos-ui .pos-avatar,.pos-ui .pos-account{border:1px solid ButtonText}
 }
+/* A menu entry that is a link (the public barometer): same look as the buttons. */
+.pos-ui a.pos-menu__item{color:inherit;text-decoration:none}
+.pos-ui a.pos-menu__item>.pos-icon:last-child,.pos-ui a.pos-menu__item>svg:last-child{margin-left:auto;opacity:.6}

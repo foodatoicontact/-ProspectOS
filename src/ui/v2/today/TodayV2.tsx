@@ -25,7 +25,7 @@ export const TODAY_TEXT:Record<Locale,{
  filters:string;contact:string;verify:string;watch:string;why:string;whyTitle:string;completeTitle:string;verifyTitle:string;
  source:string;freshness:string;place:string;sourceSays:string;favourable:string;missing:string;verified:string;undocumented:string;
  nothingVerified:string;nothingMissing:string;advanced:string;advancedNote:string;scores:string;rule:string;evidence:string;provenance:string;
- completeIntro:string;openRecord:string;declare:string;emptyTitle:string;emptyBody:string;search:string;
+ completeIntro:string;openRecord:string;declare:string;emptyTitle:string;emptyBody:string;search:string;creations:string;
  declareTitle:string;declareCriterion:string;declareValue:string;declareMet:string;declareNotMet:string;declareNote:string;declareNoteHint:string;
  declareWarning:string;declareSave:string;declareSaved:string;declareError:string;declaredByYou:string;declaredNotMet:string;estimatedToCheck:string;
  filteredEmpty:Record<Filter,string>;showAll:string;signalPrefix:string;close:string;dismiss:string;toDocument:string}>={
@@ -43,7 +43,7 @@ export const TODAY_TEXT:Record<Locale,{
   declareSaved:'Information enregistrée. Elle vient de vous : elle n’est pas une preuve vérifiée.',declareError:'L’information n’a pas pu être enregistrée.',
   declaredByYou:'Déclaré par vous',declaredNotMet:'Déclaré non rempli par vous',estimatedToCheck:'Estimé, à vérifier',
   emptyTitle:'Aucune entreprise à contacter aujourd’hui.',emptyBody:'Une journée normale : rien n’est forcé. Une nouvelle recherche peut faire apparaître de nouveaux signaux.',
-  search:'Lancer une recherche',filteredEmpty:{contact:'Aucune entreprise à contacter aujourd’hui.',verify:'Aucune entreprise à vérifier.',watch:'Aucune entreprise en veille à afficher.'},
+  search:'Lancer une recherche',creations:'Voir les entreprises créées ce mois-ci dans votre département',filteredEmpty:{contact:'Aucune entreprise à contacter aujourd’hui.',verify:'Aucune entreprise à vérifier.',watch:'Aucune entreprise en veille à afficher.'},
   showAll:'Tout afficher',signalPrefix:'Signal : ',close:'Fermer',dismiss:'Fermer le message',toDocument:'À documenter'},
  en:{filters:'Filter recommendations',contact:'to contact',verify:'to verify',watch:'watching',why:'See why',
   whyTitle:'Why this recommendation?',completeTitle:'What is missing to decide?',verifyTitle:'Check the signal',
@@ -59,7 +59,7 @@ export const TODAY_TEXT:Record<Locale,{
   declareSaved:'Information saved. It comes from you: it is not verified evidence.',declareError:'The information could not be saved.',
   declaredByYou:'Declared by you',declaredNotMet:'Declared not met by you',estimatedToCheck:'Estimated, to check',
   emptyTitle:'No company to contact today.',emptyBody:'A normal day: nothing is forced. A new search can bring new signals.',
-  search:'Run a search',filteredEmpty:{contact:'No company to contact today.',verify:'No company to verify.',watch:'No watched company to show.'},
+  search:'Run a search',creations:'See this month’s new businesses in your French department',filteredEmpty:{contact:'No company to contact today.',verify:'No company to verify.',watch:'No watched company to show.'},
   showAll:'Show all',signalPrefix:'Signal: ',close:'Close',dismiss:'Dismiss message',toDocument:'To document'},
 };
 
@@ -242,7 +242,9 @@ export function TodayV2({projectId,api,locale,dirty,onCleaned,onOpenProspect,cri
    {status==='loading'&&!model&&<div className="pos-today__skeleton" role="status" aria-label={tr('today.loading')}><span/><span/></div>}
    {status==='error'&&<div className="pos-banner pos-banner--error" role="alert"><p>{tr('today.error')}</p><Button size="sm" variant="secondary" onClick={()=>void load('open')}>{tr('today.retry')}</Button></div>}
    {model&&model.total===0&&<div className="pos-empty pos-card"><p className="pos-empty__title">{t.emptyTitle}</p><p className="pos-empty__body">{t.emptyBody}</p>
-    <Button size="sm" variant="secondary" iconStart="search" onClick={onSearch}>{t.search}</Button></div>}
+    <Button size="sm" variant="secondary" iconStart="search" onClick={onSearch}>{t.search}</Button>
+    {/* The public company-creation barometer: a source of fresh companies to search for, opened beside the app. */}
+    <a className="pos-empty__link" href="/creations-entreprises" target="_blank" rel="noopener">{t.creations} <span aria-hidden="true">↗</span></a></div>}
    {model&&model.total>0&&visible.length===0&&filter&&<div className="pos-empty pos-card"><p className="pos-empty__title">{t.filteredEmpty[filter]}</p>
     <Button size="sm" variant="secondary" onClick={()=>setFilter(null)}>{t.showAll}</Button></div>}
    {visible.length>0&&<ol className="pos-today__list">

@@ -159,3 +159,5 @@
  .pos-ui .pos-search :is(.pos-sform__more,.pos-sdetails)>summary .pos-icon{transition:none}
 }
 @media (forced-colors:active){.pos-ui .pos-search :is(.pos-sres,.pos-srun,.pos-sform,.pos-stab){border:1px solid CanvasText}}
+/* Targeting used: « Modifier les critères » opens the ICP editor (Offre et cible). */
+.pos-ui .pos-search .pos-slink{min-height:44px;margin:0 0 var(--pos-space-2);padding:0;border:0;background:transparent;color:var(--pos-accent);font:inherit;font-weight:var(--pos-weight-semibold);text-decoration:underline;text-underline-offset:3px;cursor:pointer}

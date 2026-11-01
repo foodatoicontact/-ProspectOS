@@ -130,12 +130,46 @@ function relationalConcepts(text:string,locations:string[]):{concepts:string[];r
  return {concepts,rest};
 }
 
+// A list in parentheses enumerates what precedes it ("à Grenoble et alentours (Meylan, Échirolles)", "s'agrandir (nouvel
+// associé, nouveau bureau)"): it is taken out before the text is cut at commas. Items written with a capital are places
+// (zone); the others are what to observe. Grammar only: no place or business vocabulary.
+export function splitParentheses(text:string):{text:string;places:string[];items:string[]}{
+ const places:string[]=[],items:string[]=[];
+ // Lower-case items inside the first clause describe who ("Restaurants (pizzerias, brasseries)"): not a need, left out.
+ const blanked=text.replace(/\([^()]*\)/g,m=>' '.repeat(m.length));
+ const headEnd=/[,;.\n]|\s(?:qui|avec|ayant|dont|proposant)\s/i.exec(blanked)?.index??text.length;
+ const out=text.replace(/\(([^()]{1,200})\)/g,(_,inner:string,at:number)=>{
+  for(const raw of inner.split(/\s*[,;]\s*|\s+(?:ou|et)\s+/i)){const v=clean(raw);if(!v)continue;if(/^[A-ZÀ-ÖØ-Ý]/.test(v))places.push(v.slice(0,80));else if(at>headEnd)items.push(v.slice(0,80))}
+  return ' ';
+ });
+ return {text:clean(out),places,items};
+}
+// "dont le site est absent, en construction ou à refaire": one subject and its states. Each state becomes a signal that
+// keeps its subject ("site en construction"), so it never matches the bare word elsewhere ("droit de la construction").
+// An absence ("absent", "pas de", "sans", "aucun") cannot be read on a page: it is a note for the human, never a signal.
+const SUBJECT_STATES=/\bdont\s+(?:le|la|les|leur|leurs|son|sa|ses|l[’'])\s*([\p{L}-]{3,30})\s+(?:est|sont)\s+(.+?)(?=\s*,?\s*(?:ou|et)?\s+qui\b|[.;]|$)/iu;
+const ABSENCE=/\b(?:absente?s?|absence|inexistante?s?|manquante?s?|pas\s+de|sans|aucune?)\b/i;
+export function subjectStates(text:string):{text:string;signals:string[];notes:string[]}{
+ const m=SUBJECT_STATES.exec(text);if(!m)return {text,signals:[],notes:[]};
+ const subject=m[1]!.toLowerCase();const signals:string[]=[],notes:string[]=[];
+ for(const raw of m[2]!.split(/\s*,\s*|\s+ou\s+|\s+et\s+/i)){
+  const state=clean(raw);if(!state)continue;
+  const phrase=`${subject} ${state}`.slice(0,80);
+  (ABSENCE.test(state)?notes:signals).push(phrase);
+ }
+ return {text:clean(text.slice(0,m.index)+' '+text.slice(m.index+m[0].length)),signals,notes};
+}
+
 export function parseTarget(targetText:string):{query:string;categories:string[];locations:string[];signals:string[];notes:string[]}{
- const locations=extractLocations(clean(targetText));
+ const paren=splitParentheses(clean(targetText));
+ const states=subjectStates(paren.text);
+ targetText=states.text;
+ const locations=uniq([...extractLocations(clean(targetText)),...paren.places]).slice(0,MAX_LIST);
  // What the target does is read first, and taken out of the text: it is a category, never a signal (a need).
  const relation=relationalConcepts(clean(targetText),locations);
  const text=relation.rest;
  const notes:string[]=[];const size=SIZE.exec(clean(targetText));if(size)notes.push(size[0]);
+ for(const n of states.notes)notes.push(`${n} (non vérifiable automatiquement)`);
  // Clauses: the first one names who; the following ones (or "avec …") describe what to observe.
  const clauses=text.split(/[,;.\n]|\s+(?=avec\s)|\s+(?=qui\s)|\s+(?=ayant\s)|\s+(?=proposant\s)/i).map(clean).filter(Boolean);
  let head=(clauses[0]??'').replace(ARTICLE,'').replace(SIZE,' ').replace(/\s+(?:de|d’|d')\s*$/i,'').replace(/\s+(?:en|à|a|dans|sur|autour de|près de|proche de)\s+.*$/i,'').replace(/\s+(?:de|d’|d')\s*$/i,'').trim();
@@ -149,14 +183,18 @@ export function parseTarget(targetText:string):{query:string;categories:string[]
  // A size word followed by what it does ("ETI industrielles ou agroalimentaires"): those qualifiers are the
  // business words the user wrote — each coordinated one is a category. The size word itself never is.
  const qualifiers=generic?words.slice(1).join(' ').split(/\s+(?:ou|et)\s+|\s*,\s*/).map(q=>q.split(' ')[0]??'').filter(q=>q.length>2&&!/^(?:de|des|du|en|et|ou)$/i.test(q)&&!RELATION.test(` ${q} `)).map(lemma):[]; // a verb is never a category
- const categories=uniq([...(firstWord?[singular(firstWord)]:qualifiers),...relation.concepts]).slice(0,MAX_LIST);
+ // "Cabinets d'avocats", "cabinet d'architectes": an elided complement is part of the trade's name; the head alone
+ // ("cabinet") is shared by unrelated trades. Only the elided form directly after the first word is kept ("détaillants
+ // de vélos" stays "détaillant", as before).
+ const complement=firstWord&&words[0]===firstWord&&/^d['’][\p{L}-]{3,}$/u.test(words[1]??'')?` ${words[1]}`:'';
+ const categories=uniq([...(firstWord?[singular(firstWord)+complement]:qualifiers),...relation.concepts]).slice(0,MAX_LIST);
  const placeFolds=locations.map(foldPlace);
- const signals=uniq(clauses.slice(1)
+ const signals=uniq([...states.signals,...clauses.slice(1)
   .flatMap(c=>c.split(/\s+ou\s+/i))
   .map(c=>clean(c.replace(DISCOURSE,'').replace(/^(?:ou|et)\s+/i,'').replace(/\s+(?:ou|et)$/i,'').replace(LEADING,'').replace(AUXILIARY,'').replace(TIME_TAIL,'').replace(/^(?:des |de |d’|d')?besoins?\s+(?:en|de|d’|d')\s*/i,'').replace(/^(?:en|de|d’|d')\s+/i,'').replace(/^(?:la|le|les|un|une|des|du|de la|l’|l')\s*/i,'')))
   .filter(c=>!DISCOURSE.test(c+' ')&&c.split(' ').some(w=>w.length>=3))
   .filter(c=>c.length>=4&&!SIZE.test(c)&&!VAGUE.test(c)&&!placeFolds.some(p=>foldPlace(c)===p||foldPlace(c).replace(/^(en|a|dans|sur) /,'')===p))
-  .map(c=>c.replace(/\s+(?:en|à|dans)\s+[A-ZÀ-ÖØ-Ý].*$/,'').slice(0,80)))
+  .map(c=>c.replace(/\s+(?:en|à|dans)\s+[A-ZÀ-ÖØ-Ý].*$/,'').slice(0,80)),...paren.items])
   .slice(0,MAX_LIST);
  return {query,categories,locations,signals,notes};
 }

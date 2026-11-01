@@ -148,6 +148,7 @@ export type DepartmentCreations={
  previous:MonthCount|null;lastYear:MonthCount|null;trend:MonthCount[];
  kinds:{individual:number;company:number;companyNoActivity:number;other:number};
  activities:Count<ActivityKey>[];communes:Count[];communesHidden:number;
+ purchases:Purchases|null;
  source:{dataset:string;query:string;retrievedAt:string};
 };
 const share=(n:number,total:number)=>total?n/total:0;
@@ -174,7 +175,9 @@ export class CreationsUnavailableError extends Error{}
 type Fetch=typeof fetch;
 const MONTH=/^\d{4}-(?:0[1-9]|1[0-2])$/;
 const DEPT=/^(?:\d{2}|2[AB]|97\d)$/;
-const creationWhere=(scope:string,from:string,to:string)=>`familleavis="creation" and ${scope} and dateparution>=date'${monthStart(from)}' and dateparution<date'${monthStart(to)}'`;
+// The BODACC family is a fixed literal, never a caller's text: "creation" (Créations) or "vente" (Ventes et cessions).
+const noticeWhere=(family:'creation'|'vente',scope:string,from:string,to:string)=>`familleavis="${family}" and ${scope} and dateparution>=date'${monthStart(from)}' and dateparution<date'${monthStart(to)}'`;
+const creationWhere=(scope:string,from:string,to:string)=>noticeWhere('creation',scope,from,to);
 const deptScope=(code:string)=>{if(!DEPT.test(code))throw new CreationsUnavailableError('INVALID_DEPARTMENT');return `numerodepartement="${code}"`};
 const MONTH_KEY="date_format(dateparution,'yyyy-MM')";
 
@@ -237,12 +240,44 @@ export function monthlySeries(rows:Record<string,unknown>[],from:string,to:strin
  return out;
 }
 
+// ── Reprises: purchases of a business (BODACC "Ventes et cessions") ────────────────────────────────────────────────────
+// The family mixes real purchases of a business (fonds de commerce, établissement) with contributions, mergers and
+// attributions, and announces a company's start of activity "suite à achat" as a second notice of the same purchase. Only
+// the first kind is counted: the category of the sale (acte.vente.categorieVente) starts with « Achat d'un fonds » or
+// « Achat d'un établissement ». The category is not a field the register can group on, so the month is exported and
+// classified here; only the category is read, the notice text (names, addresses) is never kept. Initial notices only:
+// corrections and cancellations repeat a notice already counted.
+export const PURCHASE_CATEGORY=/^Achat d['’]un (?:fonds|établissement)/i;
+export type Purchases={month:string;count:number;notices:number;query:string};
+export function purchasesExportUrl(codes:readonly string[]|null,month:string):string{
+ const u=new URL(`${BODACC_DATASET}/exports/json`);
+ u.searchParams.set('select','acte');
+ u.searchParams.set('where',`${noticeWhere('vente',codes?`(${codes.map(deptScope).join(' or ')})`:'numerodepartement is not null',month,addMonths(month,1))} and typeavis="annonce"`);
+ return u.href;
+}
+export function isPurchase(acte:unknown):boolean{
+ if(typeof acte!=='string')return false;
+ try{const c=(JSON.parse(acte) as {vente?:{categorieVente?:unknown}})?.vente?.categorieVente;return typeof c==='string'&&PURCHASE_CATEGORY.test(c.trim())}
+ catch{return false}
+}
+export async function fetchPurchases(codes:readonly string[]|null,month:string,{fetchImpl=fetch}:{fetchImpl?:Fetch}={}):Promise<Purchases>{
+ const query=purchasesExportUrl(codes,month);
+ const rows=await getBodaccJson(query,fetchImpl,{timeoutMs:EXPORT_TIMEOUT_MS,maxBytes:MAX_EXPORT_BYTES});
+ if(!Array.isArray(rows))throw new CreationsUnavailableError('MALFORMED');
+ let count=0;for(const r of rows)if(isPurchase((r as {acte?:unknown})?.acte))count++;
+ return {month,count,notices:rows.length,query};
+}
+// The purchases figure is a complement: if the register fails to answer it, the creation figures are still published
+// without it (null — shown as absent, never as zero).
+const optionalPurchases=(codes:readonly string[]|null,month:string,fetchImpl:Fetch)=>fetchPurchases(codes,month,{fetchImpl}).catch(()=>null);
+
 export async function fetchDepartmentCreations(department:CreationsDepartment,{fetchImpl=fetch,now=new Date()}:{fetchImpl?:Fetch;now?:Date}={}):Promise<DepartmentCreations>{
  const month=reportMonth(now),from=addMonths(month,-(TREND_MONTHS-1)),to=addMonths(month,1);
  const countsUrl=monthlyCountsUrl(department.code,from,to),exportUrl=monthExportUrl(department.code,month);
- const [counts,rows]=await Promise.all([
+ const [counts,rows,purchases]=await Promise.all([
   getBodaccJson(countsUrl,fetchImpl,{timeoutMs:RECORDS_TIMEOUT_MS,maxBytes:MAX_RECORDS_BYTES}),
   getBodaccJson(exportUrl,fetchImpl,{timeoutMs:EXPORT_TIMEOUT_MS,maxBytes:MAX_EXPORT_BYTES}),
+  optionalPurchases([department.code],month,fetchImpl),
  ]);
  if(!Array.isArray(rows))throw new CreationsUnavailableError('MALFORMED');
  const trend=monthlySeries(resultsOf(counts),from,to);
@@ -251,19 +286,20 @@ export async function fetchDepartmentCreations(department:CreationsDepartment,{f
  const fromCounts=trend[trend.length-1]!.count;
  if(fromCounts!==stats.total)throw new CreationsUnavailableError('INCONSISTENT');
  const find=(m:string)=>trend.find(t=>t.month===m)??null;
- return {department,month,...stats,previous:find(addMonths(month,-1)),lastYear:find(addMonths(month,-12)),trend,
+ return {department,month,...stats,previous:find(addMonths(month,-1)),lastYear:find(addMonths(month,-12)),trend,purchases,
   source:{dataset:BODACC_PUBLIC_PAGE,query:exportUrl,retrievedAt:now.toISOString()}};
 }
 
 export type ZoneRow={department:CreationsDepartment;count:number;previous:number;lastYear:number};
-export type ZoneCreations={month:string;total:number;previous:MonthCount|null;lastYear:MonthCount|null;trend:MonthCount[];rows:ZoneRow[];source:{dataset:string;query:string;retrievedAt:string}};
+export type ZoneCreations={month:string;total:number;previous:MonthCount|null;lastYear:MonthCount|null;trend:MonthCount[];rows:ZoneRow[];purchases:Purchases|null;source:{dataset:string;query:string;retrievedAt:string}};
 // A region or the whole country: one grouped query (departments × 13 months). A department code the list does not know
 // is left out, so the total is always the sum of the rows shown.
 async function fetchZoneCreations(departments:readonly CreationsDepartment[],codes:readonly string[]|null,{fetchImpl=fetch,now=new Date()}:{fetchImpl?:Fetch;now?:Date}):Promise<ZoneCreations>{
  const month=reportMonth(now),from=addMonths(month,-(TREND_MONTHS-1)),to=addMonths(month,1);
  const url=zoneCountsUrl(codes,from,to);
  const counts=new Map<string,number>();
- for(const r of resultsOf(await getBodaccJson(url,fetchImpl,{timeoutMs:RECORDS_TIMEOUT_MS,maxBytes:MAX_RECORDS_BYTES}))){
+ const [data,purchases]=await Promise.all([getBodaccJson(url,fetchImpl,{timeoutMs:RECORDS_TIMEOUT_MS,maxBytes:MAX_RECORDS_BYTES}),optionalPurchases(codes,month,fetchImpl)]);
+ for(const r of resultsOf(data)){
   if(typeof r.dep!=='string'||typeof r.mois!=='string'||!MONTH.test(r.mois))throw new CreationsUnavailableError('MALFORMED');
   counts.set(`${r.dep}|${r.mois}`,countOf(r.n));
  }
@@ -274,7 +310,7 @@ async function fetchZoneCreations(departments:readonly CreationsDepartment[],cod
  const total=trend[trend.length-1]!.count;
  if(!total)throw new CreationsUnavailableError('EMPTY');
  const find=(m:string)=>trend.find(t=>t.month===m)??null;
- return {month,total,previous:find(addMonths(month,-1)),lastYear:find(addMonths(month,-12)),trend,rows,source:{dataset:BODACC_PUBLIC_PAGE,query:url,retrievedAt:now.toISOString()}};
+ return {month,total,previous:find(addMonths(month,-1)),lastYear:find(addMonths(month,-12)),trend,rows,purchases,source:{dataset:BODACC_PUBLIC_PAGE,query:url,retrievedAt:now.toISOString()}};
 }
 export const fetchRegionCreations=(region:CreationsRegion,opts:{fetchImpl?:Fetch;now?:Date}={})=>fetchZoneCreations(region.departments,region.departments.map(d=>d.code),opts);
 export const fetchFranceCreations=(opts:{fetchImpl?:Fetch;now?:Date}={})=>fetchZoneCreations(CREATIONS_DEPARTMENTS,null,opts);

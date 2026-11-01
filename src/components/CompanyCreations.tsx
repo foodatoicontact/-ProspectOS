@@ -6,7 +6,7 @@ import Link from 'next/link';
 import type {Metadata} from 'next';
 import {SITE_URL,socialImage,type SeoPage} from '../domain/seo';
 import {ACTIVITY_RULES,BODACC_LICENSE,BODACC_PUBLIC_PAGE,CREATIONS_DEPARTMENTS,CREATIONS_HUB,CREATIONS_REGIONS,MIN_COMMUNE_NOTICES,creationsPath,creationsTitle,last12Months,monthLabel,percentChange,regionOf,shortMonthLabel,
- type CreationsDepartment,type CreationsRegion,type DepartmentCreations,type MonthCount,type ZoneCreations} from '../domain/company-creations';
+ type CreationsDepartment,type CreationsRegion,type DepartmentCreations,type MonthCount,type Purchases,type ZoneCreations} from '../domain/company-creations';
 
 const nf=new Intl.NumberFormat('fr-FR');
 const n=(v:number)=>nf.format(v);
@@ -27,6 +27,7 @@ const METHOD_BLOCKS:SeoPage['sections'][number]['blocks']=[
  {type:'p',text:'Le BODACC ne couvre que le RCS : les sociétés et les commerçants, y compris les micro-entrepreneurs commerçants. Les artisans qui ne sont pas inscrits au RCS, les professions libérales et les associations n’y figurent pas. Ces chiffres ne sont donc pas le total officiel des créations d’entreprises publié par l’INSEE : ils mesurent les nouvelles entreprises commerciales, mois après mois.'},
  {type:'p',text:'La répartition par activité est indicative. Chaque annonce est classée automatiquement d’après les mots de l’activité déclarée de son premier établissement, dans la première catégorie qui correspond, ou dans « Autres activités ». Ce n’est pas le code NAF officiel, attribué plus tard par l’INSEE.'},
  {type:'ul',items:ACTIVITY_RULES.map(r=>`${r.label} : ${r.words}.`)},
+ {type:'p',text:'Les reprises comptent les annonces initiales de la famille « Ventes et cessions » du BODACC dont la catégorie est l’achat d’un fonds ou d’un établissement (fonds de commerce, établissement principal ou secondaire, achat par le locataire-gérant). Les apports, fusions et attributions de la même famille ne sont pas comptés, ni la « mise en activité suite à achat », qui annonce une seconde fois le même achat. Une reprise peut toutefois donner lieu à plus d’une annonce : ce total mesure l’activité des cessions, ce n’est pas un nombre exact d’entreprises reprises.'},
  {type:'p',text:`Aucune entreprise n’est nommée ici : la page ne publie que des totaux. Une commune n’apparaît que si elle compte au moins ${MIN_COMMUNE_NOTICES} annonces dans le mois ; Paris, Lyon et Marseille sont détaillées par arrondissement d’après le code postal de l’annonce. Une société est comptée à l’adresse de son siège : les quartiers où se trouvent des sociétés de domiciliation (à Paris, le 2e et le 8e par exemple) en concentrent donc beaucoup. Les pages se mettent à jour seules chaque jour, et le mois affiché est le dernier mois complet.`},
 ];
 
@@ -49,6 +50,14 @@ function yearlyFaq(trend:readonly MonthCount[],where:string):SeoPage['faq']{
  const y=last12Months(trend);if(!y)return [];
  return [{q:`Combien d’entreprises sont créées chaque année ${where} ?`,
   a:`Sur les 12 derniers mois (${span(y)}), ${n(y.total)} annonces de création d’entreprise ont été publiées au BODACC ${where}. Ce total ne compte que les immatriculations au registre du commerce et des sociétés : les bilans annuels de l’INSEE et de Bpifrance, qui incluent les micro-entrepreneurs non commerçants, les artisans et les professions libérales, sont plus élevés.`}];
+}
+
+// Purchases of a business: the reprise figure, when the register answered it.
+function purchasesFaq(p:Purchases|null,where:string):SeoPage['faq']{
+ if(!p)return [];
+ const month=monthLabel(p.month);
+ return [{q:`Combien de commerces ont été repris ${where} en ${month} ?`,
+  a:`${n(p.count)} annonces d’achat de fonds de commerce ou d’établissement ont été publiées au BODACC ${where} en ${month} (famille « Ventes et cessions », hors apports et fusions). Un repreneur reprend le plus souvent un commerce existant avec ses clients, mais doit revoir ses contrats, ses fournisseurs et ses outils : c’est un moment où il choisit de nouveaux prestataires.`}];
 }
 
 export function departmentSeoPage(d:DepartmentCreations):SeoPage{
@@ -75,6 +84,7 @@ export function departmentSeoPage(d:DepartmentCreations):SeoPage{
   faq:[
    {q:`Combien d’entreprises ont été créées ${dep.in} en ${month} ?`,a:`${n(d.total)} annonces de création ont été publiées au BODACC ${dep.in} en ${month} : ${n(d.kinds.company+d.kinds.companyNoActivity)} sociétés et ${n(d.kinds.individual)} entrepreneurs individuels inscrits au registre du commerce. Les artisans hors RCS et les professions libérales ne sont pas comptés.`},
    ...yearlyFaq(d.trend,dep.in),
+   ...purchasesFaq(d.purchases,dep.in),
    {q:`Où trouver la liste des nouvelles entreprises ${dep.in} ?`,a:'Les annonces nominatives sont publiques sur bodacc.fr, et chaque entreprise a sa fiche officielle sur l’Annuaire des entreprises (annuaire-entreprises.data.gouv.fr). Cette page ne publie que des totaux. Pour constituer une liste ciblée et vérifiée, ProspectOS cherche dans le registre public par secteur et par zone : voir [la prospection B2B fondée sur des preuves](/prospection-b2b).'},
    {q:'Pourquoi ces chiffres diffèrent-ils de ceux de l’INSEE ?',a:'L’INSEE compte toutes les créations, y compris les micro-entrepreneurs non commerçants, les artisans et les professions libérales. Le BODACC ne publie que les immatriculations au registre du commerce et des sociétés, datées de leur publication. Les deux séries ne se comparent pas directement.'},
    {q:'Les activités sont-elles des codes NAF officiels ?',a:'Non. Elles sont classées par mots-clés d’après l’activité déclarée dans l’annonce, selon les règles listées dans la méthode. C’est une répartition indicative, utile pour repérer les secteurs qui créent le plus.'},
@@ -108,6 +118,7 @@ export function zoneSeoPage(z:ZoneCreations|null,place:{slug:string;name:string;
   faq:[
    {q:`Quel département crée le plus d’entreprises ${place.in} ?`,a:z&&month&&first?`En ${month}, le département qui compte le plus d’annonces de création au BODACC ${place.in} est ${first.department.name} (${first.department.code}), avec ${n(first.count)} annonces.`:'Le classement est recalculé chaque mois à partir des annonces du BODACC.'},
    ...(z?yearlyFaq(z.trend,place.in):[]),
+   ...(z?purchasesFaq(z.purchases,place.in):[]),
    {q:'D’où viennent ces chiffres ?',a:'Des annonces de la famille « Créations » du BODACC, publiées par la DILA en données ouvertes sous Licence Ouverte 2.0, comptées par département et par mois de publication.'},
    {q:'Pourquoi ces chiffres diffèrent-ils de ceux de l’INSEE ?',a:'L’INSEE compte toutes les créations, y compris les micro-entrepreneurs non commerçants, les artisans et les professions libérales. Le BODACC ne publie que les immatriculations au registre du commerce et des sociétés, datées de leur publication.'},
   ],
@@ -243,7 +254,13 @@ function Kpis({total,month,previous,lastYear,trend}:{total:number;month:string;p
  </>;
 }
 
-const Source=({month}:{month?:string})=><p className="pos-creations__source">Source : <a href={BODACC_PUBLIC_PAGE} rel="noopener">BODACC</a>, DILA, données ouvertes sous <a href={BODACC_LICENSE} rel="noopener">Licence Ouverte 2.0</a>.{month&&<> Annonces de la famille « Créations » publiées en {monthLabel(month)}.</>} Totaux calculés par ProspectOS.</p>;
+// Absent (null) when the register did not answer: the tile is left out, never shown as zero.
+function PurchasesTile({p}:{p:Purchases|null}){
+ if(!p)return null;
+ return <div className="pos-creations__kpi"><dt>Reprises de fonds, {monthLabel(p.month)}</dt><dd>{n(p.count)}<small>achats de fonds ou d’établissement publiés</small></dd></div>;
+}
+
+const Source=({month,sales}:{month?:string;sales?:boolean})=><p className="pos-creations__source">Source : <a href={BODACC_PUBLIC_PAGE} rel="noopener">BODACC</a>, DILA, données ouvertes sous <a href={BODACC_LICENSE} rel="noopener">Licence Ouverte 2.0</a>.{month&&<> Annonces de{sales?<>s familles « Créations » et « Ventes et cessions »</>:<> la famille « Créations »</>} publiées en {monthLabel(month)}.</>} Totaux calculés par ProspectOS.</p>;
 
 export function DepartmentCreationsBlock({d,page}:{d:DepartmentCreations;page:SeoPage}){
  const month=monthLabel(d.month);
@@ -257,6 +274,7 @@ export function DepartmentCreationsBlock({d,page}:{d:DepartmentCreations;page:Se
    <div className="pos-creations__kpi"><dt>Sur un an</dt><dd>{signed(percentChange(d.total,d.lastYear?.count))}<small>{d.lastYear?`${n(d.lastYear.count)} en ${monthLabel(d.lastYear.month)}`:'—'}</small></dd></div>
    <div className="pos-creations__kpi"><dt>Part des sociétés</dt><dd>{d.total?pct(companies/d.total):'—'}<small>{n(companies)} sociétés, {n(d.kinds.individual)} entrepreneurs individuels</small></dd></div>
    <YearTile trend={d.trend}/>
+   <PurchasesTile p={d.purchases}/>
   </dl>
   <Trend trend={d.trend} place={d.department.name}/>
   <div className="pos-creations__grid">
@@ -277,7 +295,7 @@ export function DepartmentCreationsBlock({d,page}:{d:DepartmentCreations;page:Se
    </section>
   </div>
   <OtherZones department={d.department}/>
-  <p className="pos-creations__source">Source : <a href={BODACC_PUBLIC_PAGE} rel="noopener">BODACC</a>, DILA, données ouvertes sous <a href={BODACC_LICENSE} rel="noopener">Licence Ouverte 2.0</a>. Annonces de la famille « Créations » publiées en {month}. Totaux calculés par ProspectOS, données lues le {new Intl.DateTimeFormat('fr-FR',{dateStyle:'long',timeZone:'Europe/Paris'}).format(new Date(d.source.retrievedAt))}.</p>
+  <p className="pos-creations__source">Source : <a href={BODACC_PUBLIC_PAGE} rel="noopener">BODACC</a>, DILA, données ouvertes sous <a href={BODACC_LICENSE} rel="noopener">Licence Ouverte 2.0</a>. Annonces des familles « Créations »{d.purchases&&<> et « Ventes et cessions »</>} publiées en {month}. Totaux calculés par ProspectOS, données lues le {new Intl.DateTimeFormat('fr-FR',{dateStyle:'long',timeZone:'Europe/Paris'}).format(new Date(d.source.retrievedAt))}.</p>
  </div>;
 }
 
@@ -298,7 +316,7 @@ export function ZoneCreationsBlock({z,page,region}:{z:ZoneCreations|null;page:Se
   <Styles/>
   {z&&<script type="application/ld+json" dangerouslySetInnerHTML={{__html:datasetJsonLd(page.h1,page.description,`${SITE_URL}/${page.slug}`,page.updated,`${place}${region?', France':''}`)}}/>}
   <section className="pos-creations__card"><ZonePicker current={region?.slug}/></section>
-  {z&&<><dl className="pos-creations__kpis"><Kpis total={z.total} month={z.month} previous={z.previous} lastYear={z.lastYear} trend={z.trend}/></dl>
+  {z&&<><dl className="pos-creations__kpis"><Kpis total={z.total} month={z.month} previous={z.previous} lastYear={z.lastYear} trend={z.trend}/><PurchasesTile p={z.purchases}/></dl>
    <Trend trend={z.trend} place={region?region.name:'France entière'}/></>}
   {z&&areas&&<section className="pos-creations__card" aria-labelledby="creations-areas">
    <h2 id="creations-areas">Par région, {monthLabel(z.month)}</h2>
@@ -320,6 +338,6 @@ export function ZoneCreationsBlock({z,page,region}:{z:ZoneCreations|null;page:Se
    <div className="pos-creations__group"><h3>Outre-mer</h3><DepartmentLinks departments={CREATIONS_DEPARTMENTS.filter(d=>!regionOf(d))}/></div>
   </section>}
   {region&&<section className="pos-creations__card"><p className="pos-creations__sub" style={{margin:0}}><Link href={`/${CREATIONS_HUB}`}>Voir la France entière</Link></p></section>}
-  <Source month={z?.month}/>
+  <Source month={z?.month} sales={!!z?.purchases}/>
  </div>;
 }

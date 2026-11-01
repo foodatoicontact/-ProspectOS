@@ -8,7 +8,7 @@ import {readFileSync} from 'node:fs';
 import {
  BODACC_DATASET,CREATIONS_DEPARTMENTS,CREATIONS_HUB,CREATIONS_REGIONS,CreationsUnavailableError,EXPORT_FIELDS,MIN_COMMUNE_NOTICES,
  addMonths,aggregate,arrondissement,last12Months,classifyActivity,creationsPath,creationsSitemapEntries,departmentBySlug,fetchDepartmentCreations,fetchFranceCreations,fetchRegionCreations,
- creationsTitle,getBodaccJson,legalKind,monthExportUrl,monthlyCountsUrl,monthlySeries,noticeOf,percentChange,regionBySlug,regionOf,reportMonth,slugOf,zoneBySlug,zoneCountsUrl,
+ creationsTitle,fetchPurchases,getBodaccJson,isPurchase,legalKind,purchasesExportUrl,monthExportUrl,monthlyCountsUrl,monthlySeries,noticeOf,percentChange,regionBySlug,regionOf,reportMonth,slugOf,zoneBySlug,zoneCountsUrl,
 } from '../src/domain/company-creations.ts';
 
 const read=(p:string)=>readFileSync(new URL(`../${p}`,import.meta.url),'utf8');
@@ -156,11 +156,12 @@ test('queries — one fixed host, creation notices only, never a name or a regis
 });
 
 // A fake register: answers by endpoint; records every call.
-function register(o:{counts?:unknown;rows?:unknown;status?:number;region?:unknown}={}){
+function register(o:{counts?:unknown;rows?:unknown;status?:number;region?:unknown;sales?:unknown}={}){
  const calls:{url:string;init:RequestInit|undefined}[]=[];
  const fetchImpl=(async(input:string|URL|Request,init?:RequestInit)=>{
   const url=String(input);calls.push({url,init});
   if(o.status)return new Response('{}',{status:o.status});
+  if(url.includes('familleavis%3D%22vente%22'))return o.sales===undefined?new Response('',{status:503}):new Response(JSON.stringify(o.sales),{status:200});
   const body=url.includes('/exports/json')?o.rows:url.includes('dep%2C')||url.includes('dep,')?o.region:o.counts;
   return new Response(JSON.stringify(body),{status:200,headers:{'content-type':'application/json'}});
  }) as typeof fetch;
@@ -181,7 +182,8 @@ test('department figures — 13 months with zeros filled in, previous month and 
  assert.deepEqual(d.previous,{month:'2026-08',count:4});
  assert.deepEqual(d.lastYear,{month:'2025-09',count:80});
  assert.deepEqual(d.communes.map(c=>c.label),['Toulouse']);
- assert.equal(calls.length,2);
+ assert.equal(d.purchases,null,'the reprise figure is optional: the register did not answer it, the page is still published');
+ assert.equal(calls.length,3);
  for(const c of calls){assert.equal(c.init?.redirect,'error');assert.ok(c.init?.signal,'bounded in time')}
 });
 
@@ -193,6 +195,33 @@ test('department figures — an incomplete, failed or malformed answer is an err
  await assert.rejects(fetchDepartmentCreations(hg,{fetchImpl:register({counts:{results:trendRows(1)},rows:{oops:1}}).fetchImpl,now:NOW}),/MALFORMED/);
  await assert.rejects(fetchDepartmentCreations(hg,{fetchImpl:register({counts:{results:[{mois:'2026-09',n:-1}]},rows}).fetchImpl,now:NOW}),/MALFORMED/);
  assert.throws(()=>monthlySeries([{mois:'septembre',n:1}],'2026-09','2026-10'),/MALFORMED/);
+});
+
+// A "Ventes et cessions" notice as the export returns it: the category inside the act, and a text full of names never read.
+const sale=(category:string)=>({acte:JSON.stringify({descriptif:'Société absorbante : EXEMPLE SAS, 1 rue X 31000 Toulouse.',vente:{categorieVente:category}})});
+
+test('reprises — only purchases of a business are counted, from initial "vente" notices of the month, never names',async()=>{
+ const u=new URL(purchasesExportUrl(['31'],'2026-09'));
+ assert.equal(u.origin+u.pathname,`${BODACC_DATASET}/exports/json`);
+ assert.equal(u.searchParams.get('select'),'acte','only the act is exported: no trader name, no register number, no people');
+ assert.equal(u.searchParams.get('where'),`familleavis="vente" and (numerodepartement="31") and dateparution>=date'2026-09-01' and dateparution<date'2026-10-01' and typeavis="annonce"`);
+ assert.match(new URL(purchasesExportUrl(null,'2026-09')).searchParams.get('where')!,/^familleavis="vente" and numerodepartement is not null and /);
+ assert.throws(()=>purchasesExportUrl(['31" or "1"="1'],'2026-09'),CreationsUnavailableError);
+ for(const c of ["Achat d'un fonds par une personne morale (insertion provisoire)","Achat d'un fonds par une personne physique (insertion provisoire)","Achat d’un établissement secondaire ou complémentaire par une personne morale","Achat d'un établissement principal par une personne physique (immatriculation)","Achat d'un fonds par le locataire-gérant personne morale"])
+  assert.equal(isPurchase(sale(c).acte),true,c);
+ for(const c of ["Autre achat, apport, attribution (immatriculation d'une personne morale, uniquement)","Mise en activité d'une société suite à achat","Apport d'un établissement principal (immatriculation d'une personne morale, uniquement)","Attribution d'un fonds suite à donation avec délai d'oppositions (Immatriculation d'une personne physique)"])
+  assert.equal(isPurchase(sale(c).acte),false,c);
+ assert.equal(isPurchase('{not json'),false);assert.equal(isPurchase(null),false);assert.equal(isPurchase(JSON.stringify({vente:{}})),false);
+ const {fetchImpl}=register({sales:[sale("Achat d'un fonds par une personne morale (insertion provisoire)"),sale('Mise en activité d\'une société suite à achat'),sale("Autre achat, apport, attribution (immatriculation d'une personne morale, uniquement)"),{acte:null}]});
+ const p=await fetchPurchases(['31'],'2026-09',{fetchImpl});
+ assert.deepEqual([p.month,p.count,p.notices],['2026-09',1,4]);
+ assert.deepEqual(Object.keys(p).sort(),['count','month','notices','query'],'nothing from the notice text is kept');
+ await assert.rejects(fetchPurchases(['31'],'2026-09',{fetchImpl:register({sales:{oops:1}}).fetchImpl}),/MALFORMED/);
+ const d=await fetchDepartmentCreations(hg,{fetchImpl:register({counts:{results:trendRows(1)},rows:[row(PERSON,'Livraison à vélo','Toulouse')],sales:[sale("Achat d'un fonds par une personne physique (insertion provisoire)")]}).fetchImpl,now:NOW});
+ assert.equal(d.purchases?.count,1);
+ const src=read('src/components/CompanyCreations.tsx');
+ assert.match(src,/if\(!p\)return null;/,'an absent figure is left out, never printed as zero');
+ assert.match(src,/ce n’est pas un nombre exact d’entreprises reprises/,'the method says what the count is not');
 });
 
 test('register client — fixed host, one retry on a network failure, bounded size',async()=>{
@@ -209,9 +238,10 @@ test('register client — fixed host, one retry on a network failure, bounded si
 
 test('region and France figures — one grouped query, every department, 13-month trend, an empty month is an error',async()=>{
  const region={results:[{dep:'31',mois:'2026-09',n:1236},{dep:'31',mois:'2026-08',n:953},{dep:'31',mois:'2025-09',n:853},{dep:'32',mois:'2026-09',n:182},{dep:'34',mois:'2026-09',n:1054},{dep:'99',mois:'2026-09',n:7}]};
- const {fetchImpl,calls}=register({region});
+ const {fetchImpl,calls}=register({region,sales:[sale('Achat d\'un fonds par une personne morale (insertion provisoire)')]});
  const r=await fetchRegionCreations(regionBySlug('occitanie')!,{fetchImpl,now:NOW});
- assert.equal(calls.length,1);
+ assert.equal(calls.length,2);
+ assert.deepEqual(r.purchases&&[r.purchases.month,r.purchases.count],['2026-09',1]);
  assert.equal(r.month,'2026-09');
  assert.equal(r.total,2472,'a code outside the zone (99) never enters the total');
  assert.equal(r.rows.length,13);

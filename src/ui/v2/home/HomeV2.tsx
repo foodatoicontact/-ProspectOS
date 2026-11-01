@@ -66,6 +66,7 @@ export function HomeV2({locale,localeSwitch,authCard,onLocale,cta,demoLabel,onDe
     <div className="pos-home__hero-copy">
      <p className="pos-home__eyebrow">{copy.hero.eyebrow}</p>
      <h1 id="pos-home-title" className="pos-home__title">{copy.hero.title}</h1>
+     <p className="pos-home__lead pos-home__subtitle">{copy.hero.subtitle}</p>
      <p className="pos-home__lines">{copy.hero.lines.map((l,i)=><span key={l} className={`pos-home__line pos-home__line--${i}`}>{l}</span>)}</p>
      <p className="pos-home__lead">{copy.hero.audience}</p>
      <div className="pos-home__ctas">

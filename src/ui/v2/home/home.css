@@ -14,7 +14,7 @@
 .pos-ui .pos-home__hero-copy{min-width:0}
 .pos-ui .pos-home__hero.pos-home__hero--solo{padding-bottom:0}
 .pos-ui .pos-home__eyebrow{margin:0 0 var(--pos-space-3);font-size:var(--pos-text-xs);font-weight:var(--pos-weight-bold);letter-spacing:.12em;text-transform:uppercase;color:var(--pos-accent)}
-.pos-ui .pos-home__title{font-size:clamp(32px,8.6vw,60px);font-weight:var(--pos-weight-heavy);letter-spacing:-.045em;line-height:1.05;max-width:13ch;text-wrap:balance}
+.pos-ui .pos-home__title{font-size:clamp(32px,8.6vw,60px);font-weight:var(--pos-weight-heavy);letter-spacing:-.045em;line-height:1.05;max-width:18ch;text-wrap:balance}
 .pos-ui .pos-home__lines{display:flex;flex-direction:column;gap:2px;margin:var(--pos-space-4) 0 0;font-family:var(--pos-font-display);
  font-size:clamp(19px,4.6vw,26px);font-weight:var(--pos-weight-bold);letter-spacing:-.025em;line-height:1.25;color:var(--pos-text-1)}
 .pos-ui .pos-home__line{display:inline-flex;align-items:center;gap:10px}

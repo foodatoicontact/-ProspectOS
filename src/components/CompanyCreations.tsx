@@ -182,7 +182,11 @@ function datasetJsonLd(name:string,description:string,url:string,updated:string,
  return JSON.stringify({'@context':'https://schema.org','@type':'Dataset',name,description,url,inLanguage:'fr-FR',dateModified:updated,
   spatialCoverage:{'@type':'Place',name:spatial},license:BODACC_LICENSE,isAccessibleForFree:true,
   creator:{'@type':'Organization',name:'ProspectOS',url:SITE_URL},
-  isBasedOn:{'@type':'Dataset',name:'BODACC — annonces commerciales',url:BODACC_PUBLIC_PAGE,publisher:{'@type':'GovernmentOrganization',name:'Direction de l’information légale et administrative (DILA)'}}}).replace(/</g,'\\u003c');
+  // Google validates the nested source as a Dataset too: it needs its own description, and a publisher typed
+  // Organization (GovernmentOrganization is refused for that field — Search Console, 2 nov. 2026).
+  isBasedOn:{'@type':'Dataset',name:'BODACC — annonces commerciales',url:BODACC_PUBLIC_PAGE,license:BODACC_LICENSE,
+   description:'Bulletin officiel des annonces civiles et commerciales : annonces de créations, ventes et cessions, modifications et radiations d’entreprises inscrites au registre du commerce et des sociétés, publiées en données ouvertes par la DILA.',
+   publisher:{'@type':'Organization',name:'Direction de l’information légale et administrative (DILA)',url:'https://www.dila.premier-ministre.gouv.fr/'}}}).replace(/</g,'\\u003c');
 }
 
 // Pick any zone: a plain GET form (works without JavaScript) answered by app/creations-entreprises/aller/route.ts.

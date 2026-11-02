@@ -344,3 +344,11 @@ test('France map — quantile classes, real links to every department page, IGN 
  assert.match(block,/Fond de carte : IGN Admin Express \(Licence Ouverte\)/,'the outlines are credited');
  assert.match(block,/\{z&&!region&&<section className="pos-creations__card" aria-labelledby="creations-map">/,'France page only');
 });
+
+test('structured data — the nested BODACC source is a valid Dataset (description, Organization publisher)',()=>{
+ const src=read('src/components/CompanyCreations.tsx');
+ const based=src.slice(src.indexOf("isBasedOn:{'@type':'Dataset'"),src.indexOf(".replace(/</g",src.indexOf("isBasedOn:{'@type':'Dataset'")));
+ assert.match(based,/description:'[^']{50,}'/,'Google requires a description of at least 50 characters on every Dataset');
+ assert.match(based,/publisher:\{'@type':'Organization'/);
+ assert.doesNotMatch(src.split('\n').filter(l=>!l.trim().startsWith('//')).join('\n'),/'GovernmentOrganization'/,'refused by Google for publisher');
+});

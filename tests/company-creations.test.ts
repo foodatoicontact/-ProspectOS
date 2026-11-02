@@ -198,12 +198,13 @@ test('department figures — an incomplete, failed or malformed answer is an err
 });
 
 // A "Ventes et cessions" notice as the export returns it: the category inside the act, and a text full of names never read.
-const sale=(category:string)=>({acte:JSON.stringify({descriptif:'Société absorbante : EXEMPLE SAS, 1 rue X 31000 Toulouse.',vente:{categorieVente:category}})});
+const sale=(category:string,dep='31')=>({numerodepartement:dep,acte:JSON.stringify({descriptif:'Société absorbante : EXEMPLE SAS, 1 rue X 31000 Toulouse.',vente:{categorieVente:category}})});
 
 test('reprises — only purchases of a business are counted, from initial "vente" notices of the month, never names',async()=>{
  const u=new URL(purchasesExportUrl(['31'],'2026-09'));
  assert.equal(u.origin+u.pathname,`${BODACC_DATASET}/exports/json`);
- assert.equal(u.searchParams.get('select'),'acte','only the act is exported: no trader name, no register number, no people');
+ // 2 nov. 2026 (France map): the department of publication is exported too, for the per-department totals.
+ assert.equal(u.searchParams.get('select'),'numerodepartement,acte','only the department and the act: no trader name, no register number, no people');
  assert.equal(u.searchParams.get('where'),`familleavis="vente" and (numerodepartement="31") and dateparution>=date'2026-09-01' and dateparution<date'2026-10-01' and typeavis="annonce"`);
  assert.match(new URL(purchasesExportUrl(null,'2026-09')).searchParams.get('where')!,/^familleavis="vente" and numerodepartement is not null and /);
  assert.throws(()=>purchasesExportUrl(['31" or "1"="1'],'2026-09'),CreationsUnavailableError);
@@ -215,7 +216,11 @@ test('reprises — only purchases of a business are counted, from initial "vente
  const {fetchImpl}=register({sales:[sale("Achat d'un fonds par une personne morale (insertion provisoire)"),sale('Mise en activité d\'une société suite à achat'),sale("Autre achat, apport, attribution (immatriculation d'une personne morale, uniquement)"),{acte:null}]});
  const p=await fetchPurchases(['31'],'2026-09',{fetchImpl});
  assert.deepEqual([p.month,p.count,p.notices],['2026-09',1,4]);
- assert.deepEqual(Object.keys(p).sort(),['count','month','notices','query'],'nothing from the notice text is kept');
+ assert.deepEqual(Object.keys(p).sort(),['byDepartment','count','month','notices','query'],'nothing from the notice text is kept');
+ assert.deepEqual(p.byDepartment,{'31':1},'per-department totals count purchases only');
+ const fr=await fetchPurchases(null,'2026-09',{fetchImpl:register({sales:[sale("Achat d'un fonds par une personne morale (insertion provisoire)",'75'),sale("Achat d'un fonds par une personne morale (insertion provisoire)",'75'),sale("Achat d'un fonds par une personne morale (insertion provisoire)",'2A'),sale("Achat d'un fonds par une personne morale (insertion provisoire)",'x" or 1'),sale('Mise en activité d\'une société suite à achat','13')]}).fetchImpl});
+ assert.deepEqual(fr.byDepartment,{'75':2,'2A':1},'an unknown department code is counted in the total, never as a department');
+ assert.equal(fr.count,4);
  await assert.rejects(fetchPurchases(['31'],'2026-09',{fetchImpl:register({sales:{oops:1}}).fetchImpl}),/MALFORMED/);
  const d=await fetchDepartmentCreations(hg,{fetchImpl:register({counts:{results:trendRows(1)},rows:[row(PERSON,'Livraison à vélo','Toulouse')],sales:[sale("Achat d'un fonds par une personne physique (insertion provisoire)")]}).fetchImpl,now:NOW});
  assert.equal(d.purchases?.count,1);
@@ -322,4 +327,20 @@ test('sitemap — France, 13 regions and 101 departments, dated by the month tha
  assert.match(sitemap,/\.\.\.sitemapEntries,offer,\.\.\.creationsSitemapEntries\(SITE_URL,new Date\(\)\)/);
  assert.match(sitemap,/url:`\$\{SITE_URL\}\/prospects-de-votre-zone`,lastModified:'2026-11-01'/,'the offer page, dated by its own last edit');
  assert.match(sitemap,/export const revalidate=86400;/);
+});
+
+test('France map — quantile classes, real links to every department page, IGN outlines under Licence Ouverte',async()=>{
+ const {quantileBreaks}=await import('../src/components/creations-map.ts');
+ assert.deepEqual(quantileBreaks([0,1,2,3,4,5,6,7,8,9,10,11]),[2,4,6,8,10]);
+ const src=read('src/components/CreationsMap.tsx');
+ assert.match(src,/<Link key=\{p\.code\} href=\{`\/creations-entreprises\/\$\{d\.slug\}`\}/,'each department is a real link, never a script-only click');
+ assert.match(src,/const GEO_URL='\/geo\/departements-metropole\.json';/);
+ assert.match(src,/if\(failed\)return null;/,'no outlines: the page keeps its tables, no broken map');
+ const geo=JSON.parse(read('public/geo/departements-metropole.json')) as {c:string}[];
+ assert.equal(geo.length,96,'the 96 metropolitan departments');
+ const known=new Set(CREATIONS_DEPARTMENTS.map(d=>d.code));
+ for(const f of geo)assert.ok(known.has(f.c),`outline ${f.c} is a known department`);
+ const block=read('src/components/CompanyCreations.tsx');
+ assert.match(block,/Fond de carte : IGN Admin Express \(Licence Ouverte\)/,'the outlines are credited');
+ assert.match(block,/\{z&&!region&&<section className="pos-creations__card" aria-labelledby="creations-map">/,'France page only');
 });

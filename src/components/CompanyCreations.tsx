@@ -3,6 +3,7 @@
 // footer, FAQ, structured data and call to action are the site's own. Server component, no client JavaScript: every number
 // is in the HTML, the chart is plain markup with a text equivalent (table) for screen readers and search engines.
 import Link from 'next/link';
+import {CreationsMap} from './CreationsMap';
 import type {Metadata} from 'next';
 import {SITE_URL,socialImage,type SeoPage} from '../domain/seo';
 import {ACTIVITY_RULES,BODACC_LICENSE,BODACC_PUBLIC_PAGE,CREATIONS_DEPARTMENTS,CREATIONS_HUB,CREATIONS_REGIONS,MIN_COMMUNE_NOTICES,creationsPath,creationsTitle,last12Months,monthLabel,percentChange,regionOf,shortMonthLabel,
@@ -132,6 +133,7 @@ export const franceSeoPage=(z:ZoneCreations|null,updated:string)=>zoneSeoPage(z,
 // ── Data blocks (rendered right after the hero) ─────────────────────────────────────────────────────────────────────────
 const CSS=`
 .pos-creations{display:grid;gap:var(--pos-space-5,20px)}
+.pos-creations>*{min-width:0}
 .pos-creations__kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:var(--pos-space-3,12px);margin:0;padding:0;list-style:none}
 .pos-creations__kpi{padding:var(--pos-space-4,16px);background:var(--pos-surface-card);border:1px solid var(--pos-border);border-radius:var(--pos-radius-lg,12px)}
 .pos-creations__kpi dt{font-size:var(--pos-text-sm,14px);color:var(--pos-text-3)}
@@ -318,6 +320,13 @@ export function ZoneCreationsBlock({z,page,region}:{z:ZoneCreations|null;page:Se
   <section className="pos-creations__card"><ZonePicker current={region?.slug}/></section>
   {z&&<><dl className="pos-creations__kpis"><Kpis total={z.total} month={z.month} previous={z.previous} lastYear={z.lastYear} trend={z.trend}/><PurchasesTile p={z.purchases}/></dl>
    <Trend trend={z.trend} place={region?region.name:'France entière'}/></>}
+  {z&&!region&&<section className="pos-creations__card" aria-labelledby="creations-map">
+   <h2 id="creations-map">La carte, {monthLabel(z.month)}</h2>
+   <p className="pos-creations__sub">Survolez un département pour ses chiffres, cliquez pour son baromètre détaillé.</p>
+   <CreationsMap month={monthLabel(z.month)} departments={z.rows.map(r=>({code:r.department.code,name:r.department.name,slug:r.department.slug,creations:r.count,
+    sales:z.purchases?z.purchases.byDepartment[r.department.code]??0:null}))}/>
+   <p className="pos-creations__sub" style={{marginTop:12}}>Fond de carte : IGN Admin Express (Licence Ouverte), contours simplifiés par france-geojson. Outre-mer : voir le tableau par région.</p>
+  </section>}
   {z&&areas&&<section className="pos-creations__card" aria-labelledby="creations-areas">
    <h2 id="creations-areas">Par région, {monthLabel(z.month)}</h2>
    <p className="pos-creations__sub">Évolution par rapport au mois précédent.</p>

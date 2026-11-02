@@ -245,13 +245,14 @@ export function monthlySeries(rows:Record<string,unknown>[],from:string,to:strin
 // attributions, and announces a company's start of activity "suite à achat" as a second notice of the same purchase. Only
 // the first kind is counted: the category of the sale (acte.vente.categorieVente) starts with « Achat d'un fonds » or
 // « Achat d'un établissement ». The category is not a field the register can group on, so the month is exported and
-// classified here; only the category is read, the notice text (names, addresses) is never kept. Initial notices only:
+// classified here; only the category and the department are read, the notice text (names, addresses) is never kept. Initial notices only:
 // corrections and cancellations repeat a notice already counted.
 export const PURCHASE_CATEGORY=/^Achat d['’]un (?:fonds|établissement)/i;
-export type Purchases={month:string;count:number;notices:number;query:string};
+// byDepartment: the same purchases counted per department of publication (the France map); totals only, never a name.
+export type Purchases={month:string;count:number;notices:number;byDepartment:Record<string,number>;query:string};
 export function purchasesExportUrl(codes:readonly string[]|null,month:string):string{
  const u=new URL(`${BODACC_DATASET}/exports/json`);
- u.searchParams.set('select','acte');
+ u.searchParams.set('select','numerodepartement,acte');
  u.searchParams.set('where',`${noticeWhere('vente',codes?`(${codes.map(deptScope).join(' or ')})`:'numerodepartement is not null',month,addMonths(month,1))} and typeavis="annonce"`);
  return u.href;
 }
@@ -264,8 +265,13 @@ export async function fetchPurchases(codes:readonly string[]|null,month:string,{
  const query=purchasesExportUrl(codes,month);
  const rows=await getBodaccJson(query,fetchImpl,{timeoutMs:EXPORT_TIMEOUT_MS,maxBytes:MAX_EXPORT_BYTES});
  if(!Array.isArray(rows))throw new CreationsUnavailableError('MALFORMED');
- let count=0;for(const r of rows)if(isPurchase((r as {acte?:unknown})?.acte))count++;
- return {month,count,notices:rows.length,query};
+ let count=0;const byDepartment:Record<string,number>={};
+ for(const r of rows as {acte?:unknown;numerodepartement?:unknown}[]){
+  if(!isPurchase(r?.acte))continue;
+  count++;
+  if(typeof r.numerodepartement==='string'&&DEPT.test(r.numerodepartement))byDepartment[r.numerodepartement]=(byDepartment[r.numerodepartement]??0)+1;
+ }
+ return {month,count,notices:rows.length,byDepartment,query};
 }
 // The purchases figure is a complement: if the register fails to answer it, the creation figures are still published
 // without it (null — shown as absent, never as zero).

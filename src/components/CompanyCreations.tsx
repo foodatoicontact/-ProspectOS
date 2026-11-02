@@ -133,6 +133,7 @@ export const franceSeoPage=(z:ZoneCreations|null,updated:string)=>zoneSeoPage(z,
 // ── Data blocks (rendered right after the hero) ─────────────────────────────────────────────────────────────────────────
 const CSS=`
 .pos-creations{display:grid;gap:var(--pos-space-5,20px)}
+.pos-creations>*{min-width:0}
 .pos-creations__kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:var(--pos-space-3,12px);margin:0;padding:0;list-style:none}
 .pos-creations__kpi{padding:var(--pos-space-4,16px);background:var(--pos-surface-card);border:1px solid var(--pos-border);border-radius:var(--pos-radius-lg,12px)}
 .pos-creations__kpi dt{font-size:var(--pos-text-sm,14px);color:var(--pos-text-3)}

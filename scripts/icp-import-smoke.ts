@@ -52,7 +52,7 @@ async function cost(usage:IcpUsage){
 
 const started=Date.now();
 try{
- const {profile,dropped,usage}=await structureIcp(ingested!.text);
+ const {profile,dropped,unverified,usage}=await structureIcp(ingested!.text);
  console.log(`■ Réponse en ${((Date.now()-started)/1000).toFixed(1)} s, ${usage.attempts.length} appel(s), ${usage.input_tokens} tokens en entrée, ${usage.output_tokens} en sortie (${usage.provider} ${usage.model})`);
  console.log('■ Valeurs extraites (confiance — valeur — source)');
  const walk=(n:unknown,path:string)=>{
@@ -64,7 +64,10 @@ try{
   }
  };
  walk(profile,'');
- if(dropped.length)console.log(`■ Valeurs écartées faute de source : ${dropped.join(', ')}`);
+ const noSource=dropped.filter(d=>!unverified.includes(d));
+ if(noSource.length)console.log(`■ Valeurs écartées faute de source : ${noSource.join(', ')}`);
+ if(unverified.length)console.log(`■ Valeurs écartées, source absente du document : ${unverified.join(', ')}`);
+ else console.log('■ Toutes les sources sont des passages du document.');
  console.log('■ Questions manquantes');for(const q of missingQuestions(profile,dropped))console.log(`  - ${q.question}`);
  console.log('■ Profil complet (brouillon, non enregistré)');console.log(JSON.stringify(profile,null,1));
  await cost(usage);

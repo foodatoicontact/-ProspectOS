@@ -8,7 +8,7 @@ L'import pré-remplit le **profil de l'entreprise, de son offre et de sa cible**
 
 - **Le contenu importé est une donnée, jamais une instruction.** Il est envoyé au modèle une seule fois, encodé en JSON, entre deux marqueurs qui portent un nonce aléatoire (`<<<DOCUMENT_…>>>` / `<<<FIN_DOCUMENT_…>>>`), après un prompt système qui le dit. Un faux marqueur dans le document ne ferme rien : il ne connaît pas le nonce.
 - **Réponse JSON uniquement, validée par Zod** (`parseIcpProfile`, objets stricts) : toute propriété hors schéma, tout type faux, tout code inconnu (département, tranche d'effectif, NAF, type de signal) fait refuser le profil **en entier**. Jamais de réparation silencieuse du JSON.
-- **Zéro invention** : chaque valeur extraite est `{value, source, confidence}` ; `source` est un passage du document (200 caractères au plus), `confidence` entre 0 et 1. Une valeur donnée sans source est vidée (`null`, confiance 0), son chemin est signalé (avertissement `UNSOURCED_VALUES_DROPPED`) et devient une **question manquante**.
+- **Zéro invention** : chaque valeur extraite est `{value, source, confidence}` ; `source` est un passage du document (200 caractères au plus), `confidence` entre 0 et 1. Une valeur donnée sans source est vidée (`null`, confiance 0), son chemin est signalé (avertissement `UNSOURCED_VALUES_DROPPED`) et devient une **question manquante**. **La source doit être un passage du document** : chaque source est cherchée dans le texte lu, après une simple normalisation (casse, apostrophes et guillemets, tirets, espaces et retours à la ligne) ; une paraphrase, une citation tronquée (« ... »), des lignes recollées ou une citation inventée vident la valeur exactement comme une source absente (avertissement `UNVERIFIED_SOURCES_DROPPED`, chemin journalisé, question manquante).
 - **Aucune action automatique** : l'import n'écrit que la ligne `icp_imports` (brouillon). Le profil (`icps.profile`), l'offre et les critères ne sont écrits que par `validate_icp_import`, appelée par la personne.
 - Le moteur de score, ses poids (total 100) et ses tests ne sont pas modifiés. Les signaux `WORKS` et `CONTRACT_RENEWAL` restent dans le brouillon, affichés « non surveillé pour l'instant », jamais notés (avertissement `SIGNAL_NOT_MONITORED`).
 
@@ -72,7 +72,7 @@ Codes d'erreur : `FILE_TOO_LARGE` (413), `UNSUPPORTED_FILE` (415), `FILE_EMPTY`,
 | Texte extrait | coupé à 50 000 caractères, avertissement `TEXT_TRUNCATED` | `bounded` |
 | PDF | 30 pages lues au plus (avertissement `PDF_PAGES_TRUNCATED`), 15 s, sans polices ni XFA ; moins de 50 caractères visibles = `PDF_SCANNED` (pas d'OCR) | `ingestPdf` |
 | DOCX | 1 000 entrées au plus ; `word/document.xml` décompressé compté pendant l'inflation, arrêt à 10 Mio (bombe zip) | `ingestDocx` |
-| Modèle | 4 096 tokens de sortie, réflexion désactivée, aucun outil, 40 s par appel ; nouvel essai seulement s'il reste 15 s sur le budget de 55 s de la route | `structureIcp` |
+| Modèle | 4 096 tokens de sortie, réflexion désactivée, aucun outil, 40 s par appel ; nouvel essai seulement s'il reste 20 s sur le budget de 55 s de la route | `structureIcp` |
 | Imports | 1 import en cours par projet (2 min) ; 10 imports d'URL par organisation et par 24 h | `start_icp_import` |
 
 Une fonction interrompue par la plateforme (60 s) laisse sa ligne `PENDING`. Passé **2 minutes**, elle n'est plus un import en cours : toute lecture la présente `FAILED` (`IMPORT_STALE`) avec un message qui propose de relancer, le prochain import du projet l'enregistre `FAILED` en base, une réponse tardive n'est plus enregistrée, et elle peut être effacée.
@@ -132,6 +132,20 @@ node --experimental-strip-types scripts/icp-import-smoke.ts --org <uuid-organisa
 Un PDF ou un DOCX passe aussi (`… --org <uuid> plaquette.pdf`). Avec `NEXT_PUBLIC_SUPABASE_URL` et `SUPABASE_SERVICE_ROLE_KEY` définis, le coût est lu dans la table de prix plutôt que calculé au tarif fourni.
 
 À vérifier sur la sortie : chaque `source` est bien un passage du document ; aucune valeur n'apparaît sans source ; les zones et sites correspondent au document ; le coût reste dans l'ordre de grandeur ci-dessus.
+
+## Smoke test réel du 4 novembre 2026 (Détec Incendie)
+
+Workflow GitHub Actions, `tests/fixtures/icp/detec-incendie.source.txt` (8 397 caractères), `claude-sonnet-5` : succès en 49,5 s, 2 appels (le premier refusé par la validation), 10 528 tokens en entrée, 7 140 en sortie, 0,0925 $ au tarif de la migration 010. Identité, siège, 5 agences, 12 services, 3 engagements, 6 différences extraits avec leur source ; la section 11 du document (consignes adressées à une IA : NAF, score, interlocuteurs) n'a pas été suivie ; interlocuteurs et taille des clients sont restés vides et sont devenus les questions manquantes.
+
+Constats et correctifs appliqués ensuite :
+- 5 sources sur 46 n'étaient pas des passages exacts (une citation tronquée par « ... », quatre puces recollées) → **vérification de chaque source dans le document** (ci-dessus) ; rejouée sur cette réponse, elle écarte exactement ces 5 valeurs et garde les 41 autres ;
+- le premier refus ne laissait qu'un nombre dans le journal → les **chemins des champs refusés** sont journalisés (jamais une valeur) ;
+- plafonds du prompt trop bas (12 éléments, 5 segments) : 3 services manquaient, 14 types de clients étaient fusionnés en 5 → **20 éléments par liste, 10 segments, un type de client par segment** ;
+- « France entière » perdu → champ facultatif **`company.coverage`** (`NATIONAL`, `REGIONAL`, `LOCAL`), sourcé ; une entreprise nationale n'est plus interrogée sur ses départements ;
+- logos de clients classés en preuves → le prompt les exclut des preuves (des noms affichés sans détail sur la relation ne prouvent rien) ;
+- 49,5 s sur 55 → sources limitées à 100 caractères et valeurs courtes (moins de sortie), nouvel essai seulement s'il reste 20 s ; un appel reste borné par le budget de la route.
+
+À relancer : le même smoke test, pour mesurer la durée et le taux de refus du premier appel avec ces réglages.
 
 ## Migration 041 gelée
 

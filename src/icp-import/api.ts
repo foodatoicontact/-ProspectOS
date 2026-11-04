@@ -78,9 +78,10 @@ function refuse(json:Json,code:string):Response{
 }
 
 // Warning codes stored with the draft (≤ 10, short, enumerable — never document text).
-export function importWarnings(ingested:Ingested,profile:IcpProfile|null,dropped:readonly string[],attempts:number):string[]{
+export function importWarnings(ingested:Ingested,profile:IcpProfile|null,dropped:readonly string[],attempts:number,unverified:readonly string[]=[]):string[]{
  const w:string[]=[...ingested.warnings];
- if(dropped.length)w.push('UNSOURCED_VALUES_DROPPED');
+ if(dropped.length>unverified.length)w.push('UNSOURCED_VALUES_DROPPED');
+ if(unverified.length)w.push('UNVERIFIED_SOURCES_DROPPED');
  if(attempts>1)w.push('RETRIED_AFTER_VALIDATION');
  if(profile?.signals.some(s=>(UNMONITORED_SIGNALS as readonly string[]).includes(s.type.value??'')))w.push('SIGNAL_NOT_MONITORED');
  return [...new Set(w)].slice(0,10);
@@ -131,9 +132,9 @@ async function createImport(db:SupabaseClient,json:Json,deps:IcpImportDeps,proje
   if(credential.status==='VALID')apiKeyOverride=credential.apiKey;
  }
  try{
-  const {profile,dropped,usage}=await deps.structure(ingested.text,{apiKeyOverride,deadline:started+ROUTE_BUDGET_MS,now:deps.now});
+  const {profile,dropped,unverified=[],usage}=await deps.structure(ingested.text,{apiKeyOverride,deadline:started+ROUTE_BUDGET_MS,now:deps.now});
   const missing=missingQuestions(profile,dropped);
-  const warnings=importWarnings(ingested,profile,dropped,usage.attempts.length);
+  const warnings=importWarnings(ingested,profile,dropped,usage.attempts.length,unverified);
   const recorded=await complete('EXTRACTED',{extracted:profile,missing,warnings,usage});
   await meter(usage);
   deps.log({component:'icp_import',event:'extracted',import_id:importId,source_type:ingested.sourceType,attempts:usage.attempts.length,tokens:usage.total_tokens,dropped:dropped.length,recorded});

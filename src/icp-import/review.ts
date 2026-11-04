@@ -71,9 +71,10 @@ export function setValue(profile:IcpProfile,path:Path,value:unknown):EditResult{
  parent[key]=manual(typeof value==='string'?value.trim():value);
  return checked(p);
 }
-// Removes one item of a list; removing a segment also removes the signals' references to it.
+// Removes one item of a list (removing a segment also removes the signals' references to it), or empties a single value.
 export function removeAt(profile:IcpProfile,path:Path):EditResult{
  const p=clone(profile);const list=at(p,path.slice(0,-1));const i=path[path.length-1];
+ if(!Array.isArray(list)&&typeof i==='string'){const leaf=at(p,path);if(leaf&&typeof leaf==='object'&&'confidence' in leaf)return setValue(profile,path,null)}
  if(!Array.isArray(list)||typeof i!=='number'||i<0||i>=list.length)return {ok:false,issues:[`${path.join('.')}: unknown item`]};
  const [gone]=list.splice(i,1) as [{key?:string}];
  if(path.length===2&&path[0]==='segments'&&gone?.key)for(const s of p.signals)s.segmentRefs=s.segmentRefs.filter(r=>r!==gone.key);

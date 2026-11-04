@@ -263,6 +263,7 @@ function Review(props:ReviewProps){
    {p.company.sites.length?p.company.sites.map((s,i)=><Item key={i} {...props} leaf={s} path={['company','sites',i]}>
     <p>{s.value?.city}{s.value?.department?` (${s.value.department})`:''} · {t(`role${s.value?.role??'HQ'}` as IcpMessageKey)}</p></Item>):<p className="muted">{t('empty')}</p>}
    <ListOf {...props} label={t('fZones')} items={p.company.interventionZones} path={['company','interventionZones']} placeholder={t('zonesPlaceholder')} readOnly/>
+   {p.company.coverage?.value&&<><h4 className="muted">{t('fCoverage')}</h4><Item {...props} leaf={p.company.coverage} path={['company','coverage']}><p>{t(`coverage${p.company.coverage.value}` as IcpMessageKey)}</p></Item></>}
   </Section>
   <Section title={t('sectionOffer')}>
    <ListOf {...props} label={t('fServices')} items={p.offer.services} path={['offer','services']} max={200}/>

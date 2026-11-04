@@ -377,3 +377,58 @@ test('smoke workflow — document_path, limited to tests/fixtures/icp/, wins ove
  try{assert.equal(run({DOCUMENT_PATH:'tests/fixtures/icp/link-to-package.txt'}).ok,false,'a symbolic link is refused')}finally{rmSync(link,{force:true})}
  assert.equal(run({}).ok,false,'neither path nor text: a clear error');
 });
+
+// =============================================================== sources verified against the document (smoke test, 4 Nov.)
+test('zero invention — a source must be a passage of the document: an ellipsis or glued lines empty the value; case, apostrophes and line breaks do not',async()=>{
+ const {dropUnverified,normalizeForSource}=await import('../src/domain/icp/missing.ts');
+ const detec=readFileSync(new URL('detec-incendie.source.txt',FIXTURE),'utf8');
+ const leaf=(value:unknown,source:string)=>({value,source,confidence:0.9});
+ const raw={company:{
+  name:leaf('Détec Incendie','Nom commercial : Détec Incendie'),
+  activity:leaf('Installation','entreprise spécialisée dans l\'installation, la maintenance'),            // ' for ’ — same passage
+  sites:[leaf({city:'Nevers',department:'58',role:'AGENCY'},'NEVERS (58) : Impasse du Professeur Pierre Neppel.')], // case, final dot
+  interventionZones:[leaf('77','Siège social : ... Seine-et-Marne (77)'),leaf('63','Clermont-Ferrand (63)')]},     // the smoke test's ellipsis
+  segments:[{key:'tertiaire',label:leaf('Bureaux','Bureaux et sièges sociaux. Entreprises du secteur tertiaire.')}], // two bullets glued
+  offer:{services:[leaf('Extincteurs','Extincteurs : fourniture, installation,\n recharge'),leaf('Drones','Inspection par drone')]}};
+ const {value,unverified}=dropUnverified(raw,detec) as {value:any;unverified:string[]};
+ assert.deepEqual(unverified,['company.interventionZones.0','segments.0.label','offer.services.1']);
+ assert.equal(value.company.name.value,'Détec Incendie');assert.equal(value.company.activity.value,'Installation');assert.equal(value.company.sites.length,1);
+ assert.deepEqual(value.company.interventionZones.map((z:any)=>z.value),['63'],'an unverified list item is removed');
+ assert.deepEqual(value.segments[0].label,{value:null,source:null,confidence:0},'an unverified value is emptied, never kept');
+ assert.equal(value.offer.services.length,1);
+ assert.equal(normalizeForSource('L’entreprise  “annonce”\n— 48 h'),'l\'entreprise "annonce" - 48 h');
+});
+
+test('structureIcp — unverified sources are dropped, reported and asked; the validation failures are logged by field path only',async()=>{
+ await withAi(async()=>{
+  const p=expected();
+  p.company.activity={value:'Leader européen',source:'Leader européen de la sécurité incendie',confidence:0.9}; // not in the document
+  const bad=expected();bad.company.name={value:'X'.repeat(201),source:'Atlantique Sécurité Incendie',confidence:1};bad.company.ceo={value:'Jean Secret',source:'x',confidence:1};
+  const ai=mockProvider([{text:JSON.stringify(bad)},{text:JSON.stringify(p)}]);
+  const logs:string[]=[];const err=mock.method(console,'error',(line:string)=>{logs.push(String(line))});
+  try{
+   const r=await structureIcp(ingestText(sourceText).text);
+   assert.deepEqual(r.unverified,['company.activity']);assert.ok(r.dropped.includes('company.activity'));
+   assert.equal(r.profile.company.activity.value,null);
+   assert.equal(missingQuestions(r.profile,r.dropped)[0]!.key,'company.activity');
+   const failed=logs.map(l=>JSON.parse(l)).find(l=>l.reason==='VALIDATION_FAILED')!;
+   assert.deepEqual(failed.paths,['company.name.value','company'],'the paths of the refused fields (an over-long name, an unknown field)');
+   const all=logs.join('\n');
+   for(const secret of ['Jean Secret','XXXXXXXX','Leader européen'])assert.ok(!all.includes(secret),`never a value in the logs: ${secret}`);
+   assert.ok(logs.some(l=>JSON.parse(l).reason==='UNVERIFIED_SOURCES_DROPPED'));
+   assert.match(ai.calls[0]!.body.system,/mot pour mot du document, d'un seul tenant/);
+  }finally{ai.restore();err.mock.restore()}
+  // The API marks it.
+  const ai2=mockProvider([{text:JSON.stringify(p)}]);const f=fakeDb();const {d}=deps(f);
+  try{const b=await (await handleIcpImport(textRequest(sourceText),['icp-imports','text'],f.db,json,d))!.json();assert.ok(b.import.warnings.includes('UNVERIFIED_SOURCES_DROPPED'))}finally{ai2.restore()}
+ });
+});
+
+test('coverage — "France entière" is kept as NATIONAL (optional field); a national company is not asked for its departments',()=>{
+ const p=expected();
+ p.company.interventionZones=[];p.company.sites=[];p.company.coverage={value:'NATIONAL',source:'Zone d’intervention annoncée : France entière.',confidence:0.9};
+ const r=parseIcpProfile(p);assert.ok(r.ok);
+ assert.ok(!missingQuestions((r as {profile:IcpProfile}).profile).some(q=>q.key==='company.interventionZones'));
+ assert.equal(parseIcpProfile({...p,company:{...p.company,coverage:{value:'WORLD',source:'x',confidence:1}}}).ok,false);
+ assert.ok(parseIcpProfile(expected()).ok,'a profile without coverage stays valid');
+});

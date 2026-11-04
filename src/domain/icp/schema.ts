@@ -22,6 +22,9 @@ export const APE_CODE=/^\d{2}\.\d{2}[A-Z]$/;
 export const SITE_ROLES=['HQ','AGENCY','PARTNER'] as const;
 export const SIGNAL_TYPES=['CREATION','TRANSFER','OPENING','WORKS','HIRING','ACQUISITION','CONTRACT_RENEWAL'] as const;
 export const VALUE_LEVELS=['LOW','MEDIUM','HIGH'] as const;
+// How far the company says it works: the whole country, a region, a local area. Optional (profiles written before it
+// stay valid); the department codes of interventionZones stay the detailed zones.
+export const COVERAGE_LEVELS=['NATIONAL','REGIONAL','LOCAL'] as const;
 
 const text=(max:number)=>z.string().trim().min(1).max(max);
 const departmentCode=z.string().refine(c=>DEPARTMENT_CODES.includes(c),'Unknown department code');
@@ -50,6 +53,7 @@ export const CompanyBlock=z.object({
  activity:sourced(text(500)),
  sites:z.array(sourced(Site)).max(30),
  interventionZones:z.array(sourced(departmentCode)).max(101),
+ coverage:sourced(z.enum(COVERAGE_LEVELS)).optional(),
 }).strict();
 
 export const OfferBlock=z.object({

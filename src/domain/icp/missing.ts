@@ -42,7 +42,7 @@ export function missingQuestions(profile:IcpProfile,dropped:readonly string[]=[]
  if(weak(profile.company.activity))add('company.activity');
  if(!profile.offer.services.some(s=>!weak(s)))add('offer.services');
  if(profile.segments.length===0)add('segments');
- if(profile.company.interventionZones.length===0&&!profile.company.sites.some(s=>s.value?.department))add('company.interventionZones');
+ if(profile.company.interventionZones.length===0&&!profile.company.sites.some(s=>s.value?.department)&&profile.company.coverage?.value!=='NATIONAL')add('company.interventionZones');
  if(profile.personas.length===0)add('personas');
  if(weak(profile.company.name))add('company.name');
  if(profile.segments.length>0&&profile.segments.every(s=>s.sizeRange.value===null))add('segments.sizeRange');
@@ -79,4 +79,41 @@ export function dropUnsourced(raw:unknown):{value:unknown;dropped:string[]}{
   return node;
  };
  return {value:walk(raw,''),dropped:dropped.slice(0,50)};
+}
+
+// The second half of the zero-invention rule: a source must be a passage of the document itself. Compared after a light
+// normalisation only — Unicode form, case, apostrophes and quotes, dashes, white space (a quote cut across a line break
+// is still the same passage) — never by meaning. A source the document does not contain (a paraphrase, an ellipsis
+// "…" / "...", several lines glued together, a made-up quote) empties its value exactly like a missing source, and its
+// path is reported. Runs on the raw answer, before the schema, like dropUnsourced.
+export function normalizeForSource(text:string):string{
+ return text.normalize('NFC').toLocaleLowerCase('fr').replace(/[‘’‚‛ʼ´`]/g,"'").replace(/[“”„«»]/g,'"')
+  .replace(/[‐-―−]/g,'-').replace(/[\s  ]+/g,' ').trim();
+}
+export function dropUnverified(raw:unknown,document:string):{value:unknown;unverified:string[]}{
+ const doc=normalizeForSource(document);
+ const unverified:string[]=[];
+ const isLeaf=(o:Record<string,unknown>)=>{const k=Object.keys(o);return k.length===3&&'value' in o&&'source' in o&&'confidence' in o};
+ const inDocument=(s:string)=>{const n=normalizeForSource(s).replace(/^["']+|["']+$/g,'').replace(/[.;,:]+$/,'').trim();return n.length>0&&doc.includes(n)};
+ const walk=(node:unknown,path:string):unknown=>{
+  if(Array.isArray(node)){
+   const out:unknown[]=[];
+   node.forEach((item,i)=>{
+    const next=walk(item,`${path}.${i}`);
+    if(next&&typeof next==='object'&&!Array.isArray(next)&&isLeaf(next as Record<string,unknown>)&&(next as {value:unknown}).value===null)return;
+    out.push(next);
+   });
+   return out;
+  }
+  if(node&&typeof node==='object'){
+   const o=node as Record<string,unknown>;
+   if(isLeaf(o)){
+    if(o.value!==null&&o.value!==undefined&&typeof o.source==='string'&&!inDocument(o.source)){unverified.push(path.replace(/^\./,''));return {value:null,source:null,confidence:0}}
+    return o;
+   }
+   return Object.fromEntries(Object.entries(o).map(([k,v])=>[k,walk(v,`${path}.${k}`)]));
+  }
+  return node;
+ };
+ return {value:walk(raw,''),unverified:unverified.slice(0,50)};
 }

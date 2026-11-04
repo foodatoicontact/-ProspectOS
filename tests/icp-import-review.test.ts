@@ -262,3 +262,10 @@ test('migration 041 is frozen: its bytes are the ones reviewed; any further chan
  assert.equal(createHash('sha256').update(sql).digest('hex'),FROZEN_041_SHA256,'041 is frozen (docs/ICP_IMPORT.md): write a 042 instead');
 });
 const FROZEN_041_SHA256='3809aa68f8c8981b946f958d942a6cfa5c8d88fff570eed6e6d4e607da007b4f';
+
+test('coverage — shown with its source and removable like any single value',()=>{
+ const p={...fixture(),company:{...fixture().company,coverage:{value:'NATIONAL' as const,source:'France entière',confidence:0.9}}};
+ const r=removeAt(p,['company','coverage']);assert.ok(r.ok);assert.deepEqual(r.profile.company.coverage,{value:null,source:null,confidence:0});
+ assert.match(src('../src/components/IcpImport.tsx'),/p\.company\.coverage\?\.value&&/);
+ assert.equal(ICP_MESSAGES.fr.coverageNATIONAL,'France entière');
+});

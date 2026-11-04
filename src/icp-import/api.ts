@@ -6,6 +6,9 @@
 //   POST /api/v1/icp-imports/text                {project_id, text ≤ 50 000 characters}
 //   GET  /api/v1/icp-imports?project_id=…        the project's last imports (RLS: members only)
 //   GET  /api/v1/icp-imports/:id                 one import, its draft re-validated on every read (stale PENDING = FAILED)
+//   POST /api/v1/icp-imports/:id/validate        {profile, keep_offer, keep_criteria} — a person's click (step 2B)
+//   POST /api/v1/icp-imports/:id/discard         reject the draft
+//   POST /api/v1/icp-imports/:id/retry           the source again (raw file or {text}) → a new import of the project
 //   DELETE /api/v1/icp-imports/:id               erase it, whatever its status but a running one
 // Every route runs under the signed-in user's identity (RLS and the SECURITY DEFINER functions check membership).
 //
@@ -18,8 +21,10 @@ import {IngestError,INGEST_MESSAGES,MAX_UPLOAD_BYTES,ingestFile,ingestText,readB
 import {StructureIcpError,type IcpUsage,type structureIcp} from '../server/ai.ts';
 import {missingQuestions,type MissingQuestion} from '../domain/icp/missing.ts';
 import {readStoredProfile,UNREADABLE_PROFILE_MESSAGE} from '../domain/icp/stored.ts';
-import type {IcpProfile} from '../domain/icp/schema.ts';
+import {parseIcpProfile,type IcpProfile} from '../domain/icp/schema.ts';
+import {projectCriteria,projectOffer} from '../domain/icp/projection.ts';
 import {isStale} from './lock.ts';
+import type {Criterion} from '../domain/core.ts';
 
 export const TEXT_BODY_MAX_BYTES=400_000; // 50 000 characters, UTF-8 and JSON escaping included, with margin
 export const ROUTE_BUDGET_MS=55_000; // the route's maxDuration is 60 s
@@ -57,6 +62,9 @@ export const IMPORT_ERRORS:Record<string,[string,number]>={
  IMPORT_RECORD_FAILED:['L’extraction a abouti mais n’a pas pu être enregistrée. Réessayez.',500],
  IMPORT_NOT_FOUND:['Import introuvable.',404],
  IMPORT_STALE:['Cet import ne s’est pas terminé. Relancez-le : votre fichier ou votre texte n’a pas été conservé, il faudra le fournir à nouveau.',409],
+ IMPORT_NOT_REVIEWABLE:['Cet import n’est plus un brouillon à valider.',409],
+ INVALID_PROFILE:['Le profil envoyé n’est pas valide. Rechargez l’import et réessayez.',400],
+ INVALID_CRITERIA:['Les critères projetés ne sont pas valides (poids total 100 requis).',400],
 };
 const INGEST_STATUS:Partial<Record<string,number>>={FILE_TOO_LARGE:413,UNSUPPORTED_FILE:415};
 
@@ -175,6 +183,7 @@ function rpcRefusal(message:string|undefined):string{
  if(m.includes('Authentication'))return 'UNAUTHORIZED';
  return 'DATABASE_REQUEST_FAILED';
 }
+export const VALIDATE_BODY_MAX_BYTES=150_000; // a profile is at most 100 KB (migration 041)
 
 export async function handleIcpImport(request:Request,path:string[],db:SupabaseClient,json:Json,deps:IcpImportDeps):Promise<Response|null>{
  const [resource,sub,action]=path;
@@ -233,6 +242,54 @@ export async function handleIcpImport(request:Request,path:string[],db:SupabaseC
   if(error)return refuse(json,rpcRefusal(error.message));
   deps.log({component:'icp_import',event:'erased',import_id:id});
   return json({deleted:true});
+ }
+ if(request.method!=='POST'||!action)return notFound();
+ // ----- reject: POST /icp-imports/:id/discard
+ if(action==='discard'){
+  const {data,error}=await db.rpc('discard_icp_import',{p_import_id:id});
+  if(error)return refuse(json,rpcRefusal(error.message));
+  return json({discarded:data===true});
+ }
+ // ----- validate: POST /icp-imports/:id/validate {profile, keep_offer, keep_criteria} — a person's click, nothing else
+ if(action==='validate'){
+  return guarded(async()=>{
+   let body:Record<string,unknown>|null;
+   try{body=await readJson(request,VALIDATE_BODY_MAX_BYTES)}catch{return refuse(json,'INVALID_PROFILE')}
+   if(!body||typeof body.keep_offer!=='boolean'||typeof body.keep_criteria!=='boolean')return refuse(json,'INVALID_BODY');
+   const parsed=parseIcpProfile(body.profile);
+   if(!parsed.ok)return json({error:IMPORT_ERRORS.INVALID_PROFILE![0],code:'INVALID_PROFILE',issues:parsed.issues},400);
+   const row=await loadRow(id);
+   if(!row)return refuse(json,'IMPORT_NOT_FOUND');
+   if(readRow(row,deps.now()).status!=='EXTRACTED')return refuse(json,'IMPORT_NOT_REVIEWABLE');
+   const {data:icp,error:icpError}=await db.from('icps').select('criteria,projected_criteria').eq('project_id',row.project_id as string).maybeSingle();
+   if(icpError)throw Error('DATABASE_REQUEST_FAILED');
+   const current=icp as {criteria?:Criterion[]|null;projected_criteria?:Criterion[]|null}|null;
+   const offer=body.keep_offer?null:projectOffer(parsed.profile)||null;
+   const projection=body.keep_criteria?null:projectCriteria(parsed.profile,current?.criteria,current?.projected_criteria);
+   const {data,error}=await db.rpc('validate_icp_import',{p_import_id:id,p_profile:parsed.profile,p_offer:offer,p_criteria:projection?.criteria??null});
+   if(error)return refuse(json,rpcRefusal(error.message));
+   deps.log({component:'icp_import',event:'validated',import_id:id,offer_written:offer!==null,criteria_changed:projection?.changed??[],criteria_kept:projection?.kept??[]});
+   return json({...(data as object),offer,criteria:projection?.criteria??null,criteria_changed:projection?.changed??[],criteria_kept:projection?.kept??[]});
+  });
+ }
+ // ----- retry: POST /icp-imports/:id/retry with the source again (files and texts are never kept) — a new import of the
+ // same project; the previous one, if it can still be rejected, is rejected once the new import has started.
+ if(action==='retry'){
+  await deps.requireEntitlement();
+  return guarded(async()=>{
+   const row=await loadRow(id);
+   if(!row)return refuse(json,'IMPORT_NOT_FOUND');
+   const prev=readRow(row,deps.now());
+   if(prev.status==='PENDING')return refuse(json,'ICP_IMPORT_IN_PROGRESS');
+   const kind=(request.headers.get('content-type')??'').includes('application/json')?'text':'file';
+   const src=await readSource(request,kind,row.project_id as string);
+   if(typeof src==='string')return refuse(json,src);
+   // Only once the new import has started (a refusal — quota, import in progress — throws before): the draft is never
+   // lost to a retry that could not run.
+   const res=await createImport(db,json,deps,src.projectId,src.ingested,src.label,started);
+   if(prev.status==='EXTRACTED'||(prev.status==='FAILED'&&!prev.stale))await Promise.resolve(db.rpc('discard_icp_import',{p_import_id:id})).catch(()=>{});
+   return res;
+  });
  }
  return notFound();
 }

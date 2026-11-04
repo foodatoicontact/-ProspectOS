@@ -5,14 +5,15 @@
 // save keeps working. A stored profile is read through readStoredProfile (a corrupted one is reported unreadable).
 // FAILED and DISCARDED imports are purged after 30 days; a member erases any import but a running one; deleting a project
 // or leaving the organization (account deletion) takes the imports with it, whatever their status; a PENDING row older
-// than 2 minutes no longer blocks.
+// than 2 minutes no longer blocks. The full review flow on the fire-protection fixture ends with criteria summing to 100.
 // WITHOUT_041=1 runs the checks without the migration: they must fail.
 import { strict as assert } from 'node:assert';
 import { readFile, readdir } from 'node:fs/promises';
 import { PGlite } from '@electric-sql/pglite';
 import { readStoredProfile } from '../src/domain/icp/stored.ts';
 import { emptyIcpProfile } from '../src/domain/icp/schema.ts';
-import { isStale } from '../src/icp-import/lock.ts';
+import { projectCriteria, projectOffer } from '../src/domain/icp/projection.ts';
+import { viewOf, setValue, readStatus } from '../src/icp-import/review.ts';
 
 const db = new PGlite();
 const sql = (text, params = []) => db.query(text, params);
@@ -206,6 +207,7 @@ try {
     assert.equal(await row(d), undefined, 'a 31-day-old discarded import is purged by the next import');
   });
   const ageCreated = async (id, interval) => { await sql('set session_replication_role = replica'); await sql(`update public.icp_imports set created_at=now()-$2::interval where id=$1`, [id, interval]); await sql('set session_replication_role = origin'); };
+  const FIXTURE = JSON.parse(await readFile(new URL('./fixtures/icp/protection-incendie.expected.json', import.meta.url), 'utf8'));
   const validate = (user, id, profile = PROFILE, offer = null, crit = null) => as(user, 'select public.validate_icp_import($1,$2::jsonb,$3,$4::jsonb) r', [id, typeof profile === 'string' ? profile : JSON.stringify(profile), offer, crit ? JSON.stringify(crit) : null]).then(r => r.rows[0].r);
   const newProject = async (c, name) => (await as(c.user, `insert into public.projects(organization_id,name,offer) values($1,$2,'') returning id`, [c.org, name])).rows[0].id;
   // One import at each status in a project: VALIDATED, EXTRACTED, FAILED, DISCARDED, then PENDING (still running).
@@ -267,11 +269,51 @@ try {
     await refused(() => as(B, 'select public.start_icp_import($1,$2,$3) id', [project, 'TEXT', 'texte']), /icp_import_in_progress/, 'a second import 90 s after the first');
     await ageCreated(first, '3 minutes');
     const r = await row(first);
-    assert.equal(isStale({ ...r, created_at: r.created_at.toISOString() }, Date.now()), true, 'read as FAILED before anything else happens');
+    assert.equal(readStatus({ ...r, created_at: r.created_at.toISOString() }, Date.now()).status, 'FAILED', 'read as FAILED before anything else happens');
     const second = (await as(B, 'select public.start_icp_import($1,$2,$3) id', [project, 'TEXT', 'texte'])).rows[0].id;
     assert.ok(second);
     const dead = await row(first); assert.equal(dead.status, 'FAILED'); assert.equal(dead.error, 'IMPORT_STALE');
     assert.equal(await complete(first), false, 'a late answer of the dead run is not recorded');
+  });
+  await check('R_FULL_FLOW: fire-protection fixture — EXTRACTED, reviewed, one field corrected, validated; projected criteria sum to 100', async () => {
+    const project = await newProject(ctx.A, 'Atlantique Sécurité Incendie');
+    const id = (await as(A, 'select public.start_icp_import($1,$2,$3) id', [project, 'PDF', 'plaquette.pdf'])).rows[0].id;
+    assert.equal(await complete(id, 'EXTRACTED', FIXTURE), true);
+    const read = (await as(A, 'select * from public.icp_imports where id=$1', [id])).rows[0];
+    const view = viewOf({ ...read, created_at: read.created_at.toISOString() }, read.extracted, Date.now());
+    assert.equal(view.kind, 'review');
+    const edited = setValue(view.profile, ['company', 'activity'], 'Installation et maintenance d’extincteurs, BAES et désenfumage');
+    assert.ok(edited.ok);
+    assert.equal(edited.profile.company.activity.source, 'Saisi par vous', 'a typed value is sourced as such, never as a passage of the document');
+    const before = await icp({ project });
+    const projection = projectCriteria(edited.profile, before?.criteria, before?.projected_criteria);
+    assert.deepEqual(projection.changed, ['target_fit']);
+    const total = projection.criteria.reduce((s, c) => s + c.weight, 0);
+    assert.equal(total, 100);
+    const offer = projectOffer(edited.profile);
+    const r = await validate(A, id, edited.profile, offer, projection.criteria);
+    assert.equal(r.status, 'VALIDATED');
+    const saved = await icp({ project });
+    assert.equal(saved.criteria.reduce((s, c) => s + c.weight, 0), 100, 'the stored criteria still sum to 100');
+    const target = saved.criteria.find(c => c.key === 'target_fit');
+    assert.deepEqual(target.rules.config.locations.slice(0, 3), ['Nantes', 'Angers', 'Rennes']);
+    assert.ok(target.rules.config.locations.includes('Loire-Atlantique'));
+    assert.equal(readStoredProfile(saved.profile).state, 'valid');
+    assert.equal(saved.profile.company.activity.value, 'Installation et maintenance d’extincteurs, BAES et désenfumage');
+    assert.match((await sql('select offer from public.projects where id=$1', [project])).rows[0].offer, /^Atlantique Sécurité Incendie : Installation/);
+    // A re-projection on the same profile changes nothing; a rule edited by hand since is kept.
+    assert.deepEqual(projectCriteria(edited.profile, saved.criteria, saved.projected_criteria).changed, []);
+    const hand = saved.criteria.map(c => c.key === 'target_fit' ? { ...c, rules: { type: 'target_fit', config: { locations: ['Vendée'], match: 'any_defined' } } } : c);
+    const again = projectCriteria(edited.profile, hand, saved.projected_criteria);
+    assert.deepEqual(again.kept, ['target_fit']); assert.deepEqual(again.criteria, hand);
+  });
+  await check('S_CORRUPTED_DRAFT: a stored draft that no longer passes the schema is shown "to re-import", never thrown', async () => {
+    const project = await newProject(ctx.A, 'Brouillon corrompu');
+    const id = (await as(A, 'select public.start_icp_import($1,$2,$3) id', [project, 'TEXT', 'texte'])).rows[0].id;
+    await complete(id, 'EXTRACTED', { version: 1, company: 'cassé' });
+    const read = (await as(A, 'select * from public.icp_imports where id=$1', [id])).rows[0];
+    assert.equal(viewOf({ ...read, created_at: read.created_at.toISOString() }, read.extracted, Date.now()).kind, 'unreadable');
+    assert.equal(readStoredProfile(read.extracted).state, 'unreadable');
   });
   await check('IDEMPOTENT: re-applying migration 041 changes nothing', async () => {
     if (!process.env.WITHOUT_041) await db.exec(await readFile(new URL('../db/migrations/041_icp_import.sql', import.meta.url), 'utf8'));

@@ -183,7 +183,7 @@ Correctifs :
 
 | Cas | Traitement | Avertissement |
 |---|---|---|
-| source plus longue que `ICP_LIMITS.source` | coupée à cette longueur, à une limite de mot ; le début d'un passage exact reste un passage exact, la vérification dans le document s'applique après la coupe | `SOURCE_TRUNCATED` |
+| source plus longue que `ICP_LIMITS.source` | réduite à la fenêtre de mots entiers (40 caractères au plus) qui contient le plus de mots de la value (sans accents ni majuscules ; à égalité, la plus proche du début) ; un morceau contigu d'un passage exact reste un passage exact, la vérification dans le document s'applique après | `SOURCE_TRUNCATED` |
 | valeur trop longue | vidée (`null`, donc question manquante), jamais raccourcie | `VALUE_DROPPED_TOO_LONG` |
 | valeur invalide (code, enum, type, confiance hors 0–1, enveloppe incorrecte) | vidée | `VALUE_DROPPED_INVALID` |
 | élément de liste mal enveloppé ou invalide | retiré | `ITEM_DROPPED_INVALID` / `ITEM_DROPPED_TOO_LONG` |
@@ -192,6 +192,8 @@ Correctifs :
 | champ attendu absent | rempli vide | `FIELD_MISSING` |
 | codes APE renvoyés | ignorés | `APE_CODES_IGNORED` |
 | signal pointant un segment retiré ou inconnu | référence retirée | `SEGMENT_REF_DROPPED` |
+| clé de segment invalide ou en double | recalculée depuis le libellé (minuscules, sans accents, `_`, 20 caractères, suffixe `_2`… si doublon) ; les signaux qui pointaient l'ancienne clé la suivent ; un libellé invalide écarte toujours le segment | `KEY_REGENERATED` |
+| élément de liste vide (libellé absent ou vide ; engagement dont `text`, `value` et `unit` sont tous `null`) | retiré sans avertissement | — |
 
 **Ce qui reste strict** :
 - **rejet global** (un nouvel essai, puis échec) : JSON illisible, plus d'un objet ou du texte autour, clé racine manquante ou inconnue (`admin`, …), `version` différente de 1, bloc racine du mauvais type ;
@@ -223,6 +225,14 @@ Run #7 validé. Ajustements de code, sans toucher au prompt, aux autres plafonds
 - **écran de revue** : une source de 40 caractères (donc coupée par la normalisation) se termine par « … ».
 
 Nouvelle fixture `tests/fixtures/icp/detec-incendie.site-only.txt` : le même texte que `detec-incendie.source.txt`, sans la section 11 (consignes adressées à une IA), pour mesurer l'extraction sur le seul contenu du site.
+
+## Après les runs #8 et #9 (Détec site seul, Protec Minéral)
+
+Run #9 (Protec Minéral) : les deux segments étaient écartés pour une **clé** trop longue (`professionnels_batiment_tp`, `collectivites_amenagement_urbain`), un identifiant technique et non une donnée. Corrections de code, prompt et plafonds inchangés :
+- clé de segment invalide **recalculée depuis le libellé** (`KEY_REGENERATED`, chemin seul) ;
+- engagement entièrement vide retiré sans avertissement ; un engagement avec un texte mais une valeur invalide reste signalé ;
+- coupe des sources : **fenêtre de 40 caractères** la plus riche en mots de la value, au lieu du début de la phrase (« PROTEC SOL est une solution de… » → « de protection hydrofuge et oléofuge ») ;
+- résumé du script : « Valeurs écartées faute de source » ne liste que les valeurs sans source ; les autres vont dans « Valeurs écartées (autre raison) », avec la règle.
 
 ## Migration 041 gelée
 

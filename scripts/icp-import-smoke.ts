@@ -59,7 +59,7 @@ async function cost(usage:IcpUsage){
 console.log(`■ Modèle : ${process.env.AI_MODEL} (${process.env.AI_PROVIDER})`);
 const started=Date.now();
 try{
- const {profile,dropped,unverified,fixes,usage}=await structureIcp(ingested!.text,{onRaw:(n,raw)=>{raws[n-1]=raw}});
+ const {profile,dropped,unverified,unsourced,fixes,usage}=await structureIcp(ingested!.text,{onRaw:(n,raw)=>{raws[n-1]=raw}});
  console.log(`■ Réponse en ${((Date.now()-started)/1000).toFixed(1)} s, ${usage.attempts.length} appel(s), ${usage.input_tokens} tokens en entrée, ${usage.output_tokens} en sortie (par appel : ${usage.attempts.map(a=>`${a.input_tokens}/${a.output_tokens}`).join(', ')} ; plafond de sortie ${ICP_MAX_TOKENS}) (${usage.provider} ${usage.model})`);
  console.log('■ Valeurs extraites (confiance — valeur — source)');
  const walk=(n:unknown,path:string)=>{
@@ -76,8 +76,11 @@ try{
  if(fixes.length){console.log(`■ Corrections de normalisation (${fixes.length}) :`);// Console of this operator script only: the excerpt of a dropped item (never in the server log).
  for(const f of fixes)console.log(`  ${f.code}  ${f.path}  (${f.reason})${f.rule?` — ${f.rule}`:''}${f.length!==undefined?` — ${f.length} caractères`:''}${f.excerpt!==undefined?`\n        « ${f.excerpt} »`:''}`)}
  else console.log('■ Aucune correction de normalisation.');
- const noSource=dropped.filter(d=>!unverified.includes(d));
- if(noSource.length)console.log(`■ Valeurs écartées faute de source : ${noSource.join(', ')}`);
+ // Only the values that came without a source; the others removed (too long, invalid shape, …) are listed apart, with
+ // their reason; the sources not found in the document have their own line below.
+ if(unsourced.length)console.log(`■ Valeurs écartées faute de source : ${unsourced.join(', ')}`);
+ const other=fixes.filter(f=>/^(VALUE|ITEM)_DROPPED_/.test(f.code)&&f.code!=='ITEM_DROPPED_OVER_LIMIT');
+ if(other.length)console.log(`■ Valeurs écartées (autre raison) : ${other.map(f=>`${f.path} (${f.rule??f.reason})`).join(' ; ')}`);
  if(unverified.length)console.log(`■ Valeurs écartées, source absente du document : ${unverified.join(', ')}`);
  else console.log('■ Toutes les sources sont des passages du document.');
  console.log('■ Questions manquantes');for(const q of missingQuestions(profile,dropped))console.log(`  - ${q.question}`);

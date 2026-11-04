@@ -37,7 +37,8 @@ test('normalisation — a faulty value or item is taken out with its path and re
  const n=normalizeExtraction(smoke4Like());
  assert.ok(n.ok);
  const by=(code:string)=>n.fixes.filter(f=>f.code===code).map(f=>`${f.path}:${f.reason}`);
- assert.deepEqual(by('ITEM_DROPPED_INVALID'),['company.sites.0:wrong_shape','company.sites.2:invalid_value','segments.1.key:invalid_value']);
+ assert.deepEqual(by('ITEM_DROPPED_INVALID'),['company.sites.0:wrong_shape','company.sites.2:invalid_value']);
+ assert.deepEqual(by('KEY_REGENERATED'),['segments.1.key:invalid_value'],'an invalid segment key is rebuilt, the segment kept');
  assert.deepEqual(by('ITEM_DROPPED_TOO_LONG'),['offer.services.1:too_long']);
  assert.deepEqual(by('SOURCE_TRUNCATED'),['company.activity:too_long','company.sites.1:too_long','offer.services.0:too_long']);
  assert.deepEqual(by('APE_CODES_IGNORED'),['segments.0.apeCodes:not_requested']);
@@ -45,14 +46,14 @@ test('normalisation — a faulty value or item is taken out with its path and re
  assert.deepEqual(by('SEGMENT_REF_DROPPED'),['signals.0.segmentRefs:invalid_value']);
  const v=n.value as any;
  assert.equal(v.company.sites.length,1);assert.equal(v.company.sites[0].value.city,'Nevers');
- assert.equal(v.offer.services.length,1);assert.deepEqual(v.segments.map((s:any)=>s.key),['erp']);assert.deepEqual(v.segments[0].apeCodes,[]);
+ assert.equal(v.offer.services.length,1);assert.deepEqual(v.segments.map((s:any)=>s.key),['erp','bureaux']);assert.deepEqual(v.segments[0].apeCodes,[]);
  assert.deepEqual(v.signals[0].segmentRefs,['erp']);assert.equal('employees' in v.company,false);
  // The cut source is a prefix of the exact passage, so it is still found in the document.
  assert.ok(v.company.activity.source.length<=ICP_LIMITS.source);
  assert.equal(dropUnverified(v,detec).unverified.includes('company.activity'),false);
  const parsed=parseIcpProfile(dropUnverified(v,detec).value);assert.ok(parsed.ok,JSON.stringify(!parsed.ok&&parsed.issues));
  // What was emptied or removed becomes a missing question.
- assert.ok(n.emptied.includes('company.sites.0')&&n.emptied.includes('segments.1'));
+ assert.ok(n.emptied.includes('company.sites.0')&&!n.emptied.includes('segments.1'));
  const p=(parsed as {profile:any}).profile;assert.ok(missingQuestions(p,n.emptied).some(q=>q.key==='segments'||q.key==='company.interventionZones'||q.key==='personas'));
 });
 
@@ -92,7 +93,7 @@ test('structure stays strict — unreadable JSON, a root key missing or unknown,
 test('warnings stored with the draft: one entry per code with its paths, within the column bounds (10 strings, 4 000 characters)',()=>{
  const n=normalizeExtraction(smoke4Like());assert.ok(n.ok);
  const w=fixWarnings(n.fixes);
- assert.ok(w.includes('ITEM_DROPPED_INVALID:company.sites.0,company.sites.2,segments.1.key'));
+ assert.ok(w.includes('ITEM_DROPPED_INVALID:company.sites.0,company.sites.2'));assert.ok(w.includes('KEY_REGENERATED:segments.1.key'));
  const many=Array.from({length:200},(_,i)=>({code:'SOURCE_TRUNCATED' as const,path:`offer.services.${i}`,reason:'too_long' as const}));
  const big=fixWarnings([...many,...n.fixes]);
  assert.ok(big.length<=10);assert.ok(JSON.stringify(big).length<=4000);assert.match(big[0]!,/,…$/);
@@ -210,7 +211,7 @@ test('journal — every dropped list item names the rule that refused it and its
  raw.offer.services=Array.from({length:ICP_LIMITS.services+2},(_,i)=>leaf(`Service ${i}`,'Extincteurs'));
  const n=normalizeExtraction(raw);assert.ok(n.ok);
  const items=n.fixes.filter(f=>f.code.startsWith('ITEM_DROPPED'));
- assert.ok(items.length>=5);
+ assert.ok(items.length>=4,String(items.length));
  for(const f of items){assert.ok(f.rule,`${f.path} has its rule`);assert.ok(f.excerpt!==undefined&&f.excerpt.length<=EXCERPT_MAX,`${f.path} has an excerpt of at most 60 characters`)}
  const at=(p:string)=>n.fixes.find(f=>f.path===p&&f.code.startsWith('ITEM'))!;
  assert.equal(n.fixes.some(f=>f.path==='personas.0'),false,'a persona with a blank role is removed silently');
@@ -301,4 +302,78 @@ test('review screen — a source at the 40-character bound (cut) ends with « �
  assert.equal(displaySource('ERP de tous types.'),'ERP de tous types.');
  const ui=readFileSync(new URL('../src/components/IcpImport.tsx',import.meta.url),'utf8');
  assert.match(ui,/leaf\.source\?displaySource\(leaf\.source\):t\('noSource'\)/);
+});
+
+test('segment key — an invalid key is rebuilt from the label (KEY_REGENERATED, path only); the signals follow; an invalid label still drops the segment',async()=>{
+ const {segmentKeyFrom,describeFixes}=await import('../src/domain/icp/normalize.ts');
+ const raw=smoke4Like();
+ (raw as any).segments=[
+  {key:'professionnels_batiment_tp',label:leaf('Professionnels du bâtiment et TP','professionnels du bâtiment'),apeCodes:[],sizeRange:E,priority:E,estimatedValue:E,salesCycle:E},
+  {key:'collectivites_amenagement_urbain',label:leaf('Collectivités et aménagement urbain','aménagements urbains'),apeCodes:[],sizeRange:E,priority:E,estimatedValue:E,salesCycle:E},
+  {key:'erp',label:leaf('ERP de tous types','ERP de tous types.'),apeCodes:[],sizeRange:E,priority:E,estimatedValue:E,salesCycle:E},
+  {key:'erp',label:leaf('ERP','ERP de tous types.'),apeCodes:[],sizeRange:E,priority:E,estimatedValue:E,salesCycle:E},
+ ];
+ (raw as any).signals=[{type:leaf('OPENING','ouverture'),segmentRefs:['collectivites_amenagement_urbain']}];
+ const n=normalizeExtraction(raw);assert.ok(n.ok);const v=n.value as any;
+ assert.deepEqual(v.segments.map((s:any)=>s.key),['professionnels_du_ba','collectivites_et_ame','erp','erp_2'].slice(0,3),'only 3 segments fit (bound)');
+ for(const k of v.segments.map((s:any)=>s.key))assert.match(k,/^[a-z0-9][a-z0-9_-]{0,19}$/);
+ assert.deepEqual(n.fixes.filter(f=>f.code==='KEY_REGENERATED').map(f=>f.path),['segments.0.key','segments.1.key','segments.3.key']);
+ assert.deepEqual(v.signals[0].segmentRefs,['collectivites_et_ame'],'a signal follows its regenerated segment');
+ const log=describeFixes(n.fixes).join('\n');
+ assert.match(log,/segments\.0\.key: KEY_REGENERATED \(invalid_value\) — clé régénérée depuis le libellé/);
+ assert.ok(!log.includes('professionnels')&&!log.includes('Collectivités'),'no text in the log line');
+ assert.equal(segmentKeyFrom('ERP',['erp']),'erp_2');assert.equal(segmentKeyFrom('Établissements de santé',[]),'etablissements_de_sa');
+ assert.equal(segmentKeyFrom('Établissements de santé',['etablissements_de_sa']),'etablissements_de_2');
+ assert.equal(segmentKeyFrom('!!!',[]),'segment');
+ // An invalid label still drops the segment, reported.
+ const bad=smoke4Like();(bad as any).segments=[{key:'Bad Key!',label:leaf('x'.repeat(ICP_LIMITS.segmentLabel+1),'ERP'),apeCodes:[],sizeRange:E,priority:E,estimatedValue:E,salesCycle:E}];
+ const m=normalizeExtraction(bad);assert.ok(m.ok);
+ assert.deepEqual((m.value as any).segments,[]);assert.ok(m.fixes.some(f=>f.path==='segments.0'&&f.code==='ITEM_DROPPED_INVALID'));
+ assert.ok(!m.fixes.some(f=>f.code==='KEY_REGENERATED'));
+});
+
+test('promises — a commitment with text, value and unit all null is removed silently; one with a text but an invalid value is reported',()=>{
+ const raw=smoke4Like();
+ raw.offer.promises=[leaf({text:null,value:null,unit:null},'x') as any,leaf({text:'Devis gratuit sous 24 heures',value:'vingt-quatre',unit:'heures'},'Devis gratuit sous 24 heures.') as any,
+  leaf({text:'Audit gratuit des locaux',value:null,unit:null},'Audit gratuit des locaux.') as any];
+ const n=normalizeExtraction(raw);assert.ok(n.ok);const v=n.value as any;
+ assert.deepEqual(v.offer.promises.map((p:any)=>p.value.text),['Audit gratuit des locaux']);
+ assert.equal(n.fixes.some(f=>f.path==='offer.promises.0'),false,'the empty one: no correction');
+ const f=n.fixes.find(x=>x.path==='offer.promises.1')!;
+ assert.equal(f.code,'ITEM_DROPPED_INVALID');assert.match(f.rule!,/^value : type number attendu/);
+});
+
+test('source cut — the 40-character window of whole words holding the most words of the value, still an exact passage',()=>{
+ const a=cutSource('PROTEC SOL est une solution de protection hydrofuge et oléofuge','Protection hydrofuge et oléofuge');
+ assert.ok(a.length<=ICP_LIMITS.source);assert.match(a,/hydrofuge/);assert.equal(a,'de protection hydrofuge et oléofuge');
+ const b=cutSource('nettoyant en gel spécialement conçu pour le nettoyage des graffitis','Nettoyage de graffitis');
+ assert.ok(b.length<=ICP_LIMITS.source);assert.match(b,/graffitis/);assert.equal(b,'conçu pour le nettoyage des graffitis');
+ for(const [src,val] of [['PROTEC SOL est une solution de protection hydrofuge et oléofuge','Protection hydrofuge et oléofuge'],['nettoyant en gel spécialement conçu pour le nettoyage des graffitis','Nettoyage de graffitis']] as const){
+  const c=cutSource(src,val);assert.ok(src.includes(c),'a contiguous piece of the source');
+  const at=src.indexOf(c);assert.ok(at===0||src[at-1]===' ','starts on a word');assert.ok(at+c.length===src.length||/[\s,;:]/.test(src[at+c.length]!),'ends on a word');
+ }
+ // A tie keeps the window nearest the start; no word of the value keeps the start; a value object counts its texts.
+ assert.equal(cutSource('alpha beta gamma delta epsilon zeta eta theta iota kappa','zzz'),'alpha beta gamma delta epsilon zeta eta');
+ assert.equal(cutSource('Siège social : 58 bis route de Cadaujac 33650 MARTILLAC',{city:'Martillac',department:'33',role:'HQ'}),': 58 bis route de Cadaujac 33650 MARTILLAC'.length<=40?': 58 bis route de Cadaujac 33650 MARTILLAC':'58 bis route de Cadaujac 33650 MARTILLAC');
+ // And through the normalisation, the kept window is verified against the document like any source.
+ const doc='Le PROTEC SOL est une solution de protection hydrofuge et oléofuge pour les sols.';
+ const n=normalizeExtraction({...smoke4Like(),offer:{services:[leaf('Protection hydrofuge et oléofuge','PROTEC SOL est une solution de protection hydrofuge et oléofuge')],promises:[],differentiators:[],proofs:[]}});
+ assert.ok(n.ok);const v=n.value as any;assert.equal(v.offer.services[0].source,'de protection hydrofuge et oléofuge');
+ assert.equal(dropUnverified(v,doc).unverified.includes('offer.services.0'),false);
+});
+
+test('smoke script summary — "faute de source" lists only the values without a source; the others go to "(autre raison)" with their reason',()=>{
+ const smoke=readFileSync(new URL('../scripts/icp-import-smoke.ts',import.meta.url),'utf8');
+ assert.match(smoke,/if\(unsourced\.length\)console\.log\(`■ Valeurs écartées faute de source : \$\{unsourced\.join\(', '\)\}`\);/);
+ assert.match(smoke,/console\.log\(`■ Valeurs écartées \(autre raison\) : \$\{other\.map\(f=>`\$\{f\.path\} \(\$\{f\.rule\?\?f\.reason\}\)`\)\.join\(' ; '\)\}`\)/);
+});
+
+test('structureIcp — reports the values dropped for want of a source apart from the others',async()=>{
+ const raw=smoke4Like();raw.company.name=leaf('Détec Incendie',null as any);
+ const ai=withAi([JSON.stringify(raw)]);const err=mock.method(console,'error',()=>{});
+ try{
+  const r=await structureIcp(ingestText(detec).text);
+  assert.deepEqual(r.unsourced,['company.name']);
+  assert.ok(r.dropped.includes('company.sites.0')&&!r.unsourced.includes('company.sites.0'),'a site without its envelope is not "without a source"');
+ }finally{ai.restore();err.mock.restore()}
 });

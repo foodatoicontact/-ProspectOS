@@ -17,7 +17,7 @@ import {ICP_LIMITS as L,VALUE,SEGMENT_KEY,ROOT_KEYS,ICP_PROFILE_VERSION} from '.
 import type {z} from 'zod';
 
 export type FixCode='SOURCE_TRUNCATED'|'VALUE_DROPPED_TOO_LONG'|'VALUE_DROPPED_INVALID'|'ITEM_DROPPED_INVALID'|'ITEM_DROPPED_TOO_LONG'
- |'ITEM_DROPPED_OVER_LIMIT'|'FIELD_DROPPED_UNKNOWN'|'FIELD_MISSING'|'APE_CODES_IGNORED'|'SEGMENT_REF_DROPPED';
+ |'ITEM_DROPPED_OVER_LIMIT'|'FIELD_DROPPED_UNKNOWN'|'FIELD_MISSING'|'APE_CODES_IGNORED'|'SEGMENT_REF_DROPPED'|'KEY_REGENERATED';
 export type Reason='too_long'|'invalid_value'|'wrong_shape'|'over_limit'|'unknown_field'|'not_requested';
 // rule: which rule of the schema refused it, in words. For an item taken out of a list (ITEM_DROPPED_*): length, the
 // size of what the model wrote (characters), and excerpt, its first 60 characters. The excerpt is for the operator's
@@ -59,13 +59,39 @@ const EMPTY={value:null,source:null,confidence:0};
 const isBlank=(f:unknown)=>!isObject(f)||f.value===null||f.value===undefined||(typeof f.value==='string'&&f.value.trim()==='');
 const LEAF_KEYS=new Set(['value','source','confidence']);
 
-// The longest prefix of the passage that fits, ending at a word boundary when there is one.
-export function cutSource(source:string,max=L.source):string{
+// Words compared without accents nor case (and without the punctuation around them).
+const fold=(w:string)=>w.normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase().replace(/^[^a-z0-9]+|[^a-z0-9]+$/g,'');
+function valueWords(value:unknown):Set<string>{
+ const out=new Set<string>();
+ const walk=(v:unknown)=>{if(typeof v==='string'){for(const w of v.split(/[\s'’]+/)){const f=fold(w);if(f.length>=2)out.add(f)}}else if(v&&typeof v==='object')Object.values(v).forEach(walk)};
+ walk(value);return out;
+}
+// A source longer than the bound keeps the window of whole words, at most `max` characters, that holds the most words
+// of the value (compared without accents nor case); on a tie, the one nearest the start. It is a contiguous piece of
+// the model's source — so still an exact passage of the document when the source was (dropUnverified checks it after).
+// A single word longer than the bound falls back to the first `max` characters.
+export function cutSource(source:string,value?:unknown,max=L.source):string{
  if(source.length<=max)return source;
- const head=source.slice(0,max);
- const space=head.search(/\s\S*$/);
- const cut=space>=Math.floor(max/2)&&!/\s/.test(source[max]??' ')?head.slice(0,space):head;
- return cut.replace(/[\s,;:.\-–—]+$/,'');
+ const words=[...source.matchAll(/\S+/g)].map(m=>({start:m.index!,end:m.index!+m[0].length,key:fold(m[0])}));
+ const wanted=valueWords(value);
+ let best:{start:number;end:number;score:number}|null=null;
+ for(let i=0;i<words.length;i++){
+  let j=i;
+  if(words[i]!.end-words[i]!.start>max)continue;
+  while(j+1<words.length&&words[j+1]!.end-words[i]!.start<=max)j++;
+  const hit=new Set(words.slice(i,j+1).map(w=>w.key).filter(k=>wanted.has(k)));
+  if(!best||hit.size>best.score)best={start:words[i]!.start,end:words[j]!.end,score:hit.size};
+ }
+ if(!best)return source.slice(0,max);
+ return source.slice(best.start,best.end).replace(/[\s,;:\-–—]+$/,'');
+}
+// A segment key from its label: lower case, no accents, underscores, ICP_LIMITS.segmentKey characters at most, a numeric
+// suffix when it is already taken.
+export function segmentKeyFrom(label:string,taken:readonly string[]):string{
+ const base=(label.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,'_').replace(/^_+|_+$/g,'')||'segment');
+ let key=base.slice(0,L.segmentKey).replace(/_+$/,'');let n=2;
+ while(taken.includes(key)){const suffix=`_${n++}`;key=`${base.slice(0,L.segmentKey-suffix.length).replace(/_+$/,'')}${suffix}`}
+ return key;
 }
 const tooLong=(e:z.ZodError)=>e.issues.some(i=>i.code==='too_big');
 
@@ -95,7 +121,7 @@ export function normalizeExtraction(raw:unknown):Normalized{
   if(source!==null&&source!==undefined&&typeof source!=='string')return drop('wrong_shape','source : texte ou null attendu',x.value);
   if(typeof source==='string'){
    source=source.trim()||null;
-   if(typeof source==='string'&&source.length>L.source){source=cutSource(source);fix('SOURCE_TRUNCATED',path,'too_long')}
+   if(typeof source==='string'&&source.length>L.source){source=cutSource(source,x.value);fix('SOURCE_TRUNCATED',path,'too_long')}
   }
   const c=x.confidence;
   if(typeof c!=='number'||!Number.isFinite(c)||c<0||c>1)return drop('invalid_value','confidence : nombre entre 0 et 1 attendu',x.value);
@@ -134,24 +160,29 @@ export function normalizeExtraction(raw:unknown):Normalized{
  fields(of,'offer',['services','promises','differentiators','proofs']);
  const offer={
   services:leafList(of.services,'offer.services',L.services,VALUE.service),
-  promises:leafList(of.promises,'offer.promises',L.promises,VALUE.promise),
+  // A commitment whose text, value and unit are all null is an empty slot: removed silently (like a blank label).
+  promises:list(of.promises,'offer.promises',L.promises,(y,p)=>isObject(y)&&isObject(y.value)&&['text','value','unit'].every(k=>(y.value as Record<string,unknown>)[k]==null)?null:leaf(y,VALUE.promise,p,true)),
   differentiators:leafList(of.differentiators,'offer.differentiators',L.differentiators,VALUE.differentiator),
   proofs:leafList(of.proofs,'offer.proofs',L.proofs,VALUE.proof),
  };
 
  const keys:string[]=[];
+ const renamed=new Map<string,string>(); // a regenerated key: the signals that pointed to the old one follow it
  const segments=list(raw.segments,'segments',L.segments,(y,p)=>{
   if(!isObject(y)){fix('ITEM_DROPPED_INVALID',p,'wrong_shape',{rule:'objet segment attendu',excerpt:y});emptied.push(p);return null}
-  const key=SEGMENT_KEY.safeParse(y.key);
-  if(!key.success||keys.includes(key.data)){fix('ITEM_DROPPED_INVALID',`${p}.key`,'invalid_value',{rule:key.success?'clé de segment en double':`clé de segment : minuscules, chiffres, - ou _, ${L.segmentKey} caractères max`,excerpt:y.key});emptied.push(p);return null}
   fields(y,p,['key','label','apeCodes','sizeRange','priority','estimatedValue','salesCycle']);
   if(isBlank(y.label)){emptied.push(p);return null}
   const label=single(y,'label',VALUE.segmentLabel,p);
-  if(label.value===null){fix('ITEM_DROPPED_INVALID',p,'invalid_value',{rule:isObject(y.label)&&y.label.value!=null?`segment sans libellé utilisable (voir ${p}.label)`:`segment sans libellé (label vide)`,excerpt:isObject(y.label)?y.label.value:y.label});emptied.push(p);return null}
+  if(label.value===null){fix('ITEM_DROPPED_INVALID',p,'invalid_value',{rule:`segment sans libellé utilisable (voir ${p}.label)`,excerpt:isObject(y.label)?y.label.value:y.label});emptied.push(p);return null}
   if(Array.isArray(y.apeCodes)?y.apeCodes.length>0:y.apeCodes!==undefined)fix('APE_CODES_IGNORED',`${p}.apeCodes`,'not_requested');
-  keys.push(key.data);
+  // The key is a technical identifier, not a fact: an invalid or duplicate one is rebuilt from the label (reported).
+  const parsed=SEGMENT_KEY.safeParse(y.key);
+  let key=parsed.success&&!keys.includes(parsed.data)?parsed.data:null;
+  if(key===null){key=segmentKeyFrom(String(label.value),keys);fix('KEY_REGENERATED',`${p}.key`,'invalid_value',{rule:'clé régénérée depuis le libellé'})}
+  if(typeof y.key==='string'&&y.key!==key)renamed.set(y.key,key);
+  keys.push(key);
   const opt=(k:string,schema:z.ZodType)=>k in y?leaf(y[k],schema,`${p}.${k}`,false)!:{...EMPTY};
-  return {key:key.data,label,apeCodes:[],sizeRange:opt('sizeRange',VALUE.sizeRange),priority:opt('priority',VALUE.priority),
+  return {key,label,apeCodes:[],sizeRange:opt('sizeRange',VALUE.sizeRange),priority:opt('priority',VALUE.priority),
    estimatedValue:opt('estimatedValue',VALUE.estimatedValue),salesCycle:opt('salesCycle',VALUE.salesCycle)};
  });
  const personas=list(raw.personas,'personas',L.personas,(y,p)=>{
@@ -169,7 +200,7 @@ export function normalizeExtraction(raw:unknown):Normalized{
   if(isBlank(y.type))return null;
   const type=single(y,'type',VALUE.signalType,p);
   if(type.value===null){fix('ITEM_DROPPED_INVALID',p,'invalid_value',{rule:isObject(y.type)&&y.type.value!=null?`signal sans type utilisable (voir ${p}.type)`:`signal sans type (type vide)`,excerpt:isObject(y.type)?y.type.value:y.type});return null}
-  const refs=Array.isArray(y.segmentRefs)?y.segmentRefs:[];
+  const refs=(Array.isArray(y.segmentRefs)?y.segmentRefs:[]).map(r=>typeof r==='string'&&renamed.has(r)?renamed.get(r)!:r);
   const kept=refs.filter((r):r is string=>typeof r==='string'&&keys.includes(r)).filter((r,i,a)=>a.indexOf(r)===i).slice(0,L.segmentRefs);
   if(kept.length!==refs.length||!Array.isArray(y.segmentRefs))fix('SEGMENT_REF_DROPPED',`${p}.segmentRefs`,'invalid_value');
   return {type,segmentRefs:kept};

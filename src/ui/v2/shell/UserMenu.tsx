@@ -7,6 +7,7 @@ import {Chip,ChipGroup,Icon} from '../primitives.tsx';
 import {ThemeSwitcher} from '../ThemeSwitcher.tsx';
 import type {IconName} from '../icons.ts';
 import type {Locale} from '../../../i18n/locale.ts';
+import {clearAllDrafts} from '../../../icp-import/client.ts';
 
 export type UserMenuProps={
  mode:'live'|'demo';email:string;internal:boolean;busy:boolean;locale:Locale;onLocale:(l:Locale)=>void;
@@ -65,7 +66,8 @@ export function UserMenuContent(p:UserMenuProps&{onDone:()=>void}){
   <div className="pos-menu__sep" role="presentation"/>
   <ul className="pos-menu__list">
    {!live&&<Item icon="activity" label={t.resetDemo} disabled={p.busy} onClick={act(p.onResetDemo)}/>}
-   <Item icon="external" label={live?t.signOut:t.exitDemo} disabled={p.busy} danger onClick={act(p.onSignOut)}/>
+   {/* Signing out also clears the ICP import drafts kept in this tab (src/icp-import/client.ts). */}
+   <Item icon="external" label={live?t.signOut:t.exitDemo} disabled={p.busy} danger onClick={act(()=>{clearAllDrafts();p.onSignOut()})}/>
   </ul>
  </div>;
 }

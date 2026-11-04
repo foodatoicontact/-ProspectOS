@@ -264,7 +264,9 @@ test('17 — no external translation API/service is referenced anywhere in the i
 // ------------------------------------------------------------
 test('18 — package.json introduces no new runtime or dev dependency for i18n (no translation library, static dictionaries only)',async()=>{
  const pkg=JSON.parse(await readFile(new URL('../package.json',import.meta.url),'utf8'));
- assert.deepEqual(Object.keys(pkg.dependencies).sort(),['@supabase/supabase-js','cheerio','imapflow','ipaddr.js','jszip','mailparser','next','nodemailer','react','react-dom','robots-parser','tldts','zod']);
+ // unpdf: server-only PDF text extraction of the ICP import (docs/ICP_IMPORT.md), pinned to an exact version.
+ assert.equal(pkg.dependencies.unpdf,'1.9.1');
+ assert.deepEqual(Object.keys(pkg.dependencies).sort(),['@supabase/supabase-js','cheerio','imapflow','ipaddr.js','jszip','mailparser','next','nodemailer','react','react-dom','robots-parser','tldts','unpdf','zod']);
  assert.deepEqual(Object.keys(pkg.devDependencies).sort(),['@electric-sql/pglite','@types/mailparser','@types/node','@types/nodemailer','@types/react','@types/react-dom','typescript']);
 });
 test('18 — no new environment variable / API key is referenced by the i18n module',async()=>{

@@ -142,4 +142,6 @@ export {TodayV2} from '../today/TodayV2.tsx';
 export {ProspectsV2} from '../prospects/ProspectsV2.tsx';
 export {SearchV2} from '../search/SearchV2.tsx';
 export {SearchNative} from '../search/SearchNative.tsx';
+// « Importer mon entreprise » (docs/ICP_IMPORT.md), shown at the top of « Offre et cible ».
+export {IcpImport} from '../../../components/IcpImport.tsx';
 export {ActivityV2,ActionsNative,ActivityOverview} from '../activity/ActivityV2.tsx';

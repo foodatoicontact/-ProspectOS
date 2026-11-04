@@ -262,7 +262,7 @@ test('v2 shell — reached from the account menu (like Bêta Analytics), rendere
  assert.equal(workspace.split('<SelfOutreachPanel ').length-1,1);
  assert.ok(page.indexOf('<SelfOutreachPanel ')<page.indexOf(' if(v2){'),'defined before the v2 branch, never duplicated in it');
  const v2=page.slice(page.indexOf(' if(v2){'),page.indexOf(' return <div className="shell">'));
- assert.match(v2,/:undefined\}>\n  <div className=\{contentClass\}>\{banners\}\{workspace\}<\/div><\/Shell>/,'no v2 screen for outreach: the shared workspace');
+ assert.match(v2,/:undefined\}>\n  <div className=\{contentClass\}>\{banners\}(?:\{view==='icp'&&mode==='live'&&project&&<v2\.IcpImport [\s\S]*?\/>\})?\{workspace\}<\/div><\/Shell>/,'no v2 screen for outreach: the shared workspace');
 });
 
 test('035 is frozen as applied: its bytes are the ones the staging runner recorded',async()=>{

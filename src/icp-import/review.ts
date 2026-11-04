@@ -2,7 +2,7 @@
 // What the screen shows comes from the database (the import row, re-validated); what a person changes is applied here,
 // field by field, and the result is re-validated as a whole by parseIcpProfile before it can be sent. A value a person
 // types is sourced as such (MANUAL_SOURCE, confidence 1): it never borrows a passage of the document.
-import {parseIcpProfile,DEPARTMENT_CODES,CRITICAL_CONFIDENCE,type IcpProfile} from '../domain/icp/schema.ts';
+import {parseIcpProfile,DEPARTMENT_CODES,CRITICAL_CONFIDENCE,ICP_LIMITS,type IcpProfile} from '../domain/icp/schema.ts';
 import {DEPARTMENTS} from '../discovery/geo-fr.ts';
 import type {MissingQuestion} from '../domain/icp/missing.ts';
 
@@ -88,7 +88,7 @@ export function addValue(profile:IcpProfile,listPath:Path,value:unknown):EditRes
  list.push(manual(typeof value==='string'?value.trim():value));
  return checked(p);
 }
-const slug=(s:string)=>s.normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'').slice(0,30)||'segment';
+const slug=(s:string)=>s.normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'').slice(0,ICP_LIMITS.segmentKey-3)||'segment';
 const empty=():Leaf=>({value:null,source:null,confidence:0});
 export function addSegment(profile:IcpProfile,label:string):EditResult{
  const p=clone(profile);const base=slug(label);let key=base,n=2;
@@ -127,13 +127,13 @@ export function addZones(profile:IcpProfile,text:string):EditResult{
 export function answerQuestion(profile:IcpProfile,key:string,answer:string):EditResult{
  const a=answer.trim();if(!a)return {ok:true,profile};
  switch(key){
-  case 'company.activity':return setValue(profile,['company','activity'],a.slice(0,500));
-  case 'company.name':return setValue(profile,['company','name'],a.slice(0,200));
-  case 'offer.services':{let p=profile;for(const s of a.split(/[,;\n]/).map(x=>x.trim()).filter(Boolean).slice(0,10)){const r=addValue(p,['offer','services'],s.slice(0,200));if(!r.ok)return r;p=r.profile}return {ok:true,profile:p}}
-  case 'offer.differentiators':return addValue(profile,['offer','differentiators'],a.slice(0,300));
-  case 'segments':return addSegment(profile,a.slice(0,120));
-  case 'personas':return addPersona(profile,a.slice(0,120));
-  case 'exclusions':return addExclusion(profile,a.slice(0,120));
+  case 'company.activity':return setValue(profile,['company','activity'],a.slice(0,ICP_LIMITS.activity));
+  case 'company.name':return setValue(profile,['company','name'],a.slice(0,ICP_LIMITS.name));
+  case 'offer.services':{let p=profile;for(const s of a.split(/[,;\n]/).map(x=>x.trim()).filter(Boolean).slice(0,ICP_LIMITS.services)){const r=addValue(p,['offer','services'],s.slice(0,ICP_LIMITS.service));if(!r.ok)return r;p=r.profile}return {ok:true,profile:p}}
+  case 'offer.differentiators':return addValue(profile,['offer','differentiators'],a.slice(0,ICP_LIMITS.differentiator));
+  case 'segments':return addSegment(profile,a.slice(0,ICP_LIMITS.segmentLabel));
+  case 'personas':return addPersona(profile,a.slice(0,ICP_LIMITS.role));
+  case 'exclusions':return addExclusion(profile,a.slice(0,ICP_LIMITS.exclusionLabel));
   case 'company.interventionZones':return addZones(profile,a);
   default:return {ok:true,profile}; // e.g. sizes: answered in the segment itself
  }

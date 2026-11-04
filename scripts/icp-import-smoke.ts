@@ -11,7 +11,7 @@
 //   or, without a computer: GitHub → Actions → « ICP import smoke test » → Run workflow (.github/workflows/icp-import-smoke.yml).
 import {readFile} from 'node:fs/promises';
 import {ingestFile,ingestText,IngestError,INGEST_MESSAGES,sniff,type Ingested} from '../src/icp-import/ingest.ts';
-import {structureIcp,StructureIcpError,type IcpUsage} from '../src/server/ai.ts';
+import {structureIcp,StructureIcpError,ICP_MAX_TOKENS,type IcpUsage} from '../src/server/ai.ts';
 import {missingQuestions} from '../src/domain/icp/missing.ts';
 import {selfOutreachOrganizations} from '../src/self-outreach/config.ts';
 
@@ -53,7 +53,7 @@ async function cost(usage:IcpUsage){
 const started=Date.now();
 try{
  const {profile,dropped,unverified,usage}=await structureIcp(ingested!.text);
- console.log(`■ Réponse en ${((Date.now()-started)/1000).toFixed(1)} s, ${usage.attempts.length} appel(s), ${usage.input_tokens} tokens en entrée, ${usage.output_tokens} en sortie (${usage.provider} ${usage.model})`);
+ console.log(`■ Réponse en ${((Date.now()-started)/1000).toFixed(1)} s, ${usage.attempts.length} appel(s), ${usage.input_tokens} tokens en entrée, ${usage.output_tokens} en sortie (par appel : ${usage.attempts.map(a=>`${a.input_tokens}/${a.output_tokens}`).join(', ')} ; plafond de sortie ${ICP_MAX_TOKENS}) (${usage.provider} ${usage.model})`);
  console.log('■ Valeurs extraites (confiance — valeur — source)');
  const walk=(n:unknown,path:string)=>{
   if(Array.isArray(n)){n.forEach((v,i)=>walk(v,`${path}[${i}]`));return}
@@ -72,6 +72,7 @@ try{
  console.log('■ Profil complet (brouillon, non enregistré)');console.log(JSON.stringify(profile,null,1));
  await cost(usage);
 }catch(e){
- if(e instanceof StructureIcpError){console.error(`■ Échec : ${e.code}${e.usage?` — ${e.usage.attempts.length} appel(s) facturé(s), ${e.usage.total_tokens} tokens`:''}`);if(e.usage)await cost(e.usage);process.exit(2)}
+ if(e instanceof StructureIcpError){const u=e.usage;const last=u?.attempts.at(-1)?.output_tokens??null;
+  console.error(`■ Échec : ${e.code}${u?` — ${u.attempts.length} appel(s) facturé(s), ${u.input_tokens} tokens en entrée, ${u.output_tokens} en sortie${last!==null?` (dernier appel : ${last} en sortie / plafond ${ICP_MAX_TOKENS}${last>=ICP_MAX_TOKENS?' — sortie au plafond':''})`:''}`:''}`);if(e.usage)await cost(e.usage);process.exit(2)}
  throw e;
 }

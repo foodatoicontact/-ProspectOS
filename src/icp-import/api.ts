@@ -147,7 +147,7 @@ async function createImport(db:SupabaseClient,json:Json,deps:IcpImportDeps,proje
   if(error instanceof StructureIcpError&&!error.providerCalled)return failWithoutProvider(code);
   await complete('FAILED',{error:code,usage,warnings:[...ingested.warnings]});
   await meter(usage);
-  deps.log({component:'icp_import',event:'failed',import_id:importId,code,provider_called:true,attempts:usage?.attempts.length??0,tokens:usage?.total_tokens??0});
+  deps.log({component:'icp_import',event:'failed',import_id:importId,code,provider_called:true,attempts:usage?.attempts.length??0,tokens:usage?.total_tokens??0,input_tokens:usage?.input_tokens??0,output_tokens:usage?.output_tokens??0});
   return refuse(json,code);
  }
 }

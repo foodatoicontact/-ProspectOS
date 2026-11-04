@@ -10,7 +10,7 @@ import type {Locale} from '../i18n/locale';
 import type {IcpProfile} from '../domain/icp/schema';
 import {icpClient,loadLatest,saveDraft,loadDraft,clearDraft,clearAllDrafts,type ImportDetail,type Source,type ValidateResult} from '../icp-import/client';
 import {viewOf,nextPollDelay,confidenceOf,setValue,removeAt,addValue,addZones,answerQuestion,isUnmonitored,MANUAL_SOURCE,type ImportRow,type Path,type EditResult} from '../icp-import/review';
-import {parseIcpProfile} from '../domain/icp/schema';
+import {parseIcpProfile,ICP_LIMITS} from '../domain/icp/schema';
 import {DEPARTMENTS} from '../discovery/geo-fr';
 import {icpText,errorText,SIGNAL_LABELS,type IcpMessageKey} from '../icp-import/messages';
 
@@ -257,8 +257,8 @@ function Review(props:ReviewProps){
   {restored&&<p className="icp-info" role="status">{t('restored')}</p>}
   <Questions {...props} questions={questions} qIndex={qIndex}/>
   <Section title={t('sectionCompany')}>
-   <Field {...props} label={t('fName')} leaf={p.company.name} path={['company','name']} max={200}/>
-   <Field {...props} label={t('fActivity')} leaf={p.company.activity} path={['company','activity']} max={500} multiline/>
+   <Field {...props} label={t('fName')} leaf={p.company.name} path={['company','name']} max={ICP_LIMITS.name}/>
+   <Field {...props} label={t('fActivity')} leaf={p.company.activity} path={['company','activity']} max={ICP_LIMITS.activity} multiline/>
    <h4 className="muted">{t('fSites')}</h4>
    {p.company.sites.length?p.company.sites.map((s,i)=><Item key={i} {...props} leaf={s} path={['company','sites',i]}>
     <p>{s.value?.city}{s.value?.department?` (${s.value.department})`:''} · {t(`role${s.value?.role??'HQ'}` as IcpMessageKey)}</p></Item>):<p className="muted">{t('empty')}</p>}
@@ -266,21 +266,21 @@ function Review(props:ReviewProps){
    {p.company.coverage?.value&&<><h4 className="muted">{t('fCoverage')}</h4><Item {...props} leaf={p.company.coverage} path={['company','coverage']}><p>{t(`coverage${p.company.coverage.value}` as IcpMessageKey)}</p></Item></>}
   </Section>
   <Section title={t('sectionOffer')}>
-   <ListOf {...props} label={t('fServices')} items={p.offer.services} path={['offer','services']} max={200}/>
+   <ListOf {...props} label={t('fServices')} items={p.offer.services} path={['offer','services']} max={ICP_LIMITS.service}/>
    <h4 className="muted">{t('fPromises')}</h4>
    {p.offer.promises.map((pr,i)=><Item key={i} {...props} leaf={pr} path={['offer','promises',i]}><p>{pr.value?.text}</p></Item>)}
-   <ListOf {...props} label={t('fDifferentiators')} items={p.offer.differentiators} path={['offer','differentiators']} max={300}/>
-   <ListOf {...props} label={t('fProofs')} items={p.offer.proofs} path={['offer','proofs']} max={300}/>
+   <ListOf {...props} label={t('fDifferentiators')} items={p.offer.differentiators} path={['offer','differentiators']} max={ICP_LIMITS.differentiator}/>
+   <ListOf {...props} label={t('fProofs')} items={p.offer.proofs} path={['offer','proofs']} max={ICP_LIMITS.proof}/>
   </Section>
   <Section title={t('sectionTarget')}>
    {p.segments.length?p.segments.map((s,i)=><div key={s.key} className="icp-item"><div>
-    <Field {...props} label={t('fSegments')} leaf={s.label} path={['segments',i,'label']} max={120}/>
+    <Field {...props} label={t('fSegments')} leaf={s.label} path={['segments',i,'label']} max={ICP_LIMITS.segmentLabel}/>
     <p className="muted">{[s.sizeRange.value?`${t('fSize')} : ${s.sizeRange.value.join(', ')}`:'',s.priority.value?`${t('fPriority')} : ${s.priority.value}`:'',s.estimatedValue.value?`${t('fValue')} : ${s.estimatedValue.value}`:'',s.salesCycle.value?`${t('fCycle')} : ${s.salesCycle.value}`:''].filter(Boolean).join(' · ')}</p>
    </div><button type="button" className="text-button" onClick={()=>props.onRemove(['segments',i])}>{t('remove')}</button></div>):<p className="muted">{t('empty')}</p>}
   </Section>
   <Section title={t('sectionPersonas')}>
    {p.personas.length?p.personas.map((pe,i)=><div key={i} className="icp-item"><div>
-    <Field {...props} label={t('fRole')} leaf={pe.role} path={['personas',i,'role']} max={120}/>
+    <Field {...props} label={t('fRole')} leaf={pe.role} path={['personas',i,'role']} max={ICP_LIMITS.role}/>
     {pe.painPoints.length>0&&<p className="muted">{t('fPains')} : {pe.painPoints.map(x=>x.value).filter(Boolean).join(' ; ')}</p>}
    </div><button type="button" className="text-button" onClick={()=>props.onRemove(['personas',i])}>{t('remove')}</button></div>):<p className="muted">{t('empty')}</p>}
   </Section>
@@ -289,7 +289,7 @@ function Review(props:ReviewProps){
     <p>{SIGNAL_LABELS[locale][s.type.value??'']??s.type.value} {isUnmonitored(s.type.value)&&<span className="icp-badge unmonitored" data-unmonitored="true">{t('unmonitored')}</span>}</p></Item>):<p className="muted">{t('empty')}</p>}
   </Section>
   <Section title={t('sectionExclusions')}>
-   {p.exclusions.length?p.exclusions.map((x,i)=><div key={i} className="icp-item"><div><Field {...props} label={t('fReason')} leaf={x.label} path={['exclusions',i,'label']} max={120}/></div>
+   {p.exclusions.length?p.exclusions.map((x,i)=><div key={i} className="icp-item"><div><Field {...props} label={t('fReason')} leaf={x.label} path={['exclusions',i,'label']} max={ICP_LIMITS.exclusionLabel}/></div>
     <button type="button" className="text-button" onClick={()=>props.onRemove(['exclusions',i])}>{t('remove')}</button></div>):<p className="muted">{t('empty')}</p>}
   </Section>
  </div>;

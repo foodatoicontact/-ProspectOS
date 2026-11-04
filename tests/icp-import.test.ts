@@ -426,7 +426,7 @@ test('structureIcp — unverified sources are dropped, reported and asked; the v
 
 test('coverage — "France entière" is kept as NATIONAL (optional field); a national company is not asked for its departments',()=>{
  const p=expected();
- p.company.interventionZones=[];p.company.sites=[];p.company.coverage={value:'NATIONAL',source:'Zone d’intervention annoncée : France entière.',confidence:0.9};
+ p.company.interventionZones=[];p.company.sites=[];p.company.coverage={value:'NATIONAL',source:'France entière',confidence:0.9};
  const r=parseIcpProfile(p);assert.ok(r.ok);
  assert.ok(!missingQuestions((r as {profile:IcpProfile}).profile).some(q=>q.key==='company.interventionZones'));
  assert.equal(parseIcpProfile({...p,company:{...p.company,coverage:{value:'WORLD',source:'x',confidence:1}}}).ok,false);

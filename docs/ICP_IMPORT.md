@@ -73,6 +73,7 @@ Codes d'erreur : `FILE_TOO_LARGE` (413), `UNSUPPORTED_FILE` (415), `FILE_EMPTY`,
 | PDF | 30 pages lues au plus (avertissement `PDF_PAGES_TRUNCATED`), 15 s, sans polices ni XFA ; moins de 50 caractères visibles = `PDF_SCANNED` (pas d'OCR) | `ingestPdf` |
 | DOCX | 1 000 entrées au plus ; `word/document.xml` décompressé compté pendant l'inflation, arrêt à 10 Mio (bombe zip) | `ingestDocx` |
 | Modèle | 4 096 tokens de sortie, réflexion désactivée, aucun outil, 40 s par appel ; nouvel essai seulement s'il reste 20 s sur le budget de 55 s de la route | `structureIcp` |
+| Sortie | profil le plus rempli possible ≤ 3 000 tokens estimés (plafonds `ICP_LIMITS`, JSON compact) ; voir « Smoke test #3 » | `budget.ts` |
 | Imports | 1 import en cours par projet (2 min) ; 10 imports d'URL par organisation et par 24 h | `start_icp_import` |
 
 Une fonction interrompue par la plateforme (60 s) laisse sa ligne `PENDING`. Passé **2 minutes**, elle n'est plus un import en cours : toute lecture la présente `FAILED` (`IMPORT_STALE`) avec un message qui propose de relancer, le prochain import du projet l'enregistre `FAILED` en base, une réponse tardive n'est plus enregistrée, et elle peut être effacée.
@@ -94,8 +95,8 @@ Chaque import consomme **une** unité du quota « analyse d'offre » (`ai_offer`
 
 Ordre de grandeur, au tarif enregistré pour `claude-sonnet-5` (migration 010 : 2 $ par million de tokens en entrée, 10 $ en sortie) — **estimations**, le smoke test donne le chiffre réel :
 
-- borne haute d'un appel : ~15 000 tokens d'entrée (50 000 caractères + prompt) + 4 096 en sortie ≈ 0,03 $ + 0,041 $ ≈ **0,07 $** ; avec le nouvel essai ≈ **0,14 $** ;
-- une présentation de quelques milliers de caractères : quelques milliers de tokens dans chaque sens, soit de l'ordre de **0,02 à 0,04 $**.
+- **coût réel mesuré** (smoke tests du 4 novembre, document de 8 400 caractères) : environ **0,05 $ par appel** (≈ 5 400 tokens en entrée, jusqu'à 4 096 en sortie : 0,011 $ + 0,041 $), donc **jusqu'à environ 0,10 $ avec le nouvel essai** ;
+- borne haute d'un appel sur un document de 50 000 caractères : ~15 000 tokens d'entrée + 4 096 en sortie ≈ 0,03 $ + 0,041 $ ≈ 0,07 $, soit ~0,14 $ avec le nouvel essai.
 
 ## Smoke test réel (opérateur)
 
@@ -140,12 +141,28 @@ Workflow GitHub Actions, `tests/fixtures/icp/detec-incendie.source.txt` (8 397 c
 Constats et correctifs appliqués ensuite :
 - 5 sources sur 46 n'étaient pas des passages exacts (une citation tronquée par « ... », quatre puces recollées) → **vérification de chaque source dans le document** (ci-dessus) ; rejouée sur cette réponse, elle écarte exactement ces 5 valeurs et garde les 41 autres ;
 - le premier refus ne laissait qu'un nombre dans le journal → les **chemins des champs refusés** sont journalisés (jamais une valeur) ;
-- plafonds du prompt trop bas (12 éléments, 5 segments) : 3 services manquaient, 14 types de clients étaient fusionnés en 5 → **20 éléments par liste, 10 segments, un type de client par segment** ;
+- plafonds du prompt trop bas (12 éléments, 5 segments) : 3 services manquaient, 14 types de clients étaient fusionnés en 5 → un type de client par segment (les plafonds élargis à 20 / 10 ont ensuite été annulés, voir le smoke test #3) ;
 - « France entière » perdu → champ facultatif **`company.coverage`** (`NATIONAL`, `REGIONAL`, `LOCAL`), sourcé ; une entreprise nationale n'est plus interrogée sur ses départements ;
 - logos de clients classés en preuves → le prompt les exclut des preuves (des noms affichés sans détail sur la relation ne prouvent rien) ;
-- 49,5 s sur 55 → sources limitées à 100 caractères et valeurs courtes (moins de sortie), nouvel essai seulement s'il reste 20 s ; un appel reste borné par le budget de la route.
+- 49,5 s sur 55 → sources plus courtes et valeurs courtes (moins de sortie), nouvel essai seulement s'il reste 20 s ; un appel reste borné par le budget de la route.
 
 À relancer : le même smoke test, pour mesurer la durée et le taux de refus du premier appel avec ces réglages.
+
+## Smoke test #3 (sur 1ac780d) : sortie coupée, puis budget de sortie
+
+Même document (`detec-incendie.source.txt`, 8 397 caractères) : **échec `AI_TRUNCATED_RESULT`** (`TRUNCATED_MAX_TOKENS`), 1 appel facturé, 9 519 tokens (≈ 5 423 en entrée, 4 096 en sortie : la sortie a touché le plafond), 0,0518 $. Aucun profil enregistré, aucune valeur inventée : la garde a fonctionné. Cause : les plafonds élargis (20 éléments par liste, 10 segments) produisent une réponse plus longue que `max_tokens` (4 096).
+
+`max_tokens` **n'est pas relevé** : 4 096 tokens ont pris environ 29 s ; 8 000 frôleraient les 60 s de la route et rendraient le nouvel essai impossible. À la place, **budget de sortie** (`src/domain/icp/budget.ts`) :
+
+- **Estimation** : tokens ≈ caractères du JSON compact ÷ 2,4. Calibration : le profil valide du smoke test #1 fait 7 064 caractères en JSON compact ; le tokenizer public `@anthropic-ai/tokenizer` (vocabulaire Claude plus ancien) y compte 2 035 tokens, soit 3,47 caractères par token ; sur l'entrée réelle du smoke test #3, ce même tokenizer compte 3 891 tokens là où l'API en a facturé ≈ 5 423, soit ×1,39 ; 3,47 ÷ 1,39 ≈ 2,5, arrondi à 2,4 (vers plus de tokens). Contrôle : ce même profil indenté fait 9 181 caractères ≈ 4 050 tokens, cohérent avec les 7 140 tokens de sortie des deux réponses du smoke test #1 — le modèle écrivait du JSON indenté ; le prompt exige désormais du JSON compact sur une seule ligne.
+- **Pire cas** : `largestProfile()` remplit **toutes** les listes à leur plafond, **tous** les textes et **toutes** les sources à leur longueur maximale. Ce qui coûte, c'est le nombre de valeurs : chacune porte `{"value","source","confidence"}` (≈ 41 caractères de structure) plus sa source.
+  - plafonds précédents (12 éléments par liste, 5 segments, sources de 200 caractères) : ≈ 81 000 caractères, **≈ 34 000 tokens** au pire — ils ne tenaient que parce que les documents réels ne les remplissent pas (profil réel du smoke test #1 : ≈ 2 950 tokens en JSON compact) ;
+  - plafonds retenus : **≈ 2 955 tokens** au pire, pour un **budget de 3 000** (≤ 75 % de `max_tokens` : ≥ 1 096 tokens de marge).
+- **Plafonds retenus** (`ICP_LIMITS`, schéma + prompt) : sources 40 caractères ; nom 60, activité 100 ; 6 sites (ville 40), 4 zones ; 8 services (40), 3 engagements (50), 3 différences (50), 1 preuve (50) ; 3 segments (libellé 40, 1 code APE, 2 tranches, cycle 20) ; 1 persona (fonction 40, 1 difficulté 50, angle 50) ; 2 signaux (2 segments) ; 1 exclusion (40 / 40). Le prompt demande, s'il y en a plus, de garder les plus importants.
+- **Garde** : `tests/icp-budget.test.ts` vérifie que le plus grand profil accepté par le schéma tient sous le budget, que relever d'un élément une liste à valeurs textuelles le dépasse, et épingle ensemble plafonds, budget et estimation : relever un plafond sans refaire le calcul fait échouer le test.
+- **Journal** : chaque échec donne les tokens d'**entrée** et de **sortie** séparément, avec la sortie du dernier appel à côté de `max_tokens` (une sortie au plafond se voit directement) ; le script de smoke test les affiche aussi.
+
+**Conséquence assumée** : le profil extrait est plus court (Détec annonce 15 familles de services et 14 types de clients ; 8 et 3 tiennent). La personne complète à la revue. Pour retrouver de la richesse sans relever `max_tokens`, proposition non implémentée : **deux appels en parallèle** (entreprise et offre / cible), chacun avec son propre budget de 3 000 tokens — même durée qu'un appel, deux fois la sortie, ≈ +0,01 $ d'entrée.
 
 ## Migration 041 gelée
 

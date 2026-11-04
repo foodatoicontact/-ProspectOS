@@ -124,9 +124,13 @@ export type IcpProfile=z.infer<typeof IcpProfile>;
 
 // The one entry point for anything that is not typed by this code: an AI answer, a stored row, a request body.
 // Never repaired, never partially accepted: valid as a whole, or an explicit error.
-export function parseIcpProfile(raw:unknown):{ok:true;profile:IcpProfile}|{ok:false;issues:string[]}{
+// On a refusal: the first 20 issues as text, plus the real number of issues and, for every issue, its path and kind
+// (zod's code — never the value) so a caller can count them.
+export function parseIcpProfile(raw:unknown):{ok:true;profile:IcpProfile}|{ok:false;issues:string[];total:number;kinds:{path:string;code:string}[]}{
  const r=IcpProfile.safeParse(raw);
- return r.success?{ok:true,profile:r.data}:{ok:false,issues:r.error.issues.slice(0,20).map(i=>`${i.path.join('.')||'(root)'}: ${i.message}`)};
+ if(r.success)return {ok:true,profile:r.data};
+ return {ok:false,issues:r.error.issues.slice(0,20).map(i=>`${i.path.join('.')||'(root)'}: ${i.message}`),total:r.error.issues.length,
+  kinds:r.error.issues.map(i=>({path:i.path.join('.')||'(root)',code:i.code}))};
 }
 
 const empty=<T>():Sourced<T>=>({value:null,source:null,confidence:0});

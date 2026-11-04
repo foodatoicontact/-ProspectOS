@@ -158,3 +158,26 @@ export function fixWarnings(fixes:readonly Fix[],room=10):string[]{
 }
 // For the logs and for the retry: path and reason only.
 export const describeFixes=(fixes:readonly Fix[])=>fixes.slice(0,40).map(f=>`${f.path}: ${f.code} (${f.reason})`);
+
+// The counts the logs carry for every call, so a refusal or a heavy normalisation can be read at a glance: sources too
+// long, sources not in the document, values too long, APE codes returned, list items without their envelope. From
+// codes and paths only.
+export type Counts={source_too_long:number;source_not_in_document:number;value_too_long:number;ape_codes_ignored:number;list_item_wrong_shape:number;other:number};
+export function countByCategory(fixes:readonly Fix[],unverified:readonly string[]=[],schemaIssues:readonly {path:string;code:string}[]=[]):Counts{
+ const c:Counts={source_too_long:0,source_not_in_document:unverified.length,value_too_long:0,ape_codes_ignored:0,list_item_wrong_shape:0,other:0};
+ for(const f of fixes){
+  if(f.code==='SOURCE_TRUNCATED')c.source_too_long++;
+  else if(f.code==='VALUE_DROPPED_TOO_LONG'||f.code==='ITEM_DROPPED_TOO_LONG')c.value_too_long++;
+  else if(f.code==='APE_CODES_IGNORED')c.ape_codes_ignored++;
+  else if(f.code==='ITEM_DROPPED_INVALID'&&f.reason==='wrong_shape')c.list_item_wrong_shape++;
+  else c.other++;
+ }
+ for(const i of schemaIssues){
+  const source=/(^|\.)source$/.test(i.path);
+  if(i.code==='too_big')source?c.source_too_long++:c.value_too_long++;
+  else if(/(^|\.)apeCodes(\.|$)/.test(i.path))c.ape_codes_ignored++;
+  else if((i.code==='invalid_type'||i.code==='unrecognized_keys')&&/\.\d+(\.|$)/.test(i.path))c.list_item_wrong_shape++;
+  else c.other++;
+ }
+ return c;
+}

@@ -15,6 +15,7 @@ import {readFile} from 'node:fs/promises';
 import {ingestFile,ingestText,IngestError,INGEST_MESSAGES,sniff,type Ingested} from '../src/icp-import/ingest.ts';
 import {structureIcp,StructureIcpError,ICP_MAX_TOKENS,type IcpUsage} from '../src/server/ai.ts';
 import {missingQuestions} from '../src/domain/icp/missing.ts';
+import {countByCategory} from '../src/domain/icp/normalize.ts';
 import {selfOutreachOrganizations} from '../src/self-outreach/config.ts';
 
 const args=process.argv.slice(2);
@@ -54,6 +55,8 @@ async function cost(usage:IcpUsage){
  console.log(`■ Coût : ${priced?'':'au moins '}${(micros/1e6).toFixed(4)} $ (table de prix, ${usage.attempts.length} appel(s))`);
 }
 
+// The model actually configured for this run (AI_MODEL), shown before anything else.
+console.log(`■ Modèle : ${process.env.AI_MODEL} (${process.env.AI_PROVIDER})`);
 const started=Date.now();
 try{
  const {profile,dropped,unverified,fixes,usage}=await structureIcp(ingested!.text,{onRaw:(n,raw)=>{raws[n-1]=raw}});
@@ -68,6 +71,8 @@ try{
   }
  };
  walk(profile,'');
+ const counts=countByCategory(fixes,unverified);
+ console.log(`■ Décompte : ${counts.source_too_long} source(s) trop longue(s), ${counts.source_not_in_document} source(s) absente(s) du document, ${counts.value_too_long} valeur(s) trop longue(s), ${counts.ape_codes_ignored} segment(s) avec codes APE ignorés, ${counts.list_item_wrong_shape} élément(s) de liste mal enveloppé(s), ${counts.other} autre(s)`);
  if(fixes.length){console.log(`■ Corrections de normalisation (${fixes.length}) :`);for(const f of fixes)console.log(`  ${f.code}  ${f.path}  (${f.reason})`)}
  else console.log('■ Aucune correction de normalisation.');
  const noSource=dropped.filter(d=>!unverified.includes(d));
@@ -79,7 +84,7 @@ try{
  await cost(usage);
 }catch(e){
  if(e instanceof StructureIcpError){const u=e.usage;const last=u?.attempts.at(-1)?.output_tokens??null;
-  console.error(`■ Échec : ${e.code}${u?` — ${u.attempts.length} appel(s) facturé(s), ${u.input_tokens} tokens en entrée, ${u.output_tokens} en sortie${last!==null?` (dernier appel : ${last} en sortie / plafond ${ICP_MAX_TOKENS}${last>=ICP_MAX_TOKENS?' — sortie au plafond':''})`:''}`:''}`);
+  console.error(`■ Échec : ${e.code}${u?` — modèle ${u.model}, ${u.attempts.length} appel(s) facturé(s), ${u.input_tokens} tokens en entrée, ${u.output_tokens} en sortie${last!==null?` (dernier appel : ${last} en sortie / plafond ${ICP_MAX_TOKENS}${last>=ICP_MAX_TOKENS?' — sortie au plafond':''})`:''}`:''}`);
   if(showRaw)raws.forEach((raw,k)=>{console.error(`■ Réponse brute, appel ${k+1} (--show-raw, document de test public) :`);console.error(raw)});
   if(e.usage)await cost(e.usage);process.exit(2)}
  throw e;

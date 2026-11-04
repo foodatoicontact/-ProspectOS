@@ -164,3 +164,36 @@ test('smoke script — --show-raw prints the raw answers on a failure, and only 
  const api=readFileSync(new URL('../src/icp-import/api.ts',import.meta.url),'utf8');
  assert.doesNotMatch(api,/onRaw/,'the application never asks for the raw answer');
 });
+
+test('logs — the real number of issues (issues_total) beside the first 20 paths, and counts by category',async()=>{
+ // The final validation reports at most 20 issues as text, but keeps the real total (30 unknown department codes here).
+ const {parseIcpProfile:parse}=await import('../src/domain/icp/schema.ts');
+ const bad:any={version:1,company:{name:E,activity:E,sites:[],interventionZones:Array.from({length:30},()=>({value:'99',source:'x',confidence:1}))},
+  offer:{services:[],promises:[],differentiators:[],proofs:[]},segments:[],personas:[],signals:[],exclusions:[]};
+ const r=parse(bad);assert.equal(r.ok,false);assert.ok(!r.ok&&r.issues.length===20&&r.total>20,'20 shown, the real total kept');
+ const {countByCategory}=await import('../src/domain/icp/normalize.ts');
+ const n=normalizeExtraction(smoke4Like());assert.ok(n.ok);
+ const c=countByCategory(n.fixes,['offer.services.0']);
+ assert.deepEqual(c,{source_too_long:3,source_not_in_document:1,value_too_long:1,ape_codes_ignored:1,list_item_wrong_shape:1,other:4});
+ const z=countByCategory([],[],[{path:'company.activity.source',code:'too_big'},{path:'company.name.value',code:'too_big'},{path:'segments.0.apeCodes.0.value',code:'invalid_format'},{path:'company.sites.0',code:'invalid_type'}]);
+ assert.deepEqual(z,{source_too_long:1,source_not_in_document:0,value_too_long:1,ape_codes_ignored:1,list_item_wrong_shape:1,other:0});
+ // In structureIcp's logs: a refusal carries issues_total and counts; a normalised success carries its counts.
+ const ai=withAi([JSON.stringify(smoke4Like())]);const logs:string[]=[];const err=mock.method(console,'error',(l:string)=>{logs.push(String(l))});
+ try{
+  await structureIcp(ingestText(detec).text);
+  const line=logs.map(l=>JSON.parse(l)).find(l=>l.reason==='NORMALIZED')!;
+  assert.equal(line.fixes_total,n.fixes.length);assert.equal(line.counts.list_item_wrong_shape,1);assert.equal(line.counts.ape_codes_ignored,1);
+ }finally{ai.restore();err.mock.restore()}
+ const ai2=withAi(['{"version":1}','{"version":1}']);const logs2:string[]=[];const err2=mock.method(console,'error',(l:string)=>{logs2.push(String(l))});
+ try{
+  await structureIcp(ingestText(detec).text).catch(()=>{});
+  const f=logs2.map(l=>JSON.parse(l)).find(l=>l.reason==='VALIDATION_FAILED')!;
+  assert.equal(f.issues_total,6);assert.equal(f.issues_shown,6);assert.equal(f.paths.length,6);
+ }finally{ai2.restore();err2.mock.restore()}
+});
+
+test('smoke script — the configured model (AI_MODEL) is shown first',()=>{
+ const src=readFileSync(new URL('../scripts/icp-import-smoke.ts',import.meta.url),'utf8');
+ assert.match(src,/console\.log\(`■ Modèle : \$\{process\.env\.AI_MODEL\} \(\$\{process\.env\.AI_PROVIDER\}\)`\);/);
+ assert.match(src,/■ Échec : \$\{e\.code\}\$\{u\?` — modèle \$\{u\.model\}/);
+});

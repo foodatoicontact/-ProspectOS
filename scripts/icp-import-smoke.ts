@@ -7,7 +7,9 @@
 // own AI_PROVIDER / AI_MODEL / AI_API_KEY pay. When the server's Supabase variables are present, the cost is read from the
 // pricing table (resolve_provider_cost); the run itself is not written to the cost ledger (it belongs to no user).
 //
-// Run:  node --experimental-strip-types scripts/icp-import-smoke.ts --org <uuid> <file.txt|file.pdf|file.docx>
+// Run:  node --experimental-strip-types scripts/icp-import-smoke.ts --org <uuid> [--show-raw] <file.txt|file.pdf|file.docx>
+//   --show-raw: on a failure, print the model's raw answer of each call. For the public test documents of
+//   tests/fixtures/icp/ only — this operator script is the one place that may show it; the application never does.
 //   or, without a computer: GitHub → Actions → « ICP import smoke test » → Run workflow (.github/workflows/icp-import-smoke.yml).
 import {readFile} from 'node:fs/promises';
 import {ingestFile,ingestText,IngestError,INGEST_MESSAGES,sniff,type Ingested} from '../src/icp-import/ingest.ts';
@@ -17,7 +19,9 @@ import {selfOutreachOrganizations} from '../src/self-outreach/config.ts';
 
 const args=process.argv.slice(2);
 const at=args.indexOf('--org');const org=(at>=0?args[at+1]:'')?.trim().toLowerCase()??'';
-const file=args.filter((a,i)=>a!=='--org'&&i!==at+1)[0];
+const showRaw=args.includes('--show-raw');
+const file=args.filter((a,i)=>a!=='--org'&&a!=='--show-raw'&&i!==at+1)[0];
+const raws:string[]=[];
 const stop=(message:string):never=>{console.error(message);process.exit(1)};
 if(!file||!/^[0-9a-f-]{36}$/.test(org))stop('Usage : node --experimental-strip-types scripts/icp-import-smoke.ts --org <uuid> <fichier>');
 if(!selfOutreachOrganizations(process.env).includes(org))stop('Refusé : cette organisation n’est pas dans SELF_OUTREACH_ORG_IDS (liste opérateur).');
@@ -52,7 +56,7 @@ async function cost(usage:IcpUsage){
 
 const started=Date.now();
 try{
- const {profile,dropped,unverified,usage}=await structureIcp(ingested!.text);
+ const {profile,dropped,unverified,fixes,usage}=await structureIcp(ingested!.text,{onRaw:(n,raw)=>{raws[n-1]=raw}});
  console.log(`■ Réponse en ${((Date.now()-started)/1000).toFixed(1)} s, ${usage.attempts.length} appel(s), ${usage.input_tokens} tokens en entrée, ${usage.output_tokens} en sortie (par appel : ${usage.attempts.map(a=>`${a.input_tokens}/${a.output_tokens}`).join(', ')} ; plafond de sortie ${ICP_MAX_TOKENS}) (${usage.provider} ${usage.model})`);
  console.log('■ Valeurs extraites (confiance — valeur — source)');
  const walk=(n:unknown,path:string)=>{
@@ -64,6 +68,8 @@ try{
   }
  };
  walk(profile,'');
+ if(fixes.length){console.log(`■ Corrections de normalisation (${fixes.length}) :`);for(const f of fixes)console.log(`  ${f.code}  ${f.path}  (${f.reason})`)}
+ else console.log('■ Aucune correction de normalisation.');
  const noSource=dropped.filter(d=>!unverified.includes(d));
  if(noSource.length)console.log(`■ Valeurs écartées faute de source : ${noSource.join(', ')}`);
  if(unverified.length)console.log(`■ Valeurs écartées, source absente du document : ${unverified.join(', ')}`);
@@ -73,6 +79,8 @@ try{
  await cost(usage);
 }catch(e){
  if(e instanceof StructureIcpError){const u=e.usage;const last=u?.attempts.at(-1)?.output_tokens??null;
-  console.error(`■ Échec : ${e.code}${u?` — ${u.attempts.length} appel(s) facturé(s), ${u.input_tokens} tokens en entrée, ${u.output_tokens} en sortie${last!==null?` (dernier appel : ${last} en sortie / plafond ${ICP_MAX_TOKENS}${last>=ICP_MAX_TOKENS?' — sortie au plafond':''})`:''}`:''}`);if(e.usage)await cost(e.usage);process.exit(2)}
+  console.error(`■ Échec : ${e.code}${u?` — ${u.attempts.length} appel(s) facturé(s), ${u.input_tokens} tokens en entrée, ${u.output_tokens} en sortie${last!==null?` (dernier appel : ${last} en sortie / plafond ${ICP_MAX_TOKENS}${last>=ICP_MAX_TOKENS?' — sortie au plafond':''})`:''}`:''}`);
+  if(showRaw)raws.forEach((raw,k)=>{console.error(`■ Réponse brute, appel ${k+1} (--show-raw, document de test public) :`);console.error(raw)});
+  if(e.usage)await cost(e.usage);process.exit(2)}
  throw e;
 }

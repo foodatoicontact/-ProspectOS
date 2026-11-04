@@ -16,7 +16,7 @@ export const ICP_PROFILE_VERSION=1 as const;
 export const ICP_LIMITS={
  source:40,
  name:60,activity:100,city:40,sites:6,zones:4,
- service:40,services:8,promise:50,unit:10,promises:3,differentiator:50,differentiators:3,proof:50,proofs:1,
+ service:40,services:9,promise:50,unit:10,promises:3,differentiator:50,differentiators:3,proof:50,proofs:1,
  segmentKey:20,segmentLabel:40,segments:3,apeCodes:1,sizeBands:2,salesCycle:20,
  personas:1,role:40,painPoints:1,painPoint:50,messageAngle:50,
  signals:2,segmentRefs:2,
@@ -74,6 +74,18 @@ export const OfferBlock=z.object({
  differentiators:z.array(sourced(text(ICP_LIMITS.differentiator))).max(ICP_LIMITS.differentiators),
  proofs:z.array(sourced(text(ICP_LIMITS.proof))).max(ICP_LIMITS.proofs),
 }).strict();
+
+// The value of every leaf, by field — what the extraction normaliser (normalize.ts) checks a leaf against, one by one.
+export const VALUE={
+ name:text(ICP_LIMITS.name),activity:text(ICP_LIMITS.activity),site:Site,zone:departmentCode,coverage:z.enum(COVERAGE_LEVELS),
+ service:text(ICP_LIMITS.service),promise:Promise_,differentiator:text(ICP_LIMITS.differentiator),proof:text(ICP_LIMITS.proof),
+ segmentLabel:text(ICP_LIMITS.segmentLabel),apeCode:z.string().regex(APE_CODE),sizeRange:z.array(sizeBand).min(1).max(ICP_LIMITS.sizeBands),
+ priority:z.union([z.literal(1),z.literal(2),z.literal(3)]),estimatedValue:z.enum(VALUE_LEVELS),salesCycle:text(ICP_LIMITS.salesCycle),
+ role:text(ICP_LIMITS.role),painPoint:text(ICP_LIMITS.painPoint),messageAngle:text(ICP_LIMITS.messageAngle),
+ signalType:z.enum(SIGNAL_TYPES),exclusionLabel:text(ICP_LIMITS.exclusionLabel),exclusionReason:text(ICP_LIMITS.exclusionReason),
+} as const;
+export const SEGMENT_KEY=SegmentKey;
+export const ROOT_KEYS=['version','company','offer','segments','personas','signals','exclusions'] as const;
 
 // key: a structural identifier (not extracted, never shown as a fact) that signals[].segmentRefs point to.
 export const Segment=z.object({

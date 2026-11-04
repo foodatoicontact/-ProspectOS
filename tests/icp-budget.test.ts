@@ -9,9 +9,9 @@ import {ICP_MAX_TOKENS,ICP_SYSTEM_PROMPT,structureIcp,StructureIcpError} from '.
 
 // The bounds as reviewed with the budget below. Changing one of them (or the budget) means re-running the calculation
 // and updating both, together, here and in docs/ICP_IMPORT.md.
-const REVIEWED={budget:3000,charsPerToken:2.4,maxTokens:4096,limits:{
+const REVIEWED={budget:2900,charsPerToken:2.4,maxTokens:4096,limits:{
  source:40,name:60,activity:100,city:40,sites:6,zones:4,
- service:40,services:8,promise:50,unit:10,promises:3,differentiator:50,differentiators:3,proof:50,proofs:1,
+ service:40,services:9,promise:50,unit:10,promises:3,differentiator:50,differentiators:3,proof:50,proofs:1,
  segmentKey:20,segmentLabel:40,segments:3,apeCodes:1,sizeBands:2,salesCycle:20,
  personas:1,role:40,painPoints:1,painPoint:50,messageAngle:50,
  signals:2,segmentRefs:2,exclusions:1,exclusionLabel:40,exclusionReason:40}};
@@ -61,4 +61,11 @@ test('a truncated answer is logged and reported with input and output tokens apa
   const line=logs.map(l=>JSON.parse(l)).find(l=>l.reason==='TRUNCATED_MAX_TOKENS')!;
   assert.deepEqual({i:line.input_tokens,o:line.output_tokens,last:line.last_output_tokens,max:line.max_tokens},{i:5423,o:4096,last:4096,max:4096});
  }finally{f.mock.restore();e.mock.restore();for(const k of ['AI_PROVIDER','AI_MODEL','AI_API_KEY'])if(env[k]===undefined)delete process.env[k];else process.env[k]=env[k]}
+});
+
+test('input side: the system prompt, skeleton included, stays a bounded fixed cost per call',async()=>{
+ const {estimatePromptTokens}=await import('../src/domain/icp/budget.ts');
+ const t=estimatePromptTokens(ICP_SYSTEM_PROMPT);
+ assert.ok(t<=2000,`system prompt ≈ ${t} tokens (> 2 000): it is paid on every call, a retry included`);
+ assert.match(ICP_SYSTEM_PROMPT,/Squelette \(forme seulement, pas des données\)/);
 });

@@ -73,7 +73,7 @@ Codes d'erreur : `FILE_TOO_LARGE` (413), `UNSUPPORTED_FILE` (415), `FILE_EMPTY`,
 | PDF | 30 pages lues au plus (avertissement `PDF_PAGES_TRUNCATED`), 15 s, sans polices ni XFA ; moins de 50 caractères visibles = `PDF_SCANNED` (pas d'OCR) | `ingestPdf` |
 | DOCX | 1 000 entrées au plus ; `word/document.xml` décompressé compté pendant l'inflation, arrêt à 10 Mio (bombe zip) | `ingestDocx` |
 | Modèle | 4 096 tokens de sortie, réflexion désactivée, aucun outil, 40 s par appel ; nouvel essai seulement s'il reste 20 s sur le budget de 55 s de la route | `structureIcp` |
-| Sortie | profil le plus rempli possible ≤ 3 000 tokens estimés (plafonds `ICP_LIMITS`, JSON compact) ; voir « Smoke test #3 » | `budget.ts` |
+| Sortie | profil le plus rempli possible ≤ 2 900 tokens estimés (plafonds `ICP_LIMITS`, JSON compact) ; voir « Smoke test #3 » | `budget.ts` |
 | Imports | 1 import en cours par projet (2 min) ; 10 imports d'URL par organisation et par 24 h | `start_icp_import` |
 
 Une fonction interrompue par la plateforme (60 s) laisse sa ligne `PENDING`. Passé **2 minutes**, elle n'est plus un import en cours : toute lecture la présente `FAILED` (`IMPORT_STALE`) avec un message qui propose de relancer, le prochain import du projet l'enregistre `FAILED` en base, une réponse tardive n'est plus enregistrée, et elle peut être effacée.
@@ -163,6 +163,40 @@ Même document (`detec-incendie.source.txt`, 8 397 caractères) : **échec `AI_T
 - **Journal** : chaque échec donne les tokens d'**entrée** et de **sortie** séparément, avec la sortie du dernier appel à côté de `max_tokens` (une sortie au plafond se voit directement) ; le script de smoke test les affiche aussi.
 
 **Conséquence assumée** : le profil extrait est plus court (Détec annonce 15 familles de services et 14 types de clients ; 8 et 3 tiennent). La personne complète à la revue. Pour retrouver de la richesse sans relever `max_tokens`, proposition non implémentée : **deux appels en parallèle** (entreprise et offre / cible), chacun avec son propre budget de 3 000 tokens — même durée qu'un appel, deux fois la sortie, ≈ +0,01 $ d'entrée.
+
+## Smoke test #4 (sur b4b2166) : normalisation au lieu du rejet global
+
+Même document : **la troncature est réglée** (dernier appel 2 038 tokens en sortie pour un plafond de 4 096, 45 s, 0,0649 $ pour 2 appels), mais **les deux appels échouent en `VALIDATION_FAILED`**, 20 erreurs chacun. Appel 1 : `company.sites.0` à `4` en échec sur `value`, `source` et `confidence` (la liste de sites n'avait pas l'enveloppe `{value, source, confidence}` sur chaque élément) et `company.activity.source`. Appel 2 : presque uniquement des `source` trop longues (activity, sites 1, 2, 5, coverage, services 0, 2, 3, 4, 6, proofs, personas), plus `differentiators.0.value`, `proofs.0.value`, `personas.0.painPoints.0.value`, `messageAngle.source`, et `apeCodes` des segments 0, 1 et 2 — la section 11 du document demande des codes NAF, le modèle en a produit, la table du dépôt les refuse. Aucun profil stocké, rien d'inventé : la garde a fonctionné, mais une seule valeur fautive rejetait toute la réponse.
+
+Correctifs :
+- **`apeCodes` retiré de la sortie demandée** (prompt et forme attendue) : les codes APE viendront uniquement de la table de correspondance de l'étape 4. S'il en renvoie quand même, ils sont ignorés (`APE_CODES_IGNORED`), sans rejet.
+- **Squelette JSON compact dans le prompt**, montrant l'enveloppe sur une feuille et sur **chaque** élément d'une liste (exemple avec deux sites).
+- **Relance** : seulement pour une structure cassée ; le modèle reçoit les chemins en échec et un code de raison (`too_long`, `invalid_value`, `wrong_shape`, `unknown_field`), jamais de contenu.
+- **Journal** : chaque chemin avec son code de raison (et son code de correction), jamais une valeur ; un nom de champ inconnu n'apparaît que s'il a la forme d'un identifiant, sinon `*`.
+- **Script de smoke test** : option `--show-raw` (et entrée `show_raw` du workflow, honorée seulement avec un `document_path` de `tests/fixtures/icp/`) qui affiche la réponse brute du modèle en cas d'échec. Jamais dans l'application (`structureIcp` ne transmet la réponse brute qu'au rappel `onRaw`, que seul ce script fournit).
+- **Budget recalculé** sans `apeCodes` : le pire cas tombait à 2 845 tokens ; la place libérée rend un service (9 au lieu de 8) et le budget est resserré à **2 900 tokens** (pire cas : 2 897), pour que relever d'un élément n'importe quelle liste à valeurs textuelles le dépasse. Entrée : le prompt système, squelette compris, coûte ≈ 1 930 tokens estimés par appel (≈ 6 000 tokens d'entrée avec ce document, contre ≈ 5 400 avant), soit ≈ 0,001 $ de plus par appel.
+
+### Normalisation de la réponse (assouplissement volontaire)
+
+`src/domain/icp/normalize.ts`, avant toute validation. **C'est un assouplissement volontaire** de la règle « réponse acceptée en entier ou refusée » : chaque valeur et chaque élément de liste sont vérifiés seuls, contre les mêmes schémas que le profil, et ce qui échoue est **retiré, jamais réécrit** — chaque correction est un avertissement stocké avec son chemin (`icp_imports.warnings`, une entrée par code : `SOURCE_TRUNCATED:company.activity,offer.services.0`) :
+
+| Cas | Traitement | Avertissement |
+|---|---|---|
+| source plus longue que `ICP_LIMITS.source` | coupée à cette longueur, à une limite de mot ; le début d'un passage exact reste un passage exact, la vérification dans le document s'applique après la coupe | `SOURCE_TRUNCATED` |
+| valeur trop longue | vidée (`null`, donc question manquante), jamais raccourcie | `VALUE_DROPPED_TOO_LONG` |
+| valeur invalide (code, enum, type, confiance hors 0–1, enveloppe incorrecte) | vidée | `VALUE_DROPPED_INVALID` |
+| élément de liste mal enveloppé ou invalide | retiré | `ITEM_DROPPED_INVALID` / `ITEM_DROPPED_TOO_LONG` |
+| liste au-delà de son plafond | premiers éléments gardés | `ITEM_DROPPED_OVER_LIMIT` |
+| champ inconnu sous la racine | retiré, jamais stocké | `FIELD_DROPPED_UNKNOWN` |
+| champ attendu absent | rempli vide | `FIELD_MISSING` |
+| codes APE renvoyés | ignorés | `APE_CODES_IGNORED` |
+| signal pointant un segment retiré ou inconnu | référence retirée | `SEGMENT_REF_DROPPED` |
+
+**Ce qui reste strict** :
+- **rejet global** (un nouvel essai, puis échec) : JSON illisible, plus d'un objet ou du texte autour, clé racine manquante ou inconnue (`admin`, …), `version` différente de 1, bloc racine du mauvais type ;
+- **zéro invention** : une valeur sans source, ou dont la source n'est pas un passage du document (après la coupe), est vidée ; rien n'est jamais complété, deviné ou reformulé par le serveur ;
+- **validation finale entière** par `parseIcpProfile` (objets stricts, codes de département et tranches connus, clés de segment uniques) : si elle échoue encore, c'est un rejet ;
+- **brouillon** : rien n'est appliqué sans validation humaine ; les avertissements et les questions manquantes sont montrés à la revue.
 
 ## Migration 041 gelée
 

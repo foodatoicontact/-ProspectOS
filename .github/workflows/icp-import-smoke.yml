@@ -24,6 +24,11 @@ on:
         description: UUID de l'organisation (doit figurer dans SELF_OUTREACH_ORG_IDS)
         required: true
         type: string
+      show_raw:
+        description: En cas d'échec, afficher la réponse brute du modèle (seulement avec un document_path de tests/fixtures/icp/, public)
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   contents: read
@@ -82,6 +87,8 @@ jobs:
         env:
           # The inputs reach the shell as environment variables only — never interpolated into the script itself.
           ORGANIZATION_ID: ${{ inputs.organization_id }}
+          SHOW_RAW: ${{ inputs.show_raw }}
+          DOCUMENT_PATH: ${{ inputs.document_path }}
           AI_API_KEY: ${{ secrets.AI_API_KEY }}
           AI_PROVIDER: ${{ vars.AI_PROVIDER || 'anthropic' }}
           AI_MODEL: ${{ vars.AI_MODEL || 'claude-sonnet-5' }}
@@ -92,5 +99,8 @@ jobs:
         run: |
           echo "::add-mask::$AI_API_KEY"
           if [ -z "$AI_API_KEY" ]; then echo "Secret AI_API_KEY absent de l'environnement icp-smoke."; exit 1; fi
-          node --experimental-strip-types scripts/icp-import-smoke.ts --org "$ORGANIZATION_ID" "$ICP_SMOKE_DOC"
+          # The raw answer is shown only for a public test document of the repository, never for a text typed in the form.
+          raw_flag=""
+          if [ "$SHOW_RAW" = "true" ] && [ -n "$DOCUMENT_PATH" ]; then raw_flag="--show-raw"; fi
+          node --experimental-strip-types scripts/icp-import-smoke.ts --org "$ORGANIZATION_ID" $raw_flag "$ICP_SMOKE_DOC"
           rm -f "$RUNNER_TEMP/icp-smoke-document.txt"

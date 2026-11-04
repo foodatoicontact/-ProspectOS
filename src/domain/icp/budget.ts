@@ -15,11 +15,11 @@
 import {ICP_LIMITS,type IcpProfile} from './schema.ts';
 
 export const CHARS_PER_TOKEN=2.4;
-export const ICP_OUTPUT_BUDGET_TOKENS=3000;
+export const ICP_OUTPUT_BUDGET_TOKENS=2900;
 
 export const estimateOutputTokens=(value:unknown)=>Math.ceil(JSON.stringify(value).length/CHARS_PER_TOKEN);
 
-// The largest profile the schema accepts: every list at its bound, every text at its maximum length, every source at
+// The largest answer the extraction accepts: every list at its bound, every text at its maximum length, every source at
 // SOURCE_MAX, the longest enum values and confidence written with two decimals.
 export function largestProfile(L:typeof ICP_LIMITS=ICP_LIMITS):IcpProfile{
  const t=(n:number)=>'é'.repeat(n);
@@ -34,10 +34,14 @@ export function largestProfile(L:typeof ICP_LIMITS=ICP_LIMITS):IcpProfile{
   offer:{services:n(L.services,()=>leaf(t(L.service))),
    promises:n(L.promises,()=>leaf({text:t(L.promise),value:9999,unit:t(L.unit)})),
    differentiators:n(L.differentiators,()=>leaf(t(L.differentiator))),proofs:n(L.proofs,()=>leaf(t(L.proof)))},
-  segments:n(L.segments,i=>({key:key(i),label:leaf(t(L.segmentLabel)),apeCodes:n(L.apeCodes,()=>leaf('12.34A')),
+  // apeCodes: never asked of the model (step 4's deterministic mapping fills them): always empty in an extraction.
+  segments:n(L.segments,i=>({key:key(i),label:leaf(t(L.segmentLabel)),apeCodes:[],
    sizeRange:leaf(n(L.sizeBands,()=>'53')),priority:leaf(3 as const),estimatedValue:leaf('MEDIUM' as const),salesCycle:leaf(t(L.salesCycle))})),
   personas:n(L.personas,()=>({role:leaf(t(L.role)),painPoints:n(L.painPoints,()=>leaf(t(L.painPoint))),messageAngle:leaf(t(L.messageAngle))})),
   signals:n(L.signals,()=>({type:leaf('CONTRACT_RENEWAL' as const),segmentRefs:n(Math.min(L.segmentRefs,L.segments),key)})),
   exclusions:n(L.exclusions,()=>({label:leaf(t(L.exclusionLabel)),reason:leaf(t(L.exclusionReason))})),
  } as IcpProfile;
 }
+
+// The fixed part of every call's input: the system prompt (its skeleton included), before the document.
+export const estimatePromptTokens=(prompt:string)=>Math.ceil(prompt.length/CHARS_PER_TOKEN);

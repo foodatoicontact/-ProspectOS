@@ -194,7 +194,7 @@ Correctifs :
 | signal pointant un segment retiré ou inconnu | référence retirée | `SEGMENT_REF_DROPPED` |
 | clé de segment invalide ou en double | recalculée depuis le libellé (minuscules, sans accents, `_`, 20 caractères, suffixe `_2`… si doublon) ; les signaux qui pointaient l'ancienne clé la suivent ; un libellé invalide écarte toujours le segment | `KEY_REGENERATED` |
 | élément de liste vide (libellé absent ou vide ; engagement dont `text`, `value` et `unit` sont tous `null`) | retiré sans avertissement | — |
-| preuve (`offer.proofs`) contenant un nom propre (mot à majuscule initiale) absent de sa source | nom retiré de la value avec son séparateur ; jamais le premier mot de la value ni un mot courant de début de phrase (`SENTENCE_WORDS` : Plus, Notre, Nos, Depuis…) | `VALUE_TRIMMED` (chemin seul) |
+| preuve (`offer.proofs`) contenant un nom propre (mot à majuscule initiale) absent de sa source | nom retiré de la value avec son séparateur, où qu'il soit (premier mot compris) ; jamais un mot courant de début de phrase (`SENTENCE_WORDS` : Plus, Notre, Nos, Depuis, Clients…) ; preuve retirée s'il ne reste que de tels mots | `VALUE_TRIMMED` (chemin seul) |
 
 **Ce qui reste strict** :
 - **rejet global** (un nouvel essai, puis échec) : JSON illisible, plus d'un objet ou du texte autour, clé racine manquante ou inconnue (`admin`, …), `version` différente de 1, bloc racine du mauvais type ;
@@ -239,7 +239,7 @@ Run #9 (Protec Minéral) : les deux segments étaient écartés pour une **clé*
 
 - **Un seul `KEY_REGENERATED` au run #10 : aucune correction perdue.** Le journal est cohérent : `fixes_total` = 7 = 6 `source_too_long` + 1 `other`, et la liste `fixes` compte 7 lignes. Une seule clé était invalide (`segments.0`, recalculée en `professionnels_du_ba`). La clé du second segment, `villes_collectivites`, est celle du modèle : elle est valide (20 caractères, minuscules, `_`), donc gardée — une clé recalculée depuis « Villes et aménagements urbains » aurait donné `villes_et_amenagemen`. Le rapport du run disait à tort « deux clés recalculées ». Test ajouté : deux clés invalides et une valide donnent exactement deux `KEY_REGENERATED` dans le journal serveur, avec `fixes_total` = somme des catégories = lignes listées.
 - **Badge « source partielle »** (`isPartialSource`, `normalize.ts`) : une valeur texte dont moins de 50 % des mots de 4 lettres ou plus (sans accents, sans majuscules) figurent dans sa source est marquée à l'écran de revue (et dans la console du script de smoke test). Elle n'est **pas** supprimée. Une valeur saisie par la personne, une valeur sans mot de 4 lettres, une valeur non textuelle ne sont jamais marquées.
-- **Preuves (`offer.proofs` seulement)** : un nom propre absent de la source est retiré de la value (`VALUE_TRIMMED`, chemin seul, sans texte). Le premier mot de la value et les mots courants capitalisés en début de phrase (`SENTENCE_WORDS` : Plus, Notre, Nos, Depuis, Avec…) ne sont jamais retirés : « Plus de 500 clients » avec la source « 500 clients » reste intact ; « Clients: Foncia, SNCF, STEF, Bouygues... » avec la source « Foncia. » devient « Clients: Foncia ». Conséquence : une preuve d'un seul nom absent de sa source (« Bouygues ») n'est pas vidée ; elle porte le badge « source partielle ».
+- **Preuves (`offer.proofs` seulement)** : un nom propre absent de la source est retiré de la value (`VALUE_TRIMMED`, chemin seul, sans texte). Un nom propre absent de la source est retiré où qu'il soit, premier mot compris : « Bouygues, SNCF » avec la source « SNCF » donne « SNCF ». Les mots courants capitalisés en début de phrase (`SENTENCE_WORDS` : Plus, Notre, Nos, Depuis, Avec, Clients…) ne sont jamais pris pour des noms propres : « Plus de 500 clients » avec la source « 500 clients » reste intact ; « Clients: Foncia, SNCF » avec la source « Foncia. » donne « Clients: Foncia » (« Clients » est dans la liste). Une preuve dont il ne reste que des mots de la liste (« Clients: Bouygues » → « Clients ») est retirée et devient une question manquante.
 - **Interrupteur `ICP_IMPORT_ENABLED`** (voir ci-dessous).
 
 ## Interrupteur `ICP_IMPORT_ENABLED`
@@ -250,6 +250,10 @@ Variable serveur, **désactivée par défaut** (absente, vide ou autre chose que
 - l'export RGPD lit `icp_imports` avec `selectOptional` : table absente → liste vide, l'export marche.
 
 **À n'activer que là où la migration 041 est appliquée.** Sans la 041, fusionner la branche ne change rien en production tant que la variable n'est pas posée.
+
+## Essai de bout en bout
+
+Runbook pas à pas (téléphone) : [`docs/ICP_IMPORT_E2E.md`](ICP_IMPORT_E2E.md) — 041 sur le staging, interrupteur sur le Preview de la branche seulement, checklist à deux comptes, retour arrière (`db/rollbacks/041_icp_import.down.sql`, vérifié par `npm run test:icp-rollback-db`).
 
 ## Migration 041 gelée
 

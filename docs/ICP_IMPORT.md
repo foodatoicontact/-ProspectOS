@@ -2,7 +2,7 @@
 
 L'import pré-remplit le **profil de l'entreprise, de son offre et de sa cible** (`IcpProfile`) à partir d'un document que la personne fournit elle-même : texte collé, PDF, DOCX (et, à l'étape 3, l'adresse de son propre site). Le résultat est **toujours un brouillon** : rien n'est utilisé en prospection tant qu'une personne ne l'a pas relu et validé (`DRAFT → VALIDATED` uniquement par action humaine, migration 041).
 
-État : étape 1 (schéma, migration 041) et étape 2A (ingestion, structuration, API) livrées. Restent 2B (écran de revue), 3 (import d'URL), 4 (projection déterministe vers les critères), 5 (questions manquantes et ré-import avec diff).
+État : étape 1 (schéma, migration 041), 2A (ingestion, structuration, API) et 2B (écran de revue) livrées. Restent 3 (import d'URL — après le smoke test réel), 4 (table de correspondance complète : APE, tailles, signaux), 5 (ré-import avec diff).
 
 ## Règles qui ne bougent pas
 
@@ -34,10 +34,32 @@ Un fichier illisible (mauvais format, scan, trop gros, bombe zip) est refusé **
 | GET | `/api/v1/icp-imports?project_id=…` | — | les 20 derniers imports du projet (RLS : membres) |
 | GET | `/api/v1/icp-imports/:id` | — | l'import et son brouillon **revalidé à chaque lecture** (`profile_state` : `valid`, `unreadable`, `none`) ; un `PENDING` de plus de 2 minutes est lu `FAILED` (`IMPORT_STALE`, « relancez-le ») |
 | DELETE | `/api/v1/icp-imports/:id` | — | efface l'import, quel que soit son statut sauf un import en cours (`ICP_IMPORT_IN_PROGRESS`) |
+| POST | `/api/v1/icp-imports/:id/validate` | `{profile, keep_offer, keep_criteria}` (≤ 150 Ko) | le profil relu est revalidé en entier, projeté, puis `validate_icp_import` sous l'identité de la personne |
+| POST | `/api/v1/icp-imports/:id/discard` | — | rejette le brouillon (`DISCARDED`), rien n'est écrit dans le projet |
+| POST | `/api/v1/icp-imports/:id/retry` | la source à nouveau (octets bruts ou `{text}`) | un nouvel import du **même** projet ; l'ancien brouillon n'est rejeté qu'une fois le nouvel import démarré |
 
-Ces routes sont traitées dans `app/api/v1/[...path]/route.ts` **avant** la lecture JSON générique (plafonnée à 20 000 caractères). Les routes de validation, de rejet et de relance arrivent avec l'écran de revue (2B).
+Ces routes sont traitées dans `app/api/v1/[...path]/route.ts` **avant** la lecture JSON générique (plafonnée à 20 000 caractères). Toutes passent par la session de la personne connectée : sans session, la route répond 401 avant tout ; les fonctions SQL vérifient l'appartenance à l'organisation (un import d'un autre tenant n'existe pas : 404).
 
 Codes d'erreur : `FILE_TOO_LARGE` (413), `UNSUPPORTED_FILE` (415), `FILE_EMPTY`, `TEXT_TOO_SHORT`, `TEXT_TOO_LONG`, `PDF_SCANNED`, `PDF_ENCRYPTED`, `PDF_UNREADABLE`, `PDF_TIMEOUT`, `DOCX_UNREADABLE`, `DOCX_TOO_LARGE` (422), `ICP_IMPORT_IN_PROGRESS` (409), `ICP_URL_DAILY_LIMIT`, `OFFER_LIMIT_REACHED`, `QUOTA_EXCEEDED` (429), `AI_UNAVAILABLE`, `AI_TRUNCATED_RESULT`, `AI_INVALID_RESULT` (502), `BYOK_CREDENTIAL_INVALID`, `AI_NOT_CONFIGURED` (503). Chaque refus d'ingestion porte une phrase qui dit quoi faire à la place (adresse du site, texte collé).
+
+## Écran de revue (étape 2B)
+
+`src/components/IcpImport.tsx`, en tête de la vue « Cible » (`app/page.tsx`), pour une personne connectée sur un vrai projet. Logique pure et testée dans `src/icp-import/review.ts` (état, éditions, questions), client navigateur dans `src/icp-import/client.ts`, textes FR/EN dans le dictionnaire local `src/icp-import/messages.ts` (pas dans `src/i18n/fr.ts` / `en.ts`).
+
+- **État lu en base** : l'écran affiche le dernier import du projet tel que la base l'a (`GET /icp-imports?project_id`, puis le brouillon revalidé). Pendant un import, il interroge la base toutes les 3 s (jusqu'à 15 s quand le réseau ne répond plus, avec un message « nouvelle tentative ») : un rechargement ou une coupure réseau retrouvent le même import. Un chargement long montre les étapes, le temps écoulé et « cela peut prendre jusqu'à une minute », jamais un écran vide. Un `PENDING` de plus de 2 minutes est affiché en échec avec « Relancer ».
+- **Revue** : chaque valeur est modifiable ; un badge dit sa confiance (Sûr ≥ 0,85, À vérifier ≥ 0,6, Peu sûr, Vide) ; « Source » montre au toucher le passage du document ; les champs vides sont surlignés. Une valeur saisie par la personne est sourcée « Saisi par vous » (confiance 1), jamais rattachée à un passage du document. Les modifications non validées sont gardées dans le navigateur (par import) et restaurées après un rechargement.
+- **Questions manquantes** (5 au plus) : une à la fois, « Répondre » ou « Passer » ; la réponse va là où la question pointe (activité, services, types de clients, départements — codes ou noms —, interlocuteurs, exclusions).
+- **Signaux** `WORKS` et `CONTRACT_RENEWAL` : badge « Non surveillé pour l'instant » ; aucun signal n'est présenté comme surveillé.
+- **Brouillon illisible** (le schéma ne passe plus) : état « Brouillon illisible — à ré-importer », avec Relancer et Supprimer ; une erreur de rendu retombe sur ce même état.
+- **Décision** : « Valider ce profil » et « Rejeter » dans une barre en bas de l'écran (à portée de pouce), cases « Garder mon offre actuelle » / « Garder mes critères actuels » juste au-dessus. `VALIDATED` n'est atteint que par ce clic : aucun effet, minuteur ni interrogation ne valide.
+- **Relancer** : le document n'étant jamais conservé, l'écran renvoie la source encore en mémoire, sinon demande de la choisir à nouveau.
+
+### Projection (version 2B)
+
+`src/domain/icp/projection.ts`, déterministe et idempotente, appliquée côté serveur à la validation :
+- **offre** (`projects.offer`, 4 000 caractères) : nom et activité, services, engagements, différences, preuves — sauf « Garder mon offre actuelle » ;
+- **critère `target_fit`** existant : `categories` = libellés des types de clients, `locations` = villes des sites puis noms des départements — sauf « Garder mes critères actuels ». Une règle modifiée à la main depuis la dernière projection (ou écrite à la main avant toute projection) est gardée telle quelle, critère par critère ;
+- **poids jamais modifiés** : mêmes clés, mêmes poids (les critères par défaut si le projet n'en a pas), somme 100 vérifiée avant l'envoi et par `validate_icp_import`. `need_fit` et les signaux attendent la table de correspondance de l'étape 4.
 
 ## Limites
 
@@ -107,5 +129,6 @@ Un PDF ou un DOCX passe aussi (`… --org <uuid> plaquette.pdf`). Avec `NEXT_PUB
 
 - `tests/icp-schema.test.ts` : le schéma (fixture de référence protection incendie, zéro invention, objets stricts).
 - `tests/icp-import.test.ts` (étape 2A, fournisseur IA simulé au niveau HTTP) : octets de tête (faux `.pdf`), bombe zip DOCX et nombre d'entrées, PDF de plus de 30 pages, PDF scanné, limite réelle 4 Mio / 4 Mio + 1, injection HTML et PDF, faux JSON avec un champ inconnu, valeur sans source → question manquante, un seul nouvel essai et `token_usage` cumulé, réponse tronquée ou refusée sans nouvel essai, BYOK (clé payeuse, échec fermé), fixture de référence (chaque source est un passage du document).
-- `tests/icp-import-db.mjs` : la migration 041 (états, transitions, gardes, quotas, rétention, effacement à chaque statut, suppression de projet et de compte, verrou de 2 minutes), échoue sans elle (`WITHOUT_041=1`).
+- `tests/icp-import-db.mjs` : la migration 041 (états, transitions, gardes, quotas, rétention, effacement à chaque statut, suppression de projet et de compte, verrou de 2 minutes, parcours complet sur la fixture jusqu'aux critères stockés, brouillon corrompu), échoue sans elle (`WITHOUT_041=1`).
+- `tests/icp-import-review.test.ts` (étape 2B) : parcours complet sur la fixture (revue, correction, validation, critères projetés à 100), garder l'offre / les critères, règle modifiée à la main gardée, rejet et relance, reprise après rechargement et coupure réseau, `PENDING` périmé, brouillon illisible, éditions et questions, signaux non surveillés, validation par clic seulement, dictionnaire local, mobile (cibles 44 px, barre en bas).
 - `tests/icp-import.test.ts` vérifie aussi le workflow de smoke test (déclenchement manuel seul, un seul secret, aucune interpolation, rien de publié).

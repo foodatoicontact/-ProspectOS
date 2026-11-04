@@ -10,16 +10,20 @@
 --    into the existing model (projected_offer, projected_criteria), so a later re-import can tell what a person changed by
 --    hand since. These columns are written by validate_icp_import only (trigger); criteria, weights and the scoring engine
 --    are unchanged — the projection only writes the rule fields the user already edits, and only what the user accepted.
--- 3. Retention: FAILED and DISCARDED imports are deleted 30 days after their last change (purged by every new import, as
---    the AI offer analyses are, and by purge_icp_imports() for an operator); a VALIDATED import stays, linked to the
---    profile it produced. Files are never stored: only the extracted JSON is kept.
+-- 3. Retention and erasure: FAILED and DISCARDED imports are deleted 30 days after their last change (purged by every new
+--    import, as the AI offer analyses are, and by purge_icp_imports() for an operator). A member can erase any import of
+--    the organization at any time (delete_icp_import), whatever its status, except one still running. Deleting a project
+--    deletes its imports (foreign key on delete cascade); a person leaving an organization (account deletion, leaving or
+--    being removed from the team) erases the imports they started there. The validated profile copied into public.icps
+--    is the organization's ICP and stays (docs/ICP_IMPORT.md). Files are never stored: only the extracted JSON is kept.
 -- 4. Limits: an import that calls the AI consumes ONE unit of the existing AI offer quota (consume_ai_offer_quota: hourly
 --    and plan limits), whatever the retry; at most 10 URL imports per organization over 24 hours (the dedicated site
---    authorization must not become an open crawler); one import in progress per project at a time.
+--    authorization must not become an open crawler); one import in progress per project at a time — for 2 minutes at
+--    most: an older PENDING row (the route stops at 60 s) is a dead run, recorded FAILED (IMPORT_STALE) by the next start.
 --
 -- Depends only on objects of migrations 001–016 (projects, icps, memberships, require_member, consume_ai_offer_quota).
 -- Nothing from 038 (feat/registry-signals): the production order of 038 and 041 does not matter.
--- Rollback: drop the eight functions and two triggers below, drop table public.icp_imports, then
+-- Rollback: drop the ten functions and three triggers below, drop table public.icp_imports, then
 -- alter table public.icps drop column profile, drop column profile_version, drop column profile_import_id,
 -- drop column projected_offer, drop column projected_criteria, drop column profile_validated_at, drop column profile_validated_by.
 begin;
@@ -37,12 +41,12 @@ create table if not exists public.icp_imports (
  token_usage int not null default 0 check(token_usage>=0),
  usage jsonb not null default '{}' check(jsonb_typeof(usage)='object' and length(usage::text)<=2000),
  error text check(error is null or error ~ '^[A-Z0-9_]{1,60}$'),
- created_by uuid not null references auth.users(id),
+ created_by uuid not null references auth.users(id) on delete cascade,
  created_at timestamptz not null default now(),
  updated_at timestamptz not null default now(),
  validated_at timestamptz,
- validated_by uuid references auth.users(id),
- foreign key(project_id,organization_id) references public.projects(id,organization_id),
+ validated_by uuid references auth.users(id) on delete cascade,
+ foreign key(project_id,organization_id) references public.projects(id,organization_id) on delete cascade,
  unique(id,organization_id),
  check(status<>'EXTRACTED' or extracted is not null),
  check(status<>'FAILED' or error is not null),
@@ -82,9 +86,12 @@ language plpgsql security invoker set search_path='' as $$
 declare op text:=prospectos_private.icp_import_op();
 begin
  if TG_OP='DELETE' then
-  -- Only the retention purge, and only what it may delete: a failed or discarded import untouched for 30 days.
+  -- The retention purge (a failed or discarded import untouched for 30 days), an erasure (delete_icp_import, or a person
+  -- leaving the organization — the function checked who may erase what), or the deletion of the project itself.
   if op='purge' and old.status in ('FAILED','DISCARDED') and old.updated_at<now()-interval '30 days' then return old; end if;
-  raise exception 'icp_imports rows are deleted by the retention purge only' using errcode='42501';
+  if op='erase' then return old; end if;
+  if not exists(select 1 from public.projects where id=old.project_id) then return old; end if; -- on delete cascade
+  raise exception 'icp_imports rows are deleted by the retention purge, an erasure or their project deletion only' using errcode='42501';
  end if;
  if TG_OP='INSERT' then
   if op<>'start' or new.status<>'PENDING' then raise exception 'icp_imports are created by start_icp_import only' using errcode='42501'; end if;
@@ -139,7 +146,11 @@ begin
  if tenant is null then raise exception 'Project not found' using errcode='P0002'; end if;
  perform prospectos_private.require_member(tenant);
  perform pg_advisory_xact_lock(hashtextextended('icp_import:'||tenant::text,0));
- if exists(select 1 from public.icp_imports where project_id=p_project_id and status='PENDING' and created_at>now()-interval '10 minutes') then
+ -- A PENDING row older than 2 minutes is a dead run (the route stops at 60 s): recorded FAILED, it no longer blocks.
+ perform set_config('prospectos.icp_import_op','complete',true);
+ update public.icp_imports set status='FAILED',error='IMPORT_STALE' where project_id=p_project_id and status='PENDING' and created_at<=now()-interval '2 minutes';
+ perform set_config('prospectos.icp_import_op','',true);
+ if exists(select 1 from public.icp_imports where project_id=p_project_id and status='PENDING') then
   raise exception 'icp_import_in_progress' using errcode='P0001';
  end if;
  if p_source_type='URL' then
@@ -244,6 +255,39 @@ begin
 end $$;
 revoke all on function public.discard_icp_import(uuid) from public,anon,service_role;
 grant execute on function public.discard_icp_import(uuid) to authenticated;
+
+-- Erasure by a member of the organization, whatever the status — except an import still running (PENDING for less than
+-- 2 minutes: its result would arrive on a deleted row). The profile already validated into public.icps is not touched.
+create or replace function public.delete_icp_import(p_import_id uuid) returns boolean
+language plpgsql security definer set search_path='' as $$
+declare imp public.icp_imports;
+begin
+ if auth.uid() is null then raise exception 'Authentication required' using errcode='42501'; end if;
+ select * into imp from public.icp_imports where id=p_import_id for update;
+ if not found then raise exception 'Import not found' using errcode='P0002'; end if;
+ perform prospectos_private.require_member(imp.organization_id);
+ if imp.status='PENDING' and imp.created_at>now()-interval '2 minutes' then raise exception 'icp_import_in_progress' using errcode='P0001'; end if;
+ perform set_config('prospectos.icp_import_op','erase',true);
+ delete from public.icp_imports where id=p_import_id;
+ perform set_config('prospectos.icp_import_op','',true);
+ return true;
+end $$;
+revoke all on function public.delete_icp_import(uuid) from public,anon,service_role;
+grant execute on function public.delete_icp_import(uuid) to authenticated;
+
+-- A person who leaves an organization (account deletion, leaving or removal from the team) takes the imports they
+-- started there with them, whatever their status. The organization keeps its validated ICP (public.icps).
+create or replace function prospectos_private.erase_member_icp_imports() returns trigger
+language plpgsql security definer set search_path='' as $$
+begin
+ perform set_config('prospectos.icp_import_op','erase',true);
+ delete from public.icp_imports where organization_id=old.organization_id and created_by=old.user_id;
+ perform set_config('prospectos.icp_import_op','',true);
+ return old;
+end $$;
+revoke all on function prospectos_private.erase_member_icp_imports() from public,anon,authenticated,service_role;
+drop trigger if exists erase_member_icp_imports on public.memberships;
+create trigger erase_member_icp_imports after delete on public.memberships for each row execute function prospectos_private.erase_member_icp_imports();
 
 -- The retention purge on demand (server only), the same rule as the one every new import applies.
 create or replace function public.purge_icp_imports() returns int

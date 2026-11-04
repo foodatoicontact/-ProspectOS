@@ -3,13 +3,16 @@
 // only, and becomes VALIDATED only through validate_icp_import called by a signed-in member. Nobody writes icp_imports
 // or the ICP profile columns directly — not even with a forged operation flag. Tenants are isolated; the manual ICP
 // save keeps working. A stored profile is read through readStoredProfile (a corrupted one is reported unreadable).
-// FAILED and DISCARDED imports are purged after 30 days; account deletion and the export cover the table.
+// FAILED and DISCARDED imports are purged after 30 days; a member erases any import but a running one; deleting a project
+// or leaving the organization (account deletion) takes the imports with it, whatever their status; a PENDING row older
+// than 2 minutes no longer blocks.
 // WITHOUT_041=1 runs the checks without the migration: they must fail.
 import { strict as assert } from 'node:assert';
 import { readFile, readdir } from 'node:fs/promises';
 import { PGlite } from '@electric-sql/pglite';
 import { readStoredProfile } from '../src/domain/icp/stored.ts';
 import { emptyIcpProfile } from '../src/domain/icp/schema.ts';
+import { isStale } from '../src/icp-import/lock.ts';
 
 const db = new PGlite();
 const sql = (text, params = []) => db.query(text, params);
@@ -98,7 +101,7 @@ try {
     await refused(() => as(A, `delete from public.icp_imports where id=$1`, [imp]), /permission|denied/i, 'a direct delete');
     await refused(() => asService(`update public.icp_imports set status='EXTRACTED', extracted='{}' where id=$1`, [imp]), /permission|denied/i, 'a direct update by the server role');
     await refused(() => sql(`update public.icp_imports set status='VALIDATED', validated_at=now(), validated_by=$2 where id=$1`, [imp, A]), /transition refused/, 'even the owner role without the operation');
-    await refused(() => sql(`delete from public.icp_imports where id=$1`, [imp]), /retention purge only/, 'a delete by the owner role');
+    await refused(() => sql(`delete from public.icp_imports where id=$1`, [imp]), /deleted by the retention purge/, 'a delete by the owner role');
   });
   await check('D_COMPLETE_SERVER_ONLY: only the server records the extraction, once', async () => {
     await refused(() => as(A, `select public.complete_icp_import($1,'EXTRACTED','{}'::jsonb,'[]','[]',0,'{}',null)`, [imp]), /permission|denied/i, 'a member recording an extraction');
@@ -192,7 +195,7 @@ try {
     const recent = await start(ctx.A); await complete(recent, 'FAILED', null, 'TEST');
     await old(f); await old(imp); // imp is VALIDATED (check E): never purged
     await refused(() => as(A, 'select public.purge_icp_imports()'), /permission|denied/i, 'a member purging');
-    await refused(() => sql('delete from public.icp_imports where id=$1', [recent]), /retention purge only/, 'a direct delete');
+    await refused(() => sql('delete from public.icp_imports where id=$1', [recent]), /deleted by the retention purge/, 'a direct delete');
     const n = (await asService('select public.purge_icp_imports() n')).rows[0].n;
     assert.ok(n >= 1);
     assert.equal(await row(f), undefined, 'a 31-day-old failed import is gone');
@@ -202,19 +205,73 @@ try {
     await start(ctx.B); // every new import purges too
     assert.equal(await row(d), undefined, 'a 31-day-old discarded import is purged by the next import');
   });
-  await check('N_ACCOUNT_DELETION: a member who deletes their account loses access; the organization keeps its imports', async () => {
+  const ageCreated = async (id, interval) => { await sql('set session_replication_role = replica'); await sql(`update public.icp_imports set created_at=now()-$2::interval where id=$1`, [id, interval]); await sql('set session_replication_role = origin'); };
+  const validate = (user, id, profile = PROFILE, offer = null, crit = null) => as(user, 'select public.validate_icp_import($1,$2::jsonb,$3,$4::jsonb) r', [id, typeof profile === 'string' ? profile : JSON.stringify(profile), offer, crit ? JSON.stringify(crit) : null]).then(r => r.rows[0].r);
+  const newProject = async (c, name) => (await as(c.user, `insert into public.projects(organization_id,name,offer) values($1,$2,'') returning id`, [c.org, name])).rows[0].id;
+  // One import at each status in a project: VALIDATED, EXTRACTED, FAILED, DISCARDED, then PENDING (still running).
+  async function everyStatus(user, project) {
+    const s0 = () => as(user, 'select public.start_icp_import($1,$2,$3) id', [project, 'TEXT', 'texte']).then(r => r.rows[0].id);
+    const ids = {};
+    ids.VALIDATED = await s0(); await complete(ids.VALIDATED); await validate(user, ids.VALIDATED);
+    ids.EXTRACTED = await s0(); await complete(ids.EXTRACTED);
+    ids.FAILED = await s0(); await complete(ids.FAILED, 'FAILED', null, 'TEST');
+    ids.DISCARDED = await s0(); await complete(ids.DISCARDED, 'FAILED', null, 'TEST'); await as(user, 'select public.discard_icp_import($1)', [ids.DISCARDED]);
+    ids.PENDING = await s0();
+    for (const [st, id] of Object.entries(ids)) assert.equal((await row(id)).status, st);
+    return ids;
+  }
+  await check('N_ACCOUNT_DELETION: a member who deletes their account takes every import they started (VALIDATED included); the others stay', async () => {
     const C = '00000000-0000-4000-8000-0000000000c1';
     await sql(`insert into auth.users(id,email) values ($1,'c@client.fr')`, [C]);
     await sql(`insert into public.memberships(organization_id,user_id,role) values ($1,$2,'member')`, [ctx.A.org, C]);
     await sql(`insert into public.account_entitlements(user_id,plan,status,starts_at,expires_at) values ($1,'INTERNAL','ACTIVE',now()-interval '1 minute',now()+interval '7 days')`, [C]);
-    const pending = (await sql(`select id from public.icp_imports where project_id=$1 and status='PENDING'`, [ctx.A.project])).rows;
-    for (const p of pending) await complete(p.id, 'FAILED', null, 'TEST');
-    const mine = (await as(C, 'select public.start_icp_import($1,$2,$3) id', [ctx.A.project, 'TEXT', 'texte'])).rows[0].id;
-    await complete(mine, 'FAILED', null, 'TEST');
+    const project = await newProject(ctx.A, 'Projet de C');
+    const mine = await everyStatus(C, project);
+    const theirs = (await sql('select id from public.icp_imports where created_by=$1', [A])).rows.map(r => r.id);
+    assert.ok(theirs.length > 0);
     await as(C, 'select public.delete_own_account()');
-    assert.equal(Number((await as(C, 'select count(*) n from public.icp_imports')).rows[0].n), 0, 'no access after deletion');
-    assert.equal((await as(A, 'select created_by from public.icp_imports where id=$1', [mine])).rows[0].created_by, C, 'the organization keeps it');
+    for (const [st, id] of Object.entries(mine)) assert.equal(await row(id), undefined, `${st} import of the deleted account erased`);
+    for (const id of theirs) assert.ok(await row(id), 'the imports of the other members stay');
+    assert.ok((await icp({ project })), 'the validated ICP of the organization stays (public.icps)');
     await refused(() => as(C, `select public.start_icp_import($1,'TEXT','x')`, [ctx.A.project]), /member/i, 'a new import after deletion');
+  });
+  await check('O_ERASE: a member erases an import at every status but a running one; never another tenant’s', async () => {
+    const project = await newProject(ctx.A, 'Effacements');
+    const ids = await everyStatus(A, project);
+    await refused(() => as(A, 'select public.delete_icp_import($1)', [ids.PENDING]), /icp_import_in_progress/, 'erasing a running import');
+    for (const st of ['VALIDATED', 'EXTRACTED', 'FAILED', 'DISCARDED']) {
+      await refused(() => as(B, 'select public.delete_icp_import($1)', [ids[st]]), /member/i, `another tenant erasing a ${st} import`);
+      await refused(() => as(undefined, 'select public.delete_icp_import($1)', [ids[st]]), /permission|denied|Authentication/i, 'an anonymous erasure');
+      await refused(() => asService('select public.delete_icp_import($1)', [ids[st]]), /permission|denied/i, 'the server role erasing');
+      assert.ok(await row(ids[st]), 'still there after the refusals');
+      assert.equal((await as(A, 'select public.delete_icp_import($1) r', [ids[st]])).rows[0].r, true);
+      assert.equal(await row(ids[st]), undefined, `${st} import erased`);
+    }
+    await ageCreated(ids.PENDING, '3 minutes');
+    assert.equal((await as(A, 'select public.delete_icp_import($1) r', [ids.PENDING])).rows[0].r, true, 'a dead run can be erased');
+    assert.ok(await icp({ project }), 'erasing the validated import leaves the validated ICP');
+  });
+  await check('P_PROJECT_DELETION: deleting a project deletes all its imports, whatever their status', async () => {
+    const project = await newProject(ctx.A, 'Projet supprimé');
+    const ids = await everyStatus(A, project);
+    const other = Number((await sql('select count(*) n from public.icp_imports where project_id<>$1', [project])).rows[0].n);
+    await sql('delete from public.icps where project_id=$1', [project]);
+    await sql('delete from public.projects where id=$1', [project]);
+    for (const [st, id] of Object.entries(ids)) assert.equal(await row(id), undefined, `${st} import deleted with its project`);
+    assert.equal(Number((await sql('select count(*) n from public.icp_imports where project_id<>$1', [project])).rows[0].n), other, 'no other project touched');
+  });
+  await check('Q_LOCK_2_MINUTES: one import in progress per project for 2 minutes; an older PENDING is a dead run (FAILED IMPORT_STALE)', async () => {
+    const project = await newProject(ctx.B, 'Verrou');
+    const first = (await as(B, 'select public.start_icp_import($1,$2,$3) id', [project, 'TEXT', 'texte'])).rows[0].id;
+    await ageCreated(first, '90 seconds');
+    await refused(() => as(B, 'select public.start_icp_import($1,$2,$3) id', [project, 'TEXT', 'texte']), /icp_import_in_progress/, 'a second import 90 s after the first');
+    await ageCreated(first, '3 minutes');
+    const r = await row(first);
+    assert.equal(isStale({ ...r, created_at: r.created_at.toISOString() }, Date.now()), true, 'read as FAILED before anything else happens');
+    const second = (await as(B, 'select public.start_icp_import($1,$2,$3) id', [project, 'TEXT', 'texte'])).rows[0].id;
+    assert.ok(second);
+    const dead = await row(first); assert.equal(dead.status, 'FAILED'); assert.equal(dead.error, 'IMPORT_STALE');
+    assert.equal(await complete(first), false, 'a late answer of the dead run is not recorded');
   });
   await check('IDEMPOTENT: re-applying migration 041 changes nothing', async () => {
     if (!process.env.WITHOUT_041) await db.exec(await readFile(new URL('../db/migrations/041_icp_import.sql', import.meta.url), 'utf8'));

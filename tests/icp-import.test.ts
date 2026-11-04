@@ -299,3 +299,44 @@ test('unmonitored signals — WORKS and CONTRACT_RENEWAL are kept in the draft w
  assert.doesNotMatch(scoring,/icp-import|IcpProfile|CONTRACT_RENEWAL/,'the scoring engine does not read the profile');
  assert.ok(icpUserMessage('x','n').includes('<<<DOCUMENT_n>>>'));
 });
+
+// =============================================================== corrections before 2B
+test('a PENDING import older than 2 minutes reads as FAILED (IMPORT_STALE) with a message to start again; a recent one stays PENDING',async()=>{
+ const f=fakeDb();const {d}=deps(f,{now:()=>Date.parse('2026-11-04T10:00:00Z')});
+ const at=(s:number)=>new Date(Date.parse('2026-11-04T10:00:00Z')-s*1000).toISOString();
+ const one=(created_at:string)=>({from:()=>{const b:any={};for(const op of ['select','eq'])b[op]=()=>b;b.maybeSingle=async()=>({data:{id:IMP,status:'PENDING',created_at,extracted:null},error:null});return b}}) as any;
+ const stale=await (await handleIcpImport(new Request(`https://x.test/api/v1/icp-imports/${IMP}`),['icp-imports',IMP],one(at(121)),json,d))!.json();
+ assert.equal(stale.import.status,'FAILED');assert.equal(stale.import.error,'IMPORT_STALE');assert.match(stale.message,/Relancez-le/);
+ const fresh=await (await handleIcpImport(new Request(`https://x.test/api/v1/icp-imports/${IMP}`),['icp-imports',IMP],one(at(90)),json,d))!.json();
+ assert.equal(fresh.import.status,'PENDING');
+ const list=({from:()=>{const b:any={};for(const op of ['select','eq','order','limit'])b[op]=()=>b;b.then=(r:any)=>Promise.resolve({data:[{id:IMP,status:'PENDING',created_at:at(600)},{id:P,status:'EXTRACTED',created_at:at(900)}],error:null}).then(r);return b}}) as any;
+ const rows=await (await handleIcpImport(new Request(`https://x.test/api/v1/icp-imports?project_id=${P}`),['icp-imports'],list,json,d))!.json();
+ assert.deepEqual(rows.map((r:any)=>r.status),['FAILED','EXTRACTED']);
+});
+
+test('erasure — DELETE /icp-imports/:id calls delete_icp_import under the user’s identity; a running import or another tenant’s is refused',async()=>{
+ const calls:any[]=[];
+ const db=(message?:string)=>({rpc:async(fn:string,args:any)=>{calls.push({fn,args});return message?{data:null,error:{message}}:{data:true,error:null}}}) as any;
+ const {d}=deps(fakeDb());
+ const del=()=>new Request(`https://x.test/api/v1/icp-imports/${IMP}`,{method:'DELETE'});
+ const ok=(await handleIcpImport(del(),['icp-imports',IMP],db(),json,d))!;
+ assert.equal(ok.status,200);assert.deepEqual(calls[0],{fn:'delete_icp_import',args:{p_import_id:IMP}});
+ assert.equal((await (await handleIcpImport(del(),['icp-imports',IMP],db('icp_import_in_progress'),json,d))!.json()).code,'ICP_IMPORT_IN_PROGRESS');
+ assert.equal((await handleIcpImport(del(),['icp-imports',IMP],db('Organization membership required'),json,d))!.status,404);
+ assert.equal((await handleIcpImport(new Request('https://x.test/api/v1/icp-imports/nope',{method:'DELETE'}),['icp-imports','nope'],db(),json,d))!.status,404);
+});
+
+test('smoke test without a computer — manual workflow only, the AI key as its only secret, inputs never interpolated, nothing published',()=>{
+ const wf=readFileSync(new URL('../.github/workflows/icp-import-smoke.yml',import.meta.url),'utf8');
+ const code=wf.split('\n').filter(l=>!l.trim().startsWith('#')).join('\n');
+ assert.match(code,/^on:\n  workflow_dispatch:/m);
+ assert.doesNotMatch(code,/^\s*(push|pull_request|pull_request_target|schedule|workflow_run|repository_dispatch):/m,'started by hand only');
+ assert.deepEqual([...code.matchAll(/secrets\.([A-Z_]+)/g)].map(m=>m[1]),['AI_API_KEY'],'one secret: the AI key');
+ assert.doesNotMatch(code,/SUPABASE|vercel env pull|upload-artifact|actions\/cache@|SERVICE_ROLE/i,'no database key, no production pull, no artifact');
+ assert.match(code,/environment: icp-smoke/);assert.match(code,/permissions:\n  contents: read/);
+ assert.match(code,/::add-mask::\$AI_API_KEY/);
+ const run=code.slice(code.indexOf('run: |'));
+ assert.doesNotMatch(run,/\$\{\{/,'the inputs reach the shell through env only (no expression injection)');
+ assert.match(code,/DOCUMENT_TEXT: \$\{\{ inputs\.document_text \}\}/);
+ assert.match(run,/scripts\/icp-import-smoke\.ts --org "\$ORGANIZATION_ID"/);
+});

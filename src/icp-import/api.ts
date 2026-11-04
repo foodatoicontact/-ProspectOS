@@ -5,7 +5,9 @@
 //   POST /api/v1/icp-imports/file?project_id=…   raw bytes (PDF or DOCX, ≤ 4 MiB), file name in X-File-Name (label only)
 //   POST /api/v1/icp-imports/text                {project_id, text ≤ 50 000 characters}
 //   GET  /api/v1/icp-imports?project_id=…        the project's last imports (RLS: members only)
-//   GET  /api/v1/icp-imports/:id                 one import, its draft re-validated on every read
+//   GET  /api/v1/icp-imports/:id                 one import, its draft re-validated on every read (stale PENDING = FAILED)
+//   DELETE /api/v1/icp-imports/:id               erase it, whatever its status but a running one
+// Every route runs under the signed-in user's identity (RLS and the SECURITY DEFINER functions check membership).
 //
 // Order of a creation, cheapest refusal first: entitlement → body and ingestion (no database, no quota: an unreadable
 // file costs nothing) → start_icp_import (one unit of the AI offer quota, one import in progress per project) → BYOK →
@@ -17,6 +19,7 @@ import {StructureIcpError,type IcpUsage,type structureIcp} from '../server/ai.ts
 import {missingQuestions,type MissingQuestion} from '../domain/icp/missing.ts';
 import {readStoredProfile,UNREADABLE_PROFILE_MESSAGE} from '../domain/icp/stored.ts';
 import type {IcpProfile} from '../domain/icp/schema.ts';
+import {isStale} from './lock.ts';
 
 export const TEXT_BODY_MAX_BYTES=400_000; // 50 000 characters, UTF-8 and JSON escaping included, with margin
 export const ROUTE_BUDGET_MS=55_000; // the route's maxDuration is 60 s
@@ -53,6 +56,7 @@ export const IMPORT_ERRORS:Record<string,[string,number]>={
  AI_INVALID_RESULT:['La réponse IA n’a pas pu être validée. Rien n’a été enregistré dans votre profil ; réessayez ou collez un texte plus ciblé.',502],
  IMPORT_RECORD_FAILED:['L’extraction a abouti mais n’a pas pu être enregistrée. Réessayez.',500],
  IMPORT_NOT_FOUND:['Import introuvable.',404],
+ IMPORT_STALE:['Cet import ne s’est pas terminé. Relancez-le : votre fichier ou votre texte n’a pas été conservé, il faudra le fournir à nouveau.',409],
 };
 const INGEST_STATUS:Partial<Record<string,number>>={FILE_TOO_LARGE:413,UNSUPPORTED_FILE:415};
 
@@ -138,58 +142,97 @@ async function createImport(db:SupabaseClient,json:Json,deps:IcpImportDeps,proje
  }
 }
 
+// A PENDING row older than the lock is a dead run (the route stops at 60 s): every read reports it FAILED, with a message
+// that offers to start again — the next start records it so in the database.
+function readRow<T extends Record<string,unknown>>(row:T,now:number):T{
+ if(isStale(row,now))return {...row,status:'FAILED',error:'IMPORT_STALE',stale:true};
+ return row;
+}
+async function readJson(request:Request,max:number):Promise<Record<string,unknown>|null>{
+ try{const v=JSON.parse(new TextDecoder('utf-8',{fatal:true}).decode(await readBoundedBody(request,max)));return v&&typeof v==='object'&&!Array.isArray(v)?v:null}
+ catch(e){if(e instanceof IngestError&&e.code==='FILE_TOO_LARGE')throw e;return null}
+}
+// The source of a creation or a retry: raw bytes (a file) or a small JSON object (pasted text).
+async function readSource(request:Request,kind:'file'|'text',projectFromUrl:string|null):Promise<{projectId:string;ingested:Ingested;label:string}|string>{
+ if(kind==='file'){
+  const bytes=await readBoundedBody(request,MAX_UPLOAD_BYTES);
+  const ingested=await ingestFile(bytes);
+  return {projectId:projectFromUrl??'',ingested,label:sourceLabel(request.headers.get('x-file-name'),ingested.sourceType)};
+ }
+ let body:Record<string,unknown>|null;
+ try{body=await readJson(request,TEXT_BODY_MAX_BYTES)}catch{return 'TEXT_TOO_LONG'}
+ if(!body)return 'INVALID_BODY';
+ const projectId=projectFromUrl??(typeof body.project_id==='string'?body.project_id:'');
+ return {projectId,ingested:ingestText(body.text),label:sourceLabel(null,'TEXT')};
+}
+function rpcRefusal(message:string|undefined):string{
+ const m=message??'';
+ if(m.includes('icp_import_in_progress'))return 'ICP_IMPORT_IN_PROGRESS';
+ if(m.includes('icp_import_not_reviewable'))return 'IMPORT_NOT_REVIEWABLE';
+ if(m.includes('Import not found')||m.includes('member'))return 'IMPORT_NOT_FOUND';
+ if(m.includes('Invalid profile'))return 'INVALID_PROFILE';
+ if(m.includes('weights sum to 100')||m.includes('Invalid criteria'))return 'INVALID_CRITERIA';
+ if(m.includes('Authentication'))return 'UNAUTHORIZED';
+ return 'DATABASE_REQUEST_FAILED';
+}
+
 export async function handleIcpImport(request:Request,path:string[],db:SupabaseClient,json:Json,deps:IcpImportDeps):Promise<Response|null>{
- const [resource,sub]=path;
+ const [resource,sub,action]=path;
  if(resource!=='icp-imports')return null;
  const started=deps.now();
  const url=new URL(request.url);
+ const notFound=()=>json({error:'Route ou action non disponible'},404);
+ if(path.length>3)return notFound();
+ const loadRow=async(id:string,columns=LIST_COLUMNS)=>{
+  const {data,error}=await db.from('icp_imports').select(columns).eq('id',id).maybeSingle();
+  if(error)throw Error('DATABASE_REQUEST_FAILED');
+  return data as Record<string,unknown>|null;
+ };
+ const guarded=async(run:()=>Promise<Response>)=>{
+  try{return await run()}
+  catch(e){
+   if(e instanceof IngestError){deps.log({component:'icp_import',event:'ingest_refused',code:e.code});return refuse(json,e.code)}
+   const code=e instanceof Error?e.message:'';
+   if(code in IMPORT_ERRORS)return refuse(json,code);
+   throw e; // OFFER_LIMIT_REACHED, QUOTA_EXCEEDED, UNAUTHORIZED… : the route's common refusals
+  }
+ };
  if(request.method==='GET'){
   if(!sub){
    const projectId=url.searchParams.get('project_id')??'';
    if(!UUID.test(projectId))return refuse(json,'INVALID_PROJECT_ID');
    const {data,error}=await db.from('icp_imports').select(LIST_COLUMNS).eq('project_id',projectId).order('created_at',{ascending:false}).limit(20);
    if(error)throw Error('DATABASE_REQUEST_FAILED');
-   return json(data??[]);
+   return json(((data??[]) as Record<string,unknown>[]).map(r=>readRow(r,deps.now())));
   }
-  if(!UUID.test(sub)||path.length>2)return refuse(json,'IMPORT_NOT_FOUND');
-  const {data,error}=await db.from('icp_imports').select(`${LIST_COLUMNS},extracted`).eq('id',sub).maybeSingle();
-  if(error)throw Error('DATABASE_REQUEST_FAILED');
+  if(!UUID.test(sub)||action)return refuse(json,'IMPORT_NOT_FOUND');
+  const data=await loadRow(sub,`${LIST_COLUMNS},extracted`);
   if(!data)return refuse(json,'IMPORT_NOT_FOUND');
-  const {extracted,...row}=data as Record<string,unknown>;
+  const {extracted,...rest}=data;const row=readRow(rest,deps.now());
   // Every read re-validates the draft: the database only checks its outline.
   const stored=readStoredProfile(extracted);
   return json({import:row,profile:stored.state==='valid'?stored.profile:null,profile_state:stored.state,
-   ...(stored.state==='unreadable'?{profile_message:UNREADABLE_PROFILE_MESSAGE.fr}:{}),unmonitored_signals:UNMONITORED_SIGNALS});
+   ...(stored.state==='unreadable'?{profile_message:UNREADABLE_PROFILE_MESSAGE.fr}:{}),
+   ...(row.stale?{message:IMPORT_ERRORS.IMPORT_STALE![0]}:{}),unmonitored_signals:UNMONITORED_SIGNALS});
  }
- if(request.method!=='POST'||path.length!==2||(sub!=='file'&&sub!=='text'))return json({error:'Route ou action non disponible'},404);
- await deps.requireEntitlement();
- let projectId:string;let ingested:Ingested;let label:string;
- try{
-  if(sub==='file'){
-   projectId=url.searchParams.get('project_id')??'';
-   if(!UUID.test(projectId))return refuse(json,'INVALID_PROJECT_ID');
-   const bytes=await readBoundedBody(request,MAX_UPLOAD_BYTES);
-   ingested=await ingestFile(bytes);
-   label=sourceLabel(request.headers.get('x-file-name'),ingested.sourceType);
-  }else{
-   let body:unknown;
-   try{body=JSON.parse(new TextDecoder('utf-8',{fatal:true}).decode(await readBoundedBody(request,TEXT_BODY_MAX_BYTES)))}
-   catch(e){if(e instanceof IngestError&&e.code==='FILE_TOO_LARGE')return refuse(json,'TEXT_TOO_LONG');return refuse(json,'INVALID_BODY')}
-   if(!body||typeof body!=='object'||Array.isArray(body))return refuse(json,'INVALID_BODY');
-   const b=body as {project_id?:unknown;text?:unknown};
-   projectId=typeof b.project_id==='string'?b.project_id:'';
-   if(!UUID.test(projectId))return refuse(json,'INVALID_PROJECT_ID');
-   ingested=ingestText(b.text);
-   label=sourceLabel(null,'TEXT');
-  }
- }catch(e){
-  if(e instanceof IngestError){deps.log({component:'icp_import',event:'ingest_refused',code:e.code});return refuse(json,e.code)}
-  throw e;
+ // ----- creation: POST /icp-imports/file | /icp-imports/text
+ if(request.method==='POST'&&(sub==='file'||sub==='text')&&!action){
+  await deps.requireEntitlement();
+  return guarded(async()=>{
+   const src=await readSource(request,sub,sub==='file'?url.searchParams.get('project_id')??'':null);
+   if(typeof src==='string')return refuse(json,src);
+   if(!UUID.test(src.projectId))return refuse(json,'INVALID_PROJECT_ID');
+   return createImport(db,json,deps,src.projectId,src.ingested,src.label,started);
+  });
  }
- try{return await createImport(db,json,deps,projectId,ingested,label,started)}
- catch(e){
-  const code=e instanceof Error?e.message:'';
-  if(code in IMPORT_ERRORS)return refuse(json,code);
-  throw e; // OFFER_LIMIT_REACHED, QUOTA_EXCEEDED, … : the route's common refusals
+ if(!sub||!UUID.test(sub))return notFound();
+ const id=sub;
+ // ----- erasure: DELETE /icp-imports/:id (any status but a running import; the validated ICP stays)
+ if(request.method==='DELETE'&&!action){
+  const {error}=await db.rpc('delete_icp_import',{p_import_id:id});
+  if(error)return refuse(json,rpcRefusal(error.message));
+  deps.log({component:'icp_import',event:'erased',import_id:id});
+  return json({deleted:true});
  }
+ return notFound();
 }

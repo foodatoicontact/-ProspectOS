@@ -8,6 +8,7 @@
 // pricing table (resolve_provider_cost); the run itself is not written to the cost ledger (it belongs to no user).
 //
 // Run:  node --experimental-strip-types scripts/icp-import-smoke.ts --org <uuid> <file.txt|file.pdf|file.docx>
+//   or, without a computer: GitHub → Actions → « ICP import smoke test » → Run workflow (.github/workflows/icp-import-smoke.yml).
 import {readFile} from 'node:fs/promises';
 import {ingestFile,ingestText,IngestError,INGEST_MESSAGES,sniff,type Ingested} from '../src/icp-import/ingest.ts';
 import {structureIcp,StructureIcpError,type IcpUsage} from '../src/server/ai.ts';
@@ -30,7 +31,15 @@ try{
 console.log(`■ Document : ${ingested!.sourceType}, ${ingested!.text.length} caractères${ingested!.pages?`, ${ingested!.pages} pages lues`:''}${ingested!.warnings.length?`, avertissements ${ingested!.warnings.join(', ')}`:''}`);
 
 async function cost(usage:IcpUsage){
- if(!process.env.NEXT_PUBLIC_SUPABASE_URL||!process.env.SUPABASE_SERVICE_ROLE_KEY){console.log('■ Coût : non calculé (variables Supabase absentes — tokens ci-dessus)');return}
+ if(!process.env.NEXT_PUBLIC_SUPABASE_URL||!process.env.SUPABASE_SERVICE_ROLE_KEY){
+  // Without the database (the GitHub Actions run): the tariff given by the operator, in USD per million tokens.
+  const pin=Number(process.env.ICP_SMOKE_PRICE_INPUT_PER_MTOK),pout=Number(process.env.ICP_SMOKE_PRICE_OUTPUT_PER_MTOK);
+  if(Number.isFinite(pin)&&pin>=0&&Number.isFinite(pout)&&pout>=0&&process.env.ICP_SMOKE_PRICE_INPUT_PER_MTOK&&process.env.ICP_SMOKE_PRICE_OUTPUT_PER_MTOK){
+   const usd=(usage.input_tokens*pin+usage.output_tokens*pout)/1e6;
+   console.log(`■ Coût : ${usd.toFixed(4)} $ au tarif fourni (${pin} $ / ${pout} $ par million de tokens en entrée / sortie), ${usage.attempts.length} appel(s)`);
+  }else console.log('■ Coût : non calculé (ni variables Supabase ni tarif fourni — tokens ci-dessus)');
+  return;
+ }
  const [{createAdminClient},{resolveCost,costFromTokens}]=await Promise.all([import('../src/server/admin-client.ts'),import('../src/server/pricing.ts')]);
  let micros=0;let priced=true;
  for(const a of usage.attempts){

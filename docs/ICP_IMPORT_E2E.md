@@ -1,6 +1,6 @@
 # Import ICP — essai de bout en bout sur le staging
 
-Runbook à suivre depuis un téléphone. Il ne touche **jamais** la production. Durée : environ 45 min. Coût IA : environ 0,03 $ par import, soit 0,15 $ à 0,20 $ pour tout l'essai, payé par la clé Anthropic du compte A.
+Runbook à suivre depuis un téléphone, **après la fusion de la PR #66** (main = `881274e`). Il ne touche **jamais** la production. Durée : environ 45 min. Coût IA : environ 0,03 $ par import, soit 0,15 $ à 0,20 $ pour tout l'essai, payé par la clé Anthropic du compte A.
 
 Ce qui sépare le staging de la production, vérifié le 4 novembre 2026 :
 
@@ -11,7 +11,10 @@ Ce qui sépare le staging de la production, vérifié le 4 novembre 2026 :
 | 041 appliquée | non (dernière migration : 040) | non |
 | `ICP_IMPORT_ENABLED` | absente | absente |
 
-Règle d'or : on ne coche **jamais** « Production » dans Vercel, et on ne colle **jamais** le ref `vptqxhlxwiljfbkybqej` nulle part.
+Règle d'or :
+- dans Vercel, on ne choisit **jamais** « Production » ni « All Preview branches » ;
+- on ne colle **jamais** le ref de production `vptqxhlxwiljfbkybqej` nulle part ;
+- tout ce que l'essai crée (branche `test/icp-e2e`, variables limitées à cette branche) est supprimé à la fin (section E).
 
 ---
 
@@ -19,26 +22,27 @@ Règle d'or : on ne coche **jamais** « Production » dans Vercel, et on ne coll
 
 Outil : le workflow GitHub **Staging migrations** (`.github/workflows/staging-migrations.yml`). Il se lance seulement à la main, vise seulement le staging, et refuse toute URL de base qui mentionne la production.
 
-1. Récupère le SHA à appliquer.
-   - GitHub → PR #66 → onglet **Commits** → dernier commit → copie le SHA **complet** (40 caractères).
-   - Ne pousse plus rien sur la branche avant l'étape 5.
-2. GitHub → dépôt `-ProspectOS` → **Actions** → **Staging migrations** → **Run workflow**.
-3. Remplis le formulaire **exactement** comme ci-dessous.
+1. GitHub → dépôt `-ProspectOS` → **Actions** → **Staging migrations** → **Run workflow**.
+2. Remplis le formulaire **exactement** comme ci-dessous.
    - **Use workflow from** : `main`. Le code qui applique les migrations vient de main ; une branche ne peut pas apporter le sien.
    - **ref** :
      ```
-     feat/icp-import
+     main
      ```
-   - **expected_sha** : le SHA copié à l'étape 1.
+   - **expected_sha** (le commit de fusion de la PR #66) :
+     ```
+     881274eca8a5a3e33605d0cf76081b69a2771016
+     ```
    - **confirm_project_ref** :
      ```
      ggilyurgopsjrpnvxovl
      ```
-4. Lance le workflow, puis approuve-le.
+   - Si main a reçu un autre commit depuis, le workflow refuse : le SHA ne correspond plus. Rien n'est appliqué. Arrête-toi et demande le nouveau SHA à appliquer.
+3. Lance le workflow, puis approuve-le.
    - Le job attend l'approbation de l'environnement `prospectos-staging` : notification GitHub ou bandeau **Review deployments** → coche `prospectos-staging` → **Approve and deploy**.
-5. Résultat attendu : job vert, et une seule migration appliquée dans le journal (`041_icp_import`).
+4. Résultat attendu : job vert, et une seule migration appliquée dans le journal (`041_icp_import`).
    - Un refus (`STAGING-MIGRATE REFUSED: …`) n'applique rien : lis le motif et arrête-toi là.
-6. Contrôle (Supabase → projet **-ProspectOS-staging** → SQL Editor, lecture seule) :
+5. Contrôle (Supabase → projet **-ProspectOS-staging** → SQL Editor, lecture seule) :
    ```sql
    select name, created_by from supabase_migrations.schema_migrations order by version desc limit 2;
    select to_regclass('public.icp_imports') as table_import;
@@ -47,16 +51,24 @@ Outil : le workflow GitHub **Staging migrations** (`.github/workflows/staging-mi
 
 ---
 
-## B. Allumer l'import sur le Preview de la branche seulement
+## B. Allumer l'import sur le Preview d'une branche d'essai seulement
 
-Les variables sont **limitées à la branche** `feat/icp-import`, comme celles des essais précédents (`feat/next-best-action`, `feat/ui-v2-shell`…). Aucun autre déploiement ne les reçoit.
+On crée une branche d'essai `test/icp-e2e` depuis main, sans aucun changement de code. Les variables sont **limitées à cette branche**. Aucun autre déploiement ne les reçoit, ni la production, ni les autres Preview.
 
-1. Vercel → projet **prospectos-v0** → **Settings** → **Environment Variables** → **Add New**.
-2. Pour **chacune** des quatre variables ci-dessous :
-   - **Environments** : coche **Preview** seulement. Décoche **Production** et **Development**.
-   - **Branch** : choisis « une branche précise » (custom Preview branch) et tape
+1. **Créer la branche d'essai.**
+   - GitHub → dépôt `-ProspectOS` → **Branches** (ou le sélecteur de branche) → **New branch**.
+   - **Name** :
      ```
-     feat/icp-import
+     test/icp-e2e
+     ```
+   - **Source** : `main`.
+   - Vercel crée tout seul un déploiement **Preview** de cette branche. Ce premier déploiement n'a pas encore les variables : on le redéploiera à l'étape 4.
+2. **Poser les variables.** Vercel → projet **prospectos-v0** → **Settings** → **Environment Variables** → **Add New**, une fois pour **chacune** des quatre variables du tableau. À **chaque** ajout :
+   - **Environments** : coche **Preview** seulement, et décoche **Development**.
+   - ⚠️ Ne choisis **jamais** « **Production** ». Ne choisis **jamais** « **All Preview branches** ».
+   - **Branch** : choisis « une branche précise » (custom Preview branch) et tape exactement
+     ```
+     test/icp-e2e
      ```
 
    | Key | Value | Pourquoi |
@@ -66,11 +78,15 @@ Les variables sont **limitées à la branche** `feat/icp-import`, comme celles d
    | `AI_PROVIDER` | `anthropic` | sur le Preview, la variable n'existe que pour une autre branche |
    | `AI_MODEL` | `claude-sonnet-5` | le modèle des smoke tests |
 
-3. Vérifie la liste : chaque ligne doit afficher **Preview** et **feat/icp-import**, rien d'autre. Si une ligne affiche « Production » ou « All Preview branches », supprime-la et recommence.
-4. Redéploie le Preview, car les variables ne s'appliquent qu'aux nouveaux déploiements.
-   - **Deployments** → filtre **Branch** = `feat/icp-import` → le plus récent → **⋯** → **Redeploy**.
+   Rappel pour les quatre lignes : **Preview** + branche `test/icp-e2e`, **jamais** « Production », **jamais** « All Preview branches ».
+3. **Vérifier la liste.**
+   - Chaque nouvelle ligne doit afficher **Preview** et **test/icp-e2e**, rien d'autre.
+   - Si une ligne affiche « Production », « All Preview branches » ou une autre branche, supprime-la tout de suite et recommence l'ajout.
+   - Recherche `ICP_IMPORT_ENABLED` dans la liste : une seule ligne, celle de `test/icp-e2e`.
+4. **Redéployer le Preview de la branche d'essai.** Les variables ne s'appliquent qu'aux nouveaux déploiements.
+   - **Deployments** → filtre **Branch** = `test/icp-e2e` → le plus récent → **⋯** → **Redeploy**.
    - Ne redéploie **jamais** un déploiement marqué **Production**.
-5. Ouvre l'URL du déploiement Preview, de la forme `prospectos-v0-git-feat-icp-import-….vercel.app` : copie-la depuis la page du déploiement. Si Vercel demande une connexion, connecte-toi avec ton compte Vercel.
+5. Ouvre l'URL de ce déploiement Preview, de la forme `prospectos-v0-git-test-icp-e2e-….vercel.app` : copie-la depuis la page du déploiement. Si Vercel demande une connexion, connecte-toi avec ton compte Vercel.
 
 Il n'y a pas de clé IA de plateforme : aucune variable `AI_API_KEY` n'existe dans Vercel. Le compte A utilise sa propre clé Anthropic (BYOK). Elle est chiffrée dans la base de staging avec `BYOK_MASTER_KEY`, déjà présente sur le Preview.
 
@@ -83,7 +99,7 @@ Prépare :
 - deux navigateurs, ou un onglet normal et un onglet privé ;
 - sur le téléphone, un PDF texte et un DOCX tirés du texte de test (étape 14), et un PDF scanné (étape 16).
 
-Le texte de test : GitHub → `tests/fixtures/icp/detec-incendie.site-only.txt` (branche `feat/icp-import`) → **Raw** → tout sélectionner → copier.
+Le texte de test : GitHub → `tests/fixtures/icp/detec-incendie.site-only.txt` (branche `main`) → **Raw** → tout sélectionner → copier.
 
 Requêtes de contrôle : Supabase staging → SQL Editor, lecture seule. Remplace `<projet A>` par l'identifiant du projet de A (requête 0).
 
@@ -175,8 +191,8 @@ Résultat : coche chaque ligne et note les écarts (capture + heure) dans la PR 
 
 ### D1. Couper l'import (toujours suffisant pour l'application)
 
-1. Vercel → **Settings** → **Environment Variables** → supprime les quatre variables de la section B, celles marquées **Preview · feat/icp-import**.
-2. **Deployments** → le Preview `feat/icp-import` le plus récent → **⋯** → **Redeploy**.
+1. Vercel → **Settings** → **Environment Variables** → supprime les quatre variables de la section B, celles marquées **Preview · test/icp-e2e**. Ne touche à aucune autre ligne, surtout pas aux lignes **Production**.
+2. **Deployments** → le Preview `test/icp-e2e` le plus récent → **⋯** → **Redeploy**.
 3. Attendu : l'écran d'import disparaît et `/api/v1/icp-imports` répond 404 `ICP_IMPORT_DISABLED`. Les données de staging restent en place.
 
 ### D2. Défaire la 041 sur le staging (seulement si nécessaire)
@@ -184,7 +200,7 @@ Résultat : coche chaque ligne et note les écarts (capture + heure) dans la PR 
 À faire **après** D1. C'est **destructif** : les imports et les profils validés du staging (`icps.profile`…) sont effacés. L'offre et les critères déjà écrits dans les projets restent.
 
 1. Supabase → projet **-ProspectOS-staging**. Vérifie le ref dans l'URL : `ggilyurgopsjrpnvxovl`, **jamais** `vptqxhlxwiljfbkybqej`.
-2. SQL Editor → colle le contenu de `db/rollbacks/041_icp_import.down.sql` (GitHub, branche `feat/icp-import`, **Raw**) → **Run**.
+2. SQL Editor → colle le contenu de `db/rollbacks/041_icp_import.down.sql` (GitHub, branche `main`, **Raw**) → **Run**.
    - Ce script retire tout ce que la 041 a créé, puis la ligne `041_icp_import` de l'historique du staging : le workflow verra donc la 041 comme non appliquée.
    - Il est vérifié par `tests/icp-import-rollback-db.mjs` : après la 041 puis ce script, le schéma est identique à celui d'avant la 041, et la 041 peut être réappliquée.
 3. Contrôle :
@@ -195,3 +211,33 @@ Résultat : coche chaque ligne et note les écarts (capture + heure) dans la PR 
    Attendu : `table_import` vide (null), dernière migration `040_morning_digest`.
 
 Ce script n'est pas une migration : aucun workflow ne lit `db/rollbacks/`. Il ne s'exécute qu'à la main, dans le SQL Editor du staging.
+
+---
+
+## E. Contrôle final (à faire à la fin de l'essai, même s'il s'est bien passé)
+
+Rien de l'essai ne doit rester, et la production ne doit pas avoir bougé.
+
+- [ ] **E1. Variables supprimées.**
+  - Vercel → **Settings** → **Environment Variables** → supprime les quatre lignes **Preview · test/icp-e2e**, si ce n'est pas déjà fait en D1.
+  - Recherche `ICP_IMPORT_ENABLED` : **aucune** ligne.
+  - Recherche `test/icp-e2e` : **aucune** ligne.
+- [ ] **E2. Production sans l'interrupteur.**
+  - Toujours dans Vercel, aucune variable `ICP_IMPORT_ENABLED` n'existe en **Production**. C'est déjà couvert par E1, mais vérifie en filtrant sur l'environnement **Production**.
+  - Aucun déploiement **Production** n'a été lancé pendant l'essai : la liste **Deployments** filtrée sur **Production** montre le même dernier déploiement qu'avant.
+- [ ] **E3. La 041 est absente de la production.**
+  - Supabase → projet de **production** (`vptqxhlxwiljfbkybqej`) → SQL Editor → requêtes en **lecture seule** :
+    ```sql
+    select count(*) as migration_041 from supabase_migrations.schema_migrations where name='041_icp_import';
+    select to_regclass('public.icp_imports') as table_import;
+    ```
+  - Attendu : `migration_041` = **0**, et `table_import` vide (null).
+  - N'exécute **rien d'autre** sur ce projet.
+- [ ] **E4. Branche d'essai supprimée.**
+  - GitHub → **Branches** → `test/icp-e2e` → **Delete** (icône corbeille).
+  - Elle ne porte aucun commit à garder : elle a été créée depuis main sans changement.
+- [ ] **E5. Staging.**
+  - Décide de garder ou non la 041 sur le staging.
+  - La garder ne gêne rien : sans variable, l'import reste inerte.
+  - Sinon, applique D2.
+

@@ -427,31 +427,40 @@ test('source partielle — fewer than half of the 4-letter words of a text value
 });
 
 test('offer.proofs — a proper noun absent from the source is taken out of the value (VALUE_TRIMMED, path only)',async()=>{
- const {trimProperNouns,describeFixes}=await import('../src/domain/icp/normalize.ts');
- assert.equal(trimProperNouns('Clients: Foncia, SNCF, STEF, Bouygues...','Foncia.'),'Foncia');
+ const {trimProperNouns,describeFixes,SENTENCE_WORDS,isPartialSource}=await import('../src/domain/icp/normalize.ts');
+ assert.equal(isPartialSource('Bouygues','Foncia'),true);
+ // The first word is never taken out (it is capitalised because it starts the value): « Clients » stays.
+ assert.equal(trimProperNouns('Clients: Foncia, SNCF, STEF, Bouygues...','Foncia.'),'Clients: Foncia');
+ assert.equal(trimProperNouns('Plus de 500 clients','500 clients'),'Plus de 500 clients','first word and a sentence word: intact');
+ assert.equal(trimProperNouns('Notre client Bouygues depuis 2010','depuis 2010'),'Notre client depuis 2010');
+ assert.equal(trimProperNouns('Depuis 2010, Nos clients : SNCF','2010'),'Depuis 2010, Nos clients','« Nos » is a sentence word, wherever it is');
+ for(const w of ['plus','notre','nos','depuis'])assert.ok(SENTENCE_WORDS.has(w),w);
  assert.equal(trimProperNouns('Foncia, SNCF et Bouygues','Foncia et SNCF'),'Foncia, SNCF');
  assert.equal(trimProperNouns('Certifié APSAD R4','certifié apsad R4'),'Certifié APSAD R4','all held (no accents, no case): unchanged');
- assert.equal(trimProperNouns('Références : SNCF','SNCF'),'SNCF');
- assert.equal(trimProperNouns('Bouygues','Foncia'),'');
+ assert.equal(trimProperNouns('Références : SNCF','SNCF'),'Références : SNCF');
+ assert.equal(trimProperNouns('Bouygues','Foncia'),'Bouygues','a single word is the first word: kept (marked « source partielle » at the review)');
  const raw=smoke4Like() as any;raw.offer.proofs=[leaf('Clients: Foncia, SNCF, STEF, Bouygues...','Foncia.',0.3)];
  const n=normalizeExtraction(raw);assert.ok(n.ok);
- assert.deepEqual((n.value as any).offer.proofs,[{value:'Foncia',source:'Foncia.',confidence:0.3}]);
+ assert.deepEqual((n.value as any).offer.proofs,[{value:'Clients: Foncia',source:'Foncia.',confidence:0.3}]);
  const t=n.fixes.filter(f=>f.code==='VALUE_TRIMMED');
  assert.deepEqual(t,[{code:'VALUE_TRIMMED',path:'offer.proofs.0',reason:'not_in_source'}],'path and reason only: no rule, no length, no excerpt');
  const log=describeFixes(n.fixes).join('\n');
  assert.match(log,/^offer\.proofs\.0: VALUE_TRIMMED \(not_in_source\)$/m);
  for(const w of ['SNCF','STEF','Bouygues','Foncia','Clients'])assert.ok(!log.includes(w),w);
- // Nothing left: the proof is removed (its path goes to the missing values).
- const empty=smoke4Like() as any;empty.offer.proofs=[leaf('Bouygues Construction','Foncia.')];
- const m=normalizeExtraction(empty);assert.ok(m.ok);assert.deepEqual((m.value as any).offer.proofs,[]);
- assert.ok(m.fixes.some(f=>f.code==='VALUE_TRIMMED'&&f.path==='offer.proofs.0'));assert.ok(m.emptied.includes('offer.proofs.0'));
+ // A proof whose source holds every word but the first, or only sentence words: untouched, no correction.
+ const plus=smoke4Like() as any;plus.offer.proofs=[leaf('Plus de 500 clients','500 clients')];
+ const q=normalizeExtraction(plus);assert.ok(q.ok);assert.equal((q.value as any).offer.proofs[0].value,'Plus de 500 clients');assert.ok(!q.fixes.some(f=>f.code==='VALUE_TRIMMED'));
+ // The first word always stays, so a proof is never emptied by the trim; what is left unsupported is marked at the review.
+ const empty=smoke4Like() as any;empty.offer.proofs=[leaf('Références : Bouygues','Foncia.')];
+ const m=normalizeExtraction(empty);assert.ok(m.ok);assert.equal((m.value as any).offer.proofs[0].value,'Références');
+ assert.ok(m.fixes.some(f=>f.code==='VALUE_TRIMMED'&&f.path==='offer.proofs.0'));assert.equal(isPartialSource('Références','Foncia.'),true);
  // Other lists are not trimmed.
  const other=smoke4Like() as any;other.offer.differentiators=[leaf('Partenaire Foncia et SNCF','Foncia.')];
  const o=normalizeExtraction(other);assert.ok(o.ok);assert.equal((o.value as any).offer.differentiators[0].value,'Partenaire Foncia et SNCF');
  assert.ok(!o.fixes.some(f=>f.code==='VALUE_TRIMMED'));
  // End to end: the draft comes out with « Foncia », and the end of the source check still passes (Foncia. is in the document).
  const ai=withAi([JSON.stringify(raw)]);const err=mock.method(console,'error',()=>{});
- try{const r=await structureIcp(ingestText(detec).text);assert.equal(r.profile.offer.proofs[0]?.value,'Foncia');assert.ok(!r.unverified.includes('offer.proofs.0'))}
+ try{const r=await structureIcp(ingestText(detec).text);assert.equal(r.profile.offer.proofs[0]?.value,'Clients: Foncia');assert.ok(!r.unverified.includes('offer.proofs.0'))}
  finally{ai.restore();err.mock.restore()}
 });
 

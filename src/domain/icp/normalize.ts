@@ -99,14 +99,23 @@ export function isPartialSource(value:unknown,source:string|null|undefined):bool
  const have=new Set(foldedWords(source));
  return wanted.filter(w=>have.has(w)).length/wanted.length<PARTIAL_SOURCE_RATIO;
 }
+// Common words written with a capital at the start of a sentence — never taken for proper nouns (folded).
+export const SENTENCE_WORDS=new Set(['plus','notre','nos','depuis','avec','pour','par','sur','sous','dans','chez','entre','selon','apres','avant',
+ 'deja','pres','environ','tous','toutes','tout','toute','chaque','un','une','des','les','le','la','l','leur','leurs','votre','vos','ce','cet',
+ 'cette','ces','au','aux','du','de','d','en','et','ou','mais','sans','grace','clients','client','references','reference',
+ 'certifie','certifiee','certifies','agree','agreee','labellise','labellisee','membre','partenaire','partenaires','plusieurs']);
 // offer.proofs only: a proper noun (a word that starts with a capital letter) of the value that its source does not
-// hold is taken out of the value, with the separator that goes with it; the rest is kept as written. Returns the value
-// unchanged when nothing is taken out, '' when nothing is left. Compared without accents nor case.
+// hold is taken out of the value, with the separator that goes with it; the rest is kept as written. The first word and
+// SENTENCE_WORDS are never taken out, so something is always left. Returns the value unchanged when nothing is taken
+// out. Compared without accents nor case.
 export function trimProperNouns(value:string,source:string):string{
  const have=new Set(foldedWords(source));
  const tokens=value.match(/[\p{L}\p{N}]+|[^\p{L}\p{N}]+/gu)??[];
  const isWord=(t:string)=>/^[\p{L}\p{N}]/u.test(t);
- const gone=tokens.map(t=>isWord(t)&&/^\p{Lu}/u.test(t)&&foldedWords(t).some(w=>!have.has(w)));
+ const firstWord=tokens.findIndex(isWord);
+ // Never a proper noun: the first word of the value (capitalised because it starts it) and the common words that take a
+ // capital at the start of a sentence (Plus, Notre, Nos, Depuis…), wherever they are.
+ const gone=tokens.map((t,i)=>i!==firstWord&&isWord(t)&&/^\p{Lu}/u.test(t)&&!SENTENCE_WORDS.has(foldedWords(t).join(''))&&foldedWords(t).some(w=>!have.has(w)));
  if(!gone.some(Boolean))return value;
  // A taken-out word goes with the separator before it — or, at the very start, the one after it.
  const drop=gone.slice();

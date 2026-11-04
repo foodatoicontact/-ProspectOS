@@ -8,7 +8,7 @@
 import {Component,useCallback,useEffect,useMemo,useRef,useState,type ReactNode} from 'react';
 import type {Locale} from '../i18n/locale';
 import type {IcpProfile} from '../domain/icp/schema';
-import {icpClient,loadLatest,saveDraft,loadDraft,clearDraft,type ImportDetail,type Source,type ValidateResult} from '../icp-import/client';
+import {icpClient,loadLatest,saveDraft,loadDraft,clearDraft,clearAllDrafts,type ImportDetail,type Source,type ValidateResult} from '../icp-import/client';
 import {viewOf,nextPollDelay,confidenceOf,setValue,removeAt,addValue,addZones,answerQuestion,isUnmonitored,MANUAL_SOURCE,type ImportRow,type Path,type EditResult} from '../icp-import/review';
 import {parseIcpProfile} from '../domain/icp/schema';
 import {DEPARTMENTS} from '../discovery/geo-fr';
@@ -97,6 +97,10 @@ export function IcpImport({locale,projectId,token,onValidated,onUnauthorized}:{l
  const [notice,setNotice]=useState('');
  const lastSource=useRef<Source|null>(null);
  const rowKey=useRef('');
+ const pinned=useRef<string|null>(null);
+ const [previousDraft,setPreviousDraft]=useState<string|null>(null);
+ // An expired session is a sign-out: the drafts kept in this tab go with it.
+ const signedOut=useCallback(()=>{clearAllDrafts();onUnauthorized()},[onUnauthorized]);
  const live=useRef(true);
  useEffect(()=>{live.current=true;return()=>{live.current=false}},[]);
 
@@ -108,13 +112,13 @@ export function IcpImport({locale,projectId,token,onValidated,onUnauthorized}:{l
   }else{setProfile(null);setRestored(false)}
  },[]);
  const refresh=useCallback(async()=>{
-  const r=await loadLatest(client,projectId);
+  const r=await loadLatest(client,projectId,pinned.current);
   if(!live.current)return;
   setNow(Date.now());setLoaded(true);
-  if(r.ok){setFailures(0);const key=`${r.data.row?.id}:${r.data.row?.status}`;if(key!==rowKey.current){rowKey.current=key;setQIndex(0)}adopt(r.data.row,r.data.detail);return}
-  if(r.status===401){onUnauthorized();return}
+  if(r.ok){setFailures(0);setPreviousDraft(r.data.previousDraft);if(pinned.current&&r.data.row?.id!==pinned.current)pinned.current=null;const key=`${r.data.row?.id}:${r.data.row?.status}`;if(key!==rowKey.current){rowKey.current=key;setQIndex(0)}adopt(r.data.row,r.data.detail);return}
+  if(r.status===401){signedOut();return}
   if(r.network)setFailures(f=>f+1);else setError(errorText(locale,r.code,r.error));
- },[client,projectId,adopt,onUnauthorized,locale]);
+ },[client,projectId,adopt,signedOut,locale]);
  useEffect(()=>{setRow(null);setDetail(null);setProfile(null);setLoaded(false);setPicker(null);setResult(null);setError('');refresh()},[projectId,refresh]);
 
  const view=viewOf(row,profile??detail?.profile,now);
@@ -128,12 +132,12 @@ export function IcpImport({locale,projectId,token,onValidated,onUnauthorized}:{l
  useEffect(()=>{if(!running)return;const id=setInterval(()=>setNow(Date.now()),1000);return()=>clearInterval(id)},[running]);
 
  async function submit(source:Source){
-  lastSource.current=source;setError('');setNotice('');setResult(null);setSubmittedAt(Date.now());
+  lastSource.current=source;pinned.current=null;setError('');setNotice('');setResult(null);setSubmittedAt(Date.now());
   const res=picker==='retry'&&row?await client.retry(row.id,source):await client.create(projectId,source);
   if(!live.current)return;
   setSubmittedAt(null);
   if(res.ok){setPicker(null);setQIndex(0);adopt(res.data.import,res.data);return}
-  if(res.status===401){onUnauthorized();return}
+  if(res.status===401){signedOut();return}
   setError(errorText(locale,res.code,res.error));
   if(res.network)setFailures(f=>f+1);
   refresh();
@@ -147,19 +151,19 @@ export function IcpImport({locale,projectId,token,onValidated,onUnauthorized}:{l
   setBusy(true);setError('');
   const r=await client.validate(row.id,profile,keepOffer,keepCriteria);
   setBusy(false);
-  if(!r.ok){if(r.status===401)return onUnauthorized();setError(errorText(locale,r.code,r.error));return}
-  clearDraft(row.id);setResult(r.data);await refresh();onValidated();
+  if(!r.ok){if(r.status===401)return signedOut();setError(errorText(locale,r.code,r.error));return}
+  clearDraft(row.id);pinned.current=null;setResult(r.data);await refresh();onValidated();
  }
  async function discard(){
   if(!row)return;setBusy(true);const r=await client.discard(row.id);setBusy(false);
   if(!r.ok){setError(errorText(locale,r.code,r.error));return}
-  clearDraft(row.id);refresh();
+  clearDraft(row.id);pinned.current=null;refresh();
  }
  async function erase(){
   if(!row||!window.confirm(t('eraseConfirm')))return;
   setBusy(true);const r=await client.erase(row.id);setBusy(false);
   if(!r.ok){setError(errorText(locale,r.code,r.error));return}
-  clearDraft(row.id);setNotice(t('erased'));setResult(null);refresh();
+  clearDraft(row.id);pinned.current=null;setNotice(t('erased'));setResult(null);refresh();
  }
  function retry(){
   if(lastSource.current){setPicker('retry');submit(lastSource.current);return}
@@ -201,7 +205,9 @@ export function IcpImport({locale,projectId,token,onValidated,onUnauthorized}:{l
  </Guard>;
  else if(view.kind==='unreadable')body=<Unreadable t={t} onRetry={retry} erase={eraseButton}/>;
  else if(view.kind==='failed')body=<div><h3>{t('failedTitle')}</h3><p className="icp-error" role="alert">{errorText(locale,view.error,view.row.stale?undefined:detail?.message)}</p>
-  <div className="icp-actions"><button type="button" className="primary" onClick={retry}>{t('retry')}</button>{eraseButton}</div></div>;
+  {previousDraft&&<p className="icp-info">{t('previousDraftNote')}</p>}
+  <div className="icp-actions"><button type="button" className="primary" onClick={retry}>{t('retry')}</button>
+   {previousDraft&&<button type="button" onClick={()=>{pinned.current=previousDraft;setError('');refresh()}}>{t('previousDraft')}</button>}{eraseButton}</div></div>;
  else if(view.kind==='validated')body=<div><h3>{t('validatedTitle')}</h3><p>{t('validatedBody')}</p>
   {result?.criteria_kept.length?<p className="muted">{t('validatedKept',{k:result.criteria_kept.join(', ')})}</p>:null}
   <div className="icp-actions"><button type="button" onClick={()=>setPicker('new')}>{t('newImport')}</button>{eraseButton}</div></div>;

@@ -14,7 +14,9 @@
 --    import, as the AI offer analyses are, and by purge_icp_imports() for an operator). A member can erase any import of
 --    the organization at any time (delete_icp_import), whatever its status, except one still running. Deleting a project
 --    deletes its imports (foreign key on delete cascade); a person leaving an organization (account deletion, leaving or
---    being removed from the team) erases the imports they started there. The validated profile copied into public.icps
+--    being removed from the team) erases the imports they started there that were never validated; a VALIDATED import
+--    stays with the organization, detached from the person (created_by and validated_by set to null). The validated
+--    profile copied into public.icps
 --    is the organization's ICP and stays (docs/ICP_IMPORT.md). Files are never stored: only the extracted JSON is kept.
 -- 4. Limits: an import that calls the AI consumes ONE unit of the existing AI offer quota (consume_ai_offer_quota: hourly
 --    and plan limits), whatever the retry; at most 10 URL imports per organization over 24 hours (the dedicated site
@@ -41,16 +43,17 @@ create table if not exists public.icp_imports (
  token_usage int not null default 0 check(token_usage>=0),
  usage jsonb not null default '{}' check(jsonb_typeof(usage)='object' and length(usage::text)<=2000),
  error text check(error is null or error ~ '^[A-Z0-9_]{1,60}$'),
- created_by uuid not null references auth.users(id) on delete cascade,
+ created_by uuid references auth.users(id) on delete set null, -- null: the person has left the organization
  created_at timestamptz not null default now(),
  updated_at timestamptz not null default now(),
  validated_at timestamptz,
- validated_by uuid references auth.users(id) on delete cascade,
+ validated_by uuid references auth.users(id) on delete set null,
  foreign key(project_id,organization_id) references public.projects(id,organization_id) on delete cascade,
  unique(id,organization_id),
  check(status<>'EXTRACTED' or extracted is not null),
  check(status<>'FAILED' or error is not null),
- check((status='VALIDATED')=(validated_at is not null and validated_by is not null))
+ check((status='VALIDATED')=(validated_at is not null)),
+ check(validated_by is null or status='VALIDATED')
 );
 create index if not exists icp_imports_project_idx on public.icp_imports(organization_id,project_id,created_at desc);
 create index if not exists icp_imports_url_day_idx on public.icp_imports(organization_id,created_at) where source_type='URL';
@@ -95,6 +98,14 @@ begin
  end if;
  if TG_OP='INSERT' then
   if op<>'start' or new.status<>'PENDING' then raise exception 'icp_imports are created by start_icp_import only' using errcode='42501'; end if;
+  return new;
+ end if;
+ -- Detaching a person who left (or whose account was removed): only created_by / validated_by may become null.
+ if to_jsonb(new)-'created_by'-'validated_by' = to_jsonb(old)-'created_by'-'validated_by'
+    and (new.created_by is null or new.created_by=old.created_by) and (new.validated_by is null or new.validated_by=old.validated_by)
+    and (new.created_by,new.validated_by) is distinct from (old.created_by,old.validated_by)
+    and (op='detach' or (old.created_by is not null and not exists(select 1 from auth.users where id=old.created_by))
+                     or (old.validated_by is not null and not exists(select 1 from auth.users where id=old.validated_by))) then
   return new;
  end if;
  if (new.id,new.organization_id,new.project_id,new.source_type,new.source_ref,new.created_by,new.created_at)
@@ -275,13 +286,18 @@ end $$;
 revoke all on function public.delete_icp_import(uuid) from public,anon,service_role;
 grant execute on function public.delete_icp_import(uuid) to authenticated;
 
--- A person who leaves an organization (account deletion, leaving or removal from the team) takes the imports they
--- started there with them, whatever their status. The organization keeps its validated ICP (public.icps).
+-- A person who leaves an organization (account deletion, leaving or removal from the team) takes with them the imports
+-- they started there that were never validated (PENDING, EXTRACTED, FAILED, DISCARDED). A VALIDATED import is the record
+-- of the organization's ICP: it stays, detached from the person (created_by / validated_by set to null).
 create or replace function prospectos_private.erase_member_icp_imports() returns trigger
 language plpgsql security definer set search_path='' as $$
 begin
  perform set_config('prospectos.icp_import_op','erase',true);
- delete from public.icp_imports where organization_id=old.organization_id and created_by=old.user_id;
+ delete from public.icp_imports where organization_id=old.organization_id and created_by=old.user_id and status<>'VALIDATED';
+ perform set_config('prospectos.icp_import_op','detach',true);
+ update public.icp_imports set created_by=case when created_by=old.user_id then null else created_by end,
+  validated_by=case when validated_by=old.user_id then null else validated_by end
+ where organization_id=old.organization_id and status='VALIDATED' and (created_by=old.user_id or validated_by=old.user_id);
  perform set_config('prospectos.icp_import_op','',true);
  return old;
 end $$;

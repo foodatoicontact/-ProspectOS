@@ -37,20 +37,34 @@ export function icpClient(token:string,fetcher:Fetcher=(i,init)=>fetch(i,init)){
 }
 export type IcpClient=ReturnType<typeof icpClient>;
 
-// The project's current import, as the database has it: the latest row, and its re-validated draft when there is one.
-export async function loadLatest(client:IcpClient,projectId:string):Promise<ApiResult<{row:ImportRow|null;detail:ImportDetail|null}>>{
+// The project's current import, as the database has it: the latest row, and its re-validated draft when there is one —
+// or the draft the person chose to look at again (pinned) while it is still a draft. When the latest import failed (a
+// retry that did not go through), previousDraft names the earlier draft that is still there to review.
+export type Latest={row:ImportRow|null;detail:ImportDetail|null;previousDraft:string|null};
+export async function loadLatest(client:IcpClient,projectId:string,pinned?:string|null):Promise<ApiResult<Latest>>{
  const list=await client.list(projectId);
  if(!list.ok)return list;
- const row=list.data[0]??null;
- if(!row)return {ok:true,status:200,data:{row:null,detail:null}};
- if(row.status==='PENDING')return {ok:true,status:200,data:{row,detail:null}};
+ const pinnedRow=pinned?list.data.find(r=>r.id===pinned&&r.status==='EXTRACTED'):undefined;
+ const row=pinnedRow??list.data[0]??null;
+ if(!row)return {ok:true,status:200,data:{row:null,detail:null,previousDraft:null}};
+ const previousDraft=row.status==='FAILED'?list.data.find(r=>r.id!==row.id&&r.status==='EXTRACTED')?.id??null:null;
+ if(row.status==='PENDING')return {ok:true,status:200,data:{row,detail:null,previousDraft}};
  const detail=await client.get(row.id);
  if(!detail.ok)return detail;
- return {ok:true,status:200,data:{row:detail.data.import,detail:detail.data}};
+ return {ok:true,status:200,data:{row:detail.data.import,detail:detail.data,previousDraft}};
 }
 
-// Unvalidated edits survive a reload, in this browser only (a convenience; the database stays the reference).
-const draftKey=(id:string)=>`prospectos.icp-review.${id}`;
-export function saveDraft(id:string,profile:IcpProfile){try{localStorage.setItem(draftKey(id),JSON.stringify(profile))}catch{/* storage unavailable */}}
-export function loadDraft(id:string):unknown{try{const v=localStorage.getItem(draftKey(id));return v?JSON.parse(v):null}catch{return null}}
-export function clearDraft(id:string){try{localStorage.removeItem(draftKey(id))}catch{/* storage unavailable */}}
+// Unvalidated edits survive a reload of this tab only (sessionStorage: gone when the tab closes, never shared with another
+// tab or another person on the same computer). Cleared on validation, rejection, deletion and sign-out (clearAllDrafts,
+// called by the account menu and on an expired session). The database stays the reference.
+const DRAFT_PREFIX='prospectos.icp-review.';
+const draftKey=(id:string)=>`${DRAFT_PREFIX}${id}`;
+const store=():Storage|null=>{try{return typeof sessionStorage==='undefined'?null:sessionStorage}catch{return null}};
+export function saveDraft(id:string,profile:IcpProfile){try{store()?.setItem(draftKey(id),JSON.stringify(profile))}catch{/* storage unavailable */}}
+export function loadDraft(id:string):unknown{try{const v=store()?.getItem(draftKey(id));return v?JSON.parse(v):null}catch{return null}}
+export function clearDraft(id:string){try{store()?.removeItem(draftKey(id))}catch{/* storage unavailable */}}
+export function clearAllDrafts(){
+ try{const s=store();if(!s)return;const keys:string[]=[];for(let i=0;i<s.length;i++){const k=s.key(i);if(k?.startsWith(DRAFT_PREFIX))keys.push(k)}for(const k of keys)s.removeItem(k)}catch{/* storage unavailable */}
+ // Drafts kept by an earlier version (localStorage): removed too.
+ try{if(typeof localStorage!=='undefined'){const keys:string[]=[];for(let i=0;i<localStorage.length;i++){const k=localStorage.key(i);if(k?.startsWith(DRAFT_PREFIX))keys.push(k)}for(const k of keys)localStorage.removeItem(k)}}catch{/* storage unavailable */}
+}

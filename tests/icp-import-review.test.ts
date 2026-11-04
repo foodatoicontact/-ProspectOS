@@ -6,7 +6,8 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {handleIcpImport,type IcpImportDeps} from '../src/icp-import/api.ts';
 import {viewOf,readStatus,setValue,removeAt,addValue,addZones,answerQuestion,parseDepartments,confidenceOf,nextPollDelay,isUnmonitored,MANUAL_SOURCE,IMPORT_LOCK_MS,POLL_MAX_MS,type ImportRow} from '../src/icp-import/review.ts';
-import {icpClient,loadLatest} from '../src/icp-import/client.ts';
+import {icpClient,loadLatest,saveDraft,loadDraft,clearDraft,clearAllDrafts} from '../src/icp-import/client.ts';
+import {StructureIcpError} from '../src/server/ai.ts';
 import {ICP_MESSAGES,errorText,SIGNAL_LABELS} from '../src/icp-import/messages.ts';
 import {projectCriteria,projectOffer} from '../src/domain/icp/projection.ts';
 import {parseIcpProfile,type IcpProfile} from '../src/domain/icp/schema.ts';
@@ -93,6 +94,13 @@ test('discard and retry — rejecting calls discard_icp_import; a retry needs th
  const {db:busyDb,rpc:busyRpc}=fakeDb({[IMP]:extracted()},null,{start_icp_import:'icp_import_in_progress'});
  assert.equal((await (await handleIcpImport(post(`${IMP}/retry`,{text}),['icp-imports',IMP,'retry'],busyDb,json,deps()))!.json()).code,'ICP_IMPORT_IN_PROGRESS');
  assert.deepEqual(busyRpc.map(c=>c.fn),['start_icp_import'],'a retry that could not start never loses the draft');
+ // A retry whose extraction fails (FAILED) leaves the previous draft untouched: still EXTRACTED, still readable.
+ const {db:failDb,rpc:failRpc}=fakeDb({[IMP]:extracted()});
+ const failing=deps({structure:async()=>{throw new StructureIcpError('AI_INVALID_RESULT',null,true)}});
+ assert.equal((await handleIcpImport(post(`${IMP}/retry`,{text}),['icp-imports',IMP,'retry'],failDb,json,failing))!.status,502);
+ assert.deepEqual(failRpc.map(c=>c.fn),['start_icp_import'],'no discard_icp_import when the new import is not EXTRACTED');
+ const still=await (await handleIcpImport(new Request(`https://x.test/api/v1/icp-imports/${IMP}`),['icp-imports',IMP],failDb,json,deps()))!.json();
+ assert.equal(still.import.status,'EXTRACTED');assert.equal(still.profile_state,'valid');
  const {db:runningDb}=fakeDb({[IMP]:extracted({status:'PENDING',created_at:ago(20),extracted:null})});
  assert.equal((await (await handleIcpImport(post(`${IMP}/retry`,{text}),['icp-imports',IMP,'retry'],runningDb,json,deps()))!.json()).code,'ICP_IMPORT_IN_PROGRESS');
  let entitled=false;
@@ -208,3 +216,49 @@ test('screen — mobile first and one-handed: decisive buttons in a bottom bar, 
  assert.match(src('../src/ui/v2/shell/AppShell.tsx'),/export \{IcpImport\} from '\.\.\/\.\.\/\.\.\/components\/IcpImport\.tsx';/);
  assert.match(ui,/\.pos-ui \.icp-bar\{bottom:calc\(var\(--pos-bottomnav-h/,'above the bottom navigation on a phone');
 });
+
+test('retry that failed — the screen offers the previous draft again; it stays pinned while it is a draft',async()=>{
+ const rows=[{id:NEW,status:'FAILED',error:'AI_INVALID_RESULT',created_at:ago(10)},{id:IMP,status:'EXTRACTED',created_at:ago(600)}];
+ const fetcher=async(url:string)=>url.includes('?project_id=')?Response.json(rows)
+  :Response.json({import:rows.find(r=>url.endsWith(r.id)),profile:url.endsWith(IMP)?fixture():null,profile_state:url.endsWith(IMP)?'valid':'none'});
+ const client=icpClient('tok',fetcher);
+ const latest=await loadLatest(client,P);
+ assert.ok(latest.ok);assert.equal(latest.data.row!.status,'FAILED');assert.equal(latest.data.previousDraft,IMP);
+ const back=await loadLatest(client,P,IMP);
+ assert.ok(back.ok);assert.equal(back.data.row!.id,IMP);assert.equal(viewOf(back.data.row,back.data.detail!.profile,NOW).kind,'review');
+ rows[1]!.status='DISCARDED';
+ const gone=await loadLatest(client,P,IMP);assert.ok(gone.ok);assert.equal(gone.data.row!.id,NEW,'a pin no longer a draft falls back to the latest import');
+ const ui=src('../src/components/IcpImport.tsx');
+ assert.match(ui,/\{previousDraft&&<button type="button" onClick=\{\(\)=>\{pinned\.current=previousDraft;/);
+});
+
+test('browser draft — kept in sessionStorage only, cleared on validation, rejection, deletion, sign-out and an expired session',()=>{
+ const mem=()=>{const m=new Map<string,string>();return {get length(){return m.size},key:(i:number)=>[...m.keys()][i]??null,getItem:(k:string)=>m.get(k)??null,setItem:(k:string,v:string)=>{m.set(k,v)},removeItem:(k:string)=>{m.delete(k)},clear:()=>m.clear(),m}};
+ const session=mem(),local=mem();
+ Object.assign(globalThis,{sessionStorage:session,localStorage:local});
+ try{
+  saveDraft(IMP,fixture());
+  assert.equal(session.m.size,1);assert.equal(local.m.size,0,'never in localStorage');
+  assert.deepEqual(loadDraft(IMP),fixture());
+  clearDraft(IMP);assert.equal(session.m.size,0);
+  saveDraft(IMP,fixture());saveDraft(NEW,fixture());session.setItem('other','x');local.setItem(`prospectos.icp-review.${P}`,'{}');
+  clearAllDrafts();
+  assert.deepEqual([...session.m.keys()],['other'],'only the import drafts');assert.equal(local.m.size,0,'an older localStorage draft goes too');
+ }finally{delete (globalThis as any).sessionStorage;delete (globalThis as any).localStorage}
+ assert.equal(loadDraft(IMP),null,'no storage: no draft, no error');
+ const ui=src('../src/components/IcpImport.tsx');
+ for(const handler of ['async function validate','async function discard','async function erase']){
+  const body=ui.slice(ui.indexOf(handler),ui.indexOf('\n }',ui.indexOf(handler)));
+  assert.match(body,/clearDraft\(row\.id\)/,`${handler} clears the draft`);
+ }
+ assert.match(ui,/const signedOut=useCallback\(\(\)=>\{clearAllDrafts\(\);onUnauthorized\(\)\}/);
+ assert.doesNotMatch(ui+src('../src/icp-import/client.ts').replace(/\/\/.*$/gm,''),/localStorage\.setItem/);
+ assert.match(src('../src/ui/v2/shell/UserMenu.tsx'),/onClick=\{act\(\(\)=>\{clearAllDrafts\(\);p\.onSignOut\(\)\}\)\}/,'the sign-out of the account menu');
+});
+
+test('migration 041 is frozen: its bytes are the ones reviewed; any further change goes to a new migration (042)',async()=>{
+ const {createHash}=await import('node:crypto');
+ const sql=readFileSync(new URL('../db/migrations/041_icp_import.sql',import.meta.url));
+ assert.equal(createHash('sha256').update(sql).digest('hex'),FROZEN_041_SHA256,'041 is frozen (docs/ICP_IMPORT.md): write a 042 instead');
+});
+const FROZEN_041_SHA256='3809aa68f8c8981b946f958d942a6cfa5c8d88fff570eed6e6d4e607da007b4f';

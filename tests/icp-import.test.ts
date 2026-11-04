@@ -335,8 +335,13 @@ test('smoke test without a computer — manual workflow only, the AI key as its 
  assert.doesNotMatch(code,/SUPABASE|vercel env pull|upload-artifact|actions\/cache@|SERVICE_ROLE/i,'no database key, no production pull, no artifact');
  assert.match(code,/environment: icp-smoke/);assert.match(code,/permissions:\n  contents: read/);
  assert.match(code,/::add-mask::\$AI_API_KEY/);
- const run=code.slice(code.indexOf('run: |'));
- assert.doesNotMatch(run,/\$\{\{/,'the inputs reach the shell through env only (no expression injection)');
+ const runs=code.split(/\n      - /).filter(step=>step.includes('run: |')).map(step=>step.slice(step.indexOf('run: |')));
+ assert.equal(runs.length,2);
+ for(const r of runs)assert.doesNotMatch(r,/\$\{\{/,'the inputs reach the shell through env only (no expression injection)');
+ const run=runs.join('\n');
  assert.match(code,/DOCUMENT_TEXT: \$\{\{ inputs\.document_text \}\}/);
  assert.match(run,/scripts\/icp-import-smoke\.ts --org "\$ORGANIZATION_ID"/);
+ assert.match(code,/if \[ ! -f scripts\/icp-import-smoke\.ts \][\s\S]*?::error title=Script absent::[\s\S]*?exit 1/,'a clear failure on a ref without the script');
+ assert.ok(code.indexOf('Script absent')<code.indexOf('npm ci'),'checked before installing anything');
+ assert.doesNotMatch(code,/required.reviewers|wait-timer/i,'no dependency on required reviewers');
 });

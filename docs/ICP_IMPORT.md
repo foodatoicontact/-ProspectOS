@@ -36,7 +36,7 @@ Un fichier illisible (mauvais format, scan, trop gros, bombe zip) est refusé **
 | DELETE | `/api/v1/icp-imports/:id` | — | efface l'import, quel que soit son statut sauf un import en cours (`ICP_IMPORT_IN_PROGRESS`) |
 | POST | `/api/v1/icp-imports/:id/validate` | `{profile, keep_offer, keep_criteria}` (≤ 150 Ko) | le profil relu est revalidé en entier, projeté, puis `validate_icp_import` sous l'identité de la personne |
 | POST | `/api/v1/icp-imports/:id/discard` | — | rejette le brouillon (`DISCARDED`), rien n'est écrit dans le projet |
-| POST | `/api/v1/icp-imports/:id/retry` | la source à nouveau (octets bruts ou `{text}`) | un nouvel import du **même** projet ; l'ancien brouillon n'est rejeté qu'une fois le nouvel import démarré |
+| POST | `/api/v1/icp-imports/:id/retry` | la source à nouveau (octets bruts ou `{text}`) | un nouvel import du **même** projet ; l'ancien brouillon n'est rejeté **qu'une fois le nouvel import `EXTRACTED`** : si la relance est refusée ou échoue, il reste consultable et validable |
 
 Ces routes sont traitées dans `app/api/v1/[...path]/route.ts` **avant** la lecture JSON générique (plafonnée à 20 000 caractères). Toutes passent par la session de la personne connectée : sans session, la route répond 401 avant tout ; les fonctions SQL vérifient l'appartenance à l'organisation (un import d'un autre tenant n'existe pas : 404).
 
@@ -47,12 +47,12 @@ Codes d'erreur : `FILE_TOO_LARGE` (413), `UNSUPPORTED_FILE` (415), `FILE_EMPTY`,
 `src/components/IcpImport.tsx`, en tête de la vue « Cible » (`app/page.tsx`), pour une personne connectée sur un vrai projet. Logique pure et testée dans `src/icp-import/review.ts` (état, éditions, questions), client navigateur dans `src/icp-import/client.ts`, textes FR/EN dans le dictionnaire local `src/icp-import/messages.ts` (pas dans `src/i18n/fr.ts` / `en.ts`).
 
 - **État lu en base** : l'écran affiche le dernier import du projet tel que la base l'a (`GET /icp-imports?project_id`, puis le brouillon revalidé). Pendant un import, il interroge la base toutes les 3 s (jusqu'à 15 s quand le réseau ne répond plus, avec un message « nouvelle tentative ») : un rechargement ou une coupure réseau retrouvent le même import. Un chargement long montre les étapes, le temps écoulé et « cela peut prendre jusqu'à une minute », jamais un écran vide. Un `PENDING` de plus de 2 minutes est affiché en échec avec « Relancer ».
-- **Revue** : chaque valeur est modifiable ; un badge dit sa confiance (Sûr ≥ 0,85, À vérifier ≥ 0,6, Peu sûr, Vide) ; « Source » montre au toucher le passage du document ; les champs vides sont surlignés. Une valeur saisie par la personne est sourcée « Saisi par vous » (confiance 1), jamais rattachée à un passage du document. Les modifications non validées sont gardées dans le navigateur (par import) et restaurées après un rechargement.
+- **Revue** : chaque valeur est modifiable ; un badge dit sa confiance (Sûr ≥ 0,85, À vérifier ≥ 0,6, Peu sûr, Vide) ; « Source » montre au toucher le passage du document ; les champs vides sont surlignés. Une valeur saisie par la personne est sourcée « Saisi par vous » (confiance 1), jamais rattachée à un passage du document. Les modifications non validées sont gardées dans l'onglet (`sessionStorage`, par import) et restaurées après un rechargement ; elles disparaissent à la fermeture de l'onglet et sont effacées à la validation, au rejet, à la suppression, à la déconnexion (menu du compte) et à l'expiration de la session.
 - **Questions manquantes** (5 au plus) : une à la fois, « Répondre » ou « Passer » ; la réponse va là où la question pointe (activité, services, types de clients, départements — codes ou noms —, interlocuteurs, exclusions).
 - **Signaux** `WORKS` et `CONTRACT_RENEWAL` : badge « Non surveillé pour l'instant » ; aucun signal n'est présenté comme surveillé.
 - **Brouillon illisible** (le schéma ne passe plus) : état « Brouillon illisible — à ré-importer », avec Relancer et Supprimer ; une erreur de rendu retombe sur ce même état.
 - **Décision** : « Valider ce profil » et « Rejeter » dans une barre en bas de l'écran (à portée de pouce), cases « Garder mon offre actuelle » / « Garder mes critères actuels » juste au-dessus. `VALIDATED` n'est atteint que par ce clic : aucun effet, minuteur ni interrogation ne valide.
-- **Relancer** : le document n'étant jamais conservé, l'écran renvoie la source encore en mémoire, sinon demande de la choisir à nouveau.
+- **Relancer** : le document n'étant jamais conservé, l'écran renvoie la source encore en mémoire, sinon demande de la choisir à nouveau. Si la relance échoue, l'écran propose « Revoir le brouillon précédent », resté intact.
 
 ### Projection (version 2B)
 
@@ -84,7 +84,7 @@ Une fonction interrompue par la plateforme (60 s) laisse sa ligne `PENDING`. Pas
 - Export RGPD : `icp_imports.json` dans l'archive du compte.
 - **Effacement** (`delete_icp_import`, route `DELETE`) : tout membre de l'organisation efface un import, quel que soit son statut (`VALIDATED` compris), sauf un import en cours (`PENDING` de moins de 2 minutes : son résultat arriverait sur une ligne effacée). Ni un autre tenant, ni un visiteur anonyme, ni le rôle serveur ne le peuvent.
 - **Suppression d'un projet** : ses imports partent avec lui, quel que soit leur statut (clé étrangère `on delete cascade` ; le déclencheur l'autorise dès que le projet n'existe plus). L'application n'a pas encore de bouton de suppression de projet : c'est une opération d'administration.
-- **Suppression d'un compte** : quand une personne quitte une organisation (suppression de son compte, départ ou retrait de l'équipe), les imports qu'**elle** a lancés dans cette organisation sont effacés, quel que soit leur statut (déclencheur sur `memberships`). Les imports des autres membres restent.
+- **Départ d'un membre** (suppression de son compte, départ ou retrait de l'équipe) : les imports **non validés** qu'il a lancés dans l'organisation (`PENDING`, `EXTRACTED`, `FAILED`, `DISCARDED`) sont supprimés. Les imports **`VALIDATED`** sont conservés : ils sont la trace de l'ICP de l'organisation, relu et accepté ; ils sont détachés de la personne, `created_by` et `validated_by` passant à `null` (y compris un import lancé par un autre membre et validé par celle qui part). Rien d'autre n'y change, et rien ne peut les réattribuer (déclencheur). La même mise à `null` s'applique si un compte est supprimé directement en base (clés étrangères `on delete set null`). Les imports des autres membres restent tels quels.
 - **Ce qui reste : le profil validé dans `icps`.** Valider un import copie le profil relu dans `icps.profile` (avec `projected_offer`, `projected_criteria`, `profile_validated_by`) et peut réécrire `projects.offer` et les règles des critères. Effacer l'import n'efface pas cela, volontairement : c'est désormais l'ICP de l'organisation, relu et accepté par une personne, utilisé par le score et la recherche comme un ICP saisi à la main ; l'effacer en cascade casserait le ciblage des autres membres. `profile_import_id` pointe alors vers un import qui n'existe plus (ce n'est pas une clé étrangère). Ce profil décrit l'entreprise cliente et son offre, pas une personne ; le seul identifiant personnel est `profile_validated_by`, l'identifiant technique de qui a validé (un compte supprimé est anonymisé : e-mail remplacé, accès coupé ; l'identifiant reste). Il disparaît avec le projet, ou est remplacé par la validation suivante.
 - La base ne contrôle que le contour du profil (objet, ≤ 100 Ko, 6 clés racine) ; **chaque lecture repasse par `parseIcpProfile`** et un profil qui ne passe plus est déclaré illisible (« Relancez un import »), jamais utilisé en partie.
 
@@ -124,6 +124,10 @@ node --experimental-strip-types scripts/icp-import-smoke.ts --org <uuid-organisa
 Un PDF ou un DOCX passe aussi (`… --org <uuid> plaquette.pdf`). Avec `NEXT_PUBLIC_SUPABASE_URL` et `SUPABASE_SERVICE_ROLE_KEY` définis, le coût est lu dans la table de prix plutôt que calculé au tarif fourni.
 
 À vérifier sur la sortie : chaque `source` est bien un passage du document ; aucune valeur n'apparaît sans source ; les zones et sites correspondent au document ; le coût reste dans l'ordre de grandeur ci-dessus.
+
+## Migration 041 gelée
+
+La migration `041_icp_import.sql` est **gelée** depuis le commit « correctifs avant l'étape 3 » : plus aucune modification. Tout changement futur du schéma de l'import (table, fonctions, déclencheurs, droits) passe par une nouvelle migration **042** (puis suivantes), avec ses propres tests et son rollback. Un test (`tests/icp-import-review.test.ts`) vérifie l'empreinte SHA-256 du fichier et échoue à la moindre modification. La 041 n'est appliquée ni en staging ni en production à ce jour.
 
 ## Tests
 

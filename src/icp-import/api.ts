@@ -8,7 +8,8 @@
 //   GET  /api/v1/icp-imports/:id                 one import, its draft re-validated on every read (stale PENDING = FAILED)
 //   POST /api/v1/icp-imports/:id/validate        {profile, keep_offer, keep_criteria} — a person's click (step 2B)
 //   POST /api/v1/icp-imports/:id/discard         reject the draft
-//   POST /api/v1/icp-imports/:id/retry           the source again (raw file or {text}) → a new import of the project
+//   POST /api/v1/icp-imports/:id/retry           the source again (raw file or {text}) → a new import of the project;
+//                                                 the previous draft is rejected only once the new one is EXTRACTED
 //   DELETE /api/v1/icp-imports/:id               erase it, whatever its status but a running one
 // Every route runs under the signed-in user's identity (RLS and the SECURITY DEFINER functions check membership).
 //
@@ -273,7 +274,7 @@ export async function handleIcpImport(request:Request,path:string[],db:SupabaseC
   });
  }
  // ----- retry: POST /icp-imports/:id/retry with the source again (files and texts are never kept) — a new import of the
- // same project; the previous one, if it can still be rejected, is rejected once the new import has started.
+ // same project; the previous one, if it can still be rejected, is rejected once the new import is EXTRACTED.
  if(action==='retry'){
   await deps.requireEntitlement();
   return guarded(async()=>{
@@ -284,10 +285,10 @@ export async function handleIcpImport(request:Request,path:string[],db:SupabaseC
    const kind=(request.headers.get('content-type')??'').includes('application/json')?'text':'file';
    const src=await readSource(request,kind,row.project_id as string);
    if(typeof src==='string')return refuse(json,src);
-   // Only once the new import has started (a refusal — quota, import in progress — throws before): the draft is never
-   // lost to a retry that could not run.
+   // The previous import is rejected only once the new one is EXTRACTED (201): a retry that is refused, fails or cannot
+   // be recorded leaves the previous draft as it was — still readable, still reviewable.
    const res=await createImport(db,json,deps,src.projectId,src.ingested,src.label,started);
-   if(prev.status==='EXTRACTED'||(prev.status==='FAILED'&&!prev.stale))await Promise.resolve(db.rpc('discard_icp_import',{p_import_id:id})).catch(()=>{});
+   if(res.status===201&&(prev.status==='EXTRACTED'||(prev.status==='FAILED'&&!prev.stale)))await Promise.resolve(db.rpc('discard_icp_import',{p_import_id:id})).catch(()=>{});
    return res;
   });
  }

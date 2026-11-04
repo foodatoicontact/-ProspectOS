@@ -222,20 +222,33 @@ try {
     for (const [st, id] of Object.entries(ids)) assert.equal((await row(id)).status, st);
     return ids;
   }
-  await check('N_ACCOUNT_DELETION: a member who deletes their account takes every import they started (VALIDATED included); the others stay', async () => {
+  await check('N_ACCOUNT_DELETION: a member who deletes their account takes their unvalidated imports; VALIDATED ones stay, detached (created_by / validated_by null)', async () => {
     const C = '00000000-0000-4000-8000-0000000000c1';
     await sql(`insert into auth.users(id,email) values ($1,'c@client.fr')`, [C]);
     await sql(`insert into public.memberships(organization_id,user_id,role) values ($1,$2,'member')`, [ctx.A.org, C]);
     await sql(`insert into public.account_entitlements(user_id,plan,status,starts_at,expires_at) values ($1,'INTERNAL','ACTIVE',now()-interval '1 minute',now()+interval '7 days')`, [C]);
     const project = await newProject(ctx.A, 'Projet de C');
     const mine = await everyStatus(C, project);
-    const theirs = (await sql('select id from public.icp_imports where created_by=$1', [A])).rows.map(r => r.id);
+    // An import started by A and validated by C: C's trace goes, A's stays.
+    const other = await newProject(ctx.A, 'Validé par C');
+    const byA = (await as(A, 'select public.start_icp_import($1,$2,$3) id', [other, 'TEXT', 'texte'])).rows[0].id;
+    await complete(byA); await validate(C, byA);
+    const theirs = (await sql(`select id from public.icp_imports where created_by=$1 and id<>$2`, [A, byA])).rows.map(r => r.id);
     assert.ok(theirs.length > 0);
     await as(C, 'select public.delete_own_account()');
-    for (const [st, id] of Object.entries(mine)) assert.equal(await row(id), undefined, `${st} import of the deleted account erased`);
+    for (const st of ['EXTRACTED', 'FAILED', 'DISCARDED', 'PENDING']) assert.equal(await row(mine[st]), undefined, `${st} import of the deleted account erased`);
+    const kept = await row(mine.VALIDATED);
+    assert.ok(kept, 'a VALIDATED import stays with the organization');
+    assert.equal(kept.status, 'VALIDATED'); assert.equal(kept.created_by, null); assert.equal(kept.validated_by, null); assert.ok(kept.validated_at);
+    assert.equal(kept.organization_id, ctx.A.org);
+    const mixed = await row(byA); assert.equal(mixed.created_by, A, 'the other member stays the author'); assert.equal(mixed.validated_by, null, 'the leaving validator is detached');
     for (const id of theirs) assert.ok(await row(id), 'the imports of the other members stay');
+    assert.equal(Number((await as(A, 'select count(*) n from public.icp_imports where id=$1', [mine.VALIDATED])).rows[0].n), 1, 'still readable by the organization');
     assert.ok((await icp({ project })), 'the validated ICP of the organization stays (public.icps)');
     await refused(() => as(C, `select public.start_icp_import($1,'TEXT','x')`, [ctx.A.project]), /member/i, 'a new import after deletion');
+    // Detaching is the only change: a forged attempt to reassign a validated import is refused.
+    await refused(() => sql(`update public.icp_imports set created_by=$2 where id=$1`, [mine.VALIDATED, A]), /immutable|transition refused/, 'reassigning a validated import');
+    await refused(() => sql(`update public.icp_imports set created_by=null where id=$1`, [byA]), /immutable|transition refused/, 'detaching someone who did not leave');
   });
   await check('O_ERASE: a member erases an import at every status but a running one; never another tenant’s', async () => {
     const project = await newProject(ctx.A, 'Effacements');

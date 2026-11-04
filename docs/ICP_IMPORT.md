@@ -158,7 +158,7 @@ Même document (`detec-incendie.source.txt`, 8 397 caractères) : **échec `AI_T
 - **Pire cas** : `largestProfile()` remplit **toutes** les listes à leur plafond, **tous** les textes et **toutes** les sources à leur longueur maximale. Ce qui coûte, c'est le nombre de valeurs : chacune porte `{"value","source","confidence"}` (≈ 41 caractères de structure) plus sa source.
   - plafonds précédents (12 éléments par liste, 5 segments, sources de 200 caractères) : ≈ 81 000 caractères, **≈ 34 000 tokens** au pire — ils ne tenaient que parce que les documents réels ne les remplissent pas (profil réel du smoke test #1 : ≈ 2 950 tokens en JSON compact) ;
   - plafonds retenus : **≈ 2 955 tokens** au pire, pour un **budget de 3 000** (≤ 75 % de `max_tokens` : ≥ 1 096 tokens de marge).
-- **Plafonds retenus** (`ICP_LIMITS`, schéma + prompt) : sources 40 caractères ; nom 60, activité 100 ; 6 sites (ville 40), 4 zones ; 8 services (40), 3 engagements (50), 3 différences (50), 1 preuve (50) ; 3 segments (libellé 40, 1 code APE, 2 tranches, cycle 20) ; 1 persona (fonction 40, 1 difficulté 50, angle 50) ; 2 signaux (2 segments) ; 1 exclusion (40 / 40). Le prompt demande, s'il y en a plus, de garder les plus importants.
+- **Plafonds retenus au smoke test #3** (`ICP_LIMITS`, schéma + prompt ; **depuis 9ba2190 : 9 services**, la place des codes APE retirés — voir smoke test #4) : sources 40 caractères ; nom 60, activité 100 ; 6 sites (ville 40), 4 zones ; 8 services (40), 3 engagements (50), 3 différences (50), 1 preuve (50) ; 3 segments (libellé 40, 1 code APE, 2 tranches, cycle 20) ; 1 persona (fonction 40, 1 difficulté 50, angle 50) ; 2 signaux (2 segments) ; 1 exclusion (40 / 40). Le prompt demande, s'il y en a plus, de garder les plus importants.
 - **Garde** : `tests/icp-budget.test.ts` vérifie que le plus grand profil accepté par le schéma tient sous le budget, que relever d'un élément une liste à valeurs textuelles le dépasse, et épingle ensemble plafonds, budget et estimation : relever un plafond sans refaire le calcul fait échouer le test.
 - **Journal** : chaque échec donne les tokens d'**entrée** et de **sortie** séparément, avec la sortie du dernier appel à côté de `max_tokens` (une sortie au plafond se voit directement) ; le script de smoke test les affiche aussi.
 
@@ -198,6 +198,14 @@ Correctifs :
 - **zéro invention** : une valeur sans source, ou dont la source n'est pas un passage du document (après la coupe), est vidée ; rien n'est jamais complété, deviné ou reformulé par le serveur ;
 - **validation finale entière** par `parseIcpProfile` (objets stricts, codes de département et tranches connus, clés de segment uniques) : si elle échoue encore, c'est un rejet ;
 - **brouillon** : rien n'est appliqué sans validation humaine ; les avertissements et les questions manquantes sont montrés à la revue.
+
+## Smoke test #5 (sur b38783a) et journal des éléments écartés
+
+1 appel, 1 903 tokens de sortie, 0,031 $, sécurité OK. Trois points :
+
+- **`offer.services` à 9 éléments** : ce n'est pas un dépassement. Le plafond est **9** depuis 9ba2190 (smoke test #4 : la place libérée par les codes APE a rendu un service ; budget 2 900, pire cas 2 897) — c'est la doc du smoke test #3 qui disait encore 8. La normalisation **coupe bien** toute liste à son plafond (premiers éléments gardés, avertissement `ITEM_DROPPED_OVER_LIMIT`, qui nomme désormais les éléments retirés) ; aucun nouveau code n'est nécessaire. Le test de budget épingle déjà `services:9`.
+- **Journal des éléments écartés** : chaque `ITEM_DROPPED_*` donne son chemin, la règle précise du schéma qui l'a refusé (« role : valeur non admise (attendu HQ|AGENCY|PARTNER) », « trop long (40 max) », « enveloppe {value, source, confidence} attendue », « persona sans fonction (role vide) », « 9 éléments max (11 reçus) »…) et **les 60 premiers caractères** de ce que le modèle a écrit. Une valeur seule vidée (`VALUE_DROPPED_*`) donne sa règle, sans extrait. **Ce que cela change** : jusqu'ici aucun texte du document n'allait dans les journaux ; ces extraits de 60 caractères y vont désormais (journaux serveur, en production aussi). Ce qui est gardé dans le profil n'y apparaît toujours pas.
+- **Prompt** : un différenciateur ne doit répéter ni `coverage` (couverture nationale…) ni un engagement de `promises` (délai…). Prompt système ≈ 1 970 tokens estimés (garde de 2 000).
 
 ## Migration 041 gelée
 

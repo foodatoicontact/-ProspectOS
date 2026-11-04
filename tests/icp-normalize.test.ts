@@ -127,8 +127,11 @@ test('end to end — an answer like smoke test #4 gives a partial draft with war
   assert.ok(b.import.missing_questions.length>0);
   const done=admin.find(c=>c.fn==='complete_icp_import')!.args;assert.equal(done.p_status,'EXTRACTED');
   const norm=logs.map(l=>JSON.parse(l)).find(l=>l.reason==='NORMALIZED')!;
-  assert.ok(norm.fixes.includes('company.sites.0: ITEM_DROPPED_INVALID (wrong_shape)'));
-  assert.ok(!logs.join('\n').includes('Annet-sur-Marne'),'never a value in the logs');
+  assert.ok(norm.fixes.some((f:string)=>f.startsWith('company.sites.0: ITEM_DROPPED_INVALID (wrong_shape)')));
+  // A dropped item is named by its first 60 characters; nothing that was kept appears in the logs.
+  assert.ok(norm.fixes.some((f:string)=>f.startsWith('company.sites.0: ITEM_DROPPED_INVALID (wrong_shape) — enveloppe {value, source, confidence} attendue — « {"city":"Annet-sur-Marne"')));
+  assert.ok(norm.fixes.includes('company.sites.2: ITEM_DROPPED_INVALID (invalid_value) — role : valeur non admise (attendu HQ|AGENCY|PARTNER) — « {"city":"Mâcon","department":"71","role":"FRANCHISE"} »'));
+  assert.ok(!logs.join('\n').includes('Nevers')&&!logs.join('\n').includes('Détec'),'never a kept value in the logs');
  }finally{ai.restore();err.mock.restore()}
 });
 
@@ -196,4 +199,28 @@ test('smoke script — the configured model (AI_MODEL) is shown first',()=>{
  const src=readFileSync(new URL('../scripts/icp-import-smoke.ts',import.meta.url),'utf8');
  assert.match(src,/console\.log\(`■ Modèle : \$\{process\.env\.AI_MODEL\} \(\$\{process\.env\.AI_PROVIDER\}\)`\);/);
  assert.match(src,/■ Échec : \$\{e\.code\}\$\{u\?` — modèle \$\{u\.model\}/);
+});
+
+test('journal — every dropped list item names the rule that refused it and its first 60 characters; a dropped single value its rule only',async()=>{
+ const {EXCERPT_MAX}=await import('../src/domain/icp/normalize.ts');
+ const raw=smoke4Like();
+ (raw as any).personas=[{role:leaf(null,null,0),painPoints:[],messageAngle:E},{role:leaf('R'.repeat(80),'x'),painPoints:[],messageAngle:E}];
+ raw.offer.services=Array.from({length:ICP_LIMITS.services+2},(_,i)=>leaf(`Service ${i}`,'Extincteurs'));
+ const n=normalizeExtraction(raw);assert.ok(n.ok);
+ const items=n.fixes.filter(f=>f.code.startsWith('ITEM_DROPPED'));
+ assert.ok(items.length>=5);
+ for(const f of items){assert.ok(f.rule,`${f.path} has its rule`);assert.ok(f.excerpt!==undefined&&f.excerpt.length<=EXCERPT_MAX,`${f.path} has an excerpt of at most 60 characters`)}
+ const at=(p:string)=>n.fixes.find(f=>f.path===p&&f.code.startsWith('ITEM'))!;
+ assert.equal(at('personas.0').rule,'persona sans fonction (role vide)');
+ assert.equal(at('personas.1').rule,'persona sans fonction utilisable (voir personas.1.role)');assert.equal(at('personas.1').excerpt,'R'.repeat(60));
+ assert.equal(at('offer.services').rule,`${ICP_LIMITS.services} éléments max (${ICP_LIMITS.services+2} reçus) : les premiers sont gardés`);
+ assert.match(at('offer.services').excerpt!,/Service 9/,'the items over the bound are named');
+ assert.equal((n.value as any).offer.services.length,ICP_LIMITS.services,'a list is cut at its bound');
+ const single=n.fixes.find(f=>f.path==='personas.1.role')!;
+ assert.equal(single.code,'VALUE_DROPPED_TOO_LONG');assert.equal(single.rule,`trop long (${ICP_LIMITS.role} max)`);assert.equal(single.excerpt,undefined,'no excerpt for a single value');
+});
+
+test('prompt — a differentiator must not repeat coverage or a promise already extracted',async()=>{
+ const {ICP_SYSTEM_PROMPT}=await import('../src/server/ai.ts');
+ assert.match(ICP_SYSTEM_PROMPT,/"differentiators" : ne répète ni "coverage" \(ex\. couverture nationale\) ni un engagement de "promises" \(ex\. délai\)\./);
 });

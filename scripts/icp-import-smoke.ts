@@ -73,7 +73,7 @@ try{
  walk(profile,'');
  const counts=countByCategory(fixes,unverified);
  console.log(`■ Décompte : ${counts.source_too_long} source(s) trop longue(s), ${counts.source_not_in_document} source(s) absente(s) du document, ${counts.value_too_long} valeur(s) trop longue(s), ${counts.ape_codes_ignored} segment(s) avec codes APE ignorés, ${counts.list_item_wrong_shape} élément(s) de liste mal enveloppé(s), ${counts.other} autre(s)`);
- if(fixes.length){console.log(`■ Corrections de normalisation (${fixes.length}) :`);for(const f of fixes)console.log(`  ${f.code}  ${f.path}  (${f.reason})`)}
+ if(fixes.length){console.log(`■ Corrections de normalisation (${fixes.length}) :`);for(const f of fixes)console.log(`  ${f.code}  ${f.path}  (${f.reason})${f.rule?` — ${f.rule}`:''}${f.excerpt!==undefined?`\n        « ${f.excerpt} »`:''}`)}
  else console.log('■ Aucune correction de normalisation.');
  const noSource=dropped.filter(d=>!unverified.includes(d));
  if(noSource.length)console.log(`■ Valeurs écartées faute de source : ${noSource.join(', ')}`);

@@ -26,6 +26,16 @@ La clé Supabase service role est utilisée exclusivement côté serveur, pour u
 
 Les réglages sont administratifs dans `prospectos_private.discovery_quota_settings` ; les quotas couvrent les recherches et le nombre de résultats par recherche (par organisation) et les analyses de sites (par organisation **et** par utilisateur, migration 015) ; leurs valeurs sont techniques, configurables, sans engagement commercial.
 
+## Import de l'entreprise (profil ICP)
+
+Détail : `docs/ICP_IMPORT.md`. La personne importe **sa propre** présentation (texte collé, PDF, DOCX) ; le résultat est un brouillon que seule une validation humaine (`validate_icp_import`) transforme en profil. Rien n'est utilisé en prospection avant, rien n'est envoyé.
+
+Fichiers : corps brut lu par morceaux et arrêté au premier octet au-delà de 4 Mio (jamais de base64, `Content-Length` non cru), type décidé par les octets de tête (`%PDF-`, `PK\x03\x04` + `word/document.xml`), jamais par l'extension ni le Content-Type. Lus en mémoire, jamais stockés ni exécutés : PDF par PDF.js (`unpdf`, version figée) sans police, sans XFA, 30 pages et 15 s au plus, scan refusé (pas d'OCR) ; DOCX par JSZip, 1 000 entrées au plus, `word/document.xml` décompressé compté pendant l'inflation et arrêté à 10 Mio (bombe zip), aucune macro, aucun objet ni lien externe lu. Un fichier refusé ne touche ni la base ni le quota.
+
+Injection : le document est une donnée, envoyée une fois, encodée en JSON entre deux marqueurs à nonce aléatoire, après un prompt système qui l'énonce ; aucun outil, réflexion désactivée, sortie bornée. La réponse doit être un unique objet JSON validé par un schéma Zod strict : une propriété inconnue, un type ou un code faux fait refuser le profil entier (un nouvel essai au plus, avec nos seuls messages de validation, jamais le document) ; jamais de réparation. Une valeur sans source est vidée et devient une question. Une réponse tronquée ou refusée arrête l'import. Le brouillon est revalidé à chaque lecture.
+
+Isolation : `start_icp_import` (membre, verrou, 1 import en cours par projet, quota d'analyse d'offre, 10 imports d'URL par organisation et par jour) ; `complete_icp_import` au seul rôle service ; aucune écriture directe sur `icp_imports` (déclencheur et droits) ; BYOK illisible = échec fermé. Journaux : codes et compteurs seulement, jamais le document ni la réponse du modèle. L'import d'URL (étape 3) reprendra `safe-fetch` et sera documenté ici.
+
 ## Journalisation et limites
 
 Journaux : provider, durée, résultats, pages, propositions et erreurs génériques ; tokens/coût IA égaux à zéro pour l'extraction déterministe. Aucune clé API ni jeton Auth journalisé. Les payloads de recherche restent soumis à RLS ; définir une politique de rétention avant usage commercial.

@@ -5,7 +5,8 @@ import {handleMorningDigest} from '../../../../src/digest/api';
 import {projectCriteria} from '../../../../src/domain/relations';
 import {authenticatedDb} from '../../../../src/server/db';
 import {analyzeOffer,AnalyzeOfferError} from '../../../../src/server/ai';
-import {composeOutreachMessage} from '../../../../src/server/ai';
+import {composeOutreachMessage,structureIcp} from '../../../../src/server/ai';
+import {handleIcpImport} from '../../../../src/icp-import/api';
 import {analyzeCompanyGuarded} from '../../../../src/server/ai-guard';
 import {checked as checkedRpc} from '../../../../src/discovery/repository';
 import {CriterionContextSchema} from '../../../../src/discovery/types';
@@ -77,6 +78,14 @@ async function handler(request:Request,context:{params:Promise<{path:string[]}>}
  // UX A/B (src/ux/variant.ts): a presentation label for analytics only, never read by any check below.
  const ux=parseUxHeader(request.headers.get(UX_HEADER));
  const uxAdmin=()=>{try{return createAdminClient()}catch{return null}};
+ // ICP import (src/icp-import/api.ts, docs/ICP_IMPORT.md): a file arrives as the raw body (≤ 4 MiB) and pasted text up to
+ // 50 000 characters — both read there with their own limits, BEFORE the generic JSON read below (20 000 characters).
+ const icpImportResponse=await handleIcpImport(request,path,db,json,{userId:user.id,now:Date.now,
+  requireEntitlement:()=>requireActiveEntitlement(db,user.id),admin:createAdminClient,aiProvider:process.env.AI_PROVIDER,
+  resolveCredential:organizationId=>resolveProviderCredential(organizationId,'anthropic'),structure:structureIcp,
+  meter:({organizationId,projectId,usage,attempt})=>recordApiUsage({organizationId,projectId,userId:user.id,provider:usage.provider,operation:'offer_analysis',model:usage.model,inputTokens:attempt.input_tokens,outputTokens:attempt.output_tokens,billingSource:usage.credential_source}),
+  release:()=>releaseCommercialUse(createAdminClient(),user.id,'ai_offer'),log:line=>console.info(JSON.stringify(line))});
+ if(icpImportResponse)return icpImportResponse;
  let body:Record<string,any>={};
  if(!['GET','HEAD'].includes(request.method)){const raw=await request.text();if(raw.length>20000)return json({error:'Corps trop volumineux'},413);try{body=JSON.parse(raw||'{}')}catch{return json({error:'JSON invalide'},400)}if(!body||Array.isArray(body))return json({error:'Objet requis'},400)}
  const discoveryResponse=await handleDiscovery(request,path,body,db,user);if(discoveryResponse)return discoveryResponse;

@@ -9,7 +9,7 @@ import {Component,useCallback,useEffect,useMemo,useRef,useState,type ReactNode} 
 import type {Locale} from '../i18n/locale';
 import type {IcpProfile} from '../domain/icp/schema';
 import {icpClient,loadLatest,saveDraft,loadDraft,clearDraft,clearAllDrafts,type ImportDetail,type Source,type ValidateResult} from '../icp-import/client';
-import {displaySource,viewOf,nextPollDelay,confidenceOf,setValue,removeAt,addValue,addZones,answerQuestion,isUnmonitored,MANUAL_SOURCE,type ImportRow,type Path,type EditResult} from '../icp-import/review';
+import {displaySource,partialSource,viewOf,nextPollDelay,confidenceOf,setValue,removeAt,addValue,addZones,answerQuestion,isUnmonitored,MANUAL_SOURCE,type ImportRow,type Path,type EditResult} from '../icp-import/review';
 import {parseIcpProfile,ICP_LIMITS} from '../domain/icp/schema';
 import {DEPARTMENTS} from '../discovery/geo-fr';
 import {icpText,errorText,SIGNAL_LABELS,type IcpMessageKey} from '../icp-import/messages';
@@ -46,6 +46,7 @@ const CSS=`
 .icp-badge.high{background:#e4f0da;color:#2f6a3a}.icp-badge.medium{background:#faf1d8;color:#7a5d12}.icp-badge.low{background:#f6e3de;color:#8a3b2b}.icp-badge.empty{background:#fff3c4;color:#7a5d12}
 .icp-badge.unmonitored{background:#f1f3ee;color:#66725f}
 .icp-badge.figure{background:#e8f0fb;color:#1f4f8a;margin-left:4px}
+.icp-badge.partial{background:#fbeede;color:#8a4b12}
 .icp-import .text-button{font-size:13px;min-height:44px;padding:8px 6px}
 .icp-quote{margin:6px 0 0;padding:8px 10px;border-left:3px solid #bad498;background:#f7f9f3;font-size:13px;overflow-wrap:anywhere}
 .icp-item{display:grid;grid-template-columns:1fr auto;gap:6px;align-items:start;border:1px solid var(--line,#e5e9e4);border-radius:10px;padding:10px;margin-bottom:8px;min-width:0}
@@ -318,6 +319,7 @@ function Meta({t,leaf,noBadge}:{t:ReviewProps['t'];leaf:Leaf;noBadge?:boolean}){
  const label:Record<typeof c,IcpMessageKey>={high:'cHigh',medium:'cMedium',low:'cLow',empty:'cEmpty'};
  return <><div className="icp-meta">
   {!noBadge&&<span className={`icp-badge ${c}`}>{t(label[c])}</span>}
+  {partialSource(leaf)&&<span className="icp-badge partial" data-partial-source title={t('partialSourceHint')}>{t('partialSource')}</span>}
   {leaf.value!==null&&<button type="button" className="text-button" aria-expanded={open} onClick={()=>setOpen(o=>!o)}>{t('source')}</button>}
  </div>{open&&<blockquote className="icp-quote">{leaf.source===MANUAL_SOURCE?t('sourceManual'):leaf.source?displaySource(leaf.source):t('noSource')}</blockquote>}</>;
 }

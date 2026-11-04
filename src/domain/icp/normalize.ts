@@ -17,8 +17,8 @@ import {ICP_LIMITS as L,VALUE,SEGMENT_KEY,ROOT_KEYS,ICP_PROFILE_VERSION} from '.
 import type {z} from 'zod';
 
 export type FixCode='SOURCE_TRUNCATED'|'VALUE_DROPPED_TOO_LONG'|'VALUE_DROPPED_INVALID'|'ITEM_DROPPED_INVALID'|'ITEM_DROPPED_TOO_LONG'
- |'ITEM_DROPPED_OVER_LIMIT'|'FIELD_DROPPED_UNKNOWN'|'FIELD_MISSING'|'APE_CODES_IGNORED'|'SEGMENT_REF_DROPPED'|'KEY_REGENERATED';
-export type Reason='too_long'|'invalid_value'|'wrong_shape'|'over_limit'|'unknown_field'|'not_requested';
+ |'ITEM_DROPPED_OVER_LIMIT'|'FIELD_DROPPED_UNKNOWN'|'FIELD_MISSING'|'APE_CODES_IGNORED'|'SEGMENT_REF_DROPPED'|'KEY_REGENERATED'|'VALUE_TRIMMED';
+export type Reason='too_long'|'invalid_value'|'wrong_shape'|'over_limit'|'unknown_field'|'not_requested'|'not_in_source';
 // rule: which rule of the schema refused it, in words. For an item taken out of a list (ITEM_DROPPED_*): length, the
 // size of what the model wrote (characters), and excerpt, its first 60 characters. The excerpt is for the operator's
 // smoke-test console only (scripts/icp-import-smoke.ts); the server log (describeFixes) carries path, rule and length —
@@ -85,6 +85,35 @@ export function cutSource(source:string,value?:unknown,max=L.source):string{
  if(!best)return source.slice(0,max);
  return source.slice(best.start,best.end).replace(/[\s,;:\-–—]+$/,'');
 }
+// ---------- how much of a value its source covers (after runs #10 and #11) ----------
+// Words of a text, folded (no accents, no case), split on anything that is not a letter or a digit.
+const foldedWords=(s:string)=>s.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().split(/[^a-z0-9]+/).filter(Boolean);
+export const PARTIAL_SOURCE_RATIO=0.5;
+// A text value is "partially sourced" when fewer than half of its words of 4 letters or more (no accents, no case)
+// appear in its source. Only a marking for the review screen: the value is kept. A value with no such word, a value
+// that is not text, a missing source, are never marked.
+export function isPartialSource(value:unknown,source:string|null|undefined):boolean{
+ if(typeof value!=='string'||typeof source!=='string'||!source)return false;
+ const wanted=[...new Set(foldedWords(value).filter(w=>(w.match(/[a-z]/g)??[]).length>=4))];
+ if(!wanted.length)return false;
+ const have=new Set(foldedWords(source));
+ return wanted.filter(w=>have.has(w)).length/wanted.length<PARTIAL_SOURCE_RATIO;
+}
+// offer.proofs only: a proper noun (a word that starts with a capital letter) of the value that its source does not
+// hold is taken out of the value, with the separator that goes with it; the rest is kept as written. Returns the value
+// unchanged when nothing is taken out, '' when nothing is left. Compared without accents nor case.
+export function trimProperNouns(value:string,source:string):string{
+ const have=new Set(foldedWords(source));
+ const tokens=value.match(/[\p{L}\p{N}]+|[^\p{L}\p{N}]+/gu)??[];
+ const isWord=(t:string)=>/^[\p{L}\p{N}]/u.test(t);
+ const gone=tokens.map(t=>isWord(t)&&/^\p{Lu}/u.test(t)&&foldedWords(t).some(w=>!have.has(w)));
+ if(!gone.some(Boolean))return value;
+ // A taken-out word goes with the separator before it — or, at the very start, the one after it.
+ const drop=gone.slice();
+ tokens.forEach((t,i)=>{if(!gone[i])return;if(i>0&&!isWord(tokens[i-1]!)&&tokens.slice(0,i-1).some((x,k)=>isWord(x)&&!gone[k]))drop[i-1]=true;else if(i+1<tokens.length&&!isWord(tokens[i+1]!))drop[i+1]=true});
+ return tokens.filter((_,i)=>!drop[i]).join('').replace(/^[\s,;:.…\-–—/]+|[\s,;:.…\-–—/]+$/g,'').replace(/\s{2,}/g,' ').replace(/\s+(?:et|ou|and|or|&)$/i,'');
+}
+
 // A segment key from its label: lower case, no accents, underscores, ICP_LIMITS.segmentKey characters at most, a numeric
 // suffix when it is already taken.
 export function segmentKeyFrom(label:string,taken:readonly string[]):string{
@@ -163,7 +192,16 @@ export function normalizeExtraction(raw:unknown):Normalized{
   // A commitment whose text, value and unit are all null is an empty slot: removed silently (like a blank label).
   promises:list(of.promises,'offer.promises',L.promises,(y,p)=>isObject(y)&&isObject(y.value)&&['text','value','unit'].every(k=>(y.value as Record<string,unknown>)[k]==null)?null:leaf(y,VALUE.promise,p,true)),
   differentiators:leafList(of.differentiators,'offer.differentiators',L.differentiators,VALUE.differentiator),
-  proofs:leafList(of.proofs,'offer.proofs',L.proofs,VALUE.proof),
+  // A proof names clients, labels, certifications: a proper noun its own source does not hold is taken out (path only).
+  proofs:list(of.proofs,'offer.proofs',L.proofs,(y,p)=>{
+   const l=leaf(y,VALUE.proof,p,true);
+   if(!l||typeof l.value!=='string'||typeof l.source!=='string')return l;
+   const kept=trimProperNouns(l.value,l.source);
+   if(kept===l.value)return l;
+   fix('VALUE_TRIMMED',p,'not_in_source');
+   if(!kept){emptied.push(p);return null}
+   return {...l,value:kept};
+  }),
  };
 
  const keys:string[]=[];

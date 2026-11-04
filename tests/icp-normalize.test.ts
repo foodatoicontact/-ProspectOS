@@ -377,3 +377,81 @@ test('structureIcp — reports the values dropped for want of a source apart fro
   assert.ok(r.dropped.includes('company.sites.0')&&!r.unsourced.includes('company.sites.0'),'a site without its envelope is not "without a source"');
  }finally{ai.restore();err.mock.restore()}
 });
+
+// =============================================================== after runs #10 and #11
+test('run #10 — the server log counts every KEY_REGENERATED: two invalid keys give two entries, and fixes_total = Σ counts = fixes listed',async()=>{
+ const raw=smoke4Like() as any;
+ raw.segments=[
+  {key:'etablissements_recevant_du_public',label:leaf('ERP de tous types','ERP de tous types.'),apeCodes:[],sizeRange:E,priority:E,estimatedValue:E,salesCycle:E}, // too long
+  {key:'villes_collectivites',label:leaf('Copropriétés et syndics','Copropriétés et syndics.'),apeCodes:[],sizeRange:E,priority:E,estimatedValue:E,salesCycle:E},     // valid: kept as is
+  {key:'Sites Industriels',label:leaf('Sites industriels','Sites industriels.'),apeCodes:[],sizeRange:E,priority:E,estimatedValue:E,salesCycle:E},                  // invalid characters
+ ];
+ const n=normalizeExtraction(raw);assert.ok(n.ok);
+ assert.deepEqual((n.value as any).segments.map((s:any)=>s.key),['erp_de_tous_types','villes_collectivites','sites_industriels']);
+ assert.deepEqual(n.fixes.filter(f=>f.code==='KEY_REGENERATED').map(f=>f.path),['segments.0.key','segments.2.key'],'a valid key is not regenerated');
+ const ai=withAi([JSON.stringify(raw)]);const logs:string[]=[];const err=mock.method(console,'error',(l:string)=>{logs.push(String(l))});
+ try{
+  const r=await structureIcp(ingestText(detec).text);
+  const line=logs.map(l=>JSON.parse(l)).find(l=>l.reason==='NORMALIZED')!;
+  const regenerated=line.fixes.filter((f:string)=>/: KEY_REGENERATED /.test(f));
+  assert.deepEqual(regenerated,['segments.0.key: KEY_REGENERATED (invalid_value) — clé régénérée depuis le libellé','segments.2.key: KEY_REGENERATED (invalid_value) — clé régénérée depuis le libellé']);
+  assert.equal(line.fixes_total,r.fixes.length);assert.equal(line.fixes.length,r.fixes.length,'every correction listed (under the 40-line cap)');
+  assert.equal(Object.values(line.counts as Record<string,number>).reduce((a,b)=>a+b,0)-line.counts.source_not_in_document,line.fixes_total);
+  assert.equal(r.fixes.filter(f=>f.code==='KEY_REGENERATED').length,2);
+ }finally{ai.restore();err.mock.restore()}
+});
+
+test('source partielle — fewer than half of the 4-letter words of a text value in its source: marked on the review screen, never removed',async()=>{
+ const {isPartialSource,PARTIAL_SOURCE_RATIO}=await import('../src/domain/icp/normalize.ts');
+ const {partialSource,MANUAL_SOURCE}=await import('../src/icp-import/review.ts');
+ assert.equal(PARTIAL_SOURCE_RATIO,0.5);
+ assert.equal(isPartialSource('Clients: Foncia, SNCF, STEF, Bouygues...','Foncia.'),true,'1 word of 5');
+ assert.equal(isPartialSource('Foncia','Foncia.'),false);
+ assert.equal(isPartialSource('Respect des normes NF et APSAD','Respect des normes NF et des règles'),false,'respect, normes in; apsad out: 2 of 3');
+ assert.equal(isPartialSource('Réseau d’agences partenaires','Proximité grâce au réseau d’agences'),false,'2 of 3, accents and case ignored');
+ assert.equal(isPartialSource('Réseau national certifié APSAD','réseau'),true,'1 of 4');
+ assert.equal(isPartialSource('Garantie décennale','garantie'),false,'exactly half: not marked');
+ assert.equal(isPartialSource('RIA','robinets'),false,'no word of 4 letters: nothing to compare');
+ assert.equal(isPartialSource({city:'Nevers'},'x'),false,'not text');
+ assert.equal(isPartialSource('Extincteurs',null),false,'no source');
+ assert.equal(partialSource({value:'Réseau national certifié APSAD',source:MANUAL_SOURCE}),false,'a value the person typed is never marked');
+ assert.equal(partialSource({value:'Réseau national certifié APSAD',source:'réseau'}),true);
+ // The normalisation keeps such a value (only proofs lose their unsourced proper nouns).
+ const raw=smoke4Like() as any;raw.offer.differentiators=[leaf('Réseau national certifié APSAD','réseau')];
+ const n=normalizeExtraction(raw);assert.ok(n.ok);assert.equal((n.value as any).offer.differentiators[0].value,'Réseau national certifié APSAD');
+ // The review screen shows the badge, from the same rule.
+ const ui=readFileSync(new URL('../src/components/IcpImport.tsx',import.meta.url),'utf8');
+ assert.match(ui,/\{partialSource\(leaf\)&&<span className="icp-badge partial" data-partial-source title=\{t\('partialSourceHint'\)\}>\{t\('partialSource'\)\}<\/span>\}/);
+ const {ICP_MESSAGES}=await import('../src/icp-import/messages.ts');
+ assert.equal(ICP_MESSAGES.fr.partialSource,'source partielle');assert.equal(ICP_MESSAGES.en.partialSource,'partial source');
+});
+
+test('offer.proofs — a proper noun absent from the source is taken out of the value (VALUE_TRIMMED, path only)',async()=>{
+ const {trimProperNouns,describeFixes}=await import('../src/domain/icp/normalize.ts');
+ assert.equal(trimProperNouns('Clients: Foncia, SNCF, STEF, Bouygues...','Foncia.'),'Foncia');
+ assert.equal(trimProperNouns('Foncia, SNCF et Bouygues','Foncia et SNCF'),'Foncia, SNCF');
+ assert.equal(trimProperNouns('Certifié APSAD R4','certifié apsad R4'),'Certifié APSAD R4','all held (no accents, no case): unchanged');
+ assert.equal(trimProperNouns('Références : SNCF','SNCF'),'SNCF');
+ assert.equal(trimProperNouns('Bouygues','Foncia'),'');
+ const raw=smoke4Like() as any;raw.offer.proofs=[leaf('Clients: Foncia, SNCF, STEF, Bouygues...','Foncia.',0.3)];
+ const n=normalizeExtraction(raw);assert.ok(n.ok);
+ assert.deepEqual((n.value as any).offer.proofs,[{value:'Foncia',source:'Foncia.',confidence:0.3}]);
+ const t=n.fixes.filter(f=>f.code==='VALUE_TRIMMED');
+ assert.deepEqual(t,[{code:'VALUE_TRIMMED',path:'offer.proofs.0',reason:'not_in_source'}],'path and reason only: no rule, no length, no excerpt');
+ const log=describeFixes(n.fixes).join('\n');
+ assert.match(log,/^offer\.proofs\.0: VALUE_TRIMMED \(not_in_source\)$/m);
+ for(const w of ['SNCF','STEF','Bouygues','Foncia','Clients'])assert.ok(!log.includes(w),w);
+ // Nothing left: the proof is removed (its path goes to the missing values).
+ const empty=smoke4Like() as any;empty.offer.proofs=[leaf('Bouygues Construction','Foncia.')];
+ const m=normalizeExtraction(empty);assert.ok(m.ok);assert.deepEqual((m.value as any).offer.proofs,[]);
+ assert.ok(m.fixes.some(f=>f.code==='VALUE_TRIMMED'&&f.path==='offer.proofs.0'));assert.ok(m.emptied.includes('offer.proofs.0'));
+ // Other lists are not trimmed.
+ const other=smoke4Like() as any;other.offer.differentiators=[leaf('Partenaire Foncia et SNCF','Foncia.')];
+ const o=normalizeExtraction(other);assert.ok(o.ok);assert.equal((o.value as any).offer.differentiators[0].value,'Partenaire Foncia et SNCF');
+ assert.ok(!o.fixes.some(f=>f.code==='VALUE_TRIMMED'));
+ // End to end: the draft comes out with « Foncia », and the end of the source check still passes (Foncia. is in the document).
+ const ai=withAi([JSON.stringify(raw)]);const err=mock.method(console,'error',()=>{});
+ try{const r=await structureIcp(ingestText(detec).text);assert.equal(r.profile.offer.proofs[0]?.value,'Foncia');assert.ok(!r.unverified.includes('offer.proofs.0'))}
+ finally{ai.restore();err.mock.restore()}
+});
+

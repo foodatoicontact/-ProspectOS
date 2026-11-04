@@ -4,6 +4,7 @@
 // types is sourced as such (MANUAL_SOURCE, confidence 1): it never borrows a passage of the document.
 import {parseIcpProfile,DEPARTMENT_CODES,CRITICAL_CONFIDENCE,ICP_LIMITS,type IcpProfile} from '../domain/icp/schema.ts';
 import {DEPARTMENTS} from '../discovery/geo-fr.ts';
+import {isPartialSource} from '../domain/icp/normalize.ts';
 import type {MissingQuestion} from '../domain/icp/missing.ts';
 
 import {IMPORT_LOCK_MS,isStale} from './lock.ts';
@@ -151,3 +152,6 @@ export function weakSpots(p:IcpProfile):string[]{
 // A source at the bound (ICP_LIMITS.source) was cut by the normalisation: the screen ends it with « … ».
 export const displaySource=(source:string)=>source.length>=ICP_LIMITS.source?`${source}…`:source;
 export const isUnmonitored=(type:string|null)=>(UNMONITORED as readonly string[]).includes(type??'');
+// « source partielle »: fewer than half of the value's words of 4 letters or more are in its source (normalize.ts). A
+// marking only — the value stays; a value the person typed is never marked.
+export const partialSource=(leaf:{value:unknown;source:string|null})=>leaf.source!==MANUAL_SOURCE&&isPartialSource(leaf.value,leaf.source);

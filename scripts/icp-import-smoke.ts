@@ -15,7 +15,7 @@ import {readFile} from 'node:fs/promises';
 import {ingestFile,ingestText,IngestError,INGEST_MESSAGES,sniff,type Ingested} from '../src/icp-import/ingest.ts';
 import {structureIcp,StructureIcpError,ICP_MAX_TOKENS,type IcpUsage} from '../src/server/ai.ts';
 import {missingQuestions} from '../src/domain/icp/missing.ts';
-import {countByCategory} from '../src/domain/icp/normalize.ts';
+import {countByCategory,isPartialSource} from '../src/domain/icp/normalize.ts';
 import {selfOutreachOrganizations} from '../src/self-outreach/config.ts';
 
 const args=process.argv.slice(2);
@@ -66,7 +66,7 @@ try{
   if(Array.isArray(n)){n.forEach((v,i)=>walk(v,`${path}[${i}]`));return}
   if(n&&typeof n==='object'){
    const o=n as Record<string,unknown>;
-   if('confidence' in o&&'source' in o){if(o.value!==null)console.log(`  ${Number(o.confidence).toFixed(2)}  ${path} = ${JSON.stringify(o.value)}\n        « ${o.source} »`);return}
+   if('confidence' in o&&'source' in o){if(o.value!==null)console.log(`  ${Number(o.confidence).toFixed(2)}  ${path} = ${JSON.stringify(o.value)}${isPartialSource(o.value,o.source as string|null)?'  [source partielle]':''}\n        « ${o.source} »`);return}
    for(const [k,v] of Object.entries(o))walk(v,path?`${path}.${k}`:k);
   }
  };

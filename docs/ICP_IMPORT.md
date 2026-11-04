@@ -194,6 +194,7 @@ Correctifs :
 | signal pointant un segment retiré ou inconnu | référence retirée | `SEGMENT_REF_DROPPED` |
 | clé de segment invalide ou en double | recalculée depuis le libellé (minuscules, sans accents, `_`, 20 caractères, suffixe `_2`… si doublon) ; les signaux qui pointaient l'ancienne clé la suivent ; un libellé invalide écarte toujours le segment | `KEY_REGENERATED` |
 | élément de liste vide (libellé absent ou vide ; engagement dont `text`, `value` et `unit` sont tous `null`) | retiré sans avertissement | — |
+| preuve (`offer.proofs`) contenant un nom propre (mot à majuscule initiale) absent de sa source | nom retiré de la value avec son séparateur ; preuve retirée s'il ne reste rien | `VALUE_TRIMMED` (chemin seul) |
 
 **Ce qui reste strict** :
 - **rejet global** (un nouvel essai, puis échec) : JSON illisible, plus d'un objet ou du texte autour, clé racine manquante ou inconnue (`admin`, …), `version` différente de 1, bloc racine du mauvais type ;
@@ -233,6 +234,12 @@ Run #9 (Protec Minéral) : les deux segments étaient écartés pour une **clé*
 - engagement entièrement vide retiré sans avertissement ; un engagement avec un texte mais une valeur invalide reste signalé ;
 - coupe des sources : **fenêtre de 40 caractères** la plus riche en mots de la value, au lieu du début de la phrase (« PROTEC SOL est une solution de… » → « de protection hydrofuge et oléofuge ») ;
 - résumé du script : « Valeurs écartées faute de source » ne liste que les valeurs sans source ; les autres vont dans « Valeurs écartées (autre raison) », avec la règle.
+
+## Après les runs #10 et #11 (Protec Minéral, Détec site seul)
+
+- **Un seul `KEY_REGENERATED` au run #10 : aucune correction perdue.** Le journal est cohérent : `fixes_total` = 7 = 6 `source_too_long` + 1 `other`, et la liste `fixes` compte 7 lignes. Une seule clé était invalide (`segments.0`, recalculée en `professionnels_du_ba`). La clé du second segment, `villes_collectivites`, est celle du modèle : elle est valide (20 caractères, minuscules, `_`), donc gardée — une clé recalculée depuis « Villes et aménagements urbains » aurait donné `villes_et_amenagemen`. Le rapport du run disait à tort « deux clés recalculées ». Test ajouté : deux clés invalides et une valide donnent exactement deux `KEY_REGENERATED` dans le journal serveur, avec `fixes_total` = somme des catégories = lignes listées.
+- **Badge « source partielle »** (`isPartialSource`, `normalize.ts`) : une valeur texte dont moins de 50 % des mots de 4 lettres ou plus (sans accents, sans majuscules) figurent dans sa source est marquée à l'écran de revue (et dans la console du script de smoke test). Elle n'est **pas** supprimée. Une valeur saisie par la personne, une valeur sans mot de 4 lettres, une valeur non textuelle ne sont jamais marquées.
+- **Preuves (`offer.proofs` seulement)** : un nom propre absent de la source est retiré de la value (`VALUE_TRIMMED`, chemin seul, sans texte). « Clients: Foncia, SNCF, STEF, Bouygues... » avec la source « Foncia. » devient « Foncia ». Limite connue : un mot courant en début de phrase porte une majuscule (« Plus de 500 clients ») et il est retiré s'il manque à la source.
 
 ## Migration 041 gelée
 

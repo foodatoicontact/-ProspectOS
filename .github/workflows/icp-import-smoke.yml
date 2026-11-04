@@ -1,0 +1,67 @@
+# ICP import — real smoke test, started by hand only (docs/ICP_IMPORT.md §Smoke test). One real structureIcp call on
+# the text pasted in the form, nothing else:
+#  - started only from the Actions tab (workflow_dispatch): never on a push, a pull request or a schedule;
+#  - one secret, the AI key (AI_API_KEY of the "icp-smoke" environment) — no Supabase key, no production environment pull;
+#  - nothing written to any database, no artifact published; the key is masked in the logs.
+# The organization must be in the repository variable SELF_OUTREACH_ORG_IDS (the operator list).
+name: ICP import smoke test
+
+on:
+  workflow_dispatch:
+    inputs:
+      document_text:
+        description: Texte de la présentation de l'entreprise (30 à 50 000 caractères)
+        required: true
+        type: string
+      organization_id:
+        description: UUID de l'organisation (doit figurer dans SELF_OUTREACH_ORG_IDS)
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: icp-import-smoke
+  cancel-in-progress: false
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    # The environment that holds the AI_API_KEY secret. No required reviewer is needed (or assumed): the run starts as
+    # soon as it is dispatched by hand.
+    environment: icp-smoke
+    steps:
+      - uses: actions/checkout@v4
+      # The script lives on the feature branch until it is merged: on a ref without it, stop here with a clear message.
+      - name: Check that the smoke script exists on this ref
+        run: |
+          if [ ! -f scripts/icp-import-smoke.ts ] || [ ! -f src/server/ai.ts ] || ! grep -q 'export async function structureIcp' src/server/ai.ts; then
+            echo "::error title=Script absent::scripts/icp-import-smoke.ts (ou structureIcp) n'existe pas sur la branche « $GITHUB_REF_NAME ». Relancez le workflow en choisissant la branche feat/icp-import dans « Use workflow from »."
+            exit 1
+          fi
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+      - run: npm ci --ignore-scripts
+      - name: Run the smoke test
+        env:
+          # The inputs reach the shell as environment variables only — never interpolated into the script itself.
+          DOCUMENT_TEXT: ${{ inputs.document_text }}
+          ORGANIZATION_ID: ${{ inputs.organization_id }}
+          AI_API_KEY: ${{ secrets.AI_API_KEY }}
+          AI_PROVIDER: ${{ vars.AI_PROVIDER || 'anthropic' }}
+          AI_MODEL: ${{ vars.AI_MODEL || 'claude-sonnet-5' }}
+          SELF_OUTREACH_ORG_IDS: ${{ vars.SELF_OUTREACH_ORG_IDS }}
+          # The tariff recorded by migration 010 for claude-sonnet-5 (USD per million tokens), unless the variables say otherwise.
+          ICP_SMOKE_PRICE_INPUT_PER_MTOK: ${{ vars.ICP_SMOKE_PRICE_INPUT_PER_MTOK || '2' }}
+          ICP_SMOKE_PRICE_OUTPUT_PER_MTOK: ${{ vars.ICP_SMOKE_PRICE_OUTPUT_PER_MTOK || '10' }}
+        run: |
+          echo "::add-mask::$AI_API_KEY"
+          if [ -z "$AI_API_KEY" ]; then echo "Secret AI_API_KEY absent de l'environnement icp-smoke."; exit 1; fi
+          doc="$RUNNER_TEMP/icp-smoke-document.txt"
+          printf '%s' "$DOCUMENT_TEXT" > "$doc"
+          node --experimental-strip-types scripts/icp-import-smoke.ts --org "$ORGANIZATION_ID" "$doc"
+          rm -f "$doc"

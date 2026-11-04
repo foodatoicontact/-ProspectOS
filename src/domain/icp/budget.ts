@@ -15,7 +15,7 @@
 import {ICP_LIMITS,type IcpProfile} from './schema.ts';
 
 export const CHARS_PER_TOKEN=2.4;
-export const ICP_OUTPUT_BUDGET_TOKENS=2900;
+export const ICP_OUTPUT_BUDGET_TOKENS=2920;
 
 export const estimateOutputTokens=(value:unknown)=>Math.ceil(JSON.stringify(value).length/CHARS_PER_TOKEN);
 

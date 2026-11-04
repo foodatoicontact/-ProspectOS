@@ -9,7 +9,7 @@ import {Component,useCallback,useEffect,useMemo,useRef,useState,type ReactNode} 
 import type {Locale} from '../i18n/locale';
 import type {IcpProfile} from '../domain/icp/schema';
 import {icpClient,loadLatest,saveDraft,loadDraft,clearDraft,clearAllDrafts,type ImportDetail,type Source,type ValidateResult} from '../icp-import/client';
-import {viewOf,nextPollDelay,confidenceOf,setValue,removeAt,addValue,addZones,answerQuestion,isUnmonitored,MANUAL_SOURCE,type ImportRow,type Path,type EditResult} from '../icp-import/review';
+import {displaySource,viewOf,nextPollDelay,confidenceOf,setValue,removeAt,addValue,addZones,answerQuestion,isUnmonitored,MANUAL_SOURCE,type ImportRow,type Path,type EditResult} from '../icp-import/review';
 import {parseIcpProfile,ICP_LIMITS} from '../domain/icp/schema';
 import {DEPARTMENTS} from '../discovery/geo-fr';
 import {icpText,errorText,SIGNAL_LABELS,type IcpMessageKey} from '../icp-import/messages';
@@ -319,7 +319,7 @@ function Meta({t,leaf,noBadge}:{t:ReviewProps['t'];leaf:Leaf;noBadge?:boolean}){
  return <><div className="icp-meta">
   {!noBadge&&<span className={`icp-badge ${c}`}>{t(label[c])}</span>}
   {leaf.value!==null&&<button type="button" className="text-button" aria-expanded={open} onClick={()=>setOpen(o=>!o)}>{t('source')}</button>}
- </div>{open&&<blockquote className="icp-quote">{leaf.source===MANUAL_SOURCE?t('sourceManual'):leaf.source??t('noSource')}</blockquote>}</>;
+ </div>{open&&<blockquote className="icp-quote">{leaf.source===MANUAL_SOURCE?t('sourceManual'):leaf.source?displaySource(leaf.source):t('noSource')}</blockquote>}</>;
 }
 
 function Field(props:ReviewProps&{label:string;leaf:Leaf;path:Path;max:number;multiline?:boolean}){

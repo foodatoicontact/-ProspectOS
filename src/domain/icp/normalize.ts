@@ -54,6 +54,9 @@ const isObject=(x:unknown):x is Record<string,unknown>=>!!x&&typeof x==='object'
 // else — spaces, punctuation, a long string — is reported as "*", so no content can travel through a path.
 const keyName=(k:string)=>/^[A-Za-z][A-Za-z0-9_]{0,30}$/.test(k)?k:'*';
 const EMPTY={value:null,source:null,confidence:0};
+// A list item whose label is blank (absent, null, empty text) carries nothing: it is removed silently — no correction is
+// reported for it (it is not an error of the model's, just an empty slot), and the missing questions stay as they were.
+const isBlank=(f:unknown)=>!isObject(f)||f.value===null||f.value===undefined||(typeof f.value==='string'&&f.value.trim()==='');
 const LEAF_KEYS=new Set(['value','source','confidence']);
 
 // The longest prefix of the passage that fits, ending at a word boundary when there is one.
@@ -142,6 +145,7 @@ export function normalizeExtraction(raw:unknown):Normalized{
   const key=SEGMENT_KEY.safeParse(y.key);
   if(!key.success||keys.includes(key.data)){fix('ITEM_DROPPED_INVALID',`${p}.key`,'invalid_value',{rule:key.success?'clé de segment en double':`clé de segment : minuscules, chiffres, - ou _, ${L.segmentKey} caractères max`,excerpt:y.key});emptied.push(p);return null}
   fields(y,p,['key','label','apeCodes','sizeRange','priority','estimatedValue','salesCycle']);
+  if(isBlank(y.label)){emptied.push(p);return null}
   const label=single(y,'label',VALUE.segmentLabel,p);
   if(label.value===null){fix('ITEM_DROPPED_INVALID',p,'invalid_value',{rule:isObject(y.label)&&y.label.value!=null?`segment sans libellé utilisable (voir ${p}.label)`:`segment sans libellé (label vide)`,excerpt:isObject(y.label)?y.label.value:y.label});emptied.push(p);return null}
   if(Array.isArray(y.apeCodes)?y.apeCodes.length>0:y.apeCodes!==undefined)fix('APE_CODES_IGNORED',`${p}.apeCodes`,'not_requested');
@@ -153,6 +157,7 @@ export function normalizeExtraction(raw:unknown):Normalized{
  const personas=list(raw.personas,'personas',L.personas,(y,p)=>{
   if(!isObject(y)){fix('ITEM_DROPPED_INVALID',p,'wrong_shape',{rule:'objet persona attendu',excerpt:y});emptied.push(p);return null}
   fields(y,p,['role','painPoints','messageAngle']);
+  if(isBlank(y.role)){emptied.push(p);return null}
   const role=single(y,'role',VALUE.role,p);
   if(role.value===null){fix('ITEM_DROPPED_INVALID',p,'invalid_value',{rule:isObject(y.role)&&y.role.value!=null?`persona sans fonction utilisable (voir ${p}.role)`:`persona sans fonction (role vide)`,excerpt:isObject(y.role)?y.role.value:y.role});emptied.push(p);return null}
   return {role,painPoints:leafList(y.painPoints,`${p}.painPoints`,L.painPoints,VALUE.painPoint),
@@ -161,6 +166,7 @@ export function normalizeExtraction(raw:unknown):Normalized{
  const signals=list(raw.signals,'signals',L.signals,(y,p)=>{
   if(!isObject(y)){fix('ITEM_DROPPED_INVALID',p,'wrong_shape',{rule:'objet signal attendu',excerpt:y});return null}
   fields(y,p,['type','segmentRefs']);
+  if(isBlank(y.type))return null;
   const type=single(y,'type',VALUE.signalType,p);
   if(type.value===null){fix('ITEM_DROPPED_INVALID',p,'invalid_value',{rule:isObject(y.type)&&y.type.value!=null?`signal sans type utilisable (voir ${p}.type)`:`signal sans type (type vide)`,excerpt:isObject(y.type)?y.type.value:y.type});return null}
   const refs=Array.isArray(y.segmentRefs)?y.segmentRefs:[];
@@ -171,6 +177,7 @@ export function normalizeExtraction(raw:unknown):Normalized{
  const exclusions=list(raw.exclusions,'exclusions',L.exclusions,(y,p)=>{
   if(!isObject(y)){fix('ITEM_DROPPED_INVALID',p,'wrong_shape',{rule:'objet exclusion attendu',excerpt:y});emptied.push(p);return null}
   fields(y,p,['label','reason']);
+  if(isBlank(y.label)){emptied.push(p);return null}
   const label=single(y,'label',VALUE.exclusionLabel,p);
   if(label.value===null){fix('ITEM_DROPPED_INVALID',p,'invalid_value',{rule:isObject(y.label)&&y.label.value!=null?`exclusion sans libellé utilisable (voir ${p}.label)`:`exclusion sans libellé (label vide)`,excerpt:isObject(y.label)?y.label.value:y.label});emptied.push(p);return null}
   return {label,reason:'reason' in y?leaf(y.reason,VALUE.exclusionReason,`${p}.reason`,false)!:{...EMPTY}};

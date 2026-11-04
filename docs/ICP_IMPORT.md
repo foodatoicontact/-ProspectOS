@@ -73,7 +73,7 @@ Codes d'erreur : `FILE_TOO_LARGE` (413), `UNSUPPORTED_FILE` (415), `FILE_EMPTY`,
 | PDF | 30 pages lues au plus (avertissement `PDF_PAGES_TRUNCATED`), 15 s, sans polices ni XFA ; moins de 50 caractères visibles = `PDF_SCANNED` (pas d'OCR) | `ingestPdf` |
 | DOCX | 1 000 entrées au plus ; `word/document.xml` décompressé compté pendant l'inflation, arrêt à 10 Mio (bombe zip) | `ingestDocx` |
 | Modèle | 4 096 tokens de sortie, réflexion désactivée, aucun outil, 40 s par appel ; nouvel essai seulement s'il reste 20 s sur le budget de 55 s de la route | `structureIcp` |
-| Sortie | profil le plus rempli possible ≤ 2 900 tokens estimés (plafonds `ICP_LIMITS`, JSON compact) ; voir « Smoke test #3 » | `budget.ts` |
+| Sortie | profil le plus rempli possible ≤ 2 920 tokens estimés (plafonds `ICP_LIMITS`, JSON compact) ; voir « Smoke test #3 » | `budget.ts` |
 | Imports | 1 import en cours par projet (2 min) ; 10 imports d'URL par organisation et par 24 h | `start_icp_import` |
 
 Une fonction interrompue par la plateforme (60 s) laisse sa ligne `PENDING`. Passé **2 minutes**, elle n'est plus un import en cours : toute lecture la présente `FAILED` (`IMPORT_STALE`) avec un message qui propose de relancer, le prochain import du projet l'enregistre `FAILED` en base, une réponse tardive n'est plus enregistrée, et elle peut être effacée.
@@ -213,6 +213,16 @@ Run #6 validé (1 appel, 6 080 tokens en entrée, 1 855 en sortie, 13,3 s, 0,030
 - **extraits** d'éléments écartés : console du script de smoke test seulement ; journal serveur = chemin + règle + longueur ;
 - **prompt** : `value` est une reformulation courte (longueurs `ICP_LIMITS`), `source` la phrase exacte du document (40 caractères) ; une value trop longue doit être raccourcie, jamais l'élément supprimé ; pas de persona si la fonction n'est pas écrite dans le document ; un engagement chiffré garde son chiffre dans `text` (« Devis gratuit sous 24 h ») et le reporte dans `value` / `unit` ;
 - **écran de revue** : chaque engagement affiche toujours `value` + `unit` à côté de son libellé (ou « sans chiffre »).
+
+## Après le run #7 (sur cb8ed4b)
+
+Run #7 validé. Ajustements de code, sans toucher au prompt, aux autres plafonds, à `max_tokens` ni à la 041 :
+- **différenciateurs : 60 caractères** au lieu de 50 (« Un seul interlocuteur pour 15 familles d'équipements » en faisait 52). Budget recalculé : le pire cas passe de 2 897 à **2 909 tokens** (≤ 3 000) ; le budget est fixé à **2 920**, pour qu'ajouter un élément à n'importe quelle liste textuelle le dépasse encore (le plus petit ajout, une zone, donne 2 945) ;
+- **élément de liste au libellé vide** (persona sans fonction, exclusion sans libellé, signal sans type, segment sans libellé) : retiré **sans** entrée dans les corrections de normalisation — ce n'est pas une erreur du modèle, juste une case vide ; les questions manquantes sont calculées comme avant. Un libellé présent mais refusé (trop long, invalide) reste signalé ;
+- **projection** : `PARTNER` et `AGENCY` sont traités de la même façon (le rôle d'un site n'entre ni dans l'offre ni dans `target_fit` ; leurs villes et départements deviennent des lieux ciblés) — test à l'appui ;
+- **écran de revue** : une source de 40 caractères (donc coupée par la normalisation) se termine par « … ».
+
+Nouvelle fixture `tests/fixtures/icp/detec-incendie.site-only.txt` : le même texte que `detec-incendie.source.txt`, sans la section 11 (consignes adressées à une IA), pour mesurer l'extraction sur le seul contenu du site.
 
 ## Migration 041 gelée
 

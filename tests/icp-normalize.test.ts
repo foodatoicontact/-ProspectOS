@@ -213,7 +213,7 @@ test('journal — every dropped list item names the rule that refused it and its
  assert.ok(items.length>=5);
  for(const f of items){assert.ok(f.rule,`${f.path} has its rule`);assert.ok(f.excerpt!==undefined&&f.excerpt.length<=EXCERPT_MAX,`${f.path} has an excerpt of at most 60 characters`)}
  const at=(p:string)=>n.fixes.find(f=>f.path===p&&f.code.startsWith('ITEM'))!;
- assert.equal(at('personas.0').rule,'persona sans fonction (role vide)');
+ assert.equal(n.fixes.some(f=>f.path==='personas.0'),false,'a persona with a blank role is removed silently');
  assert.equal(at('personas.1').rule,'persona sans fonction utilisable (voir personas.1.role)');assert.equal(at('personas.1').excerpt,'R'.repeat(60));
  assert.equal(at('offer.services').rule,`${ICP_LIMITS.services} éléments max (${ICP_LIMITS.services+2} reçus) : les premiers sont gardés`);
  assert.match(at('offer.services').excerpt!,/Service 9/,'the items over the bound are named');
@@ -237,7 +237,7 @@ test('server log — never an excerpt of the document, even for a dropped item; 
  assert.ok(dropped.every(f=>typeof f.excerpt==='string'&&typeof f.length==='number'),'kept on the fix, for the console');
  const lines=describeFixes(n.fixes).join('\n');
  for(const f of dropped){assert.ok(!lines.includes(f.excerpt!),`excerpt of ${f.path} not in the server log`);assert.ok(lines.includes(`${f.path}: ${f.code}`))}
- assert.match(lines,/offer\.differentiators\.0: ITEM_DROPPED_TOO_LONG \(too_long\) — trop long \(50 max\) — 61 caractères/);
+ assert.match(lines,/offer\.differentiators\.0: ITEM_DROPPED_TOO_LONG \(too_long\) — trop long \(60 max\) — 61 caractères/);
  // End to end: whatever structureIcp writes to the server log carries no excerpt.
  const ai=withAi([JSON.stringify(raw)]);const logs:string[]=[];const err=mock.method(console,'error',(l:string)=>{logs.push(String(l))});
  try{await structureIcp(ingestText(detec).text);const all=logs.join('\n');
@@ -260,4 +260,45 @@ test('review screen — a promise always shows value + unit beside its wording (
  assert.match(ui,/<p>\{pr\.value\?\.text\} <span className="icp-badge figure" data-promise-figure>\{pr\.value\?\.value!=null\?`\$\{pr\.value\.value\}\$\{pr\.value\.unit\?` \$\{pr\.value\.unit\}`:''\}`:t\('noFigure'\)\}<\/span><\/p>/);
  const {ICP_MESSAGES}=await import('../src/icp-import/messages.ts');
  assert.equal(ICP_MESSAGES.fr.noFigure,'sans chiffre');assert.equal(ICP_MESSAGES.en.noFigure,'no figure');
+});
+
+test('a list item with a blank label is removed silently: no correction reported, missing questions unchanged',()=>{
+ const raw=smoke4Like();
+ (raw as any).personas=[{role:E,painPoints:[],messageAngle:E},{role:leaf('','x'),painPoints:[],messageAngle:E}];
+ (raw as any).exclusions=[{label:E,reason:E}];
+ (raw as any).signals=[{type:E,segmentRefs:[]}];
+ (raw as any).segments=[...raw.segments,{key:'vide',label:E,apeCodes:[],sizeRange:E,priority:E,estimatedValue:E,salesCycle:E}];
+ const n=normalizeExtraction(raw);assert.ok(n.ok);const v=n.value as any;
+ assert.equal(v.personas.length,0);assert.equal(v.exclusions.length,0);assert.equal(v.signals.length,0);assert.ok(!v.segments.some((s:any)=>s.key==='vide'));
+ for(const p of ['personas.0','personas.1','exclusions.0','signals.0','segments.2'])assert.ok(!n.fixes.some(f=>f.path===p||f.path.startsWith(`${p}.`)),`no correction for ${p}`);
+ // The questions are those of before: an emptied exclusion still asks about exclusions.
+ assert.ok(n.emptied.includes('exclusions.0'));
+ const profile=(parseIcpProfile(dropUnverified(v,detec).value) as {profile:any}).profile;
+ const q=missingQuestions(profile,n.emptied).map(x=>x.key);
+ assert.ok(q.includes('personas'),JSON.stringify(q));
+ assert.ok(missingQuestions(profile,['exclusions.0']).some(x=>x.key==='exclusions'),'the emptied exclusion still feeds its question, as before');
+ // A label that is present but refused is still reported.
+ const r=smoke4Like();(r as any).personas=[{role:leaf('R'.repeat(80),'x'),painPoints:[],messageAngle:E}];
+ const m=normalizeExtraction(r);assert.ok(m.ok&&m.fixes.some(f=>f.path==='personas.0'&&f.code==='ITEM_DROPPED_INVALID'));
+});
+
+test('projection — a PARTNER site and an AGENCY site give the same offer and the same target_fit',async()=>{
+ const {projectCriteria,projectOffer}=await import('../src/domain/icp/projection.ts');
+ const {DEFAULT_CRITERIA}=await import('../src/domain/core.ts');
+ const base=JSON.parse(readFileSync(new URL('./fixtures/icp/protection-incendie.expected.json',import.meta.url),'utf8'));
+ const withRole=(role:'PARTNER'|'AGENCY')=>{const p=structuredClone(base);for(const s of p.company.sites)if(s.value.role!=='HQ')s.value.role=role;return (parseIcpProfile(p) as {profile:any}).profile};
+ const partner=withRole('PARTNER'),agency=withRole('AGENCY');
+ assert.deepEqual(projectCriteria(agency,DEFAULT_CRITERIA,null),projectCriteria(partner,DEFAULT_CRITERIA,null));
+ assert.equal(projectOffer(agency),projectOffer(partner));
+ const target=projectCriteria(agency,DEFAULT_CRITERIA,null).criteria.find(c=>c.key==='target_fit') as any;
+ assert.ok(target.rules.config.locations.includes('Angers'),'partner and agency cities are both target locations');
+});
+
+test('review screen — a source at the 40-character bound (cut) ends with « … »',async()=>{
+ const {displaySource}=await import('../src/icp-import/review.ts');
+ const cut='Saint-Doulchard (18) : 41 b avenue des P'.slice(0,ICP_LIMITS.source);
+ assert.equal(cut.length,ICP_LIMITS.source);assert.equal(displaySource(cut),`${cut}…`);
+ assert.equal(displaySource('ERP de tous types.'),'ERP de tous types.');
+ const ui=readFileSync(new URL('../src/components/IcpImport.tsx',import.meta.url),'utf8');
+ assert.match(ui,/leaf\.source\?displaySource\(leaf\.source\):t\('noSource'\)/);
 });

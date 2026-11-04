@@ -16,7 +16,7 @@ export const ICP_PROFILE_VERSION=1 as const;
 export const ICP_LIMITS={
  source:40,
  name:60,activity:100,city:40,sites:6,zones:4,
- service:40,services:9,promise:50,unit:10,promises:3,differentiator:50,differentiators:3,proof:50,proofs:1,
+ service:40,services:9,promise:50,unit:10,promises:3,differentiator:60,differentiators:3,proof:50,proofs:1,
  segmentKey:20,segmentLabel:40,segments:3,apeCodes:1,sizeBands:2,salesCycle:20,
  personas:1,role:40,painPoints:1,painPoint:50,messageAngle:50,
  signals:2,segmentRefs:2,

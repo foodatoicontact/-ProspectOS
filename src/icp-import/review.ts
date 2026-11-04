@@ -148,4 +148,6 @@ export function weakSpots(p:IcpProfile):string[]{
  p.segments.forEach((s,i)=>look(`segments.${i}.label`,s.label));
  return out;
 }
+// A source at the bound (ICP_LIMITS.source) was cut by the normalisation: the screen ends it with « … ».
+export const displaySource=(source:string)=>source.length>=ICP_LIMITS.source?`${source}…`:source;
 export const isUnmonitored=(type:string|null)=>(UNMONITORED as readonly string[]).includes(type??'');

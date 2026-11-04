@@ -9,9 +9,9 @@ import {ICP_MAX_TOKENS,ICP_SYSTEM_PROMPT,structureIcp,StructureIcpError} from '.
 
 // The bounds as reviewed with the budget below. Changing one of them (or the budget) means re-running the calculation
 // and updating both, together, here and in docs/ICP_IMPORT.md.
-const REVIEWED={budget:2900,charsPerToken:2.4,maxTokens:4096,limits:{
+const REVIEWED={budget:2920,charsPerToken:2.4,maxTokens:4096,limits:{
  source:40,name:60,activity:100,city:40,sites:6,zones:4,
- service:40,services:9,promise:50,unit:10,promises:3,differentiator:50,differentiators:3,proof:50,proofs:1,
+ service:40,services:9,promise:50,unit:10,promises:3,differentiator:60,differentiators:3,proof:50,proofs:1,
  segmentKey:20,segmentLabel:40,segments:3,apeCodes:1,sizeBands:2,salesCycle:20,
  personas:1,role:40,painPoints:1,painPoint:50,messageAngle:50,
  signals:2,segmentRefs:2,exclusions:1,exclusionLabel:40,exclusionReason:40}};

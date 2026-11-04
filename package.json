@@ -28,7 +28,7 @@
     "test:outreach-booking-db": "node tests/outreach-booking-meetings-db.mjs",
     "test:bodacc-sales-db": "node tests/discovery-bodacc-sales-db.mjs",
     "test:morning-digest-db": "node tests/morning-digest-db.mjs",
-    "test:icp-import-db": "node tests/icp-import-db.mjs",
+    "test:icp-import-db": "node --experimental-strip-types tests/icp-import-db.mjs",
     "test:self-outreach-dry-run": "node --experimental-strip-types scripts/self-outreach-dry-run.ts",
     "test:user-declared-db": "node tests/user-declared-evidence-db.mjs",
     "test:user-declared-refresh-db": "node --experimental-strip-types tests/user-declared-refresh-db.mjs",

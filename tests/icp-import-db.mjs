@@ -2,10 +2,14 @@
 // started by a member (one AI offer quota unit, URL daily cap, one in progress per project), completed by the server
 // only, and becomes VALIDATED only through validate_icp_import called by a signed-in member. Nobody writes icp_imports
 // or the ICP profile columns directly — not even with a forged operation flag. Tenants are isolated; the manual ICP
-// save keeps working. WITHOUT_041=1 runs the checks without the migration: they must fail.
+// save keeps working. A stored profile is read through readStoredProfile (a corrupted one is reported unreadable).
+// FAILED and DISCARDED imports are purged after 30 days; account deletion and the export cover the table.
+// WITHOUT_041=1 runs the checks without the migration: they must fail.
 import { strict as assert } from 'node:assert';
 import { readFile, readdir } from 'node:fs/promises';
 import { PGlite } from '@electric-sql/pglite';
+import { readStoredProfile } from '../src/domain/icp/stored.ts';
+import { emptyIcpProfile } from '../src/domain/icp/schema.ts';
 
 const db = new PGlite();
 const sql = (text, params = []) => db.query(text, params);
@@ -72,6 +76,7 @@ try {
   const aiUnits = async user => Number((await sql(`select count(*) n from prospectos_private.discovery_quota_usage where user_id=$1 and action='ai_offer'`, [user])).rows[0].n);
   const criteria = [{ key: 'target_fit', label: 'Cible', weight: 60, rules: { type: 'target_fit', config: { categories: ['restaurant'], match: 'any_defined' } } }, { key: 'need_fit', label: 'Besoin', weight: 40 }];
   let imp;
+  const PROFILE = JSON.stringify(emptyIcpProfile());
 
   await check('A_START: a member starts an import — PENDING, created_by, one AI offer quota unit', async () => {
     const before = await aiUnits(A);
@@ -93,7 +98,7 @@ try {
     await refused(() => as(A, `delete from public.icp_imports where id=$1`, [imp]), /permission|denied/i, 'a direct delete');
     await refused(() => asService(`update public.icp_imports set status='EXTRACTED', extracted='{}' where id=$1`, [imp]), /permission|denied/i, 'a direct update by the server role');
     await refused(() => sql(`update public.icp_imports set status='VALIDATED', validated_at=now(), validated_by=$2 where id=$1`, [imp, A]), /transition refused/, 'even the owner role without the operation');
-    await refused(() => sql(`delete from public.icp_imports where id=$1`, [imp]), /never deleted/, 'a delete by the owner role');
+    await refused(() => sql(`delete from public.icp_imports where id=$1`, [imp]), /retention purge only/, 'a delete by the owner role');
   });
   await check('D_COMPLETE_SERVER_ONLY: only the server records the extraction, once', async () => {
     await refused(() => as(A, `select public.complete_icp_import($1,'EXTRACTED','{}'::jsonb,'[]','[]',0,'{}',null)`, [imp]), /permission|denied/i, 'a member recording an extraction');
@@ -104,28 +109,33 @@ try {
     await refused(() => complete(imp, 'VALIDATED'), /Invalid import status/, 'the server cannot validate');
   });
   await check('E_VALIDATE_HUMAN_ONLY: VALIDATED only through validate_icp_import by a signed-in member', async () => {
-    await refused(() => asService(`select public.validate_icp_import($1,'{"version":1}'::jsonb,null,null)`, [imp]), /permission|denied/i, 'the server role validating');
-    await refused(() => as(B, `select public.validate_icp_import($1,'{"version":1}'::jsonb,null,null)`, [imp]), /member|not found/i, 'another tenant validating');
-    await refused(() => as(A, `select public.validate_icp_import($1,'{"version":1}'::jsonb,null,$2::jsonb)`, [imp, JSON.stringify([{ key: 'a', label: 'A', weight: 50 }])]), /weights sum to 100/, 'weights not summing to 100');
-    await refused(() => as(A, `select public.validate_icp_import($1,'{"version":1}'::jsonb,null,$2::jsonb)`, [imp, JSON.stringify([{ key: 'a', label: 'A', weight: '100' }])]), /weights sum to 100/, 'a weight that is not a number');
+    await refused(() => asService(`select public.validate_icp_import($1,$2::jsonb,null,null)`, [imp, PROFILE]), /permission|denied/i, 'the server role validating');
+    await refused(() => as(B, `select public.validate_icp_import($1,$2::jsonb,null,null)`, [imp, PROFILE]), /member|not found/i, 'another tenant validating');
+    await refused(() => as(A, `select public.validate_icp_import($1,$2::jsonb,null,$3::jsonb)`, [imp, PROFILE, JSON.stringify([{ key: 'a', label: 'A', weight: 50 }])]), /weights sum to 100/, 'weights not summing to 100');
+    await refused(() => as(A, `select public.validate_icp_import($1,$2::jsonb,null,$3::jsonb)`, [imp, PROFILE, JSON.stringify([{ key: 'a', label: 'A', weight: '100' }])]), /weights sum to 100/, 'a weight that is not a number');
     assert.equal((await row(imp)).status, 'EXTRACTED', 'nothing changed by the refusals');
-    const r = (await as(A, `select public.validate_icp_import($1,'{"version":1,"company":{}}'::jsonb,'Offre importée validée',$2::jsonb) r`, [imp, JSON.stringify(criteria)])).rows[0].r;
+    // The minimal shape guard (correction of 2026-11-04): an object of at most 100 KB carrying the six root blocks.
+    for (const bad of ['[]', '{"version":1}', '{"version":1,"company":{}}', JSON.stringify({ ...emptyIcpProfile(), filler: 'x'.repeat(103000) })])
+      await refused(() => as(A, `select public.validate_icp_import($1,$2::jsonb,null,null)`, [imp, bad]), /Invalid profile/, `a profile ${bad.slice(0, 30)}`);
+    const r = (await as(A, `select public.validate_icp_import($1,$2::jsonb,'Offre importée validée',$3::jsonb) r`, [imp, PROFILE, JSON.stringify(criteria)])).rows[0].r;
     assert.equal(r.status, 'VALIDATED'); assert.equal(r.offer_written, true); assert.equal(r.criteria_written, true);
     const v = await row(imp); assert.equal(v.validated_by, A); assert.ok(v.validated_at);
     const i = await icp(ctx.A);
-    assert.deepEqual(i.profile, { version: 1, company: {} }); assert.equal(i.profile_import_id, imp); assert.equal(i.profile_validated_by, A);
+    assert.deepEqual(i.profile, emptyIcpProfile()); assert.equal(i.profile_import_id, imp);
+    assert.equal(readStoredProfile(i.profile).state, 'valid', 'a validated profile reads back as valid'); assert.equal(i.profile_validated_by, A);
     assert.deepEqual(i.criteria, criteria); assert.deepEqual(i.projected_criteria, criteria); assert.equal(i.projected_offer, 'Offre importée validée');
     assert.equal((await sql('select offer from public.projects where id=$1', [ctx.A.project])).rows[0].offer, 'Offre importée validée');
-    await refused(() => as(A, `select public.validate_icp_import($1,'{"version":1}'::jsonb,null,null)`, [imp]), /not_reviewable/, 'validating twice');
+    await refused(() => as(A, `select public.validate_icp_import($1,$2::jsonb,null,null)`, [imp, PROFILE]), /not_reviewable/, 'validating twice');
   });
   await check('F_REIMPORT_KEEPS_CHOICES: null offer / criteria keep what the project has (no silent overwrite)', async () => {
     await as(A, `update public.icps set criteria=$2::jsonb where project_id=$1`, [ctx.A.project, JSON.stringify([{ key: 'manual', label: 'Edité à la main', weight: 100 }])]);
     const again = await start(ctx.A); await complete(again);
-    await as(A, `select public.validate_icp_import($1,'{"version":1,"second":true}'::jsonb,null,null)`, [again]);
+    const second = { ...emptyIcpProfile(), exclusions: [{ label: { value: 'Particuliers', source: 'Nous ne travaillons pas avec les particuliers', confidence: 0.9 }, reason: { value: null, source: null, confidence: 0 } }] };
+    await as(A, `select public.validate_icp_import($1,$2::jsonb,null,null)`, [again, JSON.stringify(second)]);
     const i = await icp(ctx.A);
     assert.deepEqual(i.criteria, [{ key: 'manual', label: 'Edité à la main', weight: 100 }], 'a hand edit is never overwritten when the user keeps it');
     assert.equal((await sql('select offer from public.projects where id=$1', [ctx.A.project])).rows[0].offer, 'Offre importée validée');
-    assert.deepEqual(i.profile, { version: 1, second: true }); assert.equal(i.profile_import_id, again);
+    assert.deepEqual(i.profile, second); assert.equal(i.profile_import_id, again);
   });
   await check('G_PROFILE_COLUMNS_GUARDED: the manual ICP save still works; the profile columns cannot be written directly, even with a forged flag', async () => {
     await as(B, `insert into public.icps(organization_id,project_id,criteria) values($1,$2,$3::jsonb)`, [ctx.B.org, ctx.B.project, JSON.stringify(criteria)]);
@@ -145,7 +155,7 @@ try {
     assert.equal((await as(B, 'select public.discard_icp_import($1) r', [d])).rows[0].r, true);
     assert.equal((await row(d)).status, 'DISCARDED');
     assert.equal((await as(B, 'select public.discard_icp_import($1) r', [d])).rows[0].r, false, 'a discarded import stays discarded');
-    await refused(() => as(B, `select public.validate_icp_import($1,'{"version":1}'::jsonb,null,null)`, [d]), /not_reviewable/, 'validating a discarded import');
+    await refused(() => as(B, `select public.validate_icp_import($1,$2::jsonb,null,null)`, [d, PROFILE]), /not_reviewable/, 'validating a discarded import');
   });
   await check('I_RLS: each tenant reads only its own imports', async () => {
     assert.equal(Number((await as(B, 'select count(*) n from public.icp_imports where organization_id=$1', [ctx.A.org])).rows[0].n), 0);
@@ -164,6 +174,47 @@ try {
     await sql('update prospectos_private.discovery_quota_settings set ai_offer_per_hour=1');
     await refused(() => start(ctx.A), /quota|limit/i, 'an import beyond the AI offer quota');
     await sql('update prospectos_private.discovery_quota_settings set ai_offer_per_hour=1000');
+  });
+  await check('L_DEFENSIVE_READ: a corrupted stored profile is reported unreadable, never thrown', async () => {
+    // Written by the owner role with the operation set, as only a manual database edit could: the read must still survive it.
+    await sql(`select set_config('prospectos.icp_import_op','validate',false)`);
+    await sql(`update public.icps set profile='{"company":1,"offer":[],"segments":{},"personas":null,"signals":"x","exclusions":[]}' where project_id=$1`, [ctx.A.project]);
+    await sql(`select set_config('prospectos.icp_import_op','',false)`);
+    const raw = (await as(A, 'select profile from public.icps where project_id=$1', [ctx.A.project])).rows[0].profile;
+    assert.deepEqual(readStoredProfile(raw), { state: 'unreadable', reason: 'PROFILE_UNREADABLE' });
+    assert.deepEqual(readStoredProfile(null), { state: 'none' });
+  });
+  await check('M_RETENTION: FAILED and DISCARDED imports are purged after 30 days; VALIDATED ones stay', async () => {
+    // Unlimited plans for the retention checks only (a trial stops at 5 AI imports).
+    await sql(`update public.account_entitlements set plan='INTERNAL' where user_id in ($1,$2)`, [A, B]);
+    const old = async id => { await sql('set session_replication_role = replica'); await sql(`update public.icp_imports set updated_at=now()-interval '31 days' where id=$1`, [id]); await sql('set session_replication_role = origin'); };
+    const f = await start(ctx.A); await complete(f, 'FAILED', null, 'TEST');
+    const recent = await start(ctx.A); await complete(recent, 'FAILED', null, 'TEST');
+    await old(f); await old(imp); // imp is VALIDATED (check E): never purged
+    await refused(() => as(A, 'select public.purge_icp_imports()'), /permission|denied/i, 'a member purging');
+    await refused(() => sql('delete from public.icp_imports where id=$1', [recent]), /retention purge only/, 'a direct delete');
+    const n = (await asService('select public.purge_icp_imports() n')).rows[0].n;
+    assert.ok(n >= 1);
+    assert.equal(await row(f), undefined, 'a 31-day-old failed import is gone');
+    assert.ok(await row(recent), 'a recent failed import stays');
+    assert.equal((await row(imp)).status, 'VALIDATED', 'a validated import stays, linked to its profile');
+    const d = await start(ctx.B); await complete(d, 'FAILED', null, 'TEST'); await as(B, 'select public.discard_icp_import($1)', [d]); await old(d);
+    await start(ctx.B); // every new import purges too
+    assert.equal(await row(d), undefined, 'a 31-day-old discarded import is purged by the next import');
+  });
+  await check('N_ACCOUNT_DELETION: a member who deletes their account loses access; the organization keeps its imports', async () => {
+    const C = '00000000-0000-4000-8000-0000000000c1';
+    await sql(`insert into auth.users(id,email) values ($1,'c@client.fr')`, [C]);
+    await sql(`insert into public.memberships(organization_id,user_id,role) values ($1,$2,'member')`, [ctx.A.org, C]);
+    await sql(`insert into public.account_entitlements(user_id,plan,status,starts_at,expires_at) values ($1,'INTERNAL','ACTIVE',now()-interval '1 minute',now()+interval '7 days')`, [C]);
+    const pending = (await sql(`select id from public.icp_imports where project_id=$1 and status='PENDING'`, [ctx.A.project])).rows;
+    for (const p of pending) await complete(p.id, 'FAILED', null, 'TEST');
+    const mine = (await as(C, 'select public.start_icp_import($1,$2,$3) id', [ctx.A.project, 'TEXT', 'texte'])).rows[0].id;
+    await complete(mine, 'FAILED', null, 'TEST');
+    await as(C, 'select public.delete_own_account()');
+    assert.equal(Number((await as(C, 'select count(*) n from public.icp_imports')).rows[0].n), 0, 'no access after deletion');
+    assert.equal((await as(A, 'select created_by from public.icp_imports where id=$1', [mine])).rows[0].created_by, C, 'the organization keeps it');
+    await refused(() => as(C, `select public.start_icp_import($1,'TEXT','x')`, [ctx.A.project]), /member/i, 'a new import after deletion');
   });
   await check('IDEMPOTENT: re-applying migration 041 changes nothing', async () => {
     if (!process.env.WITHOUT_041) await db.exec(await readFile(new URL('../db/migrations/041_icp_import.sql', import.meta.url), 'utf8'));

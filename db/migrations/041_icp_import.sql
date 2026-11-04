@@ -10,13 +10,16 @@
 --    into the existing model (projected_offer, projected_criteria), so a later re-import can tell what a person changed by
 --    hand since. These columns are written by validate_icp_import only (trigger); criteria, weights and the scoring engine
 --    are unchanged — the projection only writes the rule fields the user already edits, and only what the user accepted.
--- 3. Limits: an import that calls the AI consumes ONE unit of the existing AI offer quota (consume_ai_offer_quota: hourly
+-- 3. Retention: FAILED and DISCARDED imports are deleted 30 days after their last change (purged by every new import, as
+--    the AI offer analyses are, and by purge_icp_imports() for an operator); a VALIDATED import stays, linked to the
+--    profile it produced. Files are never stored: only the extracted JSON is kept.
+-- 4. Limits: an import that calls the AI consumes ONE unit of the existing AI offer quota (consume_ai_offer_quota: hourly
 --    and plan limits), whatever the retry; at most 10 URL imports per organization over 24 hours (the dedicated site
 --    authorization must not become an open crawler); one import in progress per project at a time.
 --
 -- Depends only on objects of migrations 001–016 (projects, icps, memberships, require_member, consume_ai_offer_quota).
 -- Nothing from 038 (feat/registry-signals): the production order of 038 and 041 does not matter.
--- Rollback: drop the seven functions and two triggers below, drop table public.icp_imports, then
+-- Rollback: drop the eight functions and two triggers below, drop table public.icp_imports, then
 -- alter table public.icps drop column profile, drop column profile_version, drop column profile_import_id,
 -- drop column projected_offer, drop column projected_criteria, drop column profile_validated_at, drop column profile_validated_by.
 begin;
@@ -53,7 +56,7 @@ create policy icp_imports_read on public.icp_imports for select to authenticated
 revoke all on public.icp_imports from public,anon,authenticated,service_role;
 grant select on public.icp_imports to authenticated;
 
-alter table public.icps add column if not exists profile jsonb check(profile is null or (jsonb_typeof(profile)='object' and length(profile::text)<=200000));
+alter table public.icps add column if not exists profile jsonb check(profile is null or (jsonb_typeof(profile)='object' and octet_length(profile::text)<=102400));
 alter table public.icps add column if not exists profile_version int check(profile_version is null or profile_version between 1 and 99);
 alter table public.icps add column if not exists profile_import_id uuid;
 alter table public.icps add column if not exists projected_offer text check(projected_offer is null or length(projected_offer)<=10000);
@@ -78,7 +81,11 @@ create or replace function prospectos_private.guard_icp_import() returns trigger
 language plpgsql security invoker set search_path='' as $$
 declare op text:=prospectos_private.icp_import_op();
 begin
- if TG_OP='DELETE' then raise exception 'icp_imports rows are never deleted' using errcode='42501'; end if;
+ if TG_OP='DELETE' then
+  -- Only the retention purge, and only what it may delete: a failed or discarded import untouched for 30 days.
+  if op='purge' and old.status in ('FAILED','DISCARDED') and old.updated_at<now()-interval '30 days' then return old; end if;
+  raise exception 'icp_imports rows are deleted by the retention purge only' using errcode='42501';
+ end if;
  if TG_OP='INSERT' then
   if op<>'start' or new.status<>'PENDING' then raise exception 'icp_imports are created by start_icp_import only' using errcode='42501'; end if;
   return new;
@@ -140,6 +147,9 @@ begin
   if url_count>=10 then raise exception 'icp_url_daily_limit' using errcode='P0001'; end if;
  end if;
  perform public.consume_ai_offer_quota(p_project_id);
+ -- Retention: every new import purges, for everyone, the failed and discarded imports older than 30 days.
+ perform set_config('prospectos.icp_import_op','purge',true);
+ delete from public.icp_imports where status in ('FAILED','DISCARDED') and updated_at<now()-interval '30 days';
  perform set_config('prospectos.icp_import_op','start',true);
  insert into public.icp_imports(organization_id,project_id,source_type,source_ref,created_by)
  values(tenant,p_project_id,p_source_type,trim(p_source_ref),actor) returning id into new_id;
@@ -181,7 +191,13 @@ begin
  if not found then raise exception 'Import not found' using errcode='P0002'; end if;
  perform prospectos_private.require_member(imp.organization_id);
  if imp.status<>'EXTRACTED' then raise exception 'icp_import_not_reviewable' using errcode='P0001'; end if;
- if p_profile is null or jsonb_typeof(p_profile)<>'object' or length(p_profile::text)>200000 then raise exception 'Invalid profile' using errcode='22023'; end if;
+ -- Minimal shape, checked here too: a direct RPC call that bypasses the server can store nothing but an object of at most
+ -- 100 KB carrying the six root blocks of IcpProfile. The application validates the whole schema (parseIcpProfile) before
+ -- calling, and again on every read.
+ if p_profile is null or jsonb_typeof(p_profile)<>'object' or octet_length(p_profile::text)>102400
+    or not (p_profile ?& array['company','offer','segments','personas','signals','exclusions']) then
+  raise exception 'Invalid profile' using errcode='22023';
+ end if;
  if p_offer is not null and length(p_offer)>10000 then raise exception 'Invalid offer' using errcode='22023'; end if;
  if p_criteria is not null then
   if jsonb_typeof(p_criteria)<>'array' then raise exception 'Invalid criteria' using errcode='22023'; end if;
@@ -228,5 +244,19 @@ begin
 end $$;
 revoke all on function public.discard_icp_import(uuid) from public,anon,service_role;
 grant execute on function public.discard_icp_import(uuid) to authenticated;
+
+-- The retention purge on demand (server only), the same rule as the one every new import applies.
+create or replace function public.purge_icp_imports() returns int
+language plpgsql security definer set search_path='' as $$
+declare n int;
+begin
+ perform set_config('prospectos.icp_import_op','purge',true);
+ delete from public.icp_imports where status in ('FAILED','DISCARDED') and updated_at<now()-interval '30 days';
+ get diagnostics n=row_count;
+ perform set_config('prospectos.icp_import_op','',true);
+ return n;
+end $$;
+revoke all on function public.purge_icp_imports() from public,anon,authenticated;
+grant execute on function public.purge_icp_imports() to service_role;
 
 commit;

@@ -105,22 +105,22 @@ export const SENTENCE_WORDS=new Set(['plus','notre','nos','depuis','avec','pour'
  'cette','ces','au','aux','du','de','d','en','et','ou','mais','sans','grace','clients','client','references','reference',
  'certifie','certifiee','certifies','agree','agreee','labellise','labellisee','membre','partenaire','partenaires','plusieurs']);
 // offer.proofs only: a proper noun (a word that starts with a capital letter) of the value that its source does not
-// hold is taken out of the value, with the separator that goes with it; the rest is kept as written. The first word and
-// SENTENCE_WORDS are never taken out, so something is always left. Returns the value unchanged when nothing is taken
-// out. Compared without accents nor case.
+// hold is taken out of the value, with the separator that goes with it — wherever it is, the first word included; the
+// rest is kept as written. SENTENCE_WORDS (Plus, Notre, Nos, Depuis, Clients…) are never taken for proper nouns. When
+// only SENTENCE_WORDS are left after the trim (« Clients: »), nothing is left: ''. Returns the value unchanged when
+// nothing is taken out. Compared without accents nor case.
 export function trimProperNouns(value:string,source:string):string{
  const have=new Set(foldedWords(source));
  const tokens=value.match(/[\p{L}\p{N}]+|[^\p{L}\p{N}]+/gu)??[];
  const isWord=(t:string)=>/^[\p{L}\p{N}]/u.test(t);
- const firstWord=tokens.findIndex(isWord);
- // Never a proper noun: the first word of the value (capitalised because it starts it) and the common words that take a
- // capital at the start of a sentence (Plus, Notre, Nos, Depuis…), wherever they are.
- const gone=tokens.map((t,i)=>i!==firstWord&&isWord(t)&&/^\p{Lu}/u.test(t)&&!SENTENCE_WORDS.has(foldedWords(t).join(''))&&foldedWords(t).some(w=>!have.has(w)));
+ // Never a proper noun: the common words that take a capital at the start of a sentence (Plus, Notre, Nos, Depuis…).
+ const gone=tokens.map(t=>isWord(t)&&/^\p{Lu}/u.test(t)&&!SENTENCE_WORDS.has(foldedWords(t).join(''))&&foldedWords(t).some(w=>!have.has(w)));
  if(!gone.some(Boolean))return value;
  // A taken-out word goes with the separator before it — or, at the very start, the one after it.
  const drop=gone.slice();
  tokens.forEach((t,i)=>{if(!gone[i])return;if(i>0&&!isWord(tokens[i-1]!)&&tokens.slice(0,i-1).some((x,k)=>isWord(x)&&!gone[k]))drop[i-1]=true;else if(i+1<tokens.length&&!isWord(tokens[i+1]!))drop[i+1]=true});
- return tokens.filter((_,i)=>!drop[i]).join('').replace(/^[\s,;:.…\-–—/]+|[\s,;:.…\-–—/]+$/g,'').replace(/\s{2,}/g,' ').replace(/\s+(?:et|ou|and|or|&)$/i,'');
+ const out=tokens.filter((_,i)=>!drop[i]).join('').replace(/^[\s,;:.…\-–—/]+|[\s,;:.…\-–—/]+$/g,'').replace(/\s{2,}/g,' ').replace(/\s+(?:et|ou|and|or|&)$/i,'');
+ return foldedWords(out).every(w=>SENTENCE_WORDS.has(w))?'':out;
 }
 
 // A segment key from its label: lower case, no accents, underscores, ICP_LIMITS.segmentKey characters at most, a numeric
@@ -208,7 +208,7 @@ export function normalizeExtraction(raw:unknown):Normalized{
    const kept=trimProperNouns(l.value,l.source);
    if(kept===l.value)return l;
    fix('VALUE_TRIMMED',p,'not_in_source');
-   if(!kept){emptied.push(p);return null}
+   if(!kept){emptied.push(p);return null} // only sentence words were left: the proof goes (a missing value)
    return {...l,value:kept};
   }),
  };

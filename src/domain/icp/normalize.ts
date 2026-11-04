@@ -10,7 +10,7 @@
 //  - an unknown field below the root is dropped; apeCodes are never taken from the model (they come from the
 //    deterministic mapping of step 4) — ignored, with a warning;
 //  - every correction is reported with its path, a reason code and the rule that refused it; an item taken out of a
-//    list also carries the first 60 characters of what the model wrote (EXCERPT_MAX) — nothing else of the document.
+//    list also carries its length — and, for the smoke-test console only, its first 60 characters (EXCERPT_MAX).
 // What stays strict, and rejects the whole answer (one retry): unreadable JSON, a root key missing or unknown, a wrong
 // version, a root block of the wrong type. Then the result is validated as a whole by parseIcpProfile, as before.
 import {ICP_LIMITS as L,VALUE,SEGMENT_KEY,ROOT_KEYS,ICP_PROFILE_VERSION} from './schema.ts';
@@ -19,10 +19,13 @@ import type {z} from 'zod';
 export type FixCode='SOURCE_TRUNCATED'|'VALUE_DROPPED_TOO_LONG'|'VALUE_DROPPED_INVALID'|'ITEM_DROPPED_INVALID'|'ITEM_DROPPED_TOO_LONG'
  |'ITEM_DROPPED_OVER_LIMIT'|'FIELD_DROPPED_UNKNOWN'|'FIELD_MISSING'|'APE_CODES_IGNORED'|'SEGMENT_REF_DROPPED';
 export type Reason='too_long'|'invalid_value'|'wrong_shape'|'over_limit'|'unknown_field'|'not_requested';
-// rule: which rule of the schema refused it, in words; excerpt: for an item taken out of a list (ITEM_DROPPED_*), the
-// first 60 characters of what the model wrote, so the log says WHAT was dropped (docs/ICP_IMPORT.md §Journal).
-export type Fix={code:FixCode;path:string;reason:Reason;rule?:string;excerpt?:string};
+// rule: which rule of the schema refused it, in words. For an item taken out of a list (ITEM_DROPPED_*): length, the
+// size of what the model wrote (characters), and excerpt, its first 60 characters. The excerpt is for the operator's
+// smoke-test console only (scripts/icp-import-smoke.ts); the server log (describeFixes) carries path, rule and length —
+// never text of the document (SECURITY.md).
+export type Fix={code:FixCode;path:string;reason:Reason;rule?:string;length?:number;excerpt?:string};
 export const EXCERPT_MAX=60;
+export const lengthOf=(v:unknown)=>(typeof v==='string'?v:JSON.stringify(v)??String(v)).length;
 export function excerptOf(v:unknown):string{
  const t=typeof v==='string'?v:JSON.stringify(v)??String(v);
  return t.replace(/[\u0000-\u001F\u007F\u2028\u2029]+/g,' ').slice(0,EXCERPT_MAX);
@@ -65,7 +68,7 @@ const tooLong=(e:z.ZodError)=>e.issues.some(i=>i.code==='too_big');
 
 export function normalizeExtraction(raw:unknown):Normalized{
  const fixes:Fix[]=[];const emptied:string[]=[];
- const fix=(code:FixCode,path:string,reason:Reason,detail?:{rule:string;excerpt?:unknown})=>{fixes.push({code,path,reason,...(detail?{rule:detail.rule,...(code.startsWith('ITEM_DROPPED')&&detail.excerpt!==undefined?{excerpt:excerptOf(detail.excerpt)}:{})}:{})})};
+ const fix=(code:FixCode,path:string,reason:Reason,detail?:{rule:string;excerpt?:unknown})=>{fixes.push({code,path,reason,...(detail?{rule:detail.rule,...(code.startsWith('ITEM_DROPPED')&&detail.excerpt!==undefined?{length:lengthOf(detail.excerpt),excerpt:excerptOf(detail.excerpt)}:{})}:{})})};
  if(!isObject(raw))return {ok:false,issues:[{path:'(root)',reason:'wrong_shape'}]};
  const issues:StructureIssue[]=[];
  for(const k of ROOT_KEYS)if(!(k in raw))issues.push({path:k,reason:'wrong_shape'});
@@ -183,7 +186,8 @@ export function fixWarnings(fixes:readonly Fix[],room=10):string[]{
  return [...by].slice(0,room).map(([code,paths])=>{let s=`${code}:${paths.join(',')}`;if(s.length>350)s=`${s.slice(0,340).replace(/,[^,]*$/,'')},…`;return s});
 }
 // For the logs and for the retry: path and reason only.
-export const describeFixes=(fixes:readonly Fix[])=>fixes.slice(0,40).map(f=>`${f.path}: ${f.code} (${f.reason})${f.rule?` — ${f.rule}`:''}${f.excerpt!==undefined?` — « ${f.excerpt} »`:''}`);
+// The server log: path, code, reason, rule and length — never the excerpt, never any text of the document.
+export const describeFixes=(fixes:readonly Fix[])=>fixes.slice(0,40).map(f=>`${f.path}: ${f.code} (${f.reason})${f.rule?` — ${f.rule}`:''}${f.length!==undefined?` — ${f.length} caractères`:''}`);
 
 // The counts the logs carry for every call, so a refusal or a heavy normalisation can be read at a glance: sources too
 // long, sources not in the document, values too long, APE codes returned, list items without their envelope. From

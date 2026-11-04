@@ -420,7 +420,7 @@ test('structureIcp — unverified sources are dropped, reported and asked; the v
    const all=logs.join('\n');
    for(const secret of ['Jean Secret','XXXXXXXX','Leader européen'])assert.ok(!all.includes(secret),`never a value in the logs: ${secret}`);
    assert.ok(logs.some(l=>JSON.parse(l).reason==='UNVERIFIED_SOURCES_DROPPED'));
-   assert.match(ai.calls[0]!.body.system,/mot pour mot du document, d'un seul tenant/);
+   assert.match(ai.calls[0]!.body.system,/la phrase exacte du document, recopiée mot pour mot, d'un seul tenant/);
   }finally{ai.restore();err.mock.restore()}
   // The API marks it.
   const ai2=mockProvider([{text:JSON.stringify(p)}]);const f=fakeDb();const {d}=deps(f);

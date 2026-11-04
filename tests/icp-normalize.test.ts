@@ -129,8 +129,10 @@ test('end to end — an answer like smoke test #4 gives a partial draft with war
   const norm=logs.map(l=>JSON.parse(l)).find(l=>l.reason==='NORMALIZED')!;
   assert.ok(norm.fixes.some((f:string)=>f.startsWith('company.sites.0: ITEM_DROPPED_INVALID (wrong_shape)')));
   // A dropped item is named by its first 60 characters; nothing that was kept appears in the logs.
-  assert.ok(norm.fixes.some((f:string)=>f.startsWith('company.sites.0: ITEM_DROPPED_INVALID (wrong_shape) — enveloppe {value, source, confidence} attendue — « {"city":"Annet-sur-Marne"')));
-  assert.ok(norm.fixes.includes('company.sites.2: ITEM_DROPPED_INVALID (invalid_value) — role : valeur non admise (attendu HQ|AGENCY|PARTNER) — « {"city":"Mâcon","department":"71","role":"FRANCHISE"} »'));
+  // The server log names a dropped item by its path, rule and length — never by its text.
+  assert.ok(norm.fixes.some((f:string)=>/^company\.sites\.0: ITEM_DROPPED_INVALID \(wrong_shape\) — enveloppe \{value, source, confidence\} attendue — \d+ caractères$/.test(f)));
+  assert.ok(norm.fixes.includes('company.sites.2: ITEM_DROPPED_INVALID (invalid_value) — role : valeur non admise (attendu HQ|AGENCY|PARTNER) — 53 caractères'));
+  for(const text of ['Annet-sur-Marne','Mâcon','FRANCHISE','Nevers','Détec'])assert.ok(!logs.join('\n').includes(text),`no text of the document in the server log: ${text}`);
   assert.ok(!logs.join('\n').includes('Nevers')&&!logs.join('\n').includes('Détec'),'never a kept value in the logs');
  }finally{ai.restore();err.mock.restore()}
 });
@@ -223,4 +225,39 @@ test('journal — every dropped list item names the rule that refused it and its
 test('prompt — a differentiator must not repeat coverage or a promise already extracted',async()=>{
  const {ICP_SYSTEM_PROMPT}=await import('../src/server/ai.ts');
  assert.match(ICP_SYSTEM_PROMPT,/"differentiators" : ne répète ni "coverage" \(ex\. couverture nationale\) ni un engagement de "promises" \(ex\. délai\)\./);
+});
+
+test('server log — never an excerpt of the document, even for a dropped item; the excerpt exists for the smoke-test console only',async()=>{
+ const {describeFixes}=await import('../src/domain/icp/normalize.ts');
+ const raw=smoke4Like();
+ raw.offer.differentiators=[leaf('Un seul interlocuteur pour 15 familles d’équipements incendie','Un seul interlocuteur pour 15 familles')];
+ (raw as any).personas=[{role:leaf('Directeur des services généraux et de la maintenance des sites','x'),painPoints:[],messageAngle:E}];
+ const n=normalizeExtraction(raw);assert.ok(n.ok);
+ const dropped=n.fixes.filter(f=>f.code.startsWith('ITEM_DROPPED'));
+ assert.ok(dropped.every(f=>typeof f.excerpt==='string'&&typeof f.length==='number'),'kept on the fix, for the console');
+ const lines=describeFixes(n.fixes).join('\n');
+ for(const f of dropped){assert.ok(!lines.includes(f.excerpt!),`excerpt of ${f.path} not in the server log`);assert.ok(lines.includes(`${f.path}: ${f.code}`))}
+ assert.match(lines,/offer\.differentiators\.0: ITEM_DROPPED_TOO_LONG \(too_long\) — trop long \(50 max\) — 61 caractères/);
+ // End to end: whatever structureIcp writes to the server log carries no excerpt.
+ const ai=withAi([JSON.stringify(raw)]);const logs:string[]=[];const err=mock.method(console,'error',(l:string)=>{logs.push(String(l))});
+ try{await structureIcp(ingestText(detec).text);const all=logs.join('\n');
+  for(const f of dropped)assert.ok(!all.includes(f.excerpt!.slice(0,20)),`no excerpt in the server log: ${f.path}`);
+ }finally{ai.restore();err.mock.restore()}
+ const smoke=readFileSync(new URL('../scripts/icp-import-smoke.ts',import.meta.url),'utf8');
+ assert.match(smoke,/f\.excerpt!==undefined\?`\\n        « \$\{f\.excerpt\} »`/,'the operator console shows it');
+});
+
+test('prompt — value is a short rewording, source the exact sentence; shorten, never drop; no persona without a written role; promises keep their figure',async()=>{
+ const {ICP_SYSTEM_PROMPT}=await import('../src/server/ai.ts');
+ assert.match(ICP_SYSTEM_PROMPT,/"value" est une reformulation courte \(longueurs ci-dessous\)\. "source" est la phrase exacte du document/);
+ assert.match(ICP_SYSTEM_PROMPT,/Une value trop longue : raccourcis-la ; ne supprime jamais un élément pour sa longueur\./);
+ assert.match(ICP_SYSTEM_PROMPT,/"personas" : seulement si la fonction \(le poste\) est écrite dans le document ; sinon "personas":\[\]\./);
+ assert.match(ICP_SYSTEM_PROMPT,/"promises" : un engagement chiffré garde son chiffre dans "text" \("Devis gratuit sous 24 h", pas "Devis gratuit"\) et le reporte dans "value" et "unit"\./);
+});
+
+test('review screen — a promise always shows value + unit beside its wording (or « sans chiffre »)',async()=>{
+ const ui=readFileSync(new URL('../src/components/IcpImport.tsx',import.meta.url),'utf8');
+ assert.match(ui,/<p>\{pr\.value\?\.text\} <span className="icp-badge figure" data-promise-figure>\{pr\.value\?\.value!=null\?`\$\{pr\.value\.value\}\$\{pr\.value\.unit\?` \$\{pr\.value\.unit\}`:''\}`:t\('noFigure'\)\}<\/span><\/p>/);
+ const {ICP_MESSAGES}=await import('../src/icp-import/messages.ts');
+ assert.equal(ICP_MESSAGES.fr.noFigure,'sans chiffre');assert.equal(ICP_MESSAGES.en.noFigure,'no figure');
 });

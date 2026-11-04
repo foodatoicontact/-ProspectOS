@@ -45,6 +45,7 @@ const CSS=`
 .icp-badge{font-size:11px;font-weight:700;border-radius:5px;padding:3px 7px;white-space:nowrap}
 .icp-badge.high{background:#e4f0da;color:#2f6a3a}.icp-badge.medium{background:#faf1d8;color:#7a5d12}.icp-badge.low{background:#f6e3de;color:#8a3b2b}.icp-badge.empty{background:#fff3c4;color:#7a5d12}
 .icp-badge.unmonitored{background:#f1f3ee;color:#66725f}
+.icp-badge.figure{background:#e8f0fb;color:#1f4f8a;margin-left:4px}
 .icp-import .text-button{font-size:13px;min-height:44px;padding:8px 6px}
 .icp-quote{margin:6px 0 0;padding:8px 10px;border-left:3px solid #bad498;background:#f7f9f3;font-size:13px;overflow-wrap:anywhere}
 .icp-item{display:grid;grid-template-columns:1fr auto;gap:6px;align-items:start;border:1px solid var(--line,#e5e9e4);border-radius:10px;padding:10px;margin-bottom:8px;min-width:0}
@@ -268,7 +269,8 @@ function Review(props:ReviewProps){
   <Section title={t('sectionOffer')}>
    <ListOf {...props} label={t('fServices')} items={p.offer.services} path={['offer','services']} max={ICP_LIMITS.service}/>
    <h4 className="muted">{t('fPromises')}</h4>
-   {p.offer.promises.map((pr,i)=><Item key={i} {...props} leaf={pr} path={['offer','promises',i]}><p>{pr.value?.text}</p></Item>)}
+   {/* A commitment always shows its figure beside its wording: value + unit, or « sans chiffre ». */}
+   {p.offer.promises.map((pr,i)=><Item key={i} {...props} leaf={pr} path={['offer','promises',i]}><p>{pr.value?.text} <span className="icp-badge figure" data-promise-figure>{pr.value?.value!=null?`${pr.value.value}${pr.value.unit?` ${pr.value.unit}`:''}`:t('noFigure')}</span></p></Item>)}
    <ListOf {...props} label={t('fDifferentiators')} items={p.offer.differentiators} path={['offer','differentiators']} max={ICP_LIMITS.differentiator}/>
    <ListOf {...props} label={t('fProofs')} items={p.offer.proofs} path={['offer','proofs']} max={ICP_LIMITS.proof}/>
   </Section>

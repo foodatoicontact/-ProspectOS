@@ -204,8 +204,15 @@ Correctifs :
 1 appel, 1 903 tokens de sortie, 0,031 $, sécurité OK. Trois points :
 
 - **`offer.services` à 9 éléments** : ce n'est pas un dépassement. Le plafond est **9** depuis 9ba2190 (smoke test #4 : la place libérée par les codes APE a rendu un service ; budget 2 900, pire cas 2 897) — c'est la doc du smoke test #3 qui disait encore 8. La normalisation **coupe bien** toute liste à son plafond (premiers éléments gardés, avertissement `ITEM_DROPPED_OVER_LIMIT`, qui nomme désormais les éléments retirés) ; aucun nouveau code n'est nécessaire. Le test de budget épingle déjà `services:9`.
-- **Journal des éléments écartés** : chaque `ITEM_DROPPED_*` donne son chemin, la règle précise du schéma qui l'a refusé (« role : valeur non admise (attendu HQ|AGENCY|PARTNER) », « trop long (40 max) », « enveloppe {value, source, confidence} attendue », « persona sans fonction (role vide) », « 9 éléments max (11 reçus) »…) et **les 60 premiers caractères** de ce que le modèle a écrit. Une valeur seule vidée (`VALUE_DROPPED_*`) donne sa règle, sans extrait. **Ce que cela change** : jusqu'ici aucun texte du document n'allait dans les journaux ; ces extraits de 60 caractères y vont désormais (journaux serveur, en production aussi). Ce qui est gardé dans le profil n'y apparaît toujours pas.
+- **Journal des éléments écartés** : chaque `ITEM_DROPPED_*` donne son chemin, la règle précise du schéma qui l'a refusé (« role : valeur non admise (attendu HQ|AGENCY|PARTNER) », « trop long (40 max) », « enveloppe {value, source, confidence} attendue », « persona sans fonction (role vide) », « 9 éléments max (11 reçus) »…) et sa **longueur** en caractères. **Les 60 premiers caractères** de la valeur ne s'affichent que dans la **console du script de smoke test** ; le journal serveur (production comprise) n'en contient jamais — ajustement après le run #6, un test échoue si un extrait y apparaît.
 - **Prompt** : un différenciateur ne doit répéter ni `coverage` (couverture nationale…) ni un engagement de `promises` (délai…). Prompt système ≈ 1 970 tokens estimés (garde de 2 000).
+
+## Après le run #6 (sur 82de82f)
+
+Run #6 validé (1 appel, 6 080 tokens en entrée, 1 855 en sortie, 13,3 s, 0,0307 $ ; le doublon « Couverture géographique nationale » a disparu des différenciateurs). Ajustements, plafonds, `max_tokens` et 041 inchangés :
+- **extraits** d'éléments écartés : console du script de smoke test seulement ; journal serveur = chemin + règle + longueur ;
+- **prompt** : `value` est une reformulation courte (longueurs `ICP_LIMITS`), `source` la phrase exacte du document (40 caractères) ; une value trop longue doit être raccourcie, jamais l'élément supprimé ; pas de persona si la fonction n'est pas écrite dans le document ; un engagement chiffré garde son chiffre dans `text` (« Devis gratuit sous 24 h ») et le reporte dans `value` / `unit` ;
+- **écran de revue** : chaque engagement affiche toujours `value` + `unit` à côté de son libellé (ou « sans chiffre »).
 
 ## Migration 041 gelée
 

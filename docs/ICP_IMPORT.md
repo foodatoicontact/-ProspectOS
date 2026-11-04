@@ -240,6 +240,16 @@ Run #9 (Protec Minéral) : les deux segments étaient écartés pour une **clé*
 - **Un seul `KEY_REGENERATED` au run #10 : aucune correction perdue.** Le journal est cohérent : `fixes_total` = 7 = 6 `source_too_long` + 1 `other`, et la liste `fixes` compte 7 lignes. Une seule clé était invalide (`segments.0`, recalculée en `professionnels_du_ba`). La clé du second segment, `villes_collectivites`, est celle du modèle : elle est valide (20 caractères, minuscules, `_`), donc gardée — une clé recalculée depuis « Villes et aménagements urbains » aurait donné `villes_et_amenagemen`. Le rapport du run disait à tort « deux clés recalculées ». Test ajouté : deux clés invalides et une valide donnent exactement deux `KEY_REGENERATED` dans le journal serveur, avec `fixes_total` = somme des catégories = lignes listées.
 - **Badge « source partielle »** (`isPartialSource`, `normalize.ts`) : une valeur texte dont moins de 50 % des mots de 4 lettres ou plus (sans accents, sans majuscules) figurent dans sa source est marquée à l'écran de revue (et dans la console du script de smoke test). Elle n'est **pas** supprimée. Une valeur saisie par la personne, une valeur sans mot de 4 lettres, une valeur non textuelle ne sont jamais marquées.
 - **Preuves (`offer.proofs` seulement)** : un nom propre absent de la source est retiré de la value (`VALUE_TRIMMED`, chemin seul, sans texte). « Clients: Foncia, SNCF, STEF, Bouygues... » avec la source « Foncia. » devient « Foncia ». Limite connue : un mot courant en début de phrase porte une majuscule (« Plus de 500 clients ») et il est retiré s'il manque à la source.
+- **Interrupteur `ICP_IMPORT_ENABLED`** (voir ci-dessous).
+
+## Interrupteur `ICP_IMPORT_ENABLED`
+
+Variable serveur, **désactivée par défaut** (absente, vide ou autre chose que `true` / `1`). Désactivé :
+- toutes les routes `/api/v1/icp-imports…` répondent **404** `{code: "ICP_IMPORT_DISABLED"}` **avant** de lire quoi que ce soit : ni corps de requête, ni base, ni droit d'accès, ni quota, ni appel au fournisseur IA ;
+- l'écran « Importer mon entreprise » ne s'affiche pas : il ne rend rien avant la première réponse du serveur, et rien quand celle-ci est `ICP_IMPORT_DISABLED`. Aucune variable publique (`NEXT_PUBLIC_…`) : seul le serveur décide. `app/page.tsx` n'est pas modifié (sa partie historique reste identique à main) ;
+- l'export RGPD lit `icp_imports` avec `selectOptional` : table absente → liste vide, l'export marche.
+
+**À n'activer que là où la migration 041 est appliquée.** Sans la 041, fusionner la branche ne change rien en production tant que la variable n'est pas posée.
 
 ## Migration 041 gelée
 

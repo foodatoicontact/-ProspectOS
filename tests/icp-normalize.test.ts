@@ -115,7 +115,7 @@ test('end to end — an answer like smoke test #4 gives a partial draft with war
  const admin:any[]=[];
  const db:any={rpc:async(fn:string)=>fn==='start_icp_import'?{data:IMP,error:null}:{data:true,error:null},
   from:()=>{const b:any={};b.select=()=>b;b.eq=()=>b;b.single=async()=>({data:{organization_id:'o'},error:null});return b}};
- const deps:IcpImportDeps={userId:'u',now:Date.now,requireEntitlement:async()=>{},admin:()=>({rpc:async(fn:string,args:any)=>{admin.push({fn,args});return {data:true,error:null}}}) as any,
+ const deps:IcpImportDeps={enabled:true,userId:'u',now:Date.now,requireEntitlement:async()=>{},admin:()=>({rpc:async(fn:string,args:any)=>{admin.push({fn,args});return {data:true,error:null}}}) as any,
   aiProvider:'anthropic',resolveCredential:async()=>({status:'NONE'}),structure:structureIcp,meter:async()=>{},release:async()=>{},log:()=>{}};
  const logs:string[]=[];const err=mock.method(console,'error',(l:string)=>{logs.push(String(l))});
  try{
@@ -455,3 +455,38 @@ test('offer.proofs — a proper noun absent from the source is taken out of the 
  finally{ai.restore();err.mock.restore()}
 });
 
+test('ICP_IMPORT_ENABLED — off by default: every /icp-imports route answers 404 before reading anything; on: the routes answer',async()=>{
+ const {icpImportEnabled}=await import('../src/icp-import/flag.ts');
+ for(const v of [undefined,'','false','0','no','on'])assert.equal(icpImportEnabled({ICP_IMPORT_ENABLED:v}),false,String(v));
+ for(const v of ['true','1','TRUE',' true '])assert.equal(icpImportEnabled({ICP_IMPORT_ENABLED:v}),true,v);
+ assert.equal(icpImportEnabled({}),false);
+ let touched=0;
+ const db:any={from:()=>{touched++;throw Error('no table')},rpc:async()=>{touched++;throw Error('no function')}};
+ const deps=(enabled:boolean):IcpImportDeps=>({enabled,userId:'u',now:Date.now,requireEntitlement:async()=>{touched++},admin:()=>{touched++;return db},aiProvider:'anthropic',
+  resolveCredential:async()=>{touched++;return {status:'NONE'}},structure:async()=>{touched++;throw Error('no AI')},meter:async()=>{},release:async()=>{},log:()=>{}});
+ const reqs:[Request,string[]][]=[
+  [new Request(`https://x.test/api/v1/icp-imports?project_id=${P}`),['icp-imports']],
+  [new Request(`https://x.test/api/v1/icp-imports/${IMP}`),['icp-imports',IMP]],
+  [new Request('https://x.test/api/v1/icp-imports/text',{method:'POST',body:JSON.stringify({project_id:P,text:'x'.repeat(300)})}),['icp-imports','text']],
+  [new Request('https://x.test/api/v1/icp-imports/file',{method:'POST',body:'%PDF-1.4'}),['icp-imports','file']],
+  [new Request(`https://x.test/api/v1/icp-imports/${IMP}/validate`,{method:'POST',body:'{}'}),['icp-imports',IMP,'validate']],
+ ];
+ for(const [r,p] of reqs){const res=(await handleIcpImport(r,p,db,json,deps(false)))!;assert.equal(res.status,404,p.join('/'));assert.equal(r.bodyUsed,false,'body not read')}
+ assert.equal(touched,0,'off: no database, no entitlement, no provider');
+ assert.equal(await handleIcpImport(new Request('https://x.test/api/v1/projects'),['projects'],db,json,deps(false)),null,'other routes untouched');
+ // On: the same route reaches the database (here missing, as without migration 041 — which is why the switch stays off).
+ await assert.rejects(handleIcpImport(new Request(`https://x.test/api/v1/icp-imports/${IMP}`),['icp-imports',IMP],db,json,deps(true)));
+ assert.ok(touched>0);
+ // Off, the answer carries a code the screen reads to hide itself; nothing else in it.
+ const off=await (await handleIcpImport(reqs[0]![0].clone(),['icp-imports'],db,json,deps(false)))!.json();
+ assert.deepEqual(off,{error:'Route ou action non disponible',code:'ICP_IMPORT_DISABLED'});
+ // The wiring: the route passes the switch from the server's environment; the screen renders nothing before the first
+ // answer and nothing once told ICP_IMPORT_DISABLED (app/page.tsx is not touched: its legacy part stays identical to main).
+ const route=readFileSync(new URL('../app/api/v1/[...path]/route.ts',import.meta.url),'utf8');
+ assert.match(route,/handleIcpImport\(request,path,db,json,\{enabled:icpImportEnabled\(process\.env\),/);
+ assert.match(route,/import \{icpImportEnabled\} from '\.\.\/\.\.\/\.\.\/\.\.\/src\/icp-import\/flag';/);
+ const ui=readFileSync(new URL('../src/components/IcpImport.tsx',import.meta.url),'utf8');
+ assert.match(ui,/if\(r\.status===404&&r\.code==='ICP_IMPORT_DISABLED'\)\{setDisabled\(true\);return\}/);
+ assert.match(ui,/ if\(disabled\|\|!loaded\)return null;\n let body:ReactNode;/);
+ assert.ok(!/NEXT_PUBLIC_ICP/.test(ui+route),'never a public variable: the server decides');
+});

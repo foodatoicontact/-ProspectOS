@@ -59,7 +59,7 @@ function fakeDb(opts?:{startError?:string}){
 }
 function deps(f:ReturnType<typeof fakeDb>,over?:Partial<IcpImportDeps>){
  const metered:any[]=[];let released=0;
- const d:IcpImportDeps={userId:'u',now:Date.now,requireEntitlement:async()=>{},admin:()=>f.adminClient,aiProvider:'anthropic',
+ const d:IcpImportDeps={enabled:true,userId:'u',now:Date.now,requireEntitlement:async()=>{},admin:()=>f.adminClient,aiProvider:'anthropic',
   resolveCredential:async()=>({status:'NONE'}),structure:structureIcp,meter:async row=>{metered.push(row)},release:async()=>{released++},log:()=>{},...over};
  return {d,metered,released:()=>released};
 }

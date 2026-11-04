@@ -37,7 +37,10 @@ const LIST_COLUMNS='id,project_id,source_type,source_ref,status,missing_question
 
 type Json=(value:unknown,status?:number)=>Response;
 type Credential={status:'NONE'}|{status:'INVALID'}|{status:'VALID';apiKey:string};
+// Answered by every /icp-imports route while the switch is off: the screen reads it and hides itself.
+export const ICP_IMPORT_DISABLED='ICP_IMPORT_DISABLED';
 export interface IcpImportDeps{
+ enabled:boolean; // icpImportEnabled(process.env) — false: every /icp-imports route answers 404, nothing is read
  userId:string;
  now:()=>number;
  requireEntitlement:()=>Promise<unknown>;
@@ -193,6 +196,7 @@ export const VALIDATE_BODY_MAX_BYTES=150_000; // a profile is at most 100 KB (mi
 export async function handleIcpImport(request:Request,path:string[],db:SupabaseClient,json:Json,deps:IcpImportDeps):Promise<Response|null>{
  const [resource,sub,action]=path;
  if(resource!=='icp-imports')return null;
+ if(!deps.enabled)return json({error:'Route ou action non disponible',code:ICP_IMPORT_DISABLED},404);
  const started=deps.now();
  const url=new URL(request.url);
  const notFound=()=>json({error:'Route ou action non disponible'},404);

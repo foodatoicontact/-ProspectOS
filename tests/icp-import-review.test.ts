@@ -32,7 +32,7 @@ function fakeDb(rows:Record<string,any>,icp:any=null,rpcError?:Record<string,str
   if(fn==='start_icp_import')return {data:NEW,error:null};return {data:true,error:null}}};
  return {db,rpc};
 }
-const deps=(over?:Partial<IcpImportDeps>):IcpImportDeps=>({userId:'u',now:()=>NOW,requireEntitlement:async()=>{},admin:()=>({rpc:async()=>({data:true,error:null})}) as any,aiProvider:'anthropic',
+const deps=(over?:Partial<IcpImportDeps>):IcpImportDeps=>({enabled:true,userId:'u',now:()=>NOW,requireEntitlement:async()=>{},admin:()=>({rpc:async()=>({data:true,error:null})}) as any,aiProvider:'anthropic',
  resolveCredential:async()=>({status:'NONE'}),structure:async()=>({profile:fixture(),dropped:[],usage:{provider:'anthropic',model:'m',credential_source:'PLATFORM',attempts:[{input_tokens:1,output_tokens:1}],input_tokens:1,output_tokens:1,total_tokens:2}}),
  meter:async()=>{},release:async()=>{},log:()=>{},...over});
 const post=(path:string,body:unknown,headers:Record<string,string>={'content-type':'application/json'})=>new Request(`https://x.test/api/v1/icp-imports/${path}`,{method:'POST',headers,body:typeof body==='string'?body:JSON.stringify(body)});

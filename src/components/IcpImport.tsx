@@ -97,6 +97,8 @@ export function IcpImport({locale,projectId,token,onValidated,onUnauthorized}:{l
  const [keepOffer,setKeepOffer]=useState(false);const [keepCriteria,setKeepCriteria]=useState(false);
  const [result,setResult]=useState<ValidateResult|null>(null);
  const [notice,setNotice]=useState('');
+ // The kill switch (ICP_IMPORT_ENABLED, off by default): the server answers ICP_IMPORT_DISABLED and the screen is not shown.
+ const [disabled,setDisabled]=useState(false);
  const lastSource=useRef<Source|null>(null);
  const rowKey=useRef('');
  const pinned=useRef<string|null>(null);
@@ -118,6 +120,7 @@ export function IcpImport({locale,projectId,token,onValidated,onUnauthorized}:{l
   if(!live.current)return;
   setNow(Date.now());setLoaded(true);
   if(r.ok){setFailures(0);setPreviousDraft(r.data.previousDraft);if(pinned.current&&r.data.row?.id!==pinned.current)pinned.current=null;const key=`${r.data.row?.id}:${r.data.row?.status}`;if(key!==rowKey.current){rowKey.current=key;setQIndex(0)}adopt(r.data.row,r.data.detail);return}
+  if(r.status===404&&r.code==='ICP_IMPORT_DISABLED'){setDisabled(true);return}
   if(r.status===401){signedOut();return}
   if(r.network)setFailures(f=>f+1);else setError(errorText(locale,r.code,r.error));
  },[client,projectId,adopt,signedOut,locale]);
@@ -177,9 +180,10 @@ export function IcpImport({locale,projectId,token,onValidated,onUnauthorized}:{l
  const noticeBox=notice?<p className="icp-info" role="status">{notice}</p>:null;
  const eraseButton=row&&view.kind!=='pending'?<button type="button" className="text-button" disabled={busy} onClick={erase}>{t('erase')}</button>:null;
 
+ // Nothing at all until the first answer (so a switched-off import never flashes), and nothing when it is off.
+ if(disabled||!loaded)return null;
  let body:ReactNode;
- if(!loaded){body=<p className="muted" role="status">{t('pendingStep1')}…</p>}
- else if(running){
+ if(running){
   const elapsed=submittedAt!==null&&view.kind!=='pending'?Math.floor((now-submittedAt)/1000):view.kind==='pending'?view.elapsedS:0;
   const step=elapsed<5?0:elapsed<25?1:2;
   body=<div className="icp-pending" role="status" aria-live="polite">

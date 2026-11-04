@@ -7,6 +7,7 @@ import {authenticatedDb} from '../../../../src/server/db';
 import {analyzeOffer,AnalyzeOfferError} from '../../../../src/server/ai';
 import {composeOutreachMessage,structureIcp} from '../../../../src/server/ai';
 import {handleIcpImport} from '../../../../src/icp-import/api';
+import {icpImportEnabled} from '../../../../src/icp-import/flag';
 import {analyzeCompanyGuarded} from '../../../../src/server/ai-guard';
 import {checked as checkedRpc} from '../../../../src/discovery/repository';
 import {CriterionContextSchema} from '../../../../src/discovery/types';
@@ -80,7 +81,7 @@ async function handler(request:Request,context:{params:Promise<{path:string[]}>}
  const uxAdmin=()=>{try{return createAdminClient()}catch{return null}};
  // ICP import (src/icp-import/api.ts, docs/ICP_IMPORT.md): a file arrives as the raw body (≤ 4 MiB) and pasted text up to
  // 50 000 characters — both read there with their own limits, BEFORE the generic JSON read below (20 000 characters).
- const icpImportResponse=await handleIcpImport(request,path,db,json,{userId:user.id,now:Date.now,
+ const icpImportResponse=await handleIcpImport(request,path,db,json,{enabled:icpImportEnabled(process.env),userId:user.id,now:Date.now,
   requireEntitlement:()=>requireActiveEntitlement(db,user.id),admin:createAdminClient,aiProvider:process.env.AI_PROVIDER,
   resolveCredential:organizationId=>resolveProviderCredential(organizationId,'anthropic'),structure:structureIcp,
   meter:({organizationId,projectId,usage,attempt})=>recordApiUsage({organizationId,projectId,userId:user.id,provider:usage.provider,operation:'offer_analysis',model:usage.model,inputTokens:attempt.input_tokens,outputTokens:attempt.output_tokens,billingSource:usage.credential_source}),

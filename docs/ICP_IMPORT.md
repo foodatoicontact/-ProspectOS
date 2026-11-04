@@ -106,11 +106,19 @@ Un appel réel à `structureIcp`, sans rien écrire dans `icp_imports`, dans un 
 Workflow `.github/workflows/icp-import-smoke.yml`, déclenché **uniquement à la main** (`workflow_dispatch`).
 
 Une fois, dans le dépôt (Settings) :
-1. **Environments → New environment** `icp-smoke` ; si le plan du dépôt le permet, ajouter « Required reviewers » (soi-même) et limiter aux branches choisies.
+1. **Environments → New environment** `icp-smoke`. Aucun relecteur obligatoire n'est nécessaire (le workflow n'en dépend pas).
 2. Dans cet environnement, **un seul secret** : `AI_API_KEY` (la clé IA de la plateforme). Aucun secret Supabase, aucun export de l'environnement de production.
-3. **Variables** du dépôt : `SELF_OUTREACH_ORG_IDS` (l'uuid de l'organisation ProspectOS) ; facultatives : `AI_PROVIDER` (défaut `anthropic`), `AI_MODEL` (défaut `claude-sonnet-5`), `ICP_SMOKE_PRICE_INPUT_PER_MTOK` / `ICP_SMOKE_PRICE_OUTPUT_PER_MTOK` (défaut 2 et 10 $ par million de tokens, le tarif de la migration 010).
+3. **Variables** du dépôt (Secrets and variables → Actions → Variables) : `SELF_OUTREACH_ORG_IDS` (l'uuid de l'organisation ProspectOS, même valeur que la variable Vercel de ce nom) ; facultatives : `AI_PROVIDER` (défaut `anthropic`), `AI_MODEL` (défaut `claude-sonnet-5`), `ICP_SMOKE_PRICE_INPUT_PER_MTOK` / `ICP_SMOKE_PRICE_OUTPUT_PER_MTOK` (défaut 2 et 10 $ par million de tokens, le tarif de la migration 010).
 
-Ensuite, depuis le téléphone : **Actions → ICP import smoke test → Run workflow**, coller le texte de la présentation et l'uuid de l'organisation, lancer, puis ouvrir le journal de l'étape « Run the smoke test ». Le texte arrive dans le shell par une variable d'environnement (jamais interpolé dans le script), est écrit dans un fichier temporaire du runner puis supprimé ; aucun artefact n'est publié ; la clé est masquée dans les journaux. Le coût affiché est calculé au tarif fourni (pas de base de données).
+Le bouton « Run workflow » n'apparaît qu'une fois le fichier du workflow sur `main`. Ensuite : **Actions → ICP import smoke test → Run workflow**, choisir la branche **`feat/icp-import`** dans « Use workflow from » (sur une branche sans le script, le workflow s'arrête aussitôt sur « Script absent »), puis remplir :
+
+- **`document_path`** — à privilégier pour un document entier : le chemin d'un fichier **du dépôt, sur la branche choisie**, directement dans `tests/fixtures/icp/` (par exemple `tests/fixtures/icp/detec-incendie.source.txt` ou `tests/fixtures/icp/protection-incendie.source.txt`). Le fichier est lu **tel quel**, retours à la ligne conservés. Quand il est renseigné, il **prend le dessus** sur le champ texte. Tout autre dossier, un sous-dossier, `..`, un chemin absolu, un lien symbolique ou un fichier absent est refusé avec « Document refusé ». Pour tester un nouveau document : l'ajouter d'abord sous `tests/fixtures/icp/` par un commit.
+- **`document_text`** — pour un texte court seulement : le formulaire de GitHub est une seule ligne, les retours à la ligne d'un texte collé y sont perdus.
+- **`organization_id`** — l'uuid de l'organisation, qui doit figurer dans `SELF_OUTREACH_ORG_IDS`.
+
+Lancer, puis ouvrir le journal de l'étape « Run the smoke test ». Les entrées arrivent dans le shell par des variables d'environnement (jamais interpolées dans le script) ; un texte du formulaire est écrit dans un fichier temporaire du runner puis supprimé ; aucun artefact n'est publié ; la clé est masquée dans les journaux. Le coût affiché est calculé au tarif fourni (pas de base de données).
+
+Fixtures de documents disponibles : `protection-incendie.source.txt` (fictif, référence des tests) et `detec-incendie.source.txt` (texte public copié depuis le site detec-incendie.com, enregistré tel quel, utilisé uniquement pour le test d'extraction — sa section 11 contient des consignes adressées à une IA : elles sont du contenu du document, que l'extraction doit traiter comme une donnée, jamais suivre).
 
 ### En local
 

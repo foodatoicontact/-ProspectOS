@@ -1,5 +1,6 @@
 # ICP import — real smoke test, started by hand only (docs/ICP_IMPORT.md §Smoke test). One real structureIcp call on
-# the text pasted in the form, nothing else:
+# a document of the repository (document_path, under tests/fixtures/icp/ only, read as is: line breaks kept) or, for a
+# short text, on the text typed in the form (document_text, one line). Nothing else:
 #  - started only from the Actions tab (workflow_dispatch): never on a push, a pull request or a schedule;
 #  - one secret, the AI key (AI_API_KEY of the "icp-smoke" environment) — no Supabase key, no production environment pull;
 #  - nothing written to any database, no artifact published; the key is masked in the logs.
@@ -9,9 +10,15 @@ name: ICP import smoke test
 on:
   workflow_dispatch:
     inputs:
+      document_path:
+        description: "Chemin d'un fichier du dépôt sous tests/fixtures/icp/ (ex. tests/fixtures/icp/detec-incendie.source.txt) — prend le dessus sur le texte"
+        required: false
+        default: ''
+        type: string
       document_text:
-        description: Texte de la présentation de l'entreprise (30 à 50 000 caractères)
-        required: true
+        description: Texte court de la présentation (une seule ligne ; pour un document entier, utilisez le chemin)
+        required: false
+        default: ''
         type: string
       organization_id:
         description: UUID de l'organisation (doit figurer dans SELF_OUTREACH_ORG_IDS)
@@ -41,6 +48,31 @@ jobs:
             echo "::error title=Script absent::scripts/icp-import-smoke.ts (ou structureIcp) n'existe pas sur la branche « $GITHUB_REF_NAME ». Relancez le workflow en choisissant la branche feat/icp-import dans « Use workflow from »."
             exit 1
           fi
+      # The document: a file of the repository, limited to tests/fixtures/icp/ (no other folder, no ../, no link), read
+      # as is; otherwise the text of the form. The path only ever comes from the input, checked before any use.
+      - name: Resolve the document
+        shell: bash
+        env:
+          DOCUMENT_PATH: ${{ inputs.document_path }}
+          DOCUMENT_TEXT: ${{ inputs.document_text }}
+        run: |
+          refuse(){ echo "::error title=Document refusé::$1"; exit 1; }
+          if [ -n "$DOCUMENT_PATH" ]; then
+            case "$DOCUMENT_PATH" in *..*) refuse "chemin refusé : « .. » interdit.";; esac
+            [[ "$DOCUMENT_PATH" =~ ^tests/fixtures/icp/[A-Za-z0-9][A-Za-z0-9._-]*$ ]] || refuse "chemin refusé : seul un fichier directement dans tests/fixtures/icp/ est accepté."
+            { [ -f "$DOCUMENT_PATH" ] && [ ! -L "$DOCUMENT_PATH" ]; } || refuse "fichier introuvable sur la branche « $GITHUB_REF_NAME » : $DOCUMENT_PATH"
+            real=$(realpath -e "$DOCUMENT_PATH"); base=$(realpath -e tests/fixtures/icp)
+            case "$real" in "$base"/*) ;; *) refuse "chemin refusé : hors de tests/fixtures/icp/.";; esac
+            echo "ICP_SMOKE_DOC=$real" >> "$GITHUB_ENV"
+            echo "Document : $DOCUMENT_PATH (fichier du dépôt, lu tel quel)"
+          elif [ -n "$DOCUMENT_TEXT" ]; then
+            doc="$RUNNER_TEMP/icp-smoke-document.txt"
+            printf '%s' "$DOCUMENT_TEXT" > "$doc"
+            echo "ICP_SMOKE_DOC=$doc" >> "$GITHUB_ENV"
+            echo "Document : texte du formulaire"
+          else
+            refuse "renseignez document_path (fichier sous tests/fixtures/icp/) ou document_text."
+          fi
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
@@ -49,7 +81,6 @@ jobs:
       - name: Run the smoke test
         env:
           # The inputs reach the shell as environment variables only — never interpolated into the script itself.
-          DOCUMENT_TEXT: ${{ inputs.document_text }}
           ORGANIZATION_ID: ${{ inputs.organization_id }}
           AI_API_KEY: ${{ secrets.AI_API_KEY }}
           AI_PROVIDER: ${{ vars.AI_PROVIDER || 'anthropic' }}
@@ -61,7 +92,5 @@ jobs:
         run: |
           echo "::add-mask::$AI_API_KEY"
           if [ -z "$AI_API_KEY" ]; then echo "Secret AI_API_KEY absent de l'environnement icp-smoke."; exit 1; fi
-          doc="$RUNNER_TEMP/icp-smoke-document.txt"
-          printf '%s' "$DOCUMENT_TEXT" > "$doc"
-          node --experimental-strip-types scripts/icp-import-smoke.ts --org "$ORGANIZATION_ID" "$doc"
-          rm -f "$doc"
+          node --experimental-strip-types scripts/icp-import-smoke.ts --org "$ORGANIZATION_ID" "$ICP_SMOKE_DOC"
+          rm -f "$RUNNER_TEMP/icp-smoke-document.txt"

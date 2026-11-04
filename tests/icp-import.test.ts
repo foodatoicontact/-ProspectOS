@@ -336,7 +336,7 @@ test('smoke test without a computer — manual workflow only, the AI key as its 
  assert.match(code,/environment: icp-smoke/);assert.match(code,/permissions:\n  contents: read/);
  assert.match(code,/::add-mask::\$AI_API_KEY/);
  const runs=code.split(/\n      - /).filter(step=>step.includes('run: |')).map(step=>step.slice(step.indexOf('run: |')));
- assert.equal(runs.length,2);
+ assert.equal(runs.length,3);
  for(const r of runs)assert.doesNotMatch(r,/\$\{\{/,'the inputs reach the shell through env only (no expression injection)');
  const run=runs.join('\n');
  assert.match(code,/DOCUMENT_TEXT: \$\{\{ inputs\.document_text \}\}/);
@@ -344,4 +344,36 @@ test('smoke test without a computer — manual workflow only, the AI key as its 
  assert.match(code,/if \[ ! -f scripts\/icp-import-smoke\.ts \][\s\S]*?::error title=Script absent::[\s\S]*?exit 1/,'a clear failure on a ref without the script');
  assert.ok(code.indexOf('Script absent')<code.indexOf('npm ci'),'checked before installing anything');
  assert.doesNotMatch(code,/required.reviewers|wait-timer/i,'no dependency on required reviewers');
+});
+
+test('smoke workflow — document_path, limited to tests/fixtures/icp/, wins over the text and is read as is (line breaks kept)',async()=>{
+ const {execFileSync}=await import('node:child_process');
+ const {mkdtempSync,readFileSync:read,symlinkSync,rmSync}=await import('node:fs');
+ const {tmpdir}=await import('node:os');const {join}=await import('node:path');
+ const wf=readFileSync(new URL('../.github/workflows/icp-import-smoke.yml',import.meta.url),'utf8');
+ const step=wf.slice(wf.indexOf('- name: Resolve the document'));
+ const script=step.slice(step.indexOf('run: |')+7,step.indexOf('\n      - uses:')).split('\n').map(l=>l.replace(/^ {10}/,'')).join('\n');
+ assert.match(wf,/document_path:\n\s+description:[^\n]*\n\s+required: false/);assert.match(wf,/document_text:\n\s+description:[^\n]*\n\s+required: false/);
+ const repo=new URL('..',import.meta.url).pathname;
+ const run=(env:Record<string,string>)=>{
+  const tmp=mkdtempSync(join(tmpdir(),'icp-smoke-'));const ghEnv=join(tmp,'env');
+  try{
+   const out=execFileSync('bash',['-e','-c',script],{cwd:repo,env:{PATH:process.env.PATH!,GITHUB_ENV:ghEnv,RUNNER_TEMP:tmp,GITHUB_REF_NAME:'feat/icp-import',DOCUMENT_PATH:'',DOCUMENT_TEXT:'',...env},encoding:'utf8',stdio:['ignore','pipe','pipe']});
+   const doc=read(ghEnv,'utf8').match(/^ICP_SMOKE_DOC=(.*)$/m)![1]!;
+   return {ok:true as const,out,doc,content:read(doc,'utf8')};
+  }catch(e){return {ok:false as const,out:String((e as {stdout?:string}).stdout??'')}}finally{rmSync(tmp,{recursive:true,force:true})}
+ };
+ const file=run({DOCUMENT_PATH:'tests/fixtures/icp/detec-incendie.source.txt',DOCUMENT_TEXT:'texte ignoré'});
+ assert.ok(file.ok,file.out);
+ assert.equal(file.content,readFileSync(new URL('./fixtures/icp/detec-incendie.source.txt',import.meta.url),'utf8'),'read as is');
+ assert.ok(file.content.split('\n').length>200,'line breaks kept');
+ const text=run({DOCUMENT_TEXT:'Détec Incendie installe des extincteurs en Seine-et-Marne.'});
+ assert.ok(text.ok);assert.equal(text.content,'Détec Incendie installe des extincteurs en Seine-et-Marne.');
+ for(const bad of ['tests/fixtures/icp/../../../package.json','tests/fixtures/icp/../schema.json','package.json','/etc/passwd','tests/fixtures/other.txt','tests/fixtures/icp/sub/x.txt','./tests/fixtures/icp/protection-incendie.source.txt','tests/fixtures/icp/absent.txt','tests/fixtures/icp/a b.txt',"tests/fixtures/icp/x.txt\nICP_SMOKE_DOC=/etc/passwd"]){
+  const r=run({DOCUMENT_PATH:bad});assert.equal(r.ok,false,`refused: ${bad}`);assert.match(r.out,/::error title=Document refusé::/);
+ }
+ const link=new URL('./fixtures/icp/link-to-package.txt',import.meta.url).pathname;
+ symlinkSync(new URL('../package.json',import.meta.url).pathname,link);
+ try{assert.equal(run({DOCUMENT_PATH:'tests/fixtures/icp/link-to-package.txt'}).ok,false,'a symbolic link is refused')}finally{rmSync(link,{force:true})}
+ assert.equal(run({}).ok,false,'neither path nor text: a clear error');
 });

@@ -39,7 +39,12 @@ over a coffee?
 - **Talk about the problem the reader lives** (who do I call Monday, and what do I say), then what the product does in
   plain words, with its proof — never feature lists in marketing words.
 - **Honesty as the hook:** say what the product does NOT do, or when it finds nothing. It is the brand.
-- **No emoji bullets, no « 👉 » stack, no hashtag wall.** Arrows (→) or plain lines; at most one emoji in the post.
+- **No emoji bullets, no arrows (→), no « 👉 » stack, no hashtag wall.** Plain sentences and paragraphs; at most one
+  emoji in the post, none is fine.
+- **No AI tics** (Kevin, 6 Nov. 2026: « sans tic IA »): no « Entre les deux, pas de magie », « Le plus drôle, c'est
+  que… », « Et ça, ça change tout », « Spoiler : », « Résultat ? », « Moralité : », « ça fait partie du jeu »; no
+  three-item lists by reflex; no one-word dramatic lines; no « X ? Y. » question-answer setups; no colon before every
+  punchline; no closing « Et vous ? » formula. Write it the way Kevin would type it on his phone.
 - **One or two calls to action, in his words** (« Écris DÉMO », « Lien en commentaire »), never three in a row.
 - **The link goes in the first comment**, never in the post.
 - Still true and checkable: no invented anecdote, figure or client. A story Kevin has not told yet = `[À CONFIRMER]`.

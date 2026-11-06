@@ -19,10 +19,30 @@ client or a result breaks the brand. When a fact is unknown, leave a visible `[�
 - **Against:** bought contact lists, generic "500 leads" files, LinkedIn automation that spams.
 - **Proof points available:** official public data (Sirene register, public procurement DECP, company websites),
   human validation, "we deliver 1 verified prospect rather than 5 approximate ones" (real case, oct. 2026).
-- **Known offer (oct. 2026, from Kevin's cold email):** 5 free prospects to judge quality; full pack = 50 prospects +
-  an approach message each, 99 € HT. Re-check before quoting.
+- **Offer on the site (checked in the code, 6 Nov. 2026):** free 7-day trial, no credit card — 20 prospect searches,
+  50 prospect analyses, 5 AI offer analyses for the whole trial; nothing is billed at the end. Sign-up:
+  `https://prospectos.fr/#inscription`; a public demo runs without an account. Re-check `src/domain/pricing.ts` and
+  `src/domain/seo-content.ts` before quoting. The October cold-email offer (5 free prospects, 50 for 99 € HT) is not
+  on the site: do not quote it unless Kevin confirms it is still valid.
 - Kevin also runs **Foodatoi** (ordering platform for restaurants). Never mix both in one piece of content unless the
   bridge is explicit; a reader must always know which product is talked about.
+
+## Kevin's voice — the rule for every post (set on 6 Nov. 2026)
+
+Kevin rejected a post as « du vu et revu » (generic SaaS LinkedIn: hook + 🔹 bullets + « 👉 » CTA stack + "Testez 7
+jours"). Every post now follows this voice; when in doubt, read the line aloud: would Kevin say it to a freelancer
+over a coffee?
+- **Tutoiement**, short sentences, one idea per line. Spoken French, not brochure French (« des boîtes », « un site
+  d'un autre siècle »). No corporate words: « solution », « optimiser », « booster », « levier », « game changer ».
+- **Self-mockery first, selling second.** Admit the cliché or the weakness before making the point (« Je déteste les
+  posts "essai gratuit". Alors voilà le mien. »). Never brag.
+- **Talk about the problem the reader lives** (who do I call Monday, and what do I say), then what the product does in
+  plain words, with its proof — never feature lists in marketing words.
+- **Honesty as the hook:** say what the product does NOT do, or when it finds nothing. It is the brand.
+- **No emoji bullets, no « 👉 » stack, no hashtag wall.** Arrows (→) or plain lines; at most one emoji in the post.
+- **One or two calls to action, in his words** (« Écris DÉMO », « Lien en commentaire »), never three in a row.
+- **The link goes in the first comment**, never in the post.
+- Still true and checkable: no invented anecdote, figure or client. A story Kevin has not told yet = `[À CONFIRMER]`.
 
 ## Lessons from real data (LinkedIn, oct. 2026)
 
@@ -38,8 +58,9 @@ The WhatsApp-scam story post: 28 000 impressions, 94 % outside the network, 10 c
 
 ## Formats
 
-**LinkedIn post (default):** hook line for the target → short real story (3–5 lines) → the lesson → 3 numbered tips
-→ one line on ProspectOS (what it does, not a sales pitch) → one question. 120–200 words. Emojis as bullets only.
+**LinkedIn post (default):** in Kevin's voice (section above). Hook line for the target → short real story or honest
+admission (3–5 lines) → the lesson → what ProspectOS does, in plain words, with its proof → one or two CTAs → one
+question. 120–200 words. At most one emoji, no emoji bullets.
 
 **Short video (Reels / TikTok / Shorts / LinkedIn video), 30–45 s, face camera:**
 1. 0–3 s hook said AND written on screen ("J'ai refusé de livrer 5 prospects à un client.").

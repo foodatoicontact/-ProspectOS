@@ -111,6 +111,16 @@ fonds, nouveau dirigeant, implantation… reprennent celles de l'Intent Engine (
 | 13 | FIT_INCOMPLETE_NO_TIMING | DISMISS | FIT **INCOMPLETE**, rien de frais pour WATCH — **à documenter**, pas rejeté (v1.3.x) |
 | 14 | LOW_FIT_NO_TIMING | DISMISS | FIT **KNOWN_LOW** entre 30 et 49 (OFF_TARGET non atteint) — faible adéquation (v1.3.x) |
 
+### Correctif — dates du 1er au 9 du mois (2026-11-09)
+
+Le brouillon écrit la date d'une source en toutes lettres (« 6 octobre ») ; la source la stocke en ISO (« 2026-10-06 »).
+Le contrôle des faits cherche chaque nombre du message dans les sources : « 6 » ne figurait pas, « 06 » oui. Tout
+brouillon CONTACT ou ENGAGE citant une date du 1er au 9 du mois était donc écarté (`FACT_GUARD_UNSUPPORTED_NUMBER`).
+`src/nba/content.ts` ajoute désormais aux sources la date écrite comme le brouillon l'écrit, à côté de la forme ISO.
+Aucune règle, aucun score, aucune configuration ne change ; le contrôle des faits (`src/outreach/fact-guard.ts`) est
+intact. Le gel de `content.ts` (tests/zero-friction-today.test.ts, test 9) retire exactement ce changement puis exige le
+fichier de a54539d octet pour octet. Test : tests/next-best-action.test.ts (1er, 6 et 9 du mois, CONTACT et ENGAGE).
+
 ### NBA v1.3.x — sémantique de l'ancien NOT_ENOUGH (2026-10-18)
 
 L'ancienne règle terminale NOT_ENOUGH (DISMISS) mélangeait trois états : FIT inconnu, FIT incomplet mais favorable, FIT

@@ -147,7 +147,14 @@ test('8 — advanced details keep every explanation statement and its provenance
 // ------------------------------------------------------------ 9 engine untouched
 test('9 — NBA v1.3 decisions unchanged: registry, content and core identical to a54539d; configuration and rules identical but for the v1.3.x NOT_ENOUGH split',()=>{
  const at=(f:string,rev?:string)=>execSync(rev?`git show ${rev}:${f}`:`cat ${f}`,{cwd:new URL('..',import.meta.url),encoding:'utf8'});
- for(const f of ['src/nba/registry.ts','src/nba/content.ts','src/geo/model.ts','src/domain/core.ts'])assert.equal(at(f),at(f,'a54539d'),f);
+ for(const f of ['src/nba/registry.ts','src/geo/model.ts','src/domain/core.ts'])assert.equal(at(f),at(f,'a54539d'),f);
+ // NBA date fix (docs/NEXT_BEST_ACTION.md): the only change to content.ts is that a source's stored date is also given
+ // spelled as the draft writes it ("6 octobre" next to "2026-10-06"), so a source dated the 1st–9th of a month is no
+ // longer refused by the fact guard. Undo exactly that and the file is a54539d's, byte for byte.
+ const undated=(t:string)=>t.replace(/\/\/ A stored date as the messages write it[^\n]*\n\/\/ would not cover[^\n]*\nconst datesOf=[^\n]*\n/,'')
+  .replace('${datesOf(s.event_date,s.published_at)}',"${s.event_date??''} ${s.published_at??''}")
+  .replace('${datesOf(c.published_at)}',"${c.published_at??''}").replace('datesOf(c.published_at)]',"c.published_at??'']");
+ assert.equal(undated(at('src/nba/content.ts')),at('src/nba/content.ts','a54539d'),'src/nba/content.ts');
  // UI-4 (USER_DECLARED) changes src/domain/fit-estimate.ts and adds labels / sentences to the FIT profile and the
  // explanation: their byte pins are replaced by a behavioural one — without any declaration, every output of the
  // a54539d engine + estimate is reproduced exactly (tests/user-declared.test.ts).

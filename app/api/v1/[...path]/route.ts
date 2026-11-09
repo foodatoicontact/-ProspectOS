@@ -8,6 +8,7 @@ import {analyzeOffer,AnalyzeOfferError} from '../../../../src/server/ai';
 import {composeOutreachMessage,structureIcp} from '../../../../src/server/ai';
 import {handleIcpImport} from '../../../../src/icp-import/api';
 import {icpImportEnabled} from '../../../../src/icp-import/flag';
+import {handleTenders,tendersEnabled} from '../../../../src/tenders/api';
 import {analyzeCompanyGuarded} from '../../../../src/server/ai-guard';
 import {checked as checkedRpc} from '../../../../src/discovery/repository';
 import {CriterionContextSchema} from '../../../../src/discovery/types';
@@ -87,6 +88,10 @@ async function handler(request:Request,context:{params:Promise<{path:string[]}>}
   meter:({organizationId,projectId,usage,attempt})=>recordApiUsage({organizationId,projectId,userId:user.id,provider:usage.provider,operation:'offer_analysis',model:usage.model,inputTokens:attempt.input_tokens,outputTokens:attempt.output_tokens,billingSource:usage.credential_source}),
   release:()=>releaseCommercialUse(createAdminClient(),user.id,'ai_offer'),log:line=>console.info(JSON.stringify(line))});
  if(icpImportResponse)return icpImportResponse;
+ // Open public tenders from the BOAMP (src/tenders/api.ts, docs/TENDERS.md): read-only, behind TENDERS_ENABLED.
+ const tendersResponse=await handleTenders(request,path,json,{enabled:tendersEnabled(process.env),requireEntitlement:()=>requireActiveEntitlement(db,user.id),
+  log:event=>console.info(JSON.stringify(event))});
+ if(tendersResponse)return tendersResponse;
  let body:Record<string,any>={};
  if(!['GET','HEAD'].includes(request.method)){const raw=await request.text();if(raw.length>20000)return json({error:'Corps trop volumineux'},413);try{body=JSON.parse(raw||'{}')}catch{return json({error:'JSON invalide'},400)}if(!body||Array.isArray(body))return json({error:'Objet requis'},400)}
  const discoveryResponse=await handleDiscovery(request,path,body,db,user);if(discoveryResponse)return discoveryResponse;

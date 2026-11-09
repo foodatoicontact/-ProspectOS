@@ -85,6 +85,11 @@ contacts; B2B only (GDPR / CNIL). 80–120 words.
 **Lead magnet:** "5 prospects vérifiés gratuits dans votre zone" (sector + zone), delivered with sources — it is the
 product itself, the best demo.
 
+## Files sent by LinkedIn message
+
+LinkedIn messages refuse CSV and HTML attachments (Kevin, 9 Nov. 2026). A list for a prospect goes as a **PDF** (map +
+table, clickable links to each official source, A4, readable on a phone); a spreadsheet only by e-mail.
+
 ## Weekly rhythm (suggested)
 
 - 3 LinkedIn posts: 1 founder story, 1 practical method (savable), 1 proof/case (anonymised, with consent).

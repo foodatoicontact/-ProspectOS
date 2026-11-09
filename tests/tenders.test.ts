@@ -154,7 +154,10 @@ test('panel — deadlines in Paris time with the days left; the last week stands
 
 test('panel — mounted in the v2 shell on « Recherche » only, for a live project; read-only, official links in a new tab',()=>{
  const page=readFileSync(new URL('../app/page.tsx',import.meta.url),'utf8');
- assert.match(page,/\{view==='discovery'&&mode==='live'&&project&&<v2\.TendersPanel key=\{`tenders-\$\{project\.id\}`\} locale=\{locale\} projectId=\{project\.id\} token=\{token\} onUnauthorized=\{\(\)=>\{work\(logout\)\}\}\/>\}\{workspace\}/);
+ // v2 "Recherche" is a screen of its own (SearchV2 replaces the shell's children): the panel lives in its top slot, under the
+ // same banners. Placed among the children it would never render (production, 2026-11-09).
+ assert.match(page,/:view==='discovery'&&project\?<v2\.SearchV2 locale=\{locale\} top=\{<>\{banners\}\{mode==='live'&&<v2\.TendersPanel key=\{`tenders-\$\{project\.id\}`\} locale=\{locale\} projectId=\{project\.id\} token=\{token\} onUnauthorized=\{\(\)=>\{work\(logout\)\}\}\/>\}<\/>\} /);
+ assert.match(readFileSync(new URL('../src/ui/v2/search/SearchV2.tsx',import.meta.url),'utf8'),/<div className="pos-search__main">\s*\{p\.top\}/,'the top slot is rendered first');
  assert.equal((page.match(/<v2\.TendersPanel /g)??[]).length,1);
  assert.ok(page.indexOf('<v2.TendersPanel ')>page.indexOf(' if(v2){'),'v2 branch only: the legacy screens are unchanged');
  assert.match(readFileSync(new URL('../src/ui/v2/shell/AppShell.tsx',import.meta.url),'utf8'),/export \{TendersPanel\} from '\.\.\/\.\.\/\.\.\/components\/TendersPanel\.tsx';/);

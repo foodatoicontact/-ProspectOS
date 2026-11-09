@@ -144,4 +144,6 @@ export {SearchV2} from '../search/SearchV2.tsx';
 export {SearchNative} from '../search/SearchNative.tsx';
 // « Importer mon entreprise » (docs/ICP_IMPORT.md), shown at the top of « Offre et cible ».
 export {IcpImport} from '../../../components/IcpImport.tsx';
+// « Appels d'offres ouverts » (docs/TENDERS.md), shown at the top of « Recherche » when TENDERS_ENABLED is on.
+export {TendersPanel} from '../../../components/TendersPanel.tsx';
 export {ActivityV2,ActionsNative,ActivityOverview} from '../activity/ActivityV2.tsx';

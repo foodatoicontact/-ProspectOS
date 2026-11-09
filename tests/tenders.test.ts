@@ -122,3 +122,45 @@ test('route — wired in the API router with the switch from the server environm
  assert.match(route,/handleTenders\(request,path,json,\{enabled:tendersEnabled\(process\.env\),requireEntitlement:\(\)=>requireActiveEntitlement\(db,user\.id\),/);
  assert.ok(route.indexOf('handleTenders(')<route.indexOf("const raw=await request.text()"),'answered before the generic body read');
 });
+
+// =============================================================== the panel (src/tenders/view.ts, TendersPanel.tsx)
+test('panel — shown only when the server says the feature is on; the probe never calls the BOAMP',async()=>{
+ const {tendersClient,panelEnabled}=await import('../src/tenders/view.ts');
+ const urls:string[]=[];const answer=(status:number,body:unknown)=>async(u:string)=>{urls.push(u);return new Response(JSON.stringify(body),{status})};
+ assert.equal(panelEnabled(await tendersClient('tok',answer(404,{code:'TENDERS_DISABLED'})).probe()),false,'switched off');
+ assert.equal(panelEnabled(await tendersClient('tok',answer(400,{code:'KEYWORDS_REQUIRED'})).probe()),true,'switched on: the empty query is refused');
+ assert.equal(panelEnabled(await tendersClient('tok',async()=>{throw new TypeError('x')}).probe()),false,'unreachable: hidden');
+ assert.equal(panelEnabled(await tendersClient('tok',answer(401,{})).probe()),false);
+ assert.deepEqual(urls,['/api/v1/tenders','/api/v1/tenders','/api/v1/tenders'],'the probe has no keyword, so the server never reaches the BOAMP');
+ // the empty probe really stops before the BOAMP on the server side
+ let fetched=0;
+ const res=await handleTenders(new Request('https://x.test/api/v1/tenders'),['tenders'],json,{enabled:true,requireEntitlement:async()=>{},fetch:(async()=>{fetched++;return ok(fixture)()}) as typeof fetch});
+ assert.equal(res!.status,400);assert.equal(fetched,0);
+ const s=await tendersClient('tok',answer(200,{tenders:[],total:0,query:{keywords:['a b'],departments:['33']}})).search('graffiti, façade','33,40');
+ assert.ok(s.ok);assert.equal(urls.at(-1),'/api/v1/tenders?keywords=graffiti%2C+fa%C3%A7ade&departments=33%2C40');
+});
+
+test('panel — deadlines in Paris time with the days left; the last week stands out',async()=>{
+ const {deadlineText,daysLeft,urgent,tendersText,TENDERS_TEXT}=await import('../src/tenders/view.ts');
+ const now=Date.parse('2026-11-09T09:00:00Z');
+ assert.equal(deadlineText('fr','2026-11-24T15:00:00.000Z',now),'24 novembre à 16:00 · J-16');
+ assert.equal(deadlineText('fr','2026-11-09T11:00:00.000Z',now),'9 novembre à 12:00 · dernier jour');
+ assert.equal(daysLeft('2026-11-01T00:00:00Z',now),0);
+ assert.equal(urgent('2026-11-13T11:00:00Z',now),true);assert.equal(urgent('2026-11-24T15:00:00Z',now),false);
+ assert.deepEqual(Object.keys(TENDERS_TEXT.fr).sort(),Object.keys(TENDERS_TEXT.en).sort(),'both languages carry the same keys');
+ assert.equal(tendersText('fr','count',{n:6}),'6 appel(s) d’offres ouvert(s)');
+ assert.match(tendersText('fr','keywordsHint'),/Saint-Pierre/,'the panel says how a keyword is matched');
+});
+
+test('panel — mounted in the v2 shell on « Recherche » only, for a live project; read-only, official links in a new tab',()=>{
+ const page=readFileSync(new URL('../app/page.tsx',import.meta.url),'utf8');
+ assert.match(page,/\{view==='discovery'&&mode==='live'&&project&&<v2\.TendersPanel key=\{`tenders-\$\{project\.id\}`\} locale=\{locale\} projectId=\{project\.id\} token=\{token\} onUnauthorized=\{\(\)=>\{work\(logout\)\}\}\/>\}\{workspace\}/);
+ assert.equal((page.match(/<v2\.TendersPanel /g)??[]).length,1);
+ assert.ok(page.indexOf('<v2.TendersPanel ')>page.indexOf(' if(v2){'),'v2 branch only: the legacy screens are unchanged');
+ assert.match(readFileSync(new URL('../src/ui/v2/shell/AppShell.tsx',import.meta.url),'utf8'),/export \{TendersPanel\} from '\.\.\/\.\.\/\.\.\/components\/TendersPanel\.tsx';/);
+ const ui=readFileSync(new URL('../src/components/TendersPanel.tsx',import.meta.url),'utf8');
+ assert.match(ui,/if\(!enabled\)return null;/);
+ assert.match(ui,/<a href=\{x\.url\} target="_blank" rel="noopener noreferrer">/);
+ assert.ok(!/method:'POST'|fetch\(/.test(ui),'the panel only reads, through tendersClient');
+ assert.match(ui,/unauthorized\.current=onUnauthorized/,'the probe does not loop on a new callback');
+});

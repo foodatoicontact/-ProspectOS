@@ -36,6 +36,9 @@ function refused(text:string,offer:string,names:string[]=[]):string|null{
  return null;
 }
 const dayFr=(iso:string)=>new Date(`${iso.slice(0,10)}T12:00:00Z`).toLocaleDateString('fr-FR',{day:'numeric',month:'long',timeZone:'UTC'});
+// A stored date as the messages write it: the ISO form plus the spelled day ("6 novembre"), since "06" in an ISO date
+// would not cover the "6" a message says between the 1st and the 9th of a month.
+const datesOf=(...isos:(string|null|undefined)[])=>isos.filter((d):d is string=>!!d).map(d=>`${d} ${dayFr(d)}`).join(' ');
 
 export function prepareContent(p:PrepareInput):Prepared{
  const o=p.opportunity;
@@ -46,8 +49,8 @@ export function prepareContent(p:PrepareInput):Prepared{
    publicContent:p.publicContent.filter(c=>c.status==='VERIFIED').map(c=>({...c,pinned:false,source_type:'user_provided'})),now:p.now,locale:'fr'});
   const why=refused(composed.text,p.offer,[p.name]);if(why)return {kind:'none',reason:why};
   // The composer writes each source's own date next to its quote: the stored dates are part of what it may say.
-  const sources=[...signals.map(s=>`${s.title} ${s.excerpt} ${s.event_date??''} ${s.published_at??''}`),...p.evidence.filter(e=>e.status==='VERIFIED').map(e=>e.excerpt),
-   ...p.publicContent.filter(c=>c.status==='VERIFIED').map(c=>`${c.content} ${c.published_at??''}`)];
+  const sources=[...signals.map(s=>`${s.title} ${s.excerpt} ${datesOf(s.event_date,s.published_at)}`),...p.evidence.filter(e=>e.status==='VERIFIED').map(e=>e.excerpt),
+   ...p.publicContent.filter(c=>c.status==='VERIFIED').map(c=>`${c.content} ${datesOf(c.published_at)}`)];
   const guard=checkComposedMessage(composed.text,{name:p.name,offer:p.offer,sources,allowedUrls:[],forbiddenNames:[],bannedPhrases:[],maxChars:MAX_CHARS,angleType:composed.angle.type});
   if(!guard.ok)return {kind:'none',reason:`FACT_GUARD_${guard.reason}`};
   return {kind:'contact_draft',text:composed.text,signal_ids:composed.signal_ids,evidence_ids:composed.evidence_ids};
@@ -61,7 +64,7 @@ export function prepareContent(p:PrepareInput):Prepared{
   const subject=topic?topic.label.fr:'ce sujet';
   const offer=p.offer.trim();
   const dm=offer?`Bonjour${c.author?` ${c.author.split(/\s+/)[0]}`:''}, je réagis à votre publication${c.published_at?` du ${dayFr(c.published_at)}`:''} sur ${subject}. ${offer} Seriez-vous ouvert à un court échange ?`:null;
-  const sources=[c.content,c.author??'',c.published_at??''];
+  const sources=[c.content,c.author??'',datesOf(c.published_at)];
   const check=(t:string|null)=>{if(!t)return null;if(refused(t,offer,[p.name,c.author??'']))return null;
    const g=checkComposedMessage(t,{name:p.name,offer,sources,allowedUrls:[],forbiddenNames:[],bannedPhrases:[],maxChars:MAX_CHARS,angleType:'public_content'});return g.ok?t:null};
   return {kind:'engage',suggested_comment:check(comment),suggested_dm_after_engagement:check(dm),content_id:c.id,angle:o.primary.suggested_angle};

@@ -48,6 +48,14 @@ over a coffee?
 - **One or two calls to action, in his words** (« Écris DÉMO », « Lien en commentaire »), never three in a row.
 - **The link goes in the first comment**, never in the post.
 - Still true and checkable: no invented anecdote, figure or client. A story Kevin has not told yet = `[À CONFIRMER]`.
+- **Original, never borrowed** (Kevin, 10 Nov. 2026: « je veux pas de contenu ou de style copié »). Studying why another
+  creator's post works is fine; reusing their format or tics is not — no famous-brand story told their way, no « Bref. »
+  pivot, no PS offer + PS2 joke pair, no signature word or running gag of someone else. Kevin's own signature: a figure
+  he pulled himself from official sources (« 647 annonces de déménagement en trois semaines »), real cases from his
+  dossiers (anonymised), first person (« je les ai lues »), and the « SIGNAL » DM word.
+- **Every post ships with its image**, made for that post: one strong visual idea (the key figure or the fact), the
+  ProspectOS colours, the source written on it, 1080×1350 (4:5). No stock photo, no screenshot of a real person or of
+  a client document, no invented number on the image.
 
 ## Lessons from real data (LinkedIn, oct. 2026)
 

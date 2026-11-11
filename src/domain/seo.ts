@@ -2,7 +2,9 @@ import type {Metadata} from 'next';
 import {seoPages} from './seo-content.ts';
 import {OFFERS} from './offers.ts';
 import {EDITOR} from './legal.ts';
-export const SITE_URL=(process.env.NEXT_PUBLIC_SITE_URL??'https://prospectos-v0.vercel.app').replace(/\/$/,'');
+// The production domain is the default: a deployment without NEXT_PUBLIC_SITE_URL (a preview) still points its canonical
+// URLs at prospectos.fr, never at a vercel.app address.
+export const SITE_URL=(process.env.NEXT_PUBLIC_SITE_URL??'https://prospectos.fr').replace(/\/$/,'');
 
 export const siteMetadata={
   title:'ProspectOS — Logiciel de prospection B2B fondé sur des preuves',
@@ -54,9 +56,12 @@ export function seoPageMetadata(page:SeoPage):Metadata{
 // Update by hand when the landing copy changes.
 export const HOME_LAST_MODIFIED='2026-10-03';
 
+// Public pages are open; the API, the sign-in callbacks, the connected space and the technical routes are closed.
+// The connected space is served on "/" itself (the home page shows the app after sign-in), so it has no path of its own
+// to block: what a logged-in person sees is never in the HTML a crawler receives.
 export const robotsPolicy={
   allow:'/',
-  disallow:['/api/','/auth/'],
+  disallow:['/api/','/auth/','/app/','/ui-v2/','/creations-entreprises/aller'],
   sitemap:`${SITE_URL}/sitemap.xml`,
 };
 
@@ -98,6 +103,10 @@ export const softwareApplicationJsonLd={
   publisher:{'@type':'Organization',name:'ProspectOS',url:SITE_URL},
 };
 
+// Official profiles of ProspectOS (schema.org sameAs). Only real, owned pages: the LinkedIn company page goes here once
+// its address is confirmed by the owner. Empty = no sameAs printed.
+export const ORGANIZATION_SAME_AS:readonly string[]=[];
+
 // The publisher as stated in the legal notice (src/domain/legal.ts EDITOR).
 export const organizationJsonLd={
   '@context':'https://schema.org',
@@ -108,6 +117,7 @@ export const organizationJsonLd={
   email:EDITOR.legalEmail,
   founder:{'@type':'Person',name:EDITOR.name},
   address:{'@type':'PostalAddress',addressLocality:'Toulouse',addressCountry:'FR'},
+  ...(ORGANIZATION_SAME_AS.length?{sameAs:[...ORGANIZATION_SAME_AS]}:{}),
 };
 
 export const webSiteJsonLd={

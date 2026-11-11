@@ -71,8 +71,11 @@ test('freeze — legal text, SEO content, prices, quotas, trial, plans, i18n and
   'src/domain/legal.ts':'7ec1712b16eb08ebc978b00a3a26b49d0b34caceb9d131eff91278ac66b32e7f',
   // WEB-2.1 / 2.2: the /a-propos entry (demo wording, recommendation instead of score, its date) and the /prospection-b2b
   // closing call to action only; every other page is main's text.
-  'src/domain/seo-content.ts':'5202902e6a9168767c96b0dcd75ed483ad434b2089239a40be1c67f3c463f9cd',
-  'src/domain/seo.ts':'0dbabc3c3959c1bf11e814fbdd0ba89dca12c9e99c7b825fccf6c28fbabc7a01',
+  // Owner decision (11 nov. 2026, SEO): the /tarifs and /a-propos titles, descriptions and dates rewritten.
+  'src/domain/seo-content.ts':'0211af8377843686095e309db97b7fe6d5bafa086ff612590f2d8cde99b46510',
+  // Owner decision (11 nov. 2026, SEO): prospectos.fr as the default site address, robots closing the connected and
+  // technical routes, an optional Organization sameAs (empty until the LinkedIn page address is confirmed).
+  'src/domain/seo.ts':'33c36a39c5c43507d0d2fec9a3599aa91c545c88f72bc95a9999a1eb1a9b6517',
   'src/components/PricingPage.tsx':'ae1fc88997a3974738d90d9fd0097108dc1fbf246e9d2025656a59def966cc02',
   'src/components/PricingPlans.tsx':'fc49929e18df6b472f2b70bb36c80bd53dcfb4c85b9f86192b1e142ddb691773',
   'src/domain/plans.ts':'cf5e701c415bb9cfbadf4caf1d60e3e9b6d80822de5d30ed3648b7d1c2e60a02',

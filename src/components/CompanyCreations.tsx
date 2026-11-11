@@ -6,8 +6,10 @@ import Link from 'next/link';
 import {CreationsMap} from './CreationsMap';
 import type {Metadata} from 'next';
 import {SITE_URL,socialImage,type SeoPage} from '../domain/seo';
-import {ACTIVITY_RULES,BODACC_LICENSE,BODACC_PUBLIC_PAGE,CREATIONS_DEPARTMENTS,CREATIONS_HUB,CREATIONS_REGIONS,MIN_COMMUNE_NOTICES,creationsPath,creationsTitle,last12Months,monthLabel,percentChange,regionOf,shortMonthLabel,
- type CreationsDepartment,type CreationsRegion,type DepartmentCreations,type MonthCount,type Purchases,type ZoneCreations} from '../domain/company-creations';
+import {TRIAL_SIGNUP_HREF} from './PricingPage';
+import {neighborsOf} from '../domain/department-neighbors';
+import {ACTIVITY_RULES,BODACC_LICENSE,prospectingTitle,BODACC_PUBLIC_PAGE,CREATIONS_DEPARTMENTS,CREATIONS_HUB,CREATIONS_REGIONS,MIN_COMMUNE_NOTICES,creationsPath,creationsTitle,last12Months,monthLabel,percentChange,regionOf,shortMonthLabel,
+ type CreationsDepartment,type CreationsRegion,type DepartmentCreations,type MonthCount,type Purchases,type Recent,type ZoneCreations} from '../domain/company-creations';
 
 const nf=new Intl.NumberFormat('fr-FR');
 const n=(v:number)=>nf.format(v);
@@ -15,6 +17,18 @@ const n=(v:number)=>nf.format(v);
 const pct=(v:number)=>v>0&&v<.005?'<1\u202f%':`${Math.round(v*100)}\u202f%`;
 const signed=(v:number|null)=>v===null?'—':`${v>0?'+':v<0?'−':''}${Math.abs(v)}\u202f%`;
 const RELATED=['prospection-b2b','prospection-restaurants','qualifier-un-prospect-b2b'];
+const dayLabel=(iso:string)=>new Intl.DateTimeFormat('fr-FR',{day:'numeric',month:'long',year:'numeric',timeZone:'UTC'}).format(new Date(`${iso}T12:00:00Z`));
+// Pages for B2B prospectors (11 nov. 2026): the call to action opens the trial sign-up. ProspectOS does not send a weekly
+// list of new companies by e-mail, so the page never promises one: it says what the product actually does.
+const prospectingCta=(where:string):SeoPage['cta']=>({title:`Suivez les nouvelles entreprises ${where} avec ProspectOS`,
+ text:'ProspectOS cherche les entreprises de votre zone dans le registre officiel, par secteur et par effectif, et rattache chaque information à sa source. Essai gratuit de 7 jours, sans carte bancaire.',
+ href:TRIAL_SIGNUP_HREF,label:'Démarrer mon essai gratuit'});
+const recentSentence=(r:Recent|null,where:string)=>r?`${n(r.count)} entreprises ont publié leur création au BODACC ${where} ces ${r.days} derniers jours. `:'';
+// Neighbouring regions: the regions of the departments that border this one, itself excluded.
+export function neighborRegions(region:CreationsRegion):CreationsRegion[]{
+ const codes=new Set(region.departments.flatMap(d=>neighborsOf(d.code)));
+ return CREATIONS_REGIONS.filter(r=>r.slug!==region.slug&&r.departments.some(d=>codes.has(d.code)));
+}
 
 export function creationsMetadata(page:SeoPage):Metadata{
  const url=`${SITE_URL}/${page.slug}`;
@@ -69,11 +83,11 @@ export function departmentSeoPage(d:DepartmentCreations):SeoPage{
  return {
   slug:creationsPath(dep),navLabel:`Créations ${dep.in}`,updated:d.source.retrievedAt.slice(0,10),
   keywords:{primary:`créations d'entreprises ${dep.name}`,secondary:[`nouvelles entreprises ${dep.prefecture}`,`entreprises créées récemment ${dep.name}`]},
-  title:creationsTitle(dep.in,dep.code,month),
-  description:`${n(d.total)} créations d’entreprises publiées au BODACC ${dep.in} en ${month} : évolution sur 13 mois, activités et communes. Totaux mis à jour chaque mois, sans aucun nom.`,
-  eyebrow:`Baromètre des créations · ${dep.name} (${dep.code})`,
-  h1:`Créations d’entreprises ${dep.in}\u202f: ${month}`,
-  intro:`${n(d.total)} annonces de création d’entreprise ont été publiées au BODACC ${dep.in} en ${month}`
+  title:prospectingTitle(dep.in),
+  description:`Entreprises créées ${dep.in}${d.recent?` : ${n(d.recent.count)} en 30 jours`:''}, par secteur et par commune. Mise à jour quotidienne depuis le BODACC. Repérez vos prospects au bon moment.`,
+  eyebrow:`Nouvelles entreprises · ${dep.name} (${dep.code})`,
+  h1:`Nouvelles entreprises ${dep.in}`,
+  intro:recentSentence(d.recent,dep.in)+`Sur le dernier mois complet (${month}), ${n(d.total)} annonces de création d’entreprise ont été publiées au BODACC ${dep.in}`
    +(change!==null?`, soit ${signed(change)} par rapport au mois précédent`:'')
    +(yoy!==null?` et ${signed(yoy)} sur un an`:'')+'.'
    +(top?` La première activité est « ${top.label.toLowerCase()} » (${pct(top.share)} des annonces).`:'')
@@ -90,7 +104,7 @@ export function departmentSeoPage(d:DepartmentCreations):SeoPage{
    {q:'Pourquoi ces chiffres diffèrent-ils de ceux de l’INSEE ?',a:'L’INSEE compte toutes les créations, y compris les micro-entrepreneurs non commerçants, les artisans et les professions libérales. Le BODACC ne publie que les immatriculations au registre du commerce et des sociétés, datées de leur publication. Les deux séries ne se comparent pas directement.'},
    {q:'Les activités sont-elles des codes NAF officiels ?',a:'Non. Elles sont classées par mots-clés d’après l’activité déclarée dans l’annonce, selon les règles listées dans la méthode. C’est une répartition indicative, utile pour repérer les secteurs qui créent le plus.'},
   ],
-  cta:{title:`Recevez 3 entreprises ${dep.in} à contacter maintenant`,text:'Dites-moi ce que vous vendez : je vous envoie 3 entreprises de votre zone qui ont une raison concrète d’être contactées, chacune avec sa source officielle. Sans compte.',href:'/prospects-de-votre-zone',label:'Recevoir mes 3 prospects'},
+  cta:prospectingCta(dep.in),
   related:RELATED,
  };
 }
@@ -103,15 +117,16 @@ export function zoneSeoPage(z:ZoneCreations|null,place:{slug:string;name:string;
  return {
   slug:place.slug,navLabel:france?'Créations d’entreprises en France':`Créations ${place.in}`,updated,
   keywords:{primary:`créations d’entreprises ${place.name}`,secondary:['nouvelles entreprises par département','entreprises créées récemment']},
-  title:creationsTitle(place.in,null,month),
-  description:z&&month?`${n(z.total)} créations d’entreprises publiées au BODACC ${place.in} en ${month}, ${place.parts}. Baromètre mensuel tiré du registre officiel, sans aucun nom.`
+  title:france?creationsTitle(place.in,null,month):prospectingTitle(place.in),
+  description:!france?`Entreprises créées ${place.in}${z?.recent?` : ${n(z.recent.count)} en 30 jours`:''}, par département. Mise à jour quotidienne depuis le BODACC. Repérez vos prospects au bon moment.`
+   :z&&month?`${n(z.total)} créations d’entreprises publiées au BODACC ${place.in} en ${month}, ${place.parts}. Baromètre mensuel tiré du registre officiel, sans aucun nom.`
    :`Le baromètre mensuel des créations d’entreprises ${place.in}, ${place.parts}, tiré des annonces officielles du BODACC. Totaux uniquement, sans aucun nom.`,
-  eyebrow:'Baromètre des créations d’entreprises',
-  h1:month?`Créations d’entreprises ${place.in}\u202f: ${month}`:`Créations d’entreprises ${place.in}`,
-  intro:z&&month&&first?`${n(z.total)} annonces de création d’entreprise ont été publiées au BODACC ${place.in} en ${month}`
+  eyebrow:france?'Baromètre des créations d’entreprises':`Nouvelles entreprises · ${place.name}`,
+  h1:!france?`Nouvelles entreprises ${place.in}`:month?`Créations d’entreprises ${place.in}\u202f: ${month}`:`Créations d’entreprises ${place.in}`,
+  intro:(france?'':recentSentence(z?.recent??null,place.in))+(z&&month&&first?(france?`${n(z.total)} annonces de création d’entreprise ont été publiées au BODACC ${place.in} en ${month}`:`Sur le dernier mois complet (${month}), ${n(z.total)} annonces de création d’entreprise ont été publiées au BODACC ${place.in}`)
    +(change!==null?`, soit ${signed(change)} par rapport au mois précédent`:'')+(yoy!==null?` et ${signed(yoy)} sur un an`:'')
    +`. Le département le plus actif est ${first.department.name} (${first.department.code}), avec ${n(first.count)} annonces. Choisissez votre département pour voir les activités et les communes.`
-   :`Chaque mois, le nombre d’annonces de création d’entreprise publiées au BODACC ${place.in}, ${place.parts}. Choisissez votre département pour voir l’évolution sur 13 mois, les activités et les communes.`,
+   :`Chaque mois, le nombre d’annonces de création d’entreprise publiées au BODACC ${place.in}, ${place.parts}. Choisissez votre département pour voir l’évolution sur 13 mois, les activités et les communes.`),
   sections:[
    {h2:'Prospecter les entreprises qui viennent de se créer',blocks:PROSPECTING_BLOCKS('dans votre zone')},
    {h2:'Méthode et sources',blocks:METHOD_BLOCKS},
@@ -123,7 +138,7 @@ export function zoneSeoPage(z:ZoneCreations|null,place:{slug:string;name:string;
    {q:'D’où viennent ces chiffres ?',a:'Des annonces de la famille « Créations » du BODACC, publiées par la DILA en données ouvertes sous Licence Ouverte 2.0, comptées par département et par mois de publication.'},
    {q:'Pourquoi ces chiffres diffèrent-ils de ceux de l’INSEE ?',a:'L’INSEE compte toutes les créations, y compris les micro-entrepreneurs non commerçants, les artisans et les professions libérales. Le BODACC ne publie que les immatriculations au registre du commerce et des sociétés, datées de leur publication.'},
   ],
-  cta:{title:'Recevez 3 entreprises de votre zone à contacter maintenant',text:'Dites-moi ce que vous vendez et où : je vous envoie 3 entreprises qui ont une raison concrète d’être contactées, chacune avec sa source officielle. Sans compte.',href:'/prospects-de-votre-zone',label:'Recevoir mes 3 prospects'},
+  cta:!france?prospectingCta(place.in):{title:'Recevez 3 entreprises de votre zone à contacter maintenant',text:'Dites-moi ce que vous vendez et où : je vous envoie 3 entreprises qui ont une raison concrète d’être contactées, chacune avec sa source officielle. Sans compte.',href:'/prospects-de-votre-zone',label:'Recevoir mes 3 prospects'},
   related:RELATED,
  };
 }
@@ -173,6 +188,12 @@ const CSS=`
 .pos-creations__source{margin:0;font-size:var(--pos-text-xs,12px);color:var(--pos-text-3)}
 .pos-creations__source a{color:inherit;text-decoration:underline}
 .pos-creations details summary{cursor:pointer;font-size:var(--pos-text-sm,14px);color:var(--pos-text-2);margin-top:var(--pos-space-3,12px)}
+.pos-creations__facts{display:grid;gap:var(--pos-space-4,16px);grid-template-columns:repeat(auto-fit,minmax(min(100%,200px),1fr))}
+.pos-creations__facts h2{grid-column:1/-1;margin:0}
+.pos-creations__facts ol{margin:6px 0 0;padding-left:20px;font-size:var(--pos-text-sm,14px);color:var(--pos-text-1)}
+.pos-creations__facts dt{font-size:var(--pos-text-sm,14px);color:var(--pos-text-3)}
+.pos-creations__facts dd{margin:4px 0 0}
+.pos-creations__big{font-family:var(--pos-font-display);font-size:clamp(28px,6vw,40px);font-weight:var(--pos-weight-heavy,800);letter-spacing:-.03em;color:var(--pos-text-1)}
 .pos-creations__sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
 @media (forced-colors:active){.pos-creations__bar span,.pos-creations__share i{background:CanvasText}.pos-creations__bar--current span{background:Highlight}}
 `;
@@ -214,12 +235,39 @@ export function DepartmentLinks({departments,current}:{departments:readonly Crea
  </ul>;
 }
 
+
+// The block shown first: the last 30 days, the top 5 activities and communes of the last complete month, and the date of
+// the newest notice. Totals only (rule: no name of a person on a public page). A figure the register did not answer is
+// left out, never shown as zero.
+function QuickFacts({recent,month,activities,communes,departments,updated}:{recent:Recent|null;month:string;
+ activities?:{key:string;label:string;count:number}[];communes?:{key:string;label:string;count:number}[];
+ departments?:{department:CreationsDepartment;count:number}[];updated:string}){
+ const top5=<T,>(xs:T[]|undefined)=>(xs??[]).slice(0,5);
+ const acts=top5(activities?.filter(a=>a.key!=='OTHER'&&a.key!=='NO_ACTIVITY'));
+ return <section className="pos-creations__card" aria-labelledby="creations-facts">
+  <dl className="pos-creations__facts">
+   <h2 id="creations-facts">En bref</h2>
+   {recent&&<div><dt>Créations publiées ces {recent.days} derniers jours</dt><dd className="pos-creations__big">{n(recent.count)}</dd></div>}
+   {acts.length>0&&<div><dt>Top 5 des secteurs ({monthLabel(month)})</dt><dd><ol>{acts.map(a=><li key={a.key}>{a.label} — {n(a.count)}</li>)}</ol></dd></div>}
+   {communes&&communes.length>0&&<div><dt>Top 5 des communes ({monthLabel(month)})</dt><dd><ol>{top5(communes).map(c=><li key={c.key}>{c.label} — {n(c.count)}</li>)}</ol></dd></div>}
+   {departments&&departments.length>0&&<div><dt>Top 5 des départements ({monthLabel(month)})</dt><dd><ol>{top5(departments).map(r=><li key={r.department.code}><Link href={`/${creationsPath(r.department)}`}>{r.department.name}</Link> — {n(r.count)}</li>)}</ol></dd></div>}
+   <div><dt>Dernière mise à jour</dt><dd>{dayLabel(recent?.lastPublished??updated)}<small style={{display:'block',color:'var(--pos-text-3)'}}>{recent?.lastPublished?'date de la dernière annonce publiée':'date de lecture du registre'}</small></dd></div>
+  </dl>
+ </section>;
+}
+
+function NeighborLinks({department}:{department:CreationsDepartment}){
+ const near=neighborsOf(department.code).map(c=>CREATIONS_DEPARTMENTS.find(d=>d.code===c)).filter((d):d is CreationsDepartment=>!!d);
+ if(!near.length)return null;
+ return <><h3 style={{margin:'16px 0 8px'}}>Départements voisins</h3><nav aria-label={`Départements voisins de ${department.name}`}><DepartmentLinks departments={near}/></nav></>;
+}
 function OtherZones({department}:{department:CreationsDepartment}){
  const region=regionOf(department);
  return <section className="pos-creations__card" aria-labelledby="creations-zones">
-  <h2 id="creations-zones">{region?`Les autres départements de la région ${region.name}`:'Une autre zone'}</h2>
+  <h2 id="creations-zones">Prospecter aussi les zones voisines</h2>
   <p className="pos-creations__sub">{region&&<><Link href={`/${creationsPath(region)}`}>Voir toute la région {region.name}</Link> · </>}<Link href={`/${CREATIONS_HUB}`}>Voir la France entière</Link></p>
-  {region&&<nav aria-label={`Départements ${region.in}`}><DepartmentLinks departments={region.departments} current={department}/></nav>}
+  <NeighborLinks department={department}/>
+  {region&&<><h3 style={{margin:'16px 0 8px'}}>Région {region.name}</h3><nav aria-label={`Départements ${region.in}`}><DepartmentLinks departments={region.departments} current={department}/></nav></>}
   <ZonePicker current={department.slug}/>
  </section>;
 }
@@ -274,6 +322,7 @@ export function DepartmentCreationsBlock({d,page}:{d:DepartmentCreations;page:Se
  return <div className="pos-creations">
   <Styles/>
   <script type="application/ld+json" dangerouslySetInnerHTML={{__html:datasetJsonLd(page.h1,page.description,`${SITE_URL}/${page.slug}`,page.updated,`${d.department.name}, France`)}}/>
+  <QuickFacts recent={d.recent} month={d.month} activities={d.activities} communes={d.communes} updated={page.updated}/>
   <dl className="pos-creations__kpis">
    <div className="pos-creations__kpi"><dt>Annonces de création, {month}</dt><dd>{n(d.total)}</dd></div>
    <div className="pos-creations__kpi"><dt>Par rapport au mois précédent</dt><dd>{signed(percentChange(d.total,d.previous?.count))}<small>{d.previous?`${n(d.previous.count)} en ${monthLabel(d.previous.month)}`:'—'}</small></dd></div>
@@ -321,6 +370,7 @@ export function ZoneCreationsBlock({z,page,region}:{z:ZoneCreations|null;page:Se
  return <div className="pos-creations">
   <Styles/>
   {z&&<script type="application/ld+json" dangerouslySetInnerHTML={{__html:datasetJsonLd(page.h1,page.description,`${SITE_URL}/${page.slug}`,page.updated,`${place}${region?', France':''}`)}}/>}
+  {z&&region&&<QuickFacts recent={z.recent} month={z.month} departments={z.rows} updated={page.updated}/>}
   <section className="pos-creations__card"><ZonePicker current={region?.slug}/></section>
   {z&&<><dl className="pos-creations__kpis"><Kpis total={z.total} month={z.month} previous={z.previous} lastYear={z.lastYear} trend={z.trend}/><PurchasesTile p={z.purchases}/></dl>
    <Trend trend={z.trend} place={region?region.name:'France entière'}/></>}
@@ -350,7 +400,11 @@ export function ZoneCreationsBlock({z,page,region}:{z:ZoneCreations|null;page:Se
    {CREATIONS_REGIONS.map(r=><div key={r.slug} className="pos-creations__group"><h3><Link href={`/${creationsPath(r)}`}>{r.name}</Link></h3><DepartmentLinks departments={r.departments}/></div>)}
    <div className="pos-creations__group"><h3>Outre-mer</h3><DepartmentLinks departments={CREATIONS_DEPARTMENTS.filter(d=>!regionOf(d))}/></div>
   </section>}
-  {region&&<section className="pos-creations__card"><p className="pos-creations__sub" style={{margin:0}}><Link href={`/${CREATIONS_HUB}`}>Voir la France entière</Link></p></section>}
+  {region&&<section className="pos-creations__card" aria-labelledby="creations-neighbors">
+   <h2 id="creations-neighbors">Régions voisines</h2>
+   <ul className="pos-creations__links">{neighborRegions(region).map(r=><li key={r.slug}><Link href={`/${creationsPath(r)}`}>{r.name}</Link></li>)}</ul>
+   <p className="pos-creations__sub" style={{margin:'12px 0 0'}}><Link href={`/${CREATIONS_HUB}`}>Voir la France entière</Link></p>
+  </section>}
   <Source month={z?.month} sales={!!z?.purchases}/>
  </div>;
 }

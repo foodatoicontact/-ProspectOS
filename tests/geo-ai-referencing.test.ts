@@ -49,7 +49,8 @@ test('robots: AI assistants and their search crawlers explicitly welcome, privat
  for(const bot of ['GPTBot','OAI-SearchBot','ChatGPT-User','ClaudeBot','Claude-SearchBot','Claude-User','PerplexityBot','Perplexity-User','Google-Extended','Applebot-Extended','Bingbot','CCBot'])assert.ok(AI_CRAWLERS.includes(bot),bot);
  const robots=await read('../app/robots.ts');
  assert.match(robots,/rules:\[\{userAgent:'\*',allow:robotsPolicy\.allow,disallow:robotsPolicy\.disallow\},\{userAgent:\[\.\.\.AI_CRAWLERS\],allow:robotsPolicy\.allow,disallow:robotsPolicy\.disallow\}\]/);
- assert.deepEqual(robotsPolicy.disallow,['/api/','/auth/']);
+ // 11 nov. 2026 (owner decision, SEO): the connected space and the technical routes are closed too.
+ assert.deepEqual(robotsPolicy.disallow,['/api/','/auth/','/app/','/ui-v2/','/creations-entreprises/aller']);
 });
 
 test('schema.org: the software with its real offers, the organization, FAQ and breadcrumbs per page',()=>{

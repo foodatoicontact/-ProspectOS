@@ -205,7 +205,10 @@ test('11 — commercial copy is NOT changed by ZF1 (the trial stays as on main u
  {const main=execSync('git show cca808c:src/domain/seo-content.ts',{cwd:new URL('..',import.meta.url),encoding:'utf8'}).replaceAll('prospectos.contact@gmail.com','contact@prospectos.fr');const now=await read('src/domain/seo-content.ts');
   const ABOUT="slug:'a-propos'";
   // WEB-2.2: plus the closing call to action of /prospection-b2b ("score expliqué" → explained recommendation).
-  const outside=(t:string)=>t.split(ABOUT)[0]!.replace(/cta:\{title:'Voir la méthode appliquée',text:'[^']*'\}/,'CTA');
+  // Owner decision (11 nov. 2026, SEO): the /tarifs title, description and date were rewritten; the prices they quote
+  // still come from plans.ts. Those three lines alone are set aside before comparing.
+  const tarifsSeo=(t:string)=>t.replace(/(slug:'tarifs',[\s\S]*?)updated:'[^']*',([\s\S]*?)title:[^\n]*\n\s*description:[^\n]*\n/,'$1TARIFS_SEO$2');
+  const outside=(t:string)=>tarifsSeo(t.split(ABOUT)[0]!).replace(/cta:\{title:'Voir la méthode appliquée',text:'[^']*'\}/,'CTA');
   assert.equal(outside(now),outside(main),'seo-content.ts outside /a-propos and the /prospection-b2b call to action');
   const commercial=(t:string)=>t.split(ABOUT)[1]!.split('\n').filter(l=>/essai|€|_EUR|Solo|Pro |Équipe|tarifs|offre/.test(l)&&!/démonstration publique/.test(l));
   assert.deepEqual(commercial(now),commercial(main),'commercial lines of /a-propos');

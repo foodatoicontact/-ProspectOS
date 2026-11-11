@@ -103,9 +103,10 @@ export const softwareApplicationJsonLd={
   publisher:{'@type':'Organization',name:'ProspectOS',url:SITE_URL},
 };
 
-// Official profiles of ProspectOS (schema.org sameAs). Only real, owned pages: the LinkedIn company page goes here once
-// its address is confirmed by the owner. Empty = no sameAs printed.
-export const ORGANIZATION_SAME_AS:readonly string[]=[];
+// Official profiles (schema.org sameAs), given by the owner on 11 nov. 2026, without tracking parameters: the LinkedIn page
+// of ProspectOS for the Organization, the founder's own LinkedIn profile for the founder.
+export const ORGANIZATION_SAME_AS:readonly string[]=['https://www.linkedin.com/company/prospectos-app/'];
+export const FOUNDER_SAME_AS:readonly string[]=['https://www.linkedin.com/in/kevincardia'];
 
 // The publisher as stated in the legal notice (src/domain/legal.ts EDITOR).
 export const organizationJsonLd={
@@ -115,7 +116,7 @@ export const organizationJsonLd={
   url:SITE_URL,
   logo:`${SITE_URL}/opengraph-image`,
   email:EDITOR.legalEmail,
-  founder:{'@type':'Person',name:EDITOR.name},
+  founder:{'@type':'Person',name:EDITOR.name,...(FOUNDER_SAME_AS.length?{sameAs:[...FOUNDER_SAME_AS]}:{})},
   address:{'@type':'PostalAddress',addressLocality:'Toulouse',addressCountry:'FR'},
   ...(ORGANIZATION_SAME_AS.length?{sameAs:[...ORGANIZATION_SAME_AS]}:{}),
 };

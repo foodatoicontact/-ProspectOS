@@ -74,8 +74,8 @@ test('freeze — legal text, SEO content, prices, quotas, trial, plans, i18n and
   // Owner decision (11 nov. 2026, SEO): the /tarifs and /a-propos titles, descriptions and dates rewritten.
   'src/domain/seo-content.ts':'0211af8377843686095e309db97b7fe6d5bafa086ff612590f2d8cde99b46510',
   // Owner decision (11 nov. 2026, SEO): prospectos.fr as the default site address, robots closing the connected and
-  // technical routes, an optional Organization sameAs (empty until the LinkedIn page address is confirmed).
-  'src/domain/seo.ts':'33c36a39c5c43507d0d2fec9a3599aa91c545c88f72bc95a9999a1eb1a9b6517',
+  // technical routes, the LinkedIn pages of ProspectOS and of its founder as sameAs.
+  'src/domain/seo.ts':'e931043d5046cda39443aafda460c9461c089016ba7a5419231a09e6886b9712',
   'src/components/PricingPage.tsx':'ae1fc88997a3974738d90d9fd0097108dc1fbf246e9d2025656a59def966cc02',
   'src/components/PricingPlans.tsx':'fc49929e18df6b472f2b70bb36c80bd53dcfb4c85b9f86192b1e142ddb691773',
   'src/domain/plans.ts':'cf5e701c415bb9cfbadf4caf1d60e3e9b6d80822de5d30ed3648b7d1c2e60a02',

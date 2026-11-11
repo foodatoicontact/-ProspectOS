@@ -1,13 +1,15 @@
 import type {MetadataRoute} from 'next';
 import {SITE_URL,sitemapEntries} from '../src/domain/seo';
-import {creationsSitemapEntries} from '../src/domain/company-creations';
+import {creationsSitemapEntries,fetchRecent} from '../src/domain/company-creations';
 
 // lastModified comes from each page's own `updated` date (real content edits), never from the build date.
-// The company-creation barometer changes with its data: its date is the first day of the month in which the last
-// complete month became available (src/domain/company-creations.ts), so the sitemap is regenerated daily too.
+// The company-creation pages change with their data: their date is that of the newest creation notice published for the
+// zone (one grouped register query); if the register does not answer, the first day of the current month. Regenerated daily.
 export const revalidate=86400;
-export default function sitemap():MetadataRoute.Sitemap{
+export default async function sitemap():Promise<MetadataRoute.Sitemap>{
   // The "3 prospects de votre zone" offer page (static; dated by its own last edit).
   const offer={url:`${SITE_URL}/prospects-de-votre-zone`,lastModified:'2026-11-01',changeFrequency:'monthly' as const,priority:.8};
-  return [...sitemapEntries,offer,...creationsSitemapEntries(SITE_URL,new Date())].map(entry=>({...entry,lastModified:new Date(entry.lastModified)}));
+  const now=new Date();
+  const recent=await fetchRecent(null,{now}).catch(()=>null);
+  return [...sitemapEntries,offer,...creationsSitemapEntries(SITE_URL,now,recent)].map(entry=>({...entry,lastModified:new Date(entry.lastModified)}));
 }

@@ -8,7 +8,7 @@ import {readFileSync} from 'node:fs';
 import {
  BODACC_DATASET,CREATIONS_DEPARTMENTS,CREATIONS_HUB,CREATIONS_REGIONS,CreationsUnavailableError,EXPORT_FIELDS,MIN_COMMUNE_NOTICES,
  addMonths,aggregate,arrondissement,last12Months,classifyActivity,creationsPath,creationsSitemapEntries,departmentBySlug,fetchDepartmentCreations,fetchFranceCreations,fetchRegionCreations,
- creationsTitle,fetchPurchases,getBodaccJson,isPurchase,legalKind,purchasesExportUrl,monthExportUrl,monthlyCountsUrl,monthlySeries,noticeOf,percentChange,regionBySlug,regionOf,reportMonth,slugOf,zoneBySlug,zoneCountsUrl,
+ creationsTitle,prospectingTitle,fetchRecent,recentCountsUrl,fetchPurchases,getBodaccJson,isPurchase,legalKind,purchasesExportUrl,monthExportUrl,monthlyCountsUrl,monthlySeries,noticeOf,percentChange,regionBySlug,regionOf,reportMonth,slugOf,zoneBySlug,zoneCountsUrl,
 } from '../src/domain/company-creations.ts';
 
 const read=(p:string)=>readFileSync(new URL(`../${p}`,import.meta.url),'utf8');
@@ -156,11 +156,13 @@ test('queries — one fixed host, creation notices only, never a name or a regis
 });
 
 // A fake register: answers by endpoint; records every call.
-function register(o:{counts?:unknown;rows?:unknown;status?:number;region?:unknown;sales?:unknown}={}){
+function register(o:{counts?:unknown;rows?:unknown;status?:number;region?:unknown;sales?:unknown;recent?:unknown}={}){
  const calls:{url:string;init:RequestInit|undefined}[]=[];
  const fetchImpl=(async(input:string|URL|Request,init?:RequestInit)=>{
   const url=String(input);calls.push({url,init});
   if(o.status)return new Response('{}',{status:o.status});
+  // The 30-day figure (fetchRecent): optional, like the reprises; unanswered unless the test gives it.
+  if(url.includes('max%28dateparution%29'))return o.recent===undefined?new Response('',{status:503}):new Response(JSON.stringify(o.recent),{status:200});
   if(url.includes('familleavis%3D%22vente%22'))return o.sales===undefined?new Response('',{status:503}):new Response(JSON.stringify(o.sales),{status:200});
   const body=url.includes('/exports/json')?o.rows:url.includes('dep%2C')||url.includes('dep,')?o.region:o.counts;
   return new Response(JSON.stringify(body),{status:200,headers:{'content-type':'application/json'}});
@@ -183,7 +185,8 @@ test('department figures — 13 months with zeros filled in, previous month and 
  assert.deepEqual(d.lastYear,{month:'2025-09',count:80});
  assert.deepEqual(d.communes.map(c=>c.label),['Toulouse']);
  assert.equal(d.purchases,null,'the reprise figure is optional: the register did not answer it, the page is still published');
- assert.equal(calls.length,3);
+ assert.equal(d.recent,null,'the 30-day figure is optional too: unanswered, it is left out, never shown as zero');
+ assert.equal(calls.length,4);
  for(const c of calls){assert.equal(c.init?.redirect,'error');assert.ok(c.init?.signal,'bounded in time')}
 });
 
@@ -245,7 +248,8 @@ test('region and France figures — one grouped query, every department, 13-mont
  const region={results:[{dep:'31',mois:'2026-09',n:1236},{dep:'31',mois:'2026-08',n:953},{dep:'31',mois:'2025-09',n:853},{dep:'32',mois:'2026-09',n:182},{dep:'34',mois:'2026-09',n:1054},{dep:'99',mois:'2026-09',n:7}]};
  const {fetchImpl,calls}=register({region,sales:[sale('Achat d\'un fonds par une personne morale (insertion provisoire)')]});
  const r=await fetchRegionCreations(regionBySlug('occitanie')!,{fetchImpl,now:NOW});
- assert.equal(calls.length,2);
+ assert.equal(calls.length,3);
+ assert.equal(r.recent,null);
  assert.deepEqual(r.purchases&&[r.purchases.month,r.purchases.count],['2026-09',1]);
  assert.equal(r.month,'2026-09');
  assert.equal(r.total,2472,'a code outside the zone (99) never enters the total');
@@ -265,8 +269,18 @@ test('pages — titles, descriptions and wording stay within the SEO rules, no n
  // The component module is TSX: its pure page builders are checked through their source contract here, and the
  // rendered HTML is checked on the built site (tests/seo-html.mjs pattern) by the person on the Preview.
  const src=read('src/components/CompanyCreations.tsx');
- assert.match(src,/title:creationsTitle\(dep\.in,dep\.code,month\)/);
- assert.match(src,/title:creationsTitle\(place\.in,null,month\)/);
+ // 11 nov. 2026 (owner decision): department and region pages are written for B2B prospectors; France keeps the barometer title.
+ assert.match(src,/title:prospectingTitle\(dep\.in\)/);
+ assert.match(src,/title:france\?creationsTitle\(place\.in,null,month\):prospectingTitle\(place\.in\)/);
+ assert.match(src,/h1:`Nouvelles entreprises \$\{dep\.in\}`/);
+ for(const d of CREATIONS_DEPARTMENTS)assert.ok(prospectingTitle(d.in).length<=75,d.name);
+ for(const r of CREATIONS_REGIONS)assert.ok(prospectingTitle(r.in).length<=75,r.name);
+ assert.equal(prospectingTitle('à Paris'),'Nouvelles entreprises à Paris : créations récentes (BODACC) | ProspectOS','the brand when it fits in 75 characters');
+ assert.equal(prospectingTitle('dans le Rhône'),'Nouvelles entreprises dans le Rhône : créations récentes (BODACC)');
+ assert.equal(prospectingTitle('dans les Alpes-de-Haute-Provence'),'Nouvelles entreprises dans les Alpes-de-Haute-Provence : créations récentes','the longest name drops « (BODACC) » too');
+ // The call to action opens the trial sign-up and never promises a weekly e-mail ProspectOS does not send.
+ assert.match(src,/href:TRIAL_SIGNUP_HREF,label:'Démarrer mon essai gratuit'/);
+ assert.doesNotMatch(src,/chaque semaine/i);
  assert.match(src,/La répartition par activité est indicative/);
  assert.match(src,/Ce n’est pas le code NAF officiel/);
  assert.match(src,/Aucune entreprise n’est nommée ici/);
@@ -317,14 +331,28 @@ test('app — the logged-in space links the barometer: "Aujourd’hui" empty sta
  assert.match(menu,/creations:'Créations d’entreprises'/);
 });
 
-test('sitemap — France, 13 regions and 101 departments, dated by the month that closed, not by the build',()=>{
- const entries=creationsSitemapEntries('https://prospectos.fr',NOW);
- assert.equal(entries.length,115);
- assert.equal(entries[0]!.url,`https://prospectos.fr/${CREATIONS_HUB}`);
- assert.ok(entries.every(e=>e.lastModified==='2026-10-01'));
- assert.equal(new Set(entries.map(e=>e.url)).size,115);
+test('sitemap — France, 13 regions and 101 departments, dated by their newest notice (or the month that closed), never the build',async()=>{
+ const fallback=creationsSitemapEntries('https://prospectos.fr',NOW);
+ assert.equal(fallback.length,115);
+ assert.equal(fallback[0]!.url,`https://prospectos.fr/${CREATIONS_HUB}`);
+ assert.ok(fallback.every(e=>e.lastModified==='2026-10-01'),'register unanswered: the first day of the current month');
+ assert.equal(new Set(fallback.map(e=>e.url)).size,115);
+ const {fetchImpl}=register({recent:{results:[{dep:'31',n:1100,last:'2026-10-14'},{dep:'32',n:150,last:'2026-10-12'},{dep:'69',n:2400,last:'2026-10-15'}]}});
+ const recent=await fetchRecent(null,{fetchImpl,now:NOW});
+ assert.deepEqual([recent.count,recent.lastPublished,recent.since],[3650,'2026-10-15',new Date(NOW.getTime()-30*86400000).toISOString().slice(0,10)]);
+ const dated=creationsSitemapEntries('https://prospectos.fr',NOW,recent);
+ const at=(slug:string)=>dated.find(e=>e.url===`https://prospectos.fr/${slug}`)!.lastModified;
+ assert.equal(at(CREATIONS_HUB),'2026-10-15');
+ assert.equal(at('creations-entreprises/haute-garonne'),'2026-10-14');
+ assert.equal(at('creations-entreprises/occitanie'),'2026-10-14','a region: its newest department');
+ assert.equal(at('creations-entreprises/rhone'),'2026-10-15');
+ assert.equal(at('creations-entreprises/ain'),'2026-10-01','no notice answered for the department: the month fallback');
+ assert.match(recentCountsUrl(['69'],'2026-10-12'),/max%28dateparution%29/);
+ assert.doesNotMatch(recentCountsUrl(null,'2026-10-12'),/commercant|registre|listepersonnes/,'counts only, never a name');
+ assert.throws(()=>recentCountsUrl(['69'],"2026-10-12' or 1=1"),/INVALID_DATE/);
  const sitemap=read('app/sitemap.ts');
- assert.match(sitemap,/\.\.\.sitemapEntries,offer,\.\.\.creationsSitemapEntries\(SITE_URL,new Date\(\)\)/);
+ assert.match(sitemap,/const recent=await fetchRecent\(null,\{now\}\)\.catch\(\(\)=>null\);/,'an unanswered register never fails the sitemap');
+ assert.match(sitemap,/\.\.\.sitemapEntries,offer,\.\.\.creationsSitemapEntries\(SITE_URL,now,recent\)/);
  assert.match(sitemap,/url:`\$\{SITE_URL\}\/prospects-de-votre-zone`,lastModified:'2026-11-01'/,'the offer page, dated by its own last edit');
  assert.match(sitemap,/export const revalidate=86400;/);
 });

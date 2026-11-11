@@ -148,7 +148,7 @@ export type DepartmentCreations={
  previous:MonthCount|null;lastYear:MonthCount|null;trend:MonthCount[];
  kinds:{individual:number;company:number;companyNoActivity:number;other:number};
  activities:Count<ActivityKey>[];communes:Count[];communesHidden:number;
- purchases:Purchases|null;
+ purchases:Purchases|null;recent:Recent|null;
  source:{dataset:string;query:string;retrievedAt:string};
 };
 const share=(n:number,total:number)=>total?n/total:0;
@@ -277,13 +277,46 @@ export async function fetchPurchases(codes:readonly string[]|null,month:string,{
 // without it (null — shown as absent, never as zero).
 const optionalPurchases=(codes:readonly string[]|null,month:string,fetchImpl:Fetch)=>fetchPurchases(codes,month,{fetchImpl}).catch(()=>null);
 
+// ── Last 30 days: the rolling figure shown first on every page (prospectors care about what was just published) ────────
+// One grouped query, counts only: per department, the creation notices published in the last RECENT_DAYS days and the date
+// of the latest one. It is a complement — if the register does not answer, the page keeps its monthly figures (null).
+export const RECENT_DAYS=30;
+export type Recent={days:number;since:string;count:number;lastPublished:string|null;byDepartment:Record<string,{count:number;last:string}>};
+const isoDay=(d:Date)=>d.toISOString().slice(0,10);
+export const recentSince=(now:Date)=>isoDay(new Date(now.getTime()-RECENT_DAYS*86400000));
+export function recentCountsUrl(codes:readonly string[]|null,since:string):string{
+ if(!/^\d{4}-\d{2}-\d{2}$/.test(since))throw new CreationsUnavailableError('INVALID_DATE');
+ const u=new URL(`${BODACC_DATASET}/records`);
+ u.searchParams.set('select','count(*) as n, max(dateparution) as last');
+ u.searchParams.set('where',`familleavis="creation" and ${codes?`(${codes.map(deptScope).join(' or ')})`:'numerodepartement is not null'} and dateparution>=date'${since}'`);
+ u.searchParams.set('group_by','numerodepartement as dep');
+ u.searchParams.set('limit','200');
+ return u.href;
+}
+export async function fetchRecent(codes:readonly string[]|null,{fetchImpl=fetch,now=new Date()}:{fetchImpl?:Fetch;now?:Date}={}):Promise<Recent>{
+ const since=recentSince(now);
+ const data=await getBodaccJson(recentCountsUrl(codes,since),fetchImpl,{timeoutMs:RECORDS_TIMEOUT_MS,maxBytes:MAX_RECORDS_BYTES});
+ const byDepartment:Recent['byDepartment']={};let count=0,lastPublished:string|null=null;
+ for(const r of resultsOf(data)){
+  if(typeof r.dep!=='string'||!DEPT.test(r.dep))continue;
+  const last=typeof r.last==='string'&&/^\d{4}-\d{2}-\d{2}/.test(r.last)?r.last.slice(0,10):null;
+  const n=countOf(r.n);
+  if(!last)throw new CreationsUnavailableError('MALFORMED');
+  byDepartment[r.dep]={count:n,last};count+=n;
+  if(!lastPublished||last>lastPublished)lastPublished=last;
+ }
+ return {days:RECENT_DAYS,since,count,lastPublished,byDepartment};
+}
+const optionalRecent=(codes:readonly string[]|null,now:Date,fetchImpl:Fetch)=>fetchRecent(codes,{fetchImpl,now}).catch(()=>null);
+
 export async function fetchDepartmentCreations(department:CreationsDepartment,{fetchImpl=fetch,now=new Date()}:{fetchImpl?:Fetch;now?:Date}={}):Promise<DepartmentCreations>{
  const month=reportMonth(now),from=addMonths(month,-(TREND_MONTHS-1)),to=addMonths(month,1);
  const countsUrl=monthlyCountsUrl(department.code,from,to),exportUrl=monthExportUrl(department.code,month);
- const [counts,rows,purchases]=await Promise.all([
+ const [counts,rows,purchases,recent]=await Promise.all([
   getBodaccJson(countsUrl,fetchImpl,{timeoutMs:RECORDS_TIMEOUT_MS,maxBytes:MAX_RECORDS_BYTES}),
   getBodaccJson(exportUrl,fetchImpl,{timeoutMs:EXPORT_TIMEOUT_MS,maxBytes:MAX_EXPORT_BYTES}),
   optionalPurchases([department.code],month,fetchImpl),
+  optionalRecent([department.code],now,fetchImpl),
  ]);
  if(!Array.isArray(rows))throw new CreationsUnavailableError('MALFORMED');
  const trend=monthlySeries(resultsOf(counts),from,to);
@@ -292,19 +325,19 @@ export async function fetchDepartmentCreations(department:CreationsDepartment,{f
  const fromCounts=trend[trend.length-1]!.count;
  if(fromCounts!==stats.total)throw new CreationsUnavailableError('INCONSISTENT');
  const find=(m:string)=>trend.find(t=>t.month===m)??null;
- return {department,month,...stats,previous:find(addMonths(month,-1)),lastYear:find(addMonths(month,-12)),trend,purchases,
+ return {department,month,...stats,previous:find(addMonths(month,-1)),lastYear:find(addMonths(month,-12)),trend,purchases,recent,
   source:{dataset:BODACC_PUBLIC_PAGE,query:exportUrl,retrievedAt:now.toISOString()}};
 }
 
 export type ZoneRow={department:CreationsDepartment;count:number;previous:number;lastYear:number};
-export type ZoneCreations={month:string;total:number;previous:MonthCount|null;lastYear:MonthCount|null;trend:MonthCount[];rows:ZoneRow[];purchases:Purchases|null;source:{dataset:string;query:string;retrievedAt:string}};
+export type ZoneCreations={month:string;total:number;previous:MonthCount|null;lastYear:MonthCount|null;trend:MonthCount[];rows:ZoneRow[];purchases:Purchases|null;recent:Recent|null;source:{dataset:string;query:string;retrievedAt:string}};
 // A region or the whole country: one grouped query (departments × 13 months). A department code the list does not know
 // is left out, so the total is always the sum of the rows shown.
 async function fetchZoneCreations(departments:readonly CreationsDepartment[],codes:readonly string[]|null,{fetchImpl=fetch,now=new Date()}:{fetchImpl?:Fetch;now?:Date}):Promise<ZoneCreations>{
  const month=reportMonth(now),from=addMonths(month,-(TREND_MONTHS-1)),to=addMonths(month,1);
  const url=zoneCountsUrl(codes,from,to);
  const counts=new Map<string,number>();
- const [data,purchases]=await Promise.all([getBodaccJson(url,fetchImpl,{timeoutMs:RECORDS_TIMEOUT_MS,maxBytes:MAX_RECORDS_BYTES}),optionalPurchases(codes,month,fetchImpl)]);
+ const [data,purchases,recent]=await Promise.all([getBodaccJson(url,fetchImpl,{timeoutMs:RECORDS_TIMEOUT_MS,maxBytes:MAX_RECORDS_BYTES}),optionalPurchases(codes,month,fetchImpl),optionalRecent(codes,now,fetchImpl)]);
  for(const r of resultsOf(data)){
   if(typeof r.dep!=='string'||typeof r.mois!=='string'||!MONTH.test(r.mois))throw new CreationsUnavailableError('MALFORMED');
   counts.set(`${r.dep}|${r.mois}`,countOf(r.n));
@@ -316,7 +349,7 @@ async function fetchZoneCreations(departments:readonly CreationsDepartment[],cod
  const total=trend[trend.length-1]!.count;
  if(!total)throw new CreationsUnavailableError('EMPTY');
  const find=(m:string)=>trend.find(t=>t.month===m)??null;
- return {month,total,previous:find(addMonths(month,-1)),lastYear:find(addMonths(month,-12)),trend,rows,purchases,source:{dataset:BODACC_PUBLIC_PAGE,query:url,retrievedAt:now.toISOString()}};
+ return {month,total,previous:find(addMonths(month,-1)),lastYear:find(addMonths(month,-12)),trend,rows,purchases,recent,source:{dataset:BODACC_PUBLIC_PAGE,query:url,retrievedAt:now.toISOString()}};
 }
 export const fetchRegionCreations=(region:CreationsRegion,opts:{fetchImpl?:Fetch;now?:Date}={})=>fetchZoneCreations(region.departments,region.departments.map(d=>d.code),opts);
 export const fetchFranceCreations=(opts:{fetchImpl?:Fetch;now?:Date}={})=>fetchZoneCreations(CREATIONS_DEPARTMENTS,null,opts);
@@ -330,11 +363,18 @@ export function last12Months(trend:readonly MonthCount[]):{total:number;from:str
 
 export const percentChange=(now:number,before:number|null|undefined)=>before?Math.round((now-before)/before*100):null;
 
-// Sitemap: the hub, every region page and every department page. Their content changes when a month closes, so their date is the first day
-// of the current month — a real data change, never the build date.
-export function creationsSitemapEntries(siteUrl:string,now:Date){
- const lastModified=`${now.getUTCFullYear()}-${pad(now.getUTCMonth()+1)}-01`;
- return [CREATIONS_HUB,...CREATIONS_REGIONS.map(creationsPath),...CREATIONS_DEPARTMENTS.map(creationsPath)].map(path=>({url:`${siteUrl}/${path}`,lastModified,changeFrequency:'monthly' as const,priority:path===CREATIONS_HUB?.7:.6}));
+// Sitemap: the hub, every region page and every department page. lastModified is the date of the latest creation notice
+// published for the zone (Recent.byDepartment, one grouped query in app/sitemap.ts): the date of the newest data on the
+// page. Without that answer, the first day of the current month (when the last complete month became available) — a real
+// data change too, never the build date.
+export function creationsSitemapEntries(siteUrl:string,now:Date,recent:Recent|null=null){
+ const fallback=`${now.getUTCFullYear()}-${pad(now.getUTCMonth()+1)}-01`;
+ const lastOf=(codes:readonly string[])=>codes.map(c=>recent?.byDepartment[c]?.last).filter((d):d is string=>!!d).sort().pop()??fallback;
+ return [
+  {path:CREATIONS_HUB,lastModified:recent?.lastPublished??fallback,priority:.7},
+  ...CREATIONS_REGIONS.map(r=>({path:creationsPath(r),lastModified:lastOf(r.departments.map(d=>d.code)),priority:.6})),
+  ...CREATIONS_DEPARTMENTS.map(d=>({path:creationsPath(d),lastModified:lastOf([d.code]),priority:.6})),
+ ].map(e=>({url:`${siteUrl}/${e.path}`,lastModified:e.lastModified,changeFrequency:'daily' as const,priority:e.priority}));
 }
 
 // Page title within 75 characters: with the brand when it fits, then without it, then without the department code.
@@ -343,4 +383,11 @@ export function creationsTitle(place:string,code:string|null,month:string|null):
  const bases=[...(code?[`Créations d’entreprises ${place} (${code})${tail}`]:[]),`Créations d’entreprises ${place}${tail}`];
  const candidates=[...bases.map(b=>`${b} | ProspectOS`),...bases];
  return candidates.find(t=>t.length<=75)??bases[bases.length-1]!;
+}
+
+// Pages written for B2B prospectors (11 nov. 2026): « Nouvelles entreprises <dans le Rhône> ». Within 75 characters: the
+// full form, then without the brand, then without « (BODACC) ».
+export function prospectingTitle(place:string):string{
+ const candidates=[`Nouvelles entreprises ${place} : créations récentes (BODACC) | ProspectOS`,`Nouvelles entreprises ${place} : créations récentes (BODACC)`,`Nouvelles entreprises ${place} : créations récentes`];
+ return candidates.find(t=>t.length<=75)??candidates[candidates.length-1]!;
 }

@@ -49,7 +49,8 @@ test('robots: AI assistants and their search crawlers explicitly welcome, privat
  for(const bot of ['GPTBot','OAI-SearchBot','ChatGPT-User','ClaudeBot','Claude-SearchBot','Claude-User','PerplexityBot','Perplexity-User','Google-Extended','Applebot-Extended','Bingbot','CCBot'])assert.ok(AI_CRAWLERS.includes(bot),bot);
  const robots=await read('../app/robots.ts');
  assert.match(robots,/rules:\[\{userAgent:'\*',allow:robotsPolicy\.allow,disallow:robotsPolicy\.disallow\},\{userAgent:\[\.\.\.AI_CRAWLERS\],allow:robotsPolicy\.allow,disallow:robotsPolicy\.disallow\}\]/);
- assert.deepEqual(robotsPolicy.disallow,['/api/','/auth/']);
+ // 11 nov. 2026 (owner decision, SEO): the connected space and the technical routes are closed too.
+ assert.deepEqual(robotsPolicy.disallow,['/api/','/auth/','/app/','/ui-v2/','/creations-entreprises/aller']);
 });
 
 test('schema.org: the software with its real offers, the organization, FAQ and breadcrumbs per page',()=>{
@@ -62,6 +63,9 @@ test('schema.org: the software with its real offers, the organization, FAQ and b
  assert.equal(app.aggregateRating,undefined,'never an invented rating');assert.equal(app.review,undefined,'never an invented review');
  const org=organizationJsonLd as any;
  assert.equal(org['@type'],'Organization');assert.equal(org.name,'ProspectOS');assert.equal(org.url,SITE_URL);assert.equal(org.email,'contact@prospectos.fr');
+ // Owner's official profiles (11 nov. 2026), no tracking parameter.
+ assert.deepEqual(org.sameAs,['https://www.linkedin.com/company/prospectos-app/']);assert.deepEqual(org.founder.sameAs,['https://www.linkedin.com/in/kevincardia']);
+ assert.doesNotMatch(JSON.stringify(org),/utm_/);
  const page=getSeoPage('prospection-b2b');
  const faq=faqJsonLd(page) as any;
  assert.equal(faq['@type'],'FAQPage');assert.equal(faq.mainEntity.length,page.faq.length);

@@ -52,7 +52,7 @@ export type ResultFacts={meta:ResolutionMeta;cls:SourceClass|null;canAdd:boolean
  alreadyProspect:boolean;score:FitDisplay|null};
 export type DiscoveryView={tr:(key:TKey)=>string;locale:Locale;mode:'demo'|'live';projectName:string;offer:string;criteria:Criterion[];
  busy:boolean;error:string;info:string;replayed:boolean;deepPending:boolean;
- form:{fields:ReplayFields;setFields:(f:(prev:ReplayFields)=>ReplayFields)=>void;provider:string;setProvider:(p:string)=>void;available:boolean;registryAvailable:boolean;
+ form:{fields:ReplayFields;setFields:(f:(prev:ReplayFields)=>ReplayFields)=>void;provider:string;setProvider:(p:string)=>void;available:boolean;registryAvailable:boolean;fixtureAvailable:boolean;
   headcount:{min:string;max:string};typeHeadcount:(h:{min:string;max:string})=>void;formRef:RefObject<HTMLFormElement|null>;formOpen:boolean;setFormOpen:(o:boolean)=>void;
   submit:(f:FormData)=>void;registryPlan:ReturnType<typeof proposeNafGroups>|null};
  run:string;current:RunSummary|null;runs:RunSummary[]|null;hasMoreRuns:boolean;historyError:boolean;cost:any;
@@ -68,11 +68,15 @@ export function DiscoveryPanel({projectId,projectName,offer,criteria,mode,api,on
  const launching=useRef(createInFlight());
  const prefillApplied=useRef(!!prefill&&!activeRunId&&prefill.origin!=='icp');
  useEffect(()=>{if(!prefill||activeRunId)return;setFields(f=>({...f,query:f.query||prefill.query,location:f.location||prefill.location,categories:f.categories||prefill.categories.join(', ')}));if(prefill.employeeRange)setFields(f=>({...f,employeeRange:f.employeeRange??prefill.employeeRange??null}));setInfo(tr(prefill.origin==='icp'?'quick.discoveryFromIcp':'quick.discoveryPrefilled'));onPrefillUsed?.()},[]);
- const [provider,setProvider]=useState('fixture');const [available,setAvailable]=useState(false);const [registryAvailable,setRegistryAvailable]=useState(false);const [results,setResults]=useState<DiscoveryResult[]>([]);const [run,setRun]=useState('');const [runs,setRuns]=useState<RunSummary[]|null>(null);const [current,setCurrent]=useState<RunSummary|null>(null);const [fields,setFields]=useState<ReplayFields>(EMPTY_FIELDS);const [headcount,setHeadcount]=useState({min:'',max:''});
+ const [provider,setProvider]=useState('fixture');const [available,setAvailable]=useState(false);const [registryAvailable,setRegistryAvailable]=useState(false);
+ // The TEST source: always there in the demo mode (it runs in the browser); in live mode only where the server offers it
+ // (never in production — src/discovery/providers/index.ts). Until the server answers, it is not offered.
+ const [fixtureOffered,setFixtureOffered]=useState(false);const fixtureAvailable=mode==='demo'||fixtureOffered;
+const [results,setResults]=useState<DiscoveryResult[]>([]);const [run,setRun]=useState('');const [runs,setRuns]=useState<RunSummary[]|null>(null);const [current,setCurrent]=useState<RunSummary|null>(null);const [fields,setFields]=useState<ReplayFields>(EMPTY_FIELDS);const [headcount,setHeadcount]=useState({min:'',max:''});
  // The typed headcount follows the form when QuickStart or a replay sets it; a half-typed pair is kept as typed.
  useEffect(()=>{const r=fields.employeeRange??null;if(!sameHeadcount(r,headcountFromInputs(headcount.min,headcount.max))&&(r||headcount.min||headcount.max))setHeadcount(r?{min:String(r.min),max:String(r.max)}:{min:'',max:''})},[fields.employeeRange]);
  const typeHeadcount=(next:{min:string;max:string})=>{setHeadcount(next);setFields(f=>({...f,employeeRange:headcountFromInputs(next.min,next.max)}))};const [replayed,setReplayed]=useState(false);const [historyError,setHistoryError]=useState(false);const [hasMoreRuns,setHasMoreRuns]=useState(false);const [resultsShown,setResultsShown]=useState(RESULTS_PAGE);const [formOpen,setFormOpen]=useState(true);const [noveltyTab,setNoveltyTab]=useState<'ALL'|NoveltyStatus>('ALL');const formRef=useRef<HTMLFormElement>(null);const [cost,setCost]=useState<any>(null);const [busy,setBusy]=useState(false);const [error,setError]=useState('');const [info,setInfo]=useState('');const [deepPending,setDeepPending]=useState(false);const version=useRef(0);
- useEffect(()=>{version.current++;setResults([]);setRun('');setCost(null);setCurrent(null);setRuns(null);setHistoryError(false);let cancelled=false;if(mode==='live')api('discovery-config').then(c=>{if(!cancelled){const brave=c.providers.some((p:any)=>p.id==='brave'&&p.available);setAvailable(brave);setRegistryAvailable(c.providers.some((p:any)=>p.id==='registry'&&p.available));if(brave&&prefillApplied.current)setProvider('brave')}}).catch(()=>{if(!cancelled)setError(tr('discovery.configUnavailable'))});
+ useEffect(()=>{version.current++;setResults([]);setRun('');setCost(null);setCurrent(null);setRuns(null);setHistoryError(false);let cancelled=false;if(mode==='live')api('discovery-config').then(c=>{if(!cancelled){const brave=c.providers.some((p:any)=>p.id==='brave'&&p.available);setAvailable(brave);const registry=c.providers.some((p:any)=>p.id==='registry'&&p.available),fixture=c.providers.some((p:any)=>p.id==='fixture'&&p.available);setRegistryAvailable(registry);setFixtureOffered(fixture);if(brave&&prefillApplied.current)setProvider('brave');else if(!fixture&&registry)setProvider(p=>p==='fixture'?'registry':p)}}).catch(()=>{if(!cancelled)setError(tr('discovery.configUnavailable'))});
  // History and the run that was open before leaving this screen: reads only, never a search.
  // The remembered run may be older than the first page of the history: it is then read on its own.
  loadHistory(HISTORY_FIRST_PAGE).then(async list=>{if(cancelled||!activeRunId)return;let summary=list?.find(r=>r.id===activeRunId)??(mode==='demo'?readDemoRuns(projectId).find(r=>r.summary.id===activeRunId)?.summary:undefined)??null;
@@ -113,7 +117,7 @@ export function DiscoveryPanel({projectId,projectName,offer,criteria,mode,api,on
   if(!summary&&mode==='demo')summary=readDemoRuns(projectId).find(x=>x.summary.id===runId)?.summary??null;
   if(!summary&&mode==='live'){try{summary=summarizeRuns([await api(`discovery-runs/${runId}`)])[0]??null}catch{summary=null}}
   if(summary?.id)await viewRun(summary)}
- function replay(summary:RunSummary){const f=replayFields(summary,mode==='live'&&available,mode==='live'&&registryAvailable);setFields(f);setProvider(f.provider);setReplayed(true);setFormOpen(true);requestAnimationFrame(()=>{formRef.current?.scrollIntoView({behavior:'smooth',block:'start'});(formRef.current?.elements.namedItem('query') as HTMLInputElement|null)?.focus({preventScroll:true})})}
+ function replay(summary:RunSummary){const f=replayFields(summary,mode==='live'&&available,mode==='live'&&registryAvailable);setFields(f);setProvider(f.provider==='fixture'&&!fixtureAvailable&&registryAvailable?'registry':f.provider);setReplayed(true);setFormOpen(true);requestAnimationFrame(()=>{formRef.current?.scrollIntoView({behavior:'smooth',block:'start'});(formRef.current?.elements.namedItem('query') as HTMLInputElement|null)?.focus({preventScroll:true})})}
  // An added candidate shows its prospect's current score — the existing engine, on human-verified
  // evidence only (never a discovery signal).
  function addedScore(r:DiscoveryResult):FitDisplay|null{if(r.status!=='accepted'||!r.prospect_id)return null;const p=existing.find(x=>x.id===r.prospect_id);if(!p)return null;try{return fitDisplay(estimateFit(criteria,p.evidence,new Date()))}catch{return null}}
@@ -217,7 +221,7 @@ export function DiscoveryPanel({projectId,projectName,offer,criteria,mode,api,on
  // Recherche 2.0 (UI-5B): the v2 screen composes the very same state, results and actions. Nothing is computed for it
  // that the legacy markup below does not compute; without `view`, that markup is rendered exactly as before.
  if(view)return <>{view({tr,locale,mode,projectName,offer,criteria,busy,error,info,replayed,deepPending,
-  form:{fields,setFields,provider,setProvider,available,registryAvailable,headcount,typeHeadcount,formRef,formOpen,setFormOpen,
+  form:{fields,setFields,provider,setProvider,available,registryAvailable,fixtureAvailable,headcount,typeHeadcount,formRef,formOpen,setFormOpen,
    submit:(f:FormData)=>search(f),registryPlan:provider==='registry'?proposeNafGroups([...fields.categories.split(',').map(x=>x.trim()).filter(Boolean),fields.query]):null},
   run,current,runs,hasMoreRuns,historyError,cost,results,candidates,discarded,shown,resultsShown,showMore:()=>setResultsShown(n=>n+resultsPage()),morePage:Math.min(resultsPage(),shown.length-resultsShown),
   counts,hasNovelty,noveltyTotals,tabCount,noveltyTab,selectTab:k=>{setNoveltyTab(k);setResultsShown(resultsPage())},

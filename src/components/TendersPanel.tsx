@@ -4,29 +4,30 @@
 // nothing. Read-only: each line links to its official BOAMP notice; nothing is saved, sent or answered for the person.
 import {useEffect,useMemo,useRef,useState,type FormEvent} from 'react';
 import type {Locale} from '../i18n/locale';
+import {Button} from '../ui/v2/primitives';
 import {tendersClient,panelEnabled,deadlineText,urgent,loadLastSearch,saveLastSearch,tendersText,type TendersAnswer,type TendersTextKey} from '../tenders/view';
 
+// Tokens of the v2 theme only (light and dark): this panel lives inside « Recherche » (SearchV2), whose text colour
+// follows the theme. The legacy `.card` (white, hard-coded) made it unreadable in the dark theme (audit B1, 11 nov. 2026).
 const CSS=`
-.pos-tenders{display:grid;gap:12px;min-width:0;margin-bottom:22px}
-.pos-tenders .card{min-width:0}
-.pos-tenders__lead{margin:0 0 12px;color:var(--pos-text-2,#4a5260);font-size:13px}
-.pos-tenders form{display:grid;gap:10px;grid-template-columns:minmax(0,2fr) minmax(0,1fr) auto;align-items:end}
-@media (max-width:640px){.pos-tenders form{grid-template-columns:1fr}}
-.pos-tenders label{display:grid;gap:4px;font-size:13px;font-weight:600;min-width:0}
-.pos-tenders input{font-size:16px;min-height:44px;min-width:0}
-.pos-tenders button{min-height:44px}
-.pos-tenders__hint{margin:6px 0 0;font-size:12px;color:var(--pos-text-2,#4a5260)}
-.pos-tenders__error{background:#f6e3de;color:#8a3b2b;border-radius:8px;padding:10px 12px;font-size:13px;overflow-wrap:anywhere}
-.pos-tenders__list{list-style:none;margin:0;padding:0;display:grid;gap:10px}
-.pos-tenders__item{border:1px solid var(--pos-border,#dfe3ea);border-radius:12px;padding:12px 14px;display:grid;gap:4px;min-width:0}
-.pos-tenders__item h3{margin:0;font-size:15px;line-height:1.35;overflow-wrap:anywhere}
-.pos-tenders__meta{font-size:13px;color:var(--pos-text-2,#4a5260);overflow-wrap:anywhere}
-.pos-tenders__deadline{font-size:13px;font-weight:600}
-.pos-tenders__deadline.is-urgent{color:#b4530a}
-.pos-tenders__tags{display:flex;flex-wrap:wrap;gap:6px}
-.pos-tenders__tags span{font-size:11px;border-radius:12px;padding:2px 8px;background:var(--pos-accent-soft,#e8f0fb)}
-.pos-tenders__item a{font-size:13px;font-weight:600;width:fit-content}
-.pos-tenders__source{font-size:12px;color:var(--pos-text-2,#4a5260);margin:0}
+.pos-ui .pos-tenders{display:grid;gap:var(--pos-space-3);min-width:0;margin-bottom:var(--pos-space-5);color:var(--pos-text-1)}
+.pos-ui .pos-tenders__card{min-width:0;padding:var(--pos-space-4);background:var(--pos-surface-card);border:1px solid var(--pos-border);border-radius:var(--pos-radius-xl);box-shadow:var(--pos-shadow-card)}
+.pos-ui .pos-tenders__card h2{margin:0 0 var(--pos-space-1);font-size:var(--pos-text-xl);font-weight:var(--pos-weight-heavy);letter-spacing:-.02em;color:var(--pos-text-1)}
+.pos-ui .pos-tenders__lead{margin:0 0 var(--pos-space-3);color:var(--pos-text-2);font-size:var(--pos-text-sm)}
+.pos-ui .pos-tenders form{display:grid;gap:var(--pos-space-3);grid-template-columns:minmax(0,2fr) minmax(0,1fr) auto;align-items:end}
+@media (max-width:640px){.pos-ui .pos-tenders form{grid-template-columns:1fr}}
+.pos-ui .pos-tenders__hint{margin:var(--pos-space-2) 0 0;font-size:var(--pos-text-xs);color:var(--pos-text-3)}
+.pos-ui .pos-tenders__error{margin:0;border:1px solid var(--pos-status-excluded-fg);color:var(--pos-status-excluded-fg);background:var(--pos-surface-inset);border-radius:var(--pos-radius-md);padding:var(--pos-space-2) var(--pos-space-3);font-size:var(--pos-text-sm);overflow-wrap:anywhere}
+.pos-ui .pos-tenders__list{list-style:none;margin:0;padding:0;display:grid;gap:var(--pos-space-2)}
+.pos-ui .pos-tenders__item{border:1px solid var(--pos-border);background:var(--pos-surface-inset);border-radius:var(--pos-radius-lg);padding:var(--pos-space-3);display:grid;gap:4px;min-width:0}
+.pos-ui .pos-tenders__item h3{margin:0;font-size:var(--pos-text-md);line-height:1.35;overflow-wrap:anywhere;color:var(--pos-text-1)}
+.pos-ui .pos-tenders__meta{font-size:var(--pos-text-sm);color:var(--pos-text-2);overflow-wrap:anywhere}
+.pos-ui .pos-tenders__deadline{font-size:var(--pos-text-sm);font-weight:var(--pos-weight-semibold);color:var(--pos-text-1)}
+.pos-ui .pos-tenders__deadline.is-urgent{color:var(--pos-status-verify-fg)}
+.pos-ui .pos-tenders__tags{display:flex;flex-wrap:wrap;gap:6px}
+.pos-ui .pos-tenders__tags span{font-size:var(--pos-text-xs);border-radius:var(--pos-radius-pill);padding:2px 8px;background:var(--pos-accent-soft);color:var(--pos-text-1)}
+.pos-ui .pos-tenders__item a{font-size:var(--pos-text-sm);width:fit-content}
+.pos-ui .pos-tenders__source{font-size:var(--pos-text-xs);color:var(--pos-text-3);margin:var(--pos-space-3) 0 0}
 `;
 
 export function TendersPanel({locale,projectId,token,onUnauthorized}:{locale:Locale;projectId:string;token:string;onUnauthorized:()=>void}){
@@ -56,18 +57,18 @@ export function TendersPanel({locale,projectId,token,onUnauthorized}:{locale:Loc
  const now=Date.now();
  return <section className="pos-tenders" aria-labelledby="pos-tenders-title" data-tenders>
   <style href="pos-tenders" precedence="default">{CSS}</style>
-  <div className="card">
+  <div className="pos-tenders__card">
    <h2 id="pos-tenders-title">{t('title')}</h2>
    <p className="pos-tenders__lead">{t('lead')}</p>
    <form onSubmit={submit}>
-    <label htmlFor="pos-tenders-keywords">{t('keywords')}<input id="pos-tenders-keywords" value={keywords} maxLength={300} placeholder={t('keywordsPlaceholder')} onChange={e=>setKeywords(e.target.value)} required/></label>
-    <label htmlFor="pos-tenders-departments">{t('departments')}<input id="pos-tenders-departments" value={departments} maxLength={60} placeholder={t('departmentsPlaceholder')} onChange={e=>setDepartments(e.target.value)} required/></label>
-    <button type="submit" className="primary" disabled={busy}>{busy?t('searching'):t('search')}</button>
+    <label className="pos-sfield" htmlFor="pos-tenders-keywords"><span>{t('keywords')}</span><input id="pos-tenders-keywords" value={keywords} maxLength={300} placeholder={t('keywordsPlaceholder')} onChange={e=>setKeywords(e.target.value)} required/></label>
+    <label className="pos-sfield" htmlFor="pos-tenders-departments"><span>{t('departments')}</span><input id="pos-tenders-departments" value={departments} maxLength={60} placeholder={t('departmentsPlaceholder')} onChange={e=>setDepartments(e.target.value)} required/></label>
+    <Button type="submit" variant="primary" size="md" iconStart="search" loading={busy} disabled={busy}>{busy?t('searching'):t('search')}</Button>
    </form>
    <p className="pos-tenders__hint">{t('keywordsHint')}</p>
   </div>
   {error&&<p className="pos-tenders__error" role="alert">{error}</p>}
-  {answer&&<div className="card" aria-live="polite">
+  {answer&&<div className="pos-tenders__card" aria-live="polite">
    <p className="pos-tenders__lead">{answer.tenders.length?t('count',{n:answer.tenders.length}):t('none')}{answer.total>answer.tenders.length?` ${t('more',{total:answer.total})}`:''}</p>
    <ul className="pos-tenders__list">{answer.tenders.map(x=><li key={x.id} className="pos-tenders__item" data-tender={x.id}>
     <span className={`pos-tenders__deadline${urgent(x.deadline,now)?' is-urgent':''}`}>{t('deadline')} {deadlineText(locale,x.deadline,now)}</span>

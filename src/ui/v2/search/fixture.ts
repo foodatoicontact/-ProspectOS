@@ -59,7 +59,7 @@ export function benchView(state:BenchState,act:(name:string)=>void,tab:'ALL'|Nov
   busy:state==='loading',error:state==='error'?'La recherche n’a pas pu aboutir. Réessayez dans un instant.':state==='quota'?'Quota de recherches atteint pour cette période. Il se renouvelle à la prochaine échéance.':'',
   info:'',replayed:false,deepPending:false,
   form:{fields:{query:withRun||state==='loading'?'restaurant indépendant':'',location:withRun||state==='loading'?'Occitanie':'',categories:'',max:20,provider:'fixture',searchMode:'all',desiredNew:null},
-   setFields:()=>act('fields'),provider:'fixture',setProvider:()=>act('provider'),available:false,registryAvailable:false,headcount:{min:'',max:''},typeHeadcount:()=>act('headcount'),
+   setFields:()=>act('fields'),provider:'fixture',setProvider:()=>act('provider'),available:false,registryAvailable:false,fixtureAvailable:true,headcount:{min:'',max:''},typeHeadcount:()=>act('headcount'),
    formRef:createRef<HTMLFormElement>(),formOpen:!withRun,setFormOpen:o=>act(o?'form-open':'form-close'),submit:()=>act('search'),registryPlan:null},
   run:withRun?SUMMARY.id:'',current:withRun?{...SUMMARY,result_count:rows.length}:null,runs:state==='start'?[]:[...(withRun?[SUMMARY]:[]),OLD],hasMoreRuns:false,historyError:false,cost:null,
   results:candidates,candidates,discarded:[],shown,resultsShown:6,showMore:()=>act('more'),morePage:0,

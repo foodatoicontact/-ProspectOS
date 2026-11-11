@@ -27,7 +27,9 @@ const PROFILE={types:{hiring_role:25},terms:[]};
 test('A — generation stores the generated text twice (generated_content = content); an edit never sends generated_content',async()=>{
  const route=await src(ROUTE);
  assert.match(route,/generated_content:text,content:text/,'the insert keeps the original next to the editable copy');
- assert.match(route,/const text=ai\?ai\.text:composed\.text;/,'the generated text: the AI message when valid, else the rule-based one');
+ // 11 nov. 2026 (audit R2): the manual draft ends with the right-to-object line — the rule-based text carries it
+ // (optOut:true), a valid AI text gets the same line; still the AI message when valid, else the rule-based one.
+ assert.match(route,/const text=ai\?withOptOut\(ai\.text,draftLocale,[^;]*\):composed\.text;/,'the generated text: the AI message when valid, else the rule-based one');
  const patch=route.slice(route.indexOf("resource==='outreach'&&request.method==='PATCH'"),route.indexOf("resource==='events'"));
  assert.doesNotMatch(patch,/generated_content/,'the PATCH route never writes generated_content');
 });

@@ -10,16 +10,30 @@ export type DiscoveryProviderId='fixture'|'brave'|'registry'|'bodacc_sales';
 type Env=Record<string,string|undefined>;
 export const REGISTRY_LABEL='Registre des entreprises — données publiques';
 
+// The TEST source (synthetic companies) is a development and demonstration tool: never offered nor accepted on a deployed
+// build (audit B2, 11 nov. 2026) unless the operator switches it on explicitly (DISCOVERY_FIXTURE_ENABLED=true, e.g. on a
+// Preview). The rule reads NODE_ENV, which every deployed build sets to "production" — not VERCEL_ENV, which this
+// project's functions do not see at run time (docs/ZERO_FRICTION.md, P0 debt): a guard on it would never fire. Local
+// development and the tests keep the source. The no-account demo mode runs it in the browser and is not concerned.
+export function fixtureProviderAvailable(env:Env):boolean{
+ const flag=env.DISCOVERY_FIXTURE_ENABLED?.trim().toLowerCase();
+ if(flag==='true'||flag==='1')return true;
+ if(flag==='false'||flag==='0')return false;
+ return env.NODE_ENV!=='production';
+}
+export const FIXTURE_PROVIDER_DISABLED='FIXTURE_PROVIDER_DISABLED';
+
 export function createDiscoveryProvider(id:DiscoveryProviderId|undefined,env:Env):DiscoveryProvider{
  if(id==='brave')return new BraveProvider(env.BRAVE_SEARCH_API_KEY??'');
  if(id==='registry')return new RegistryProvider();
  if(id==='bodacc_sales')return new BodaccSalesProvider();
+ if(!fixtureProviderAvailable(env))throw Error(FIXTURE_PROVIDER_DISABLED);
  return new FixtureProvider();
 }
 
 export function discoveryProviderConfig(env:Env){
  return {providers:[
-  {id:'fixture' as const,available:true,mode:'test' as const,label:'TEST — entreprises synthétiques'},
+  {id:'fixture' as const,available:fixtureProviderAvailable(env),mode:'test' as const,label:'TEST — entreprises synthétiques'},
   {id:'brave' as const,available:!!env.BRAVE_SEARCH_API_KEY,mode:'live' as const,label:'Brave Search API'},
   // Public data, no key: always available in live mode.
   {id:'registry' as const,available:true,mode:'live' as const,label:REGISTRY_LABEL},

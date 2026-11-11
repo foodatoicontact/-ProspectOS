@@ -64,3 +64,44 @@ export type DiscoveryResult={id:string;normalized_payload:Candidate;dedupe_statu
  current_project_status?:CurrentProjectStatus|null};
 export type CurrentProjectStatus={status:'ADDED';prospect_id:string};
 export type DiscoveryRun={id:string;status:string;provider:string;result_count:number;error_message:string|null;results?:DiscoveryResult[]};
+
+// ── Saving an ICP: what a person meant, then a refusal that says where (audit B7, 11 nov. 2026) ───────────────────────────
+// A rule left half-empty on the screen (one dimension cleared while another is filled, `rules:null`, a need without any
+// signal) is "no value there", not a malformed criterion: those empty parts are dropped before validation. Nothing else is
+// repaired — a value too short, too many values or an unknown field is still refused, with the criterion and the field named.
+export function normalizeCriteriaInput(raw:unknown):unknown{
+ if(!Array.isArray(raw))return raw;
+ return raw.map(item=>{
+  if(!item||typeof item!=='object'||Array.isArray(item))return item;
+  const c={...(item as Record<string,unknown>)};
+  const rules=c.rules as {type?:unknown;config?:unknown}|null|undefined;
+  if(rules===null||rules===undefined){delete c.rules;return c}
+  if(typeof rules!=='object'||!rules.config||typeof rules.config!=='object'||Array.isArray(rules.config))return c;
+  const config={...(rules.config as Record<string,unknown>)};
+  const empty=(v:unknown)=>v===null||v===undefined||(Array.isArray(v)&&v.every(x=>typeof x==='string'&&!x.trim()));
+  if(rules.type==='target_fit'){
+   for(const k of ['categories','locations','org_types'])if(k in config&&empty(config[k]))delete config[k];
+   if(!['categories','locations','org_types'].some(k=>k in config)){delete c.rules;return c}
+  }else if(rules.type==='need_fit'){
+   if(empty(config.signals)){delete c.rules;return c}
+  }
+  c.rules={...rules,config};return c;
+ });
+}
+const FIELD_LABELS:Record<string,string>={categories:'catégories',locations:'localisation',org_types:'types d’organisation',signals:'signaux',match:'mode de correspondance',label:'libellé',key:'identifiant',weight:'poids',rules:'règle'};
+// « Critère 3 (« Zone ») — localisation : 2 caractères minimum par valeur. » — from the first validation issue.
+export function criteriaIssueMessage(error:z.ZodError,raw:unknown):string{
+ const issue=error.issues[0];if(!issue)return 'structure incorrecte';
+ const [index,...rest]=issue.path;
+ if(typeof index!=='number')return issue.code==='too_big'?'30 critères au maximum':'une liste de critères est attendue';
+ const label=Array.isArray(raw)&&raw[index]&&typeof (raw[index] as {label?:unknown}).label==='string'?String((raw[index] as {label:string}).label).slice(0,60):null;
+ const field=[...rest].reverse().find((p):p is string=>typeof p==='string'&&p in FIELD_LABELS);
+ const inValue=typeof rest[rest.length-1]==='number';
+ const i=issue as {code:string;minimum?:number;maximum?:number;origin?:string;keys?:string[]};
+ const why=i.code==='too_small'?(i.origin==='array'?'au moins une valeur':`${i.minimum} caractères minimum${inValue?' par valeur':''}`)
+  :i.code==='too_big'?(i.origin==='array'?`${i.maximum} valeurs au maximum`:`${i.maximum} caractères au maximum${inValue?' par valeur':''}`)
+  :i.code==='unrecognized_keys'?`champ inconnu (${(i.keys??[]).join(', ').slice(0,60)})`
+  :i.code==='custom'?'au moins une catégorie, une localisation ou un type d’organisation'
+  :'valeur invalide';
+ return `critère ${index+1}${label?` (« ${label} »)`:''}${field?` — ${FIELD_LABELS[field]}`:''} : ${why}`;
+}

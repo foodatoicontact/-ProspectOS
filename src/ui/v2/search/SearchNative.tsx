@@ -92,7 +92,7 @@ function Form({m}:{m:DiscoveryView}){
      <small>{tr('deep.hint')}</small></label>}
     <label className="pos-sfield"><span>{tr('discovery.sourceLabel')}</span>
      <select value={f.provider} onChange={e=>f.setProvider(e.target.value)}>
-      <option value="fixture">{tr('discovery.fixtureOption')}</option>
+      {f.fixtureAvailable&&<option value="fixture">{tr('discovery.fixtureOption')}</option>}
       <option value="brave" disabled={mode==='demo'||!f.available}>Brave Search {f.available&&mode==='live'?tr('discovery.braveConfigured'):tr('discovery.braveNotConfigured')}</option>
       <option value="registry" disabled={mode==='demo'||!f.registryAvailable}>{tr('discovery.providerRegistry')}</option>
       <option value="bodacc_sales" disabled={mode==='demo'||!f.registryAvailable}>{t.salesOption}</option></select></label>

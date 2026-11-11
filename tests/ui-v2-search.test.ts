@@ -39,7 +39,16 @@ test('legacy untouched — DiscoveryPanel only gains factsOf (expressions moved 
  // 1 nov. 2026 (migration 039): the run summary written after a search also names the BODACC purchases source —
  // the only change to the panel's logic, removed here before the byte comparison.
  const withoutSales=(s:string)=>s.replace("provider==='bodacc_sales'?'bodacc_sales':",'');
- assert.equal(withoutSales(logic(panel)),logic(before),'state, effects, search, accept, ignore, history, novelty: unchanged');
+ // 11 nov. 2026 (audit B2): the TEST source is offered in live mode only where the server offers it (never in production).
+ // Exactly four additions — the state, the config answer, the replay fallback and the view field — removed here before the
+ // byte comparison. The legacy markup above is untouched: only the v2 screen hides the option.
+ const withoutFixtureGate=(s:string)=>s
+  .replace(/\n \/\/ The TEST source: always there in the demo mode[^\n]*\n[^\n]*\n const \[fixtureOffered,setFixtureOffered\]=useState\(false\);const fixtureAvailable=mode==='demo'\|\|fixtureOffered;\n/,'')
+  .replace("const registry=c.providers.some((p:any)=>p.id==='registry'&&p.available),fixture=c.providers.some((p:any)=>p.id==='fixture'&&p.available);setRegistryAvailable(registry);setFixtureOffered(fixture);if(brave&&prefillApplied.current)setProvider('brave');else if(!fixture&&registry)setProvider(p=>p==='fixture'?'registry':p)",
+   "setRegistryAvailable(c.providers.some((p:any)=>p.id==='registry'&&p.available));if(brave&&prefillApplied.current)setProvider('brave')")
+  .replace("setProvider(f.provider==='fixture'&&!fixtureAvailable&&registryAvailable?'registry':f.provider);","setProvider(f.provider);")
+  .replace("available,registryAvailable,fixtureAvailable,","available,registryAvailable,");
+ assert.equal(withoutFixtureGate(withoutSales(logic(panel))),logic(before),'state, effects, search, accept, ignore, history, novelty: unchanged');
  const factsBody=panel.slice(panel.indexOf(' const factsOf='),panel.indexOf('  return {meta,cls,canAdd'));
  for(const expr of factsBody.split(/;\n?|\n/).map(x=>x.trim()).filter(x=>x.startsWith('const ')&&!x.startsWith('const factsOf')))
   assert.ok(before.includes(expr),`moved verbatim: ${expr}`);

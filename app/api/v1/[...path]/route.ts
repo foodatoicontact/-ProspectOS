@@ -11,7 +11,7 @@ import {icpImportEnabled} from '../../../../src/icp-import/flag';
 import {handleTenders,tendersEnabled} from '../../../../src/tenders/api';
 import {analyzeCompanyGuarded} from '../../../../src/server/ai-guard';
 import {checked as checkedRpc} from '../../../../src/discovery/repository';
-import {CriterionContextSchema} from '../../../../src/discovery/types';
+import {CriterionContextSchema,normalizeCriteriaInput,criteriaIssueMessage} from '../../../../src/discovery/types';
 import {requireActiveEntitlement,effectiveEntitlement} from '../../../../src/server/entitlement';
 import {attachEvidenceSources} from '../../../../src/server/evidence-sources';
 import {handleUserDeclared} from '../../../../src/server/user-declared';
@@ -43,7 +43,7 @@ import {handleOutreachIntelligence,PUBLIC_CONTENT_COLUMNS} from '../../../../src
 import {handleNextBestActions,nextBestActionEnabled} from '../../../../src/nba/api';
 import {handleSelfOutreach} from '../../../../src/self-outreach/api';
 import {selfOutreachEnabledForAny} from '../../../../src/self-outreach/config';
-import {composeRuleBased} from '../../../../src/outreach/compose';
+import {composeRuleBased,withOptOut} from '../../../../src/outreach/compose';
 import {generateOutreachWithAi,type AiGenerateResult} from '../../../../src/outreach/ai-generate';
 import {aiOutreachEnabled,withAiOutreachUsage} from '../../../../src/outreach/ai-switch';
 import {styleOf} from '../../../../src/outreach/style';
@@ -144,7 +144,10 @@ async function handler(request:Request,context:{params:Promise<{path:string[]}>}
  // The same schema Discovery search uses for its own criteria context — a single source of truth for
  // "what is a valid Criterion", including a user-authored `rules` (bounds, dedup, discriminant all
  // enforced here). A malformed direct API payload is rejected here, not silently accepted.
- let criteria;try{criteria=z.array(CriterionContextSchema).max(30).parse(body.criteria??DEFAULT_CRITERIA)}catch{return json({error:'Critères invalides : structure incorrecte'},400)}
+ // Half-empty rules are dropped first, and a refusal names the criterion and the field (src/discovery/types.ts).
+ const rawCriteria=normalizeCriteriaInput(body.criteria??DEFAULT_CRITERIA);const parsedCriteria=z.array(CriterionContextSchema).max(30).safeParse(rawCriteria);
+ if(!parsedCriteria.success)return json({error:`Critères invalides : ${criteriaIssueMessage(parsedCriteria.error,rawCriteria)}`,code:'INVALID_CRITERIA'},400);
+ const criteria=parsedCriteria.data;
  try{validateCriteria(criteria)}catch{return json({error:'Critères invalides : poids total 100 requis'},400)}
  const project=await checked(db.from('projects').select('*').eq('id',body.project_id).single());
  return json(await checked(db.from('icps').upsert({project_id:project.id,organization_id:project.organization_id,criteria},{onConflict:'project_id'}).select().single()));
@@ -193,7 +196,7 @@ async function handler(request:Request,context:{params:Promise<{path:string[]}>}
  const publicContent=await db.from('prospect_public_content').select(PUBLIC_CONTENT_COLUMNS).eq('prospect_id',p.id).eq('status','VERIFIED').limit(50).then(r=>r.error?[]:r.data??[],()=>[]);
  const styleRow=await db.from('outreach_style_profiles').select('*').eq('organization_id',p.organization_id).limit(1).then(r=>r.error?null:(r.data??[])[0]??null,()=>null);
  const styleProfileId:string|null=styleRow?.id??null;
- const composed=composeRuleBased({name:p.name,offer:project.offer,criteria:projectCriteria(project.icps),evidence:p.evidence,signals,profile:intentProfile,publicContent,now:new Date(),locale:draftLocale,style:styleOf(styleRow)});
+ const composed=composeRuleBased({name:p.name,offer:project.offer,criteria:projectCriteria(project.icps),evidence:p.evidence,signals,profile:intentProfile,publicContent,now:new Date(),locale:draftLocale,style:styleOf(styleRow),optOut:true});
  // O1/O2 — AI only when the user asks for it (body.ai === true): one attempt = one "AI outreach" unit, reserved before the
  // provider call (reserve_ai_outreach, migration 028); its rule-based fallback is the same attempt. Nothing possible before
  // the reservation (AI not configured, BYOK broken, no unit) → the rule-based message, 0 unit. The model gets only the
@@ -223,7 +226,8 @@ async function handler(request:Request,context:{params:Promise<{path:string[]}>}
    meter:(usage,billingSource)=>recordApiUsage({organizationId:p.organization_id,projectId:p.project_id,userId:user.id,provider:usage.provider,operation:'outreach_generation',model:usage.model,inputTokens:usage.input_tokens,outputTokens:usage.output_tokens,billingSource}),
   });
  }
- const text=ai?ai.text:composed.text;
+ // The manual draft always ends with the right-to-object line (audit R2): the rule-based text carries it, an AI text gets it here.
+ const text=ai?withOptOut(ai.text,draftLocale,draftLocale==='fr'&&styleOf(styleRow).address_mode==='tu'?'tu':'vous'):composed.text;
  // At most one live DRAFT per prospect: a regeneration supersedes the previous one instead of
  // leaving an ambiguous pile of undecided drafts. Already-decided rows (APPROVED/USED/DISCARDED)
  // are historical record and are never touched here. The invariant itself is enforced by a partial

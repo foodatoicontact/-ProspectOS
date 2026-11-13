@@ -15,6 +15,7 @@ export type TendersDeps={enabled:boolean;requireEntitlement:()=>Promise<unknown>
 const REFUSALS:Record<string,[string,number]>={
  KEYWORDS_REQUIRED:['Indiquez au moins un mot-clé (ex. « nettoyage façade »).',400],
  TOO_MANY_KEYWORDS:[`${MAX_KEYWORDS} mots-clés au maximum.`,400],
+ KEYWORD_TOO_GENERIC:['Un mot-clé ne peut pas être fait que de petits mots (de, la, le, des, en, et…) : ajoutez un mot qui décrit le marché.',400],
  KEYWORD_INVALID:['Un mot-clé ne peut contenir que des lettres, des chiffres, des espaces, des apostrophes et des tirets (2 à 60 caractères).',400],
  DEPARTMENTS_REQUIRED:['Indiquez au moins un département (ex. 33).',400],
  TOO_MANY_DEPARTMENTS:[`${MAX_DEPARTMENTS} départements au maximum.`,400],
@@ -30,9 +31,9 @@ export async function handleTenders(request:Request,path:string[],json:Json,deps
  const url=new URL(request.url);
  try{
   const query=parseTenderQuery(url.searchParams.get('keywords')??'',url.searchParams.get('departments')??'');
-  const {tenders,total}=await searchOpenTenders(query,{fetch:deps.fetch,now:deps.now?.()});
+  const {tenders,total,truncated}=await searchOpenTenders(query,{fetch:deps.fetch,now:deps.now?.()});
   deps.log?.({component:'tenders',event:'search',keywords:query.keywords.length,departments:query.departments.length,results:tenders.length});
-  return json({tenders,total,query,provenance:BOAMP_PROVENANCE});
+  return json({tenders,total,truncated,query,provenance:BOAMP_PROVENANCE});
  }catch(e){
   if(!(e instanceof TendersError))throw e;
   const r=REFUSALS[e.message];if(!r)throw e;

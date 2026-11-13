@@ -3,7 +3,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
-import {parseTenderQuery,tendersUrl,toTender,searchOpenTenders,TendersError,BOAMP_RECORDS,TENDERS_LIMIT} from '../src/tenders/boamp.ts';
+import {parseTenderQuery,tendersUrl,toTender,searchOpenTenders,TendersError,BOAMP_RECORDS,TENDERS_LIMIT,CANDIDATES_LIMIT} from '../src/tenders/boamp.ts';
 import {handleTenders,tendersEnabled,TENDERS_DISABLED,type TendersDeps} from '../src/tenders/api.ts';
 
 const fixture=JSON.parse(readFileSync(new URL('./fixtures/tenders/boamp-open-gironde.json',import.meta.url),'utf8'));
@@ -32,14 +32,16 @@ test('query — nothing typed can change the BOAMP query: quotes, parentheses, o
  refusal(()=>tendersUrl({keywords:['graffiti'],departments:['33") or ("1']},NOW),'DEPARTMENT_INVALID');
 });
 
-test('query — fixed host and fields: open notices only, no contact block, deadline after today, at most 50',()=>{
- const u=tendersUrl(parseTenderQuery('graffiti, l’enduit','33,40'),NOW);
+test('query — fixed host and fields: open notices only, no contact block, deadline after today, 100 candidates',()=>{
+ // 13 nov. 2026 (keyword fix): each keyword fetches the notices holding ALL its meaningful words, folded (« l’enduit »
+ // → enduit); the BOAMP matches prefixes, so these are candidates and the exact expression is checked afterwards.
+ const u=tendersUrl(parseTenderQuery('graffiti, l’enduit, techniques de vente','33,40'),NOW);
  assert.equal(`${u.origin}${u.pathname}`,BOAMP_RECORDS);
- assert.equal(u.searchParams.get('where'),`nature="APPEL_OFFRE" and datelimitereponse>date'2026-11-09' and (search(objet,"graffiti") or search(objet,"l'enduit")) and (code_departement="33" or code_departement="40")`);
+ assert.equal(u.searchParams.get('where'),`nature="APPEL_OFFRE" and datelimitereponse>date'2026-11-09' and ((search(objet,"graffiti")) or (search(objet,"enduit")) or (search(objet,"techniques") and search(objet,"vente"))) and (code_departement="33" or code_departement="40")`);
  assert.equal(u.searchParams.get('select'),'idweb,objet,code_departement,dateparution,datelimitereponse,nomacheteur,nature,type_marche,descripteur_libelle,procedure_libelle,url_avis');
  assert.ok(!/donnees|gestion|titulaire/.test(u.searchParams.get('select')!),'never the contact or award blocks');
  assert.equal(u.searchParams.get('order_by'),'datelimitereponse asc');
- assert.equal(u.searchParams.get('limit'),String(TENDERS_LIMIT));
+ assert.equal(u.searchParams.get('limit'),String(CANDIDATES_LIMIT));assert.equal(CANDIDATES_LIMIT,100);assert.equal(TENDERS_LIMIT,50);
 });
 
 test('notices — the real answer: every open notice is kept, with its official link and deadline',()=>{
@@ -48,7 +50,8 @@ test('notices — the real answer: every open notice is kept, with its official 
  const g=t.find((x:{id:string})=>x.id==='26-102913');
  assert.deepEqual(g,{id:'26-102913',subject:'Fourniture de produits et matériels spécifiques pour enlèvement des graffitis et protection des supports - Bordeaux Métropole',
   buyer:'Bordeaux Métropole',departments:['33'],publishedOn:'2026-10-24',deadline:'2026-11-24T15:00:00.000Z',contractTypes:['FOURNITURES'],
-  descriptors:['Produits chimiques',"Produits d'entretien"],procedure:'Procédure Ouverte',url:'https://www.boamp.fr/pages/avis/?q=idweb:26-102913'});
+  descriptors:['Produits chimiques',"Produits d'entretien"],procedure:'Procédure Ouverte',url:'https://www.boamp.fr/pages/avis/?q=idweb:26-102913',matched:[]});
+ assert.deepEqual(toTender(fixture.results[2],NOW,['graffiti','nettoyage'])!.matched,['graffiti'],'the keyword that made it come out');
  assert.ok(t.every((x:{subject:string})=>!/\n/.test(x.subject)),'subjects on one line');
 });
 
@@ -68,12 +71,14 @@ test('notices — anything not an open, official, well-formed notice is dropped'
  const long=toTender({...base,objet:'a'.repeat(1000)},NOW)!;assert.equal(long.subject.length,400);
 });
 
-test('search — redirects refused, a timeout set, results deduplicated and sorted by deadline',async()=>{
+test('search — redirects refused, a timeout set, results matched, deduplicated and sorted by deadline',async()=>{
  const calls:{url:string;init:RequestInit}[]=[];
  const doubled={total_count:7,results:[...fixture.results].reverse().concat(fixture.results[2])};
- const r=await searchOpenTenders(parseTenderQuery('graffiti','33'),{now:NOW,fetch:(async(url:string,init:RequestInit)=>{calls.push({url,init});return ok(doubled)()}) as typeof fetch});
+ const r=await searchOpenTenders(parseTenderQuery('graffiti, nettoyage, maintenance','33'),{now:NOW,fetch:(async(url:string,init:RequestInit)=>{calls.push({url,init});return ok(doubled)()}) as typeof fetch});
  assert.equal(calls.length,1);assert.equal(calls[0]!.init.redirect,'error');assert.ok(calls[0]!.init.signal);
- assert.equal(r.tenders.length,6);assert.equal(r.total,7);
+ // total: the matching notices among those read (6 distinct), no longer the BOAMP's candidate count (7 with the double).
+ assert.equal(r.tenders.length,6);assert.equal(r.total,6);assert.equal(r.truncated,false);
+ assert.ok(r.tenders.every(t=>t.matched.length>0));
  const d=r.tenders.map(t=>t.deadline);assert.deepEqual(d,[...d].sort());
 });
 
@@ -105,11 +110,16 @@ test('route — on: entitlement first, GET only, refusals in French, the list wi
  const res=await handleTenders(new Request('https://x.test/api/v1/tenders?keywords=graffiti,fa%C3%A7ade&departments=33'),['tenders'],json,deps);
  assert.equal(res!.status,200);assert.deepEqual(seen,['entitlement','fetch']);
  const body=await res!.json();
- assert.equal(body.tenders.length,6);assert.deepEqual(body.query,{keywords:['graffiti','façade'],departments:['33']});
+ // 13 nov. 2026 (keyword fix): of the 6 candidates, only the graffiti notice holds one of the keywords; the 5 others came
+ // out because the BOAMP matches any word or prefix. It now says which keyword brought it up.
+ assert.equal(body.tenders.length,1);assert.deepEqual(body.tenders[0].matched,['graffiti']);assert.equal(body.total,1);assert.equal(body.truncated,false);
+ assert.deepEqual(body.query,{keywords:['graffiti','façade'],departments:['33']});
  assert.match(body.provenance.source,/BOAMP/);
- assert.deepEqual(logs,[{component:'tenders',event:'search',keywords:2,departments:1,results:6}],'the log carries counts, never the words typed');
+ assert.deepEqual(logs,[{component:'tenders',event:'search',keywords:2,departments:1,results:1}],'the log carries counts, never the words typed');
  const bad=await handleTenders(new Request('https://x.test/api/v1/tenders?keywords=a%22b&departments=33'),['tenders'],json,deps);
  assert.equal(bad!.status,400);assert.equal((await bad!.json()).code,'KEYWORD_INVALID');
+ const generic=await handleTenders(new Request('https://x.test/api/v1/tenders?keywords=de%20la&departments=33'),['tenders'],json,deps);
+ assert.equal(generic!.status,400);const g=await generic!.json();assert.equal(g.code,'KEYWORD_TOO_GENERIC');assert.match(g.error,/petits mots/);
  const post=await handleTenders(new Request('https://x.test/api/v1/tenders',{method:'POST'}),['tenders'],json,deps);assert.equal(post!.status,404);
  const sub=await handleTenders(new Request('https://x.test/api/v1/tenders/x'),['tenders','x'],json,deps);assert.equal(sub!.status,404);
  const down=await handleTenders(new Request('https://x.test/api/v1/tenders?keywords=graffiti&departments=33'),['tenders'],json,{...deps,fetch:(async()=>{throw new TypeError('x')}) as typeof fetch});
@@ -149,7 +159,8 @@ test('panel — deadlines in Paris time with the days left; the last week stands
  assert.equal(urgent('2026-11-13T11:00:00Z',now),true);assert.equal(urgent('2026-11-24T15:00:00Z',now),false);
  assert.deepEqual(Object.keys(TENDERS_TEXT.fr).sort(),Object.keys(TENDERS_TEXT.en).sort(),'both languages carry the same keys');
  assert.equal(tendersText('fr','count',{n:6}),'6 appel(s) d’offres ouvert(s)');
- assert.match(tendersText('fr','keywordsHint'),/Saint-Pierre/,'the panel says how a keyword is matched');
+ assert.match(tendersText('fr','keywordsHint'),/en entier[\s\S]*mots entiers[\s\S]*même ordre[\s\S]*« pierre » ne trouve pas « Saint-Pierre »/,'the panel says how a keyword is matched');
+ assert.match(tendersText('fr','keywordsHint'),/le mot-clé qui l’a fait ressortir/);
 });
 
 test('panel — mounted in the v2 shell on « Recherche » only, for a live project; read-only, official links in a new tab',()=>{

@@ -4,7 +4,9 @@
 //
 // What is asked, and only this:
 //  - notices of nature APPEL_OFFRE (« Avis de marché ») whose response deadline is still ahead;
-//  - whose subject (objet) contains one of the person's keywords, in the departments they chose;
+//  - whose subject (objet) contains one of the person's keywords, in the departments they chose. The BOAMP's search
+//    splits an expression into words and matches prefixes, so it only fetches candidates (every meaningful word of a
+//    keyword); match.ts then keeps a notice only when a whole expression matches, and says which one;
 //  - only the public fields of the notice (no contact block: the raw `donnees`/`gestion` fields can hold a buyer's
 //    contact person, they are never requested).
 // Fixed host, bounded size and time, redirects refused; keywords and department codes are validated here before
@@ -12,6 +14,8 @@
 export const BOAMP_RECORDS='https://boamp-datadila.opendatasoft.com/api/explore/v2.1/catalog/datasets/boamp/records';
 export const BOAMP_PROVENANCE={source:'BOAMP — Bulletin officiel des annonces des marchés publics (DILA)',licence:'Données ouvertes DILA'};
 export const TENDERS_LIMIT=50;
+// Candidates read from the BOAMP before the exact filter (the API's own maximum per request).
+export const CANDIDATES_LIMIT=100;
 export const TENDERS_TIMEOUT_MS=15000;
 export const MAX_KEYWORDS=5;
 export const MAX_DEPARTMENTS=13;
@@ -20,12 +24,15 @@ const FIELDS='idweb,objet,code_departement,dateparution,datelimitereponse,nomach
 const DEPT=/^(?:0[1-9]|[1-8]\d|9[0-5]|2[AB]|97[1-6])$/;
 // Letters (accents included), digits, spaces, apostrophes and hyphens; 2 to 60 characters.
 const KEYWORD=/^[\p{L}\p{N}][\p{L}\p{N} '’-]{1,59}$/u;
+import {meaningfulWords,matchingKeywords} from './match.ts';
 const NOTICE_URL=/^https:\/\/www\.boamp\.fr\/pages\/avis\/\?q=idweb:\d{2}-\d{1,8}$/;
 const IDWEB=/^\d{2}-\d{1,8}$/;
 
 export type TenderQuery={keywords:string[];departments:string[]};
 export type Tender={id:string;subject:string;buyer:string;departments:string[];publishedOn:string;deadline:string;
- contractTypes:string[];descriptors:string[];procedure:string|null;url:string};
+ contractTypes:string[];descriptors:string[];procedure:string|null;url:string;
+ // The person's keywords that made this notice come out (match.ts), as they typed them.
+ matched:string[]};
 export class TendersError extends Error{}
 
 const clip=(s:string,n:number)=>s.length>n?`${s.slice(0,n-1)}…`:s;
@@ -39,6 +46,8 @@ export function parseTenderQuery(rawKeywords:string,rawDepartments:string):Tende
  if(!keywords.length)throw new TendersError('KEYWORDS_REQUIRED');
  if(keywords.length>MAX_KEYWORDS)throw new TendersError('TOO_MANY_KEYWORDS');
  if(keywords.some(k=>!KEYWORD.test(k)))throw new TendersError('KEYWORD_INVALID');
+ // « de », « la et le »…: linking words alone would match almost every notice.
+ if(keywords.some(k=>!meaningfulWords(k).length))throw new TendersError('KEYWORD_TOO_GENERIC');
  const departments=[...new Set(rawDepartments.split(',').map(d=>d.trim().toUpperCase()).filter(Boolean))];
  if(!departments.length)throw new TendersError('DEPARTMENTS_REQUIRED');
  if(departments.length>MAX_DEPARTMENTS)throw new TendersError('TOO_MANY_DEPARTMENTS');
@@ -51,17 +60,19 @@ export function tendersUrl(q:TenderQuery,now:Date):URL{
  for(const k of q.keywords)if(!KEYWORD.test(k))throw new TendersError('KEYWORD_INVALID');
  for(const d of q.departments)if(!DEPT.test(d))throw new TendersError('DEPARTMENT_INVALID');
  const u=new URL(BOAMP_RECORDS);
- const words=q.keywords.map(k=>`search(objet,"${k.replace(/’/g,"'")}")`).join(' or ');
+ // Each keyword fetches the notices holding all its meaningful words (folded: a-z, 0-9 and one hyphen only).
+ const words=q.keywords.map(k=>{const w=meaningfulWords(k);if(!w.length)throw new TendersError('KEYWORD_TOO_GENERIC');
+  return `(${w.map(x=>`search(objet,"${x}")`).join(' and ')})`}).join(' or ');
  const depts=q.departments.map(d=>`code_departement="${d}"`).join(' or ');
  u.searchParams.set('select',FIELDS);
  u.searchParams.set('where',`nature="APPEL_OFFRE" and datelimitereponse>date'${now.toISOString().slice(0,10)}' and (${words}) and (${depts})`);
  u.searchParams.set('order_by','datelimitereponse asc');
- u.searchParams.set('limit',String(TENDERS_LIMIT));
+ u.searchParams.set('limit',String(CANDIDATES_LIMIT));
  return u;
 }
 
 // One notice, or null when anything needed is missing or not what the official BOAMP publishes.
-export function toTender(r:unknown,now:Date):Tender|null{
+export function toTender(r:unknown,now:Date,keywords?:string[]):Tender|null{
  if(!r||typeof r!=='object')return null;
  const x=r as Record<string,unknown>;
  if(x.nature!=='APPEL_OFFRE')return null;
@@ -76,7 +87,8 @@ export function toTender(r:unknown,now:Date):Tender|null{
  if(!deadline||!Number.isFinite(deadline.getTime())||deadline.getTime()<=now.getTime()||!published)return null;
  return {id,subject:clip(subject,400),buyer:clip(buyer,200),departments:strings(x.code_departement).filter(d=>DEPT.test(d)),
   publishedOn:published,deadline:deadline.toISOString(),contractTypes:strings(x.type_marche),descriptors:strings(x.descripteur_libelle),
-  procedure:typeof x.procedure_libelle==='string'?clip(x.procedure_libelle.trim(),120):null,url};
+  procedure:typeof x.procedure_libelle==='string'?clip(x.procedure_libelle.trim(),120):null,url,
+  matched:keywords?matchingKeywords(subject,keywords):[]};
 }
 
 async function readBounded(res:Response):Promise<unknown>{
@@ -88,7 +100,8 @@ async function readBounded(res:Response):Promise<unknown>{
  try{return JSON.parse(new TextDecoder().decode(bytes))}catch{throw new TendersError('TENDERS_UNAVAILABLE')}
 }
 
-export async function searchOpenTenders(q:TenderQuery,{fetch:fetchImpl=fetch,now=new Date()}:{fetch?:typeof fetch;now?:Date}={}):Promise<{tenders:Tender[];total:number}>{
+// total: the notices that match among those read; truncated: the BOAMP had more candidates than one request reads.
+export async function searchOpenTenders(q:TenderQuery,{fetch:fetchImpl=fetch,now=new Date()}:{fetch?:typeof fetch;now?:Date}={}):Promise<{tenders:Tender[];total:number;truncated:boolean}>{
  const url=tendersUrl(q,now);
  let res:Response;
  try{res=await fetchImpl(url.href,{redirect:'error',signal:AbortSignal.timeout(TENDERS_TIMEOUT_MS),headers:{accept:'application/json'}})}
@@ -97,7 +110,8 @@ export async function searchOpenTenders(q:TenderQuery,{fetch:fetchImpl=fetch,now
  const data=await readBounded(res) as {total_count?:unknown;results?:unknown};
  if(!Array.isArray(data?.results))throw new TendersError('TENDERS_UNAVAILABLE');
  const seen=new Set<string>();const tenders:Tender[]=[];
- for(const r of data.results){const t=toTender(r,now);if(t&&!seen.has(t.id)){seen.add(t.id);tenders.push(t)}}
+ for(const r of data.results){const t=toTender(r,now,q.keywords);if(t&&t.matched.length&&!seen.has(t.id)){seen.add(t.id);tenders.push(t)}}
  tenders.sort((a,b)=>a.deadline.localeCompare(b.deadline));
- return {tenders,total:typeof data.total_count==='number'?data.total_count:tenders.length};
+ const truncated=typeof data.total_count==='number'&&data.total_count>data.results.length;
+ return {tenders:tenders.slice(0,TENDERS_LIMIT),total:tenders.length,truncated};
 }

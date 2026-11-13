@@ -21,6 +21,7 @@ const CSS=`
 .pos-ui .pos-tenders__list{list-style:none;margin:0;padding:0;display:grid;gap:var(--pos-space-2)}
 .pos-ui .pos-tenders__item{border:1px solid var(--pos-border);background:var(--pos-surface-inset);border-radius:var(--pos-radius-lg);padding:var(--pos-space-3);display:grid;gap:4px;min-width:0}
 .pos-ui .pos-tenders__item h3{margin:0;font-size:var(--pos-text-md);line-height:1.35;overflow-wrap:anywhere;color:var(--pos-text-1)}
+.pos-ui .pos-tenders__matched{font-size:var(--pos-text-xs);font-weight:var(--pos-weight-semibold);color:var(--pos-text-2);overflow-wrap:anywhere}
 .pos-ui .pos-tenders__meta{font-size:var(--pos-text-sm);color:var(--pos-text-2);overflow-wrap:anywhere}
 .pos-ui .pos-tenders__deadline{font-size:var(--pos-text-sm);font-weight:var(--pos-weight-semibold);color:var(--pos-text-1)}
 .pos-ui .pos-tenders__deadline.is-urgent{color:var(--pos-status-verify-fg)}
@@ -69,10 +70,11 @@ export function TendersPanel({locale,projectId,token,onUnauthorized}:{locale:Loc
   </div>
   {error&&<p className="pos-tenders__error" role="alert">{error}</p>}
   {answer&&<div className="pos-tenders__card" aria-live="polite">
-   <p className="pos-tenders__lead">{answer.tenders.length?t('count',{n:answer.tenders.length}):t('none')}{answer.total>answer.tenders.length?` ${t('more',{total:answer.total})}`:''}</p>
+   <p className="pos-tenders__lead">{answer.tenders.length?t('count',{n:answer.tenders.length}):t('none')}{answer.total>answer.tenders.length?` ${t('more',{total:answer.total})}`:answer.truncated?` ${t('truncated')}`:''}</p>
    <ul className="pos-tenders__list">{answer.tenders.map(x=><li key={x.id} className="pos-tenders__item" data-tender={x.id}>
     <span className={`pos-tenders__deadline${urgent(x.deadline,now)?' is-urgent':''}`}>{t('deadline')} {deadlineText(locale,x.deadline,now)}</span>
     <h3>{x.subject}</h3>
+    {x.matched?.length>0&&<span className="pos-tenders__matched">{t('matched')} : {x.matched.map(k=>`« ${k} »`).join(', ')}</span>}
     <span className="pos-tenders__meta">{t('buyer')} : {x.buyer}{x.departments.length?` · ${x.departments.join(', ')}`:''}</span>
     {(x.contractTypes.length>0||x.descriptors.length>0)&&<span className="pos-tenders__tags">{[...x.contractTypes,...x.descriptors].slice(0,6).map(s=><span key={s}>{s}</span>)}</span>}
     <a href={x.url} target="_blank" rel="noopener noreferrer">{t('open')} ↗</a>

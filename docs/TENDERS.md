@@ -12,7 +12,19 @@ renvoie à l'avis officiel ; rien n'est enregistré, envoyé ni répondu à la p
   le lien vers l'avis officiel (`https://www.boamp.fr/pages/avis/?q=idweb:…`).
 - **Écran** : bloc « Appels d'offres ouverts » en haut de « Recherche » (interface v2, compte réel, projet ouvert). La
   dernière recherche d'un projet est retenue dans le navigateur seulement.
-- **Limite connue** : un mot-clé est cherché dans l'objet ; « pierre » trouve aussi « Saint-Pierre ». L'écran le dit.
+- **Correspondance des mots-clés** (`src/tenders/match.ts`, corrigé le 13 nov. 2026) : la recherche du BOAMP découpe une
+  expression en mots et compare des débuts de mots (« techniques de vente » ressortait « installations techniques…
+  ventilation »). Elle ne sert plus qu'à récupérer des candidats (100 au plus, tous les mots utiles de chaque mot-clé) ;
+  ProspectOS garde un avis seulement si une expression entière se retrouve dans son objet :
+  - mots entiers, dans le même ordre, sans tenir compte des majuscules ni des accents ; un pluriel en -s ou -x vaut le singulier ;
+  - les petits mots de liaison (au, de, du, des, la, le…) peuvent varier ou manquer entre deux mots : « formation
+    management » trouve « Formation au management » ;
+  - un mot-clé fait seulement de petits mots est refusé (`KEYWORD_TOO_GENERIC`) ;
+  - « Saint Pierre » / « Saint-Pierre » forme un seul nom : « pierre » seul ne le trouve pas ; les autres tirets séparent
+    les mots (« graffitis » trouve « anti-graffitis »).
+  Chaque avis indique le mot-clé qui l'a fait ressortir (`matched`). `total` compte les avis retenus parmi les candidats
+  lus ; `truncated` signale que le BOAMP avait plus de candidats qu'une requête n'en lit.
+- **Limite connue** : un mot entier reste un mot entier : « pierre » trouve « Pierre-Bénite » ou « Pierre Paul Rubens ».
 
 ## Sécurité et données
 

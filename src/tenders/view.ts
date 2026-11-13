@@ -2,7 +2,7 @@
 import type {Locale} from '../i18n/locale.ts';
 import type {Tender} from './boamp.ts';
 
-export type TendersAnswer={tenders:Tender[];total:number;query:{keywords:string[];departments:string[]}};
+export type TendersAnswer={tenders:Tender[];total:number;truncated?:boolean;query:{keywords:string[];departments:string[]}};
 export type ApiResult<T>={ok:true;data:T}|{ok:false;status:number;code?:string;error?:string};
 type Fetcher=(input:string,init?:RequestInit)=>Promise<Response>;
 
@@ -42,14 +42,14 @@ export function saveLastSearch(projectId:string,keywords:string,departments:stri
 
 export const TENDERS_TEXT={
  fr:{title:'Appels d’offres ouverts',lead:'Les marchés publics auxquels vous pouvez encore répondre, publiés au BOAMP. Chaque ligne renvoie à l’avis officiel.',
-  keywords:'Mots-clés (séparés par des virgules)',keywordsHint:'Un mot-clé est cherché dans l’objet de l’avis : « pierre » trouve aussi « Saint-Pierre ». Préférez des expressions précises.',
+  keywords:'Mots-clés (séparés par des virgules)',keywordsHint:'Chaque expression entre virgules est cherchée en entier dans l’objet de l’avis : mots entiers, dans le même ordre, sans tenir compte des majuscules ni des accents. Les petits mots (au, de, la…) peuvent varier : « formation management » trouve « Formation au management ». « vente » ne trouve pas « aventure », « pierre » ne trouve pas « Saint-Pierre ». Sous chaque avis, le mot-clé qui l’a fait ressortir.',
   keywordsPlaceholder:'nettoyage façade, graffitis, dallage',departments:'Départements',departmentsPlaceholder:'33, 40, 64',search:'Chercher',searching:'Recherche…',
-  none:'Aucun appel d’offres ouvert pour ces mots-clés dans ces départements.',count:'{n} appel(s) d’offres ouvert(s)',more:'{total} au total : affinez vos mots-clés pour voir les autres.',
+  none:'Aucun appel d’offres ouvert pour ces mots-clés dans ces départements.',count:'{n} appel(s) d’offres ouvert(s)',more:'{total} au total : affinez vos mots-clés pour voir les autres.',truncated:'D’autres avis peuvent correspondre : affinez vos mots-clés ou vos départements.',matched:'Mot-clé',
   deadline:'Réponse avant le',buyer:'Acheteur',open:'Voir l’avis officiel',source:'Source : BOAMP (DILA), avis publiés au Bulletin officiel des annonces des marchés publics.',network:'Connexion impossible. Vérifiez votre réseau et réessayez.'},
  en:{title:'Open public tenders',lead:'Public contracts you can still bid for, published in the BOAMP. Each line links to the official notice.',
-  keywords:'Keywords (comma separated)',keywordsHint:'A keyword is searched in the notice subject: “pierre” also finds “Saint-Pierre”. Prefer precise phrases.',
+  keywords:'Keywords (comma separated)',keywordsHint:'Each phrase between commas is searched as a whole in the notice subject: whole words, in the same order, ignoring case and accents. Small linking words (au, de, la…) may differ: “formation management” finds “Formation au management”. “vente” does not find “aventure”, “pierre” does not find “Saint-Pierre”. Each notice shows the keyword that brought it up.',
   keywordsPlaceholder:'nettoyage façade, graffitis, dallage',departments:'Departments',departmentsPlaceholder:'33, 40, 64',search:'Search',searching:'Searching…',
-  none:'No open tender for these keywords in these departments.',count:'{n} open tender(s)',more:'{total} in all: refine your keywords to see the others.',
+  none:'No open tender for these keywords in these departments.',count:'{n} open tender(s)',more:'{total} in all: refine your keywords to see the others.',truncated:'More notices may match: refine your keywords or departments.',matched:'Keyword',
   deadline:'Bid before',buyer:'Buyer',open:'Open the official notice',source:'Source: BOAMP (DILA), notices published in the official bulletin of public procurement.',network:'Cannot connect. Check your network and try again.'},
 } as const;
 export type TendersTextKey=keyof typeof TENDERS_TEXT.fr;

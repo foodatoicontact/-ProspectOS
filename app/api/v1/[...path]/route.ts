@@ -9,6 +9,7 @@ import {composeOutreachMessage,structureIcp} from '../../../../src/server/ai';
 import {handleIcpImport} from '../../../../src/icp-import/api';
 import {icpImportEnabled} from '../../../../src/icp-import/flag';
 import {handleTenders,tendersEnabled} from '../../../../src/tenders/api';
+import {handleDemoShares} from '../../../../src/demo-share/api';
 import {analyzeCompanyGuarded} from '../../../../src/server/ai-guard';
 import {checked as checkedRpc} from '../../../../src/discovery/repository';
 import {CriterionContextSchema,normalizeCriteriaInput,criteriaIssueMessage} from '../../../../src/discovery/types';
@@ -126,6 +127,8 @@ async function handler(request:Request,context:{params:Promise<{path:string[]}>}
  const nbaResponse=await handleNextBestActions(request,path,body,db,json,{enabled:nextBestActionEnabled(process.env)||zeroFrictionTodayGate(process.env),now:()=>new Date(),requireEntitlement:()=>requireActiveEntitlement(db,user.id)});if(nbaResponse)return nbaResponse;
  // Morning recap (src/digest/api.ts, migration 040): the member's own choice — nothing is enabled without it.
  const morningDigestResponse=await handleMorningDigest(request,path,body,db,json,{env:process.env,userId:user.id});if(morningDigestResponse)return morningDigestResponse;
+ // Demo links (src/demo-share/api.ts, migration 042): owner-only create / list / revoke, and the copy after sign-up.
+ const demoShareResponse=await handleDemoShares(request,path,body,db,json);if(demoShareResponse)return demoShareResponse;
  const selfOutreachResponse=await handleSelfOutreach(request,path,body,db,json,{env:process.env,now:()=>new Date(),requireEntitlement:()=>requireActiveEntitlement(db,user.id)});if(selfOutreachResponse)return selfOutreachResponse;
  const checked=async(query:PromiseLike<any>)=>{const {data,error}=await query;if(error)throw Error('DATABASE_REQUEST_FAILED');return data};
  if(resource==='organizations'){

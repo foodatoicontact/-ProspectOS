@@ -23,7 +23,7 @@ try{
  // 035 Self-Outreach, its own tables only; 036 only re-checks cited evidence when a message is approved or copied;
  // 037 Self-Outreach booking link and meetings, its own tables and functions only, no evidence write).
  const i033=files.indexOf('033_user_declared_evidence.sql');
- assert.deepEqual(files.slice(i033+1),['034_release_legacy_test_billing.sql','035_self_outreach.sql','036_outreach_evidence_revalidation.sql','037_outreach_booking_meetings.sql', '039_discovery_bodacc_sales_provider.sql', '040_morning_digest.sql', '041_icp_import.sql'],'033 precedes only reviewed migrations');
+ assert.deepEqual(files.slice(i033+1),['034_release_legacy_test_billing.sql','035_self_outreach.sql','036_outreach_evidence_revalidation.sql','037_outreach_booking_meetings.sql', '039_discovery_bodacc_sales_provider.sql', '040_morning_digest.sql', '041_icp_import.sql', '042_demo_shares.sql'],'033 precedes only reviewed migrations');
  assert.doesNotMatch((await readFile(new URL('../db/migrations/037_outreach_booking_meetings.sql',import.meta.url),'utf8')).split('\n').filter(l=>!l.trim().startsWith('--')).join('\n'),/(insert into|update|delete from) public\.(evidence|prospect_observations)|on public\.(evidence|prospect_observations)/i,'037 never writes evidence');
  // 039 (Discovery provider bodacc_sales): never writes evidence, observations or policies.
  assert.doesNotMatch((await readFile(new URL('../db/migrations/039_discovery_bodacc_sales_provider.sql',import.meta.url),'utf8')).split('\n').filter(l=>!l.trim().startsWith('--')).join('\n'),/(insert into|update|delete from) public\.(evidence|prospect_observations)|policy|evidence_guard/i);
@@ -31,6 +31,11 @@ try{
  assert.doesNotMatch((await readFile(new URL('../db/migrations/040_morning_digest.sql',import.meta.url),'utf8')).split('\n').filter(l=>!l.trim().startsWith('--')).join('\n'),/(insert into|update|delete from) public\.(evidence|prospect_observations|signals)|on public\.(evidence|prospect_observations|signals)|evidence_guard/i);
  // 041 (ICP import): never writes evidence, observations or signals, nor their policies.
  assert.doesNotMatch((await readFile(new URL('../db/migrations/041_icp_import.sql',import.meta.url),'utf8')).split('\n').filter(l=>!l.trim().startsWith('--')).join('\n'),/(insert into|update|delete from) public\.(evidence|prospect_observations|signals)|on public\.(evidence|prospect_observations|signals)|evidence_guard/i);
+ // 042 (demo links): no evidence, no observation, nothing VERIFIED; its only write to signals is the copy of a shared
+ // project's signals into the new owner's project, back to PENDING_REVIEW (tests/demo-shares-db.mjs CLAIM_AFTER_SIGNUP).
+ {const m042=(await readFile(new URL('../db/migrations/042_demo_shares.sql',import.meta.url),'utf8')).split('\n').filter(l=>!l.trim().startsWith('--')).join('\n');
+  assert.doesNotMatch(m042,/(insert into|update|delete from) public\.(evidence|prospect_observations)|on public\.(evidence|prospect_observations|signals)|evidence_guard|VERIFIED|reviewed_by/i);
+  assert.equal((m042.match(/(insert into|update|delete from) public\.signals/gi)??[]).length,1);}
  for(const f of files.slice(0,i033+1))await db.exec(await readFile(new URL(`../db/migrations/${f}`,import.meta.url),'utf8'));
 
  const U=n=>`00000000-0000-4000-8000-${String(n).padStart(12,'0')}`;const A=U(1),B=U(2);

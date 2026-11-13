@@ -61,7 +61,7 @@ export const HOME_LAST_MODIFIED='2026-10-03';
 // to block: what a logged-in person sees is never in the HTML a crawler receives.
 export const robotsPolicy={
   allow:'/',
-  disallow:['/api/','/auth/','/app/','/ui-v2/','/creations-entreprises/aller'],
+  disallow:['/api/','/auth/','/app/','/ui-v2/','/creations-entreprises/aller','/d/'],
   sitemap:`${SITE_URL}/sitemap.xml`,
 };
 

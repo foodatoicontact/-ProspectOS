@@ -219,7 +219,7 @@ test('14 — no migration was added by this bloc: the RPCs, RLS and evidence_gua
  // evidence RLS change (tests/outreach-intelligence-db.mjs checks evidence rows stay untouched). 028 (AI outreach units
  // and cost operation) touches neither. 029 (provenance at the moment of use) only adds a trigger refusing APPROVED/USED
  // while a cited public content or signal is no longer verified: no evidence, observation or policy change (checked below).
- assert.deepEqual(files.slice(files.indexOf('015_dynamic_safe_analysis.sql')),['015_dynamic_safe_analysis.sql','016_beta_commercial_quotas.sql','017_stripe_billing.sql','018_deleted_accounts_release_beta_capacity.sql','019_discovery_registry_provider.sql','020_public_trial_availability.sql','021_discovery_failed_run_not_billed.sql','022_team_pro.sql','023_team_offer.sql','024_signals.sql','025_pipeline_feedback.sql','026_signal_monitoring.sql','027_outreach_intelligence.sql','028_outreach_ai_generation.sql','029_outreach_provenance_revalidation.sql','030_signal_discovery.sql','031_next_best_action.sql','032_signal_legacy_geo.sql','033_user_declared_evidence.sql','034_release_legacy_test_billing.sql','035_self_outreach.sql','036_outreach_evidence_revalidation.sql','037_outreach_booking_meetings.sql', '039_discovery_bodacc_sales_provider.sql', '040_morning_digest.sql', '041_icp_import.sql']);
+ assert.deepEqual(files.slice(files.indexOf('015_dynamic_safe_analysis.sql')),['015_dynamic_safe_analysis.sql','016_beta_commercial_quotas.sql','017_stripe_billing.sql','018_deleted_accounts_release_beta_capacity.sql','019_discovery_registry_provider.sql','020_public_trial_availability.sql','021_discovery_failed_run_not_billed.sql','022_team_pro.sql','023_team_offer.sql','024_signals.sql','025_pipeline_feedback.sql','026_signal_monitoring.sql','027_outreach_intelligence.sql','028_outreach_ai_generation.sql','029_outreach_provenance_revalidation.sql','030_signal_discovery.sql','031_next_best_action.sql','032_signal_legacy_geo.sql','033_user_declared_evidence.sql','034_release_legacy_test_billing.sql','035_self_outreach.sql','036_outreach_evidence_revalidation.sql','037_outreach_booking_meetings.sql', '039_discovery_bodacc_sales_provider.sql', '040_morning_digest.sql', '041_icp_import.sql','042_demo_shares.sql']);
  // 019 (register provider) only widens the provider checks and start_discovery's provider list.
  // 020 (public trial availability) only adds a boolean read of the beta seats; 021 ties a Discovery unit to its run.
  for(const f of ['016_beta_commercial_quotas.sql','017_stripe_billing.sql','018_deleted_accounts_release_beta_capacity.sql','019_discovery_registry_provider.sql','020_public_trial_availability.sql','021_discovery_failed_run_not_billed.sql','022_team_pro.sql','023_team_offer.sql','029_outreach_provenance_revalidation.sql']){
@@ -284,6 +284,13 @@ test('14 — no migration was added by this bloc: the RPCs, RLS and evidence_gua
  const m041=(await readFile(new URL('../db/migrations/041_icp_import.sql',import.meta.url),'utf8')).split('\n').filter(l=>!l.trim().startsWith('--')).join('\n');
  assert.doesNotMatch(m041,/(insert into|update|delete from) public\.(evidence|prospect_observations|signals)|on public\.(evidence|prospect_observations|signals)/i);
  assert.match(m041,/abs\(total-100\)>0\.001/);
+ // 042 (demo links: its own two tables and five functions) never writes evidence or observations and never marks
+ // anything VERIFIED. Its single write to signals is the copy made by claim_demo_share into the new owner's project —
+ // without a status, so the copies arrive as PENDING_REVIEW (the column default) and are reviewed again.
+ const m042=(await readFile(new URL('../db/migrations/042_demo_shares.sql',import.meta.url),'utf8')).split('\n').filter(l=>!l.trim().startsWith('--')).join('\n');
+ assert.doesNotMatch(m042,/(insert into|update|delete from) public\.(evidence|prospect_observations)|on public\.(evidence|prospect_observations|signals)|VERIFIED|reviewed_by/i);
+ assert.equal((m042.match(/(insert into|update|delete from) public\.signals/gi)??[]).length,1);
+ assert.match(m042,/insert into public\.signals\(organization_id,project_id,prospect_id,provider,signal_type,title,excerpt,source_url,source_type,event_date,published_at,observed_at,\s*confidence,matched_terms,content_hash,event_key,raw_metadata,purge_after\)/);
  const client=await readFile(new URL('../src/components/evidence-presentation.ts',import.meta.url),'utf8');
  assert.doesNotMatch(client,/service_role|SUPABASE_SERVICE|process\.env/);
 });

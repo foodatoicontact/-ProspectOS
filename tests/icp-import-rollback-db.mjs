@@ -38,7 +38,11 @@ try {
   await db.exec(await readFile(new URL('../db/schema.sql', import.meta.url), 'utf8'));
   const files = (await readdir(new URL('../db/migrations/', import.meta.url))).filter(f => f.endsWith('.sql')).sort();
   const before041 = files.filter(f => f < '041_'), from041 = files.filter(f => f >= '041_');
-  assert.deepEqual(from041, ['041_icp_import.sql'], 'this rollback is written for 041 as the last migration');
+  // 042 (demo links) came after 041 and is independent of it: its own tables and functions, and of the ICP it only copies
+  // icps.name and icps.criteria, which exist since the base schema. It is not applied here: this test pins the rollback of
+  // 041 on the chain that ends with it. A later migration that depends on 041 must come with its own rollback order.
+  assert.deepEqual(from041, ['041_icp_import.sql', '042_demo_shares.sql'], 'this rollback is written for 041; only reviewed independent migrations may follow');
+  assert.doesNotMatch((await readFile(new URL('../db/migrations/042_demo_shares.sql', import.meta.url), 'utf8')).split('\n').filter(l => !l.trim().startsWith('--')).join('\n'), /icp_import|icp_profile|guard_icp_profile|validate_icp_import/i);
   for (const f of before041) await db.exec(await readFile(new URL(`../db/migrations/${f}`, import.meta.url), 'utf8'));
   await db.query(`insert into auth.users(id,email) values ('00000000-0000-4000-8000-0000000000a1','a@client.fr')`);
   await db.query(`insert into supabase_migrations.schema_migrations(version,name) values ('20261101214740','040_morning_digest')`);

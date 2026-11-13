@@ -146,4 +146,6 @@ export {SearchNative} from '../search/SearchNative.tsx';
 export {IcpImport} from '../../../components/IcpImport.tsx';
 // « Appels d'offres ouverts » (docs/TENDERS.md), shown at the top of « Recherche » when TENDERS_ENABLED is on.
 export {TendersPanel} from '../../../components/TendersPanel.tsx';
+// « Partager une démo » (migration 042), under the prospect list; DemoClaim copies a shared project after sign-up.
+export {DemoSharePanel,DemoClaim} from '../../../components/DemoSharePanel.tsx';
 export {ActivityV2,ActionsNative,ActivityOverview} from '../activity/ActivityV2.tsx';

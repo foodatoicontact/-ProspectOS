@@ -428,7 +428,9 @@ export default function Home(){
  if(v2){const Shell=v2.AppShell;const navNow=navForView(view as AppView,navCaps,v2Nav);
   // UI-3: Today 2.0 replaces the legacy Today when both UI_V2_ENABLED and ZERO_FRICTION_TODAY_ENABLED are on.
   const todayPaywall=paywall??paywallReasonForAccount({mode,active:betaActive,role,plan:entitlementPlan});
-  const v2Paywall=todayPaywall&&!paywallDismissed?{text:tr(todayPaywall==='limit'?'paywall.limit':'paywall.expired'),action:tr('paywall.seeOffers'),onAction:()=>setModal('pricing'),onDismiss:()=>setPaywallDismissed(true)}:null;return <><Shell locale={locale} current={navNow} onNavigate={v2Navigate} title={viewTitle(view as AppView,locale)} debug={uxDebug}
+  const v2Paywall=todayPaywall&&!paywallDismissed?{text:tr(todayPaywall==='limit'?'paywall.limit':'paywall.expired'),action:tr('paywall.seeOffers'),onAction:()=>setModal('pricing'),onDismiss:()=>setPaywallDismissed(true)}:null;
+  // Demo links (migration 042): after a sign-up that started on a demo page, copy the shared project once. Renders nothing.
+  const demoClaim=mode==='live'&&token&&<v2.DemoClaim api={api} onClaimed={id=>{work(async()=>{const rows=await api('projects');setProjects(rows.map((p:any)=>({...p,criteria:projectCriteria(p.icps)})));selectProject(id)})}}/>;return <>{demoClaim}<Shell locale={locale} current={navNow} onNavigate={v2Navigate} title={viewTitle(view as AppView,locale)} debug={uxDebug}
   project={{projects:projects.map(p=>({id:p.id,name:p.name})),currentId:projectId,busy,onSelect:selectProject,onNew:()=>{setQuickResume(null);setModal(mode==='live'?'quickstart':'project')}}}
   account={{mode:mode==='live'?'live':'demo',email:userEmail,internal:entitlementPlan==='INTERNAL',busy,onLocale:setLocale,onAccount:()=>openAccount(),onTeam:()=>openAccount('team'),onOfferTarget:()=>v2Navigate('settings'),onSources:()=>v2Navigate('sources'),onPrivacy:()=>openAccount('privacy'),
    onBetaAnalytics:()=>{setV2Nav(null);setView('beta-analytics');setFromList(false);work(loadBetaAnalytics)},onSignOut:()=>work(logout),onResetDemo:resetDemo,selfOutreach:mode==='live'&&soOn?()=>{setV2Nav(null);setView('outreach');setFromList(false)}:null}}
@@ -442,7 +444,7 @@ export default function Home(){
    hasProject={!!project} onAdd={()=>{setQuickResume(null);setModal(project?'prospect':mode==='live'?'quickstart':'project')}} onExport={download}
    activation={mode==='live'&&project&&!all.length?(isStarterIcp(project.criteria)?{kind:'target',onActivate:()=>{setQuickResume({projectId:project.id,offer:project.offer??''});setModal('quickstart')}}:{kind:'find',onActivate:openDiscovery}):null}
    top={banners} notice={notice} onDismissNotice={()=>setNotice('')} paywall={v2Paywall}
-   listFooter={mode==='live'&&project?<FeedbackPanel key={project.id} projectId={project.id} api={api} locale={locale}/>:null}
+   listFooter={mode==='live'&&project?<><FeedbackPanel key={project.id} projectId={project.id} api={api} locale={locale}/><v2.DemoSharePanel key={`demo-${project.id}`} projectId={project.id} api={api} locale={locale}/></>:null}
    record={current&&scored&&fit&&v2Record===current.id?{prospect:current,criteria,scored,estimate:estimateFit(criteria,current.evidence,new Date()),fit,summary:reviewSummary,intent:detailIntent,statuses:STATUSES,
     back:origin==='discovery'?{label:tr('discovery.backToSearch').replace(/^←\s*/,''),onBack:backToDiscovery}:{label:tr('detail.backToProspects').replace(/^←\s*/,''),onBack:()=>{setV2Focus(current.id);setV2Record('')}},
     badge:mode==='demo'?(DEMO_PROSPECTS.some(d=>d.id===current.id)?(locale==='fr'?DEMO_REAL_LABEL:DEMO_REAL_LABEL_EN):isFixtureUrl(current.website)?FIXTURE_LABEL:null):null,

@@ -1,0 +1,15 @@
+{
+  "_note": "Valeurs vides tant que l'immatriculation n'est pas finalisée. Ne jamais inventer un identifiant. Les valeurs réelles (et l'IBAN) se renseignent dans commercial/vendeur.local.json, ignoré par git, qui complète ce fichier.",
+  "denomination": "",
+  "nom_commercial": "ProspectOS",
+  "forme_juridique": "",
+  "capital": "",
+  "adresse": "",
+  "siren": "",
+  "rcs_ville": "",
+  "tva": { "regime": "", "numero": "", "taux": 20 },
+  "email": "contact@prospectos.fr",
+  "telephone": "",
+  "iban": "",
+  "bic": ""
+}

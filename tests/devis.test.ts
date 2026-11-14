@@ -97,3 +97,34 @@ test('git: client files, the local seller file, outputs and the counter are igno
  for(const p of ['commercial/clients/exemple.json','commercial/vendeur.json','commercial/conditions-veille.md','commercial/devis.ts'])assert.ok(!ignored(p),p);
  assert.ok(execFileSync('git',['ls-files','commercial/clients'],{cwd:root,encoding:'utf8'}).trim().split('\n').every(f=>f===''||f==='commercial/clients/exemple.json'));
 });
+
+// ------------------------------------------------------------------ cas demandés explicitement (point 5 du cahier des charges)
+test('devis refused when ONLY the SIREN is empty, from the command line too',()=>{
+ assert.deepEqual(devisRefusal({...COMPLET,siren:''}),['SIREN']);
+ assert.deepEqual(devisRefusal({...COMPLET,siren:'   '}),['SIREN']);
+});
+
+test('2 regions × 149 € with the first month offered, and the annual formula with 2 months offered',()=>{
+ const base={...EXEMPLE,regions:['Île-de-France','Occitanie'],prix_ht_par_region_par_mois:149};
+ const un=calcul({...base,engagement:'mensuel',nombre_mois:1,mois_offerts:1},COMPLET);
+ assert.equal(un.totalHT,0,'one month quoted, that month offered');
+ const deux=calcul({...base,engagement:'mensuel',nombre_mois:2,mois_offerts:1},COMPLET);
+ assert.deepEqual([deux.lignes.at(-1)!.libelle,deux.lignes.at(-1)!.montant,deux.totalHT],['Premier mois offert',-29800,29800],'2 × 149 € × 2 months − 298 €');
+ const annuel=calcul({...base,engagement:'annuel',mois_offerts:0},COMPLET);
+ assert.deepEqual(annuel.lignes.map(l=>l.montant),[178800,178800,-59600]);
+ assert.equal(annuel.totalHT,298000,'2 × 149 € × 10 billed months');
+ const annuelEtPremier=calcul({...base,engagement:'annuel',mois_offerts:1},COMPLET);
+ assert.equal(annuelEtPremier.totalHT,268200,'both discounts stack when both are configured');
+});
+
+test('no data from exemple.json outside commercial/, and the generator is not part of the application build',()=>{
+ const ex=JSON.parse(read('commercial/clients/exemple.json')) as Client;
+ const needles=[ex.denomination,ex.adresse,ex.contact.nom];
+ const files=execFileSync('git',['ls-files'],{cwd:root,encoding:'utf8'}).split('\n').filter(f=>f&&!f.startsWith('commercial/')&&/\.(ts|tsx|mjs|js|json|md|sql|txt|css|html)$/.test(f));
+ assert.ok(files.length>100);
+ for(const f of files){const t=read(f);for(const n of needles)assert.ok(!t.includes(n),`${f} contains « ${n} » from exemple.json`)}
+ for(const f of files.filter(f=>/^(app|src)\//.test(f)))assert.doesNotMatch(read(f),/from ['"][^'"]*commercial\/|require\(['"][^'"]*commercial\//,`${f} imports the generator`);
+ const pkg=JSON.parse(read('package.json')) as {scripts:Record<string,string>};
+ assert.equal(pkg.scripts.devis,'node --experimental-strip-types commercial/cli.ts');
+ for(const k of ['build','start','dev'])assert.doesNotMatch(pkg.scripts[k]??'',/commercial|devis/,k);
+});

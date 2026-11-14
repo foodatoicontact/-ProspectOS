@@ -68,7 +68,8 @@ test('freeze — legal text, SEO content, prices, quotas, trial, plans, i18n and
   // 1 nov. 2026 (migration 040): the privacy policy also describes the opt-in morning recap (sections 3.7, 5, 6, 8).
   'app/confidentialite/page.tsx':'233a4b11e0939ad62c6aaec67f75a5241c3f8ea05498e9873ff799f18307c894',
   'app/mentions-legales/page.tsx':'2efbad023e459aa36de624415f119b61f8372d80cecd1c60722f1a9f23b0f65e',
-  'src/domain/legal.ts':'7ec1712b16eb08ebc978b00a3a26b49d0b34caceb9d131eff91278ac66b32e7f',
+  // Owner decision (14 nov. 2026): ACTIVITY_FORMALITY.filedAt corrected to 13/11/2026, the date the INPI formality was signed.
+  'src/domain/legal.ts':'3ea20fa47a800c88888a3dde1fe56577161cc08fe0e4ae6e5f18c10f1d635e17',
   // WEB-2.1 / 2.2: the /a-propos entry (demo wording, recommendation instead of score, its date) and the /prospection-b2b
   // closing call to action only; every other page is main's text.
   // Owner decision (11 nov. 2026, SEO): the /tarifs and /a-propos titles, descriptions and dates rewritten.

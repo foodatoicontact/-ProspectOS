@@ -71,7 +71,8 @@ test('B — the legal/RGPD contact email is a dedicated channel, never silently 
 test('B — the ProspectOS activity formality is described as filed and pending, never as already validated/registered — kept to the minimal factual statement, no unnecessary commercial description',()=>{
  assert.match(ACTIVITY_FORMALITY.status,/en cours/);
  assert.doesNotMatch(ACTIVITY_FORMALITY.status,/validée définitivement|définitivement enregistrée/);
- assert.equal(ACTIVITY_FORMALITY.filedAt,'21/09/2026');
+ // Owner decision (14 nov. 2026): the formality was signed and filed on 13/11/2026 (INPI filing summary), not 21/09.
+ assert.equal(ACTIVITY_FORMALITY.filedAt,'13/11/2026');
  assert.equal(ACTIVITY_FORMALITY.declaredStartDate,'18/09/2026');
  assert.equal(('description' in ACTIVITY_FORMALITY),false,'the activity description was deliberately dropped — the owner asked for the minimal factual statement only');
 });

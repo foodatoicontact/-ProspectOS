@@ -37,6 +37,20 @@ npm run devis -- --client alexandre --date 2026-11-20  # date du document (aujou
 remise (« Premier mois offert »). `engagement` vaut `mensuel` (le devis chiffre `nombre_mois` mois, 1 par défaut) ou
 `annuel` (12 mois, dont 2 offerts). `frequence` est un texte libre, par exemple « chaque lundi ».
 
+## Formule mixte (minimum garanti + commission)
+
+`"formule": "mixte"` remplace le prix par région par `minimum_garanti_ht_par_mois` et `commission_ht_par_client`.
+Elle est mensuelle uniquement. Facultatifs : `fenetre_attribution_mois` (6 par défaut) et `delai_clients_connus_jours`
+(15 par défaut). Chaque mois, le montant facturé est le plus élevé des deux : le minimum, ou la somme des commissions
+dues. Le document ajoute une section « Rémunération au résultat et suivi » et joint la clause `conditions-apport.md`,
+elle aussi à faire relire par un juriste.
+
+## Entrepreneur individuel
+
+Si `forme_juridique` indique un entrepreneur individuel, la dénomination doit contenir « EI » ou « entrepreneur
+individuel », par exemple « Kevin Cardia EI ». C'est une mention obligatoire sur tout document. Sinon, le devis est refusé.
+Une proposition émise avec un SIREN ne porte pas la mention « en cours d'immatriculation ».
+
 ## TVA
 
 Dans `vendeur.local.json`, `tva.regime` vaut `franchise` (mention « TVA non applicable, art. 293 B du CGI ») ou

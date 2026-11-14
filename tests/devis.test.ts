@@ -207,3 +207,9 @@ test('mixed formula: refused when incomplete, annual, or carrying a per-region p
  assert.ok(clientIssues({...MIXTE,formule:'abonnement' as 'mixte'}).some(x=>x.startsWith('formule')));
  assert.ok(clientIssues({...EXEMPLE,prix_ht_par_region_par_mois:undefined}).includes('prix_ht_par_region_par_mois'),'the flat fee still needs its price');
 });
+test('deliveries start with the free trial, not with the contract: the scope line gives the first delivery date',()=>{
+ const avec=renderHtml({mode:'proposition',vendeur:COMPLET,client:MIXTE,date:'2026-11-14',conditions:CONDITIONS,conditionsApport:APPORT});
+ assert.ok(avec.includes(`Fréquence : ${MIXTE.frequence}, à partir du 15 novembre 2026 (dès la période d’essai)`));
+ const sans=renderHtml({mode:'proposition',vendeur:COMPLET,client:{...EXEMPLE,essai_mois:0},date:'2026-11-14',conditions:CONDITIONS});
+ assert.match(sans,/Fréquence : [^<]*, à partir du 1(er)? décembre 2026<\/li>/);
+});

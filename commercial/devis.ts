@@ -187,7 +187,7 @@ ${t.essai?`<tr><td>Période d’essai</td><td>Du ${dateFr(t.essai.debut)} au ${d
  :' — puis reconduction mois par mois, résiliable à tout moment avec un préavis de 30 jours, sans frais'}</td></tr></table>
 <h2>Périmètre et livrable</h2><ul>
 <li>Régions : ${esc(c.regions.join(', '))}</li><li>Sources : ${esc(c.sources.join(', '))}, et registre national des entreprises pour vérifier chaque entreprise</li>
-<li>Métiers ciblés : ${esc(c.metiers.join(' ; '))}</li><li>Livrable : ${esc(c.livrable)}</li><li>Fréquence : ${esc(c.frequence)}, à partir du ${dateFr(c.date_debut)}</li>
+<li>Métiers ciblés : ${esc(c.metiers.join(' ; '))}</li><li>Livrable : ${esc(c.livrable)}</li><li>Fréquence : ${esc(c.frequence)}, à partir du ${dateFr(t.essai?.debut??c.date_debut)}${t.essai?' (dès la période d’essai)':''}</li>
 <li>Aucun volume de fiches n’est garanti : il dépend des publications officielles de la période.</li></ul>
 ${c.formule==='mixte'?`<h2>Rémunération au résultat et suivi</h2><ul>
 <li><b>Commission : ${eur(cents(c.commission_ht_par_client!))} HT par client signé</b>, due à l’émission de la première facture de ${esc(c.denomination)} à ce client.</li>

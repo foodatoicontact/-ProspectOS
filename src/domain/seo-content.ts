@@ -335,7 +335,7 @@ export const seoPages:SeoPage[]=[
   {
     slug:'tarifs',
     navLabel:'Tarifs et offres',
-    updated:'2026-11-11',
+    updated:'2026-11-14',
     keywords:{primary:'tarif logiciel de prospection B2B',secondary:['prix ProspectOS','abonnement prospection','essai gratuit prospection']},
     title:`Tarifs ProspectOS : ${SOLO_EUR} €/mois, vos prospects repérés au bon moment`,
     description:`Dès ${SOLO_EUR} € par mois, sans engagement, après un essai gratuit de 7 jours : repérez les entreprises qui viennent de bouger, sources officielles à l’appui.`,
@@ -369,6 +369,10 @@ export const seoPages:SeoPage[]=[
           'Les quotas sont appliqués par notre serveur, jamais par le navigateur : le compteur affiché dans votre compte est celui qui fait foi.',
         ]},
       ]},
+      {h2:'Libre-service ou veille dédiée : deux façons d’utiliser ProspectOS',blocks:[
+        {type:'p',text:'Les offres Solo, Pro et Équipe sont en libre-service : vous lancez vos recherches et vérifiez vous-même les preuves, au prix affiché. La veille dédiée est un service : ProspectOS prépare une liste sur votre cible et vos zones (registre, BODACC, BOAMP), la met à jour à la fréquence convenue et vous la livre en PDF et en CSV.'},
+        {type:'p',text:'Son prix dépend des zones, des sources et de la fréquence : il est fixé sur devis, avant tout engagement. La méthode suivie est décrite sur la page [prospection B2B](/prospection-b2b).'},
+      ]},
       {h2:'Choisir entre Solo, Pro et Équipe',blocks:[
         {type:'p',text:'Les offres Solo et Pro concernent une seule personne qui prospecte : dirigeant, indépendant ou commercial unique ; Pro triple les volumes de Solo. L’offre Équipe sert aux équipes de 2 à 5 comptes qui prospectent les mêmes marchés ; le nombre de comptes se choisit sur la page de paiement : chacun voit les recherches des autres, les prospects sont partagés, et une même requête n’est pas payée deux fois.'},
         {type:'callout',title:'Comment fonctionne l’offre Équipe',text:'Le titulaire de l’abonnement Équipe invite ses coéquipiers par un lien personnel, valable 7 jours et utilisable une seule fois. L’invitation n’est acceptée que par le compte dont l’adresse e-mail confirmée correspond à celle invitée. Si l’abonnement Équipe prend fin, les membres gardent l’accès en lecture aux données de l’équipe.'},
@@ -378,6 +382,8 @@ export const seoPages:SeoPage[]=[
     faq:[
       {q:'Combien coûte ProspectOS ?',a:`ProspectOS Solo coûte ${SOLO_EUR} € par mois et ProspectOS Pro ${PRO_EUR} € par mois, pour 1 compte. ProspectOS Équipe coûte ${TEAM_EUR} € par mois pour ${TEAM_INCL} comptes, + ${TEAM_EXTRA_EUR} € par compte supplémentaire, jusqu’à ${TEAM_MAX} comptes. Chaque compte commence par un essai gratuit de 7 jours, sans carte bancaire.`},
       {q:'Que se passe-t-il à la fin de l’essai gratuit ?',a:'Aucun abonnement n’est souscrit automatiquement et rien ne vous est facturé. Vos données restent consultables et exportables ; pour relancer des recherches et des analyses, vous choisissez une offre depuis votre compte.'},
+      {q:'Quelle différence entre un abonnement et la veille dédiée ?',a:'Avec un abonnement, vous utilisez le logiciel vous-même, au prix affiché. Avec la veille dédiée, ProspectOS prépare et met à jour la liste pour vous, sur devis.'},
+      {q:'Comment est fixé le prix de la veille dédiée ?',a:'Sur devis, après un échange sur votre cible. Le devis indique le prix, la durée, la fréquence de mise à jour et les conditions d’arrêt avant tout engagement. Écrivez à contact@prospectos.fr.'},
       {q:'Que se passe-t-il quand un quota est atteint ?',a:'L’action concernée est refusée jusqu’au renouvellement mensuel ou jusqu’au passage à une offre supérieure. Vos prospects, vos preuves et vos exports restent accessibles.'},
       {q:'Puis-je exporter mes données ?',a:'Oui, dans toutes les offres : export CSV des prospects et export complet des données du compte. La suppression du compte se fait aussi en libre-service.'},
     ],

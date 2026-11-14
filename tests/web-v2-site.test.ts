@@ -74,12 +74,14 @@ test('freeze — legal text, SEO content, prices, quotas, trial, plans, i18n and
   // Owner decision (11 nov. 2026, SEO): the /tarifs and /a-propos titles, descriptions and dates rewritten.
   // Owner decision (14 nov. 2026, SEO, option B): /logiciel-prospection-b2b rewritten for « logiciel de prospection B2B » and
   // linked from /prospection-b2b (one sentence, related block).
-  'src/domain/seo-content.ts':'fd1d9fc651958c21c2d6650d930c7cf7a5f00e5daaf67d1a4ae320a8ef585a80',
+  // Owner decision (14 nov. 2026, /tarifs): the « Veille dédiée, sur devis » service is stated next to the self-service plans, with its section and two price questions in the FAQ.
+  'src/domain/seo-content.ts':'a9ab3d2740f7889ed5074b14d02d9dcb157d62a18e456e583f313cab4d894191',
   // Owner decision (11 nov. 2026, SEO): prospectos.fr as the default site address, robots closing the connected and
   // technical routes, the LinkedIn pages of ProspectOS and of its founder as sameAs.
   // Owner request (13 nov. 2026, demo links, migration 042): robots also closes /d/ (private demo pages) — that one entry only.
   'src/domain/seo.ts':'90c8b70c6869740bd1ac2417972d9936e256981bd264c24da769aaa0b42b397e',
-  'src/components/PricingPage.tsx':'ae1fc88997a3974738d90d9fd0097108dc1fbf246e9d2025656a59def966cc02',
+  // Owner decision (14 nov. 2026, /tarifs): the « Veille dédiée, sur devis » service is stated next to the self-service plans.
+  'src/components/PricingPage.tsx':'aebf6157aefd8a5a24058707932f7b0b6fca909bfd2e06ceb0199c2851b65010',
   'src/components/PricingPlans.tsx':'fc49929e18df6b472f2b70bb36c80bd53dcfb4c85b9f86192b1e142ddb691773',
   'src/domain/plans.ts':'cf5e701c415bb9cfbadf4caf1d60e3e9b6d80822de5d30ed3648b7d1c2e60a02',
   'src/i18n/fr.ts':'812d1fd6093bbe5050efcf4baad844087903aea58a69773e78f8a0dee1264441',

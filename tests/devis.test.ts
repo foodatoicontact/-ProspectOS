@@ -148,6 +148,7 @@ test('dates: months added with the day clamped, contract end the day before the 
 test('annex and quote: monthly free to leave with 30 days notice; annual firm 12 months, serious breach after 15 days, tacit 12-month renewal',()=>{
  for(const piece of ['Période d\'essai : lorsque le devis en prévoit une, elle précède le contrat. Elle est offerte, n\'est pas facturée et n\'engage pas le client.',
   'Le client peut le résilier à tout moment, par écrit (e-mail compris), avec un préavis de 30 jours, sans frais.',
+  'Jusqu\'au dernier jour de la période d\'essai inclus, le client peut renoncer au contrat sans frais et sans avoir à se justifier, par simple e-mail. L\'engagement, mensuel ou annuel, ne prend effet qu\'à la date de début indiquée au devis.',
   'durée ferme de 12 mois','Il ne peut pas être résilié avant son terme, sauf manquement grave du vendeur à ses obligations, non corrigé dans les 15 jours suivant une mise en demeure écrite.',
   'il se renouvelle automatiquement pour une nouvelle période de 12 mois, sauf résiliation par écrit au plus tard 30 jours avant l\'échéance'])
   assert.ok(CONDITIONS.includes(piece),piece);
@@ -155,4 +156,16 @@ test('annex and quote: monthly free to leave with 30 days notice; annual firm 12
  assert.match(h,/Formule choisie<\/td><td><b>Annuelle : engagement ferme de 12 mois, 12 mois facturés 10<\/b>/);
  assert.match(h,/Fin de l’engagement<\/td><td><b>30 novembre 2027<\/b> — puis reconduction tacite par période de 12 mois/);
  assert.match(h,/Période d’essai<\/td><td>Du 1er novembre 2026 au 30 novembre 2026 : offerte, hors engagement/);
+});
+
+test('renunciation: shown until the last day of the trial when there is one, absent without a trial',()=>{
+ for(const engagement of ['mensuel','annuel'] as const)for(const mode of ['proposition','devis'] as const){
+  const avec=renderHtml({mode,vendeur:COMPLET,client:{...DEUX,engagement,essai_mois:1},date:'2026-11-14',numero:'DEV-2026-0001',conditions:CONDITIONS});
+  assert.ok(avec.includes('Renonciation possible sans frais jusqu’au 30 novembre 2026'),`${engagement} ${mode}`);
+  assert.ok(avec.includes('l’engagement ne prend effet qu’au 1er décembre 2026'));
+  const sans=renderHtml({mode,vendeur:COMPLET,client:{...DEUX,engagement,essai_mois:0},date:'2026-11-14',numero:'DEV-2026-0001',conditions:CONDITIONS});
+  assert.ok(!sans.includes('Renonciation possible'),`${engagement} ${mode} without trial`);assert.ok(!sans.includes('<td>Période d’essai</td>'));
+ }
+ const deux=renderHtml({mode:'devis',vendeur:COMPLET,client:{...DEUX,engagement:'mensuel',essai_mois:2},date:'2026-11-14',numero:'DEV-2026-0001',conditions:CONDITIONS});
+ assert.ok(deux.includes('Renonciation possible sans frais jusqu’au 30 novembre 2026'),'last day of a 2-month trial too');assert.ok(deux.includes('Du 1er octobre 2026 au 30 novembre 2026'));
 });

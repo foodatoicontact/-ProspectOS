@@ -159,7 +159,8 @@ ${mode==='proposition'?'<span class="imm">Société en cours d’immatriculation
 <table class="tot"><tr><td>Total HT</td><td class="n">${eur(t.totalHT)}</td></tr>${tvaLigne}<tr class="grand"><td>Total TTC</td><td class="n">${eur(t.totalTTC)}</td></tr></table>
 <h2>Formule et engagement</h2>
 <table class="eng"><tr><td>Formule choisie</td><td><b>${esc(t.engagement.formule)}</b></td></tr>
-${t.essai?`<tr><td>Période d’essai</td><td>Du ${dateFr(t.essai.debut)} au ${dateFr(t.essai.fin)} : offerte, hors engagement, sans facturation</td></tr>`:''}
+${t.essai?`<tr><td>Période d’essai</td><td>Du ${dateFr(t.essai.debut)} au ${dateFr(t.essai.fin)} : offerte, hors engagement, sans facturation</td></tr>
+<tr><td>Renonciation</td><td><b>Renonciation possible sans frais jusqu’au ${dateFr(t.essai.fin)}</b>, par simple e-mail ; l’engagement ne prend effet qu’au ${dateFr(t.engagement.debut)}</td></tr>`:''}
 <tr><td>Début du contrat</td><td>${dateFr(t.engagement.debut)}</td></tr>
 <tr><td>${c.engagement==='annuel'?'Fin de l’engagement':'Fin de la première période'}</td><td><b>${dateFr(t.engagement.fin)}</b>${c.engagement==='annuel'
  ?' — puis reconduction tacite par période de 12 mois, résiliable au plus tard 30 jours avant l’échéance'

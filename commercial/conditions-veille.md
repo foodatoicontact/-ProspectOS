@@ -9,7 +9,7 @@ Le vendeur prépare pour le client une liste d'entreprises correspondant au pér
 
 ## 2. Période d'essai, durée et résiliation
 
-- Période d'essai : lorsque le devis en prévoit une, elle précède le contrat. Elle est offerte, n'est pas facturée et n'engage pas le client. Le contrat commence à la date de début indiquée au devis.
+- Période d'essai : lorsque le devis en prévoit une, elle précède le contrat. Elle est offerte, n'est pas facturée et n'engage pas le client. Jusqu'au dernier jour de la période d'essai inclus, le client peut renoncer au contrat sans frais et sans avoir à se justifier, par simple e-mail. L'engagement, mensuel ou annuel, ne prend effet qu'à la date de début indiquée au devis.
 - Formule mensuelle : le contrat est conclu pour un mois et se renouvelle automatiquement chaque mois. Le client peut le résilier à tout moment, par écrit (e-mail compris), avec un préavis de 30 jours, sans frais.
 - Formule annuelle : le contrat est conclu pour une durée ferme de 12 mois à compter de la date de début, facturés au prix de 10 mois. Il ne peut pas être résilié avant son terme, sauf manquement grave du vendeur à ses obligations, non corrigé dans les 15 jours suivant une mise en demeure écrite. À son terme, il se renouvelle automatiquement pour une nouvelle période de 12 mois, sauf résiliation par écrit au plus tard 30 jours avant l'échéance.
 - Les sommes correspondant à des périodes déjà livrées restent dues.

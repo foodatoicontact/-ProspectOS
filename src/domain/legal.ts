@@ -63,7 +63,7 @@ export const EDITOR = {
 // statement the owner asked for, never expanded into an unnecessary commercial claim: no activity
 // description, no implied validation.
 export const ACTIVITY_FORMALITY = {
- filedAt: '21/09/2026',
+ filedAt: '13/11/2026',
  declaredStartDate: '18/09/2026',
  status: 'Formalité d’adjonction d’activité déposée — validation administrative en cours.',
 };

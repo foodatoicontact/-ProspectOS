@@ -55,7 +55,7 @@ export const seoPages:SeoPage[]=[
         ]},
       ]},
       {h2:'Où intervient ProspectOS',blocks:[
-        {type:'callout',title:'Prospection autonome, action humaine',text:'ProspectOS aide à découvrir des candidats, à rattacher chaque observation à sa source et à calculer automatiquement un score estimé, pondéré par la fiabilité de chaque source, puis un score vérifié à partir des seules preuves confirmées. La vérification des preuves, la décision de contacter et l’envoi restent des actions humaines. Pour la place exacte de l’IA dans ce processus, voir la page [prospection B2B assistée par IA](/prospection-ia).'},
+        {type:'callout',title:'Prospection autonome, action humaine',text:'ProspectOS aide à découvrir des candidats, à rattacher chaque observation à sa source et à calculer automatiquement un score estimé, pondéré par la fiabilité de chaque source, puis un score vérifié à partir des seules preuves confirmées. La vérification des preuves, la décision de contacter et l’envoi restent des actions humaines. Pour la place exacte de l’IA dans ce processus, voir la page [prospection B2B assistée par IA](/prospection-ia). Le fonctionnement du logiciel, ses sources officielles et son tarif sont détaillés sur la page [logiciel de prospection B2B](/logiciel-prospection-b2b).'},
       ]},
     ],
     faq:[
@@ -63,7 +63,7 @@ export const seoPages:SeoPage[]=[
       {q:'Peut-on prospecter sans preuve ?',a:'On peut contacter sans preuve, mais on ne peut alors pas expliquer pourquoi ce prospect plutôt qu’un autre. La méthode décrite ici vise justement à pouvoir répondre à cette question.'},
     ],
     cta:{title:'Voir la méthode appliquée',text:'La démonstration publique montre, sans créer de compte, des recommandations expliquées : pourquoi maintenant, sur quelles preuves, avec leurs sources visibles, et toujours sous votre validation.'},
-    related:['qualifier-un-prospect-b2b','prioriser-liste-prospects','lead-scoring','prospection-ia'],
+    related:['logiciel-prospection-b2b','qualifier-un-prospect-b2b','lead-scoring','prospection-ia'],
   },
   {
     slug:'prospection-ia',
@@ -387,50 +387,66 @@ export const seoPages:SeoPage[]=[
   {
     slug:'logiciel-prospection-b2b',
     navLabel:'Logiciel de prospection B2B',
-    updated:'2026-10-06',
-    keywords:{primary:'logiciel de prospection B2B',secondary:['outil de prospection commerciale','logiciel prospection IA','trouver des prospects B2B']},
-    title:'ProspectOS, logiciel de prospection B2B fondé sur des preuves',
-    description:'ProspectOS, logiciel français de prospection B2B : découverte dans le registre public des entreprises, preuves sourcées, score explicable et approche préparée.',
+    updated:'2026-11-14',
+    keywords:{primary:'logiciel de prospection B2B',secondary:['outil de prospection commerciale','comparatif des outils de prospection','prospection BODACC','appels d’offres BOAMP']},
+    title:'Logiciel de prospection B2B : sources officielles et preuves | ProspectOS',
+    description:'Logiciel de prospection B2B : entreprises repérées dans le registre, le BODACC et le BOAMP, chaque fait sourcé et vérifié, aucun envoi automatique. Essai de 7 jours.',
     eyebrow:'LOGICIEL · PROSPECTION B2B',
-    h1:'ProspectOS, un logiciel de prospection B2B fondé sur des preuves',
-    intro:'ProspectOS est un logiciel de prospection B2B assisté par IA, conçu en France. Il trouve des entreprises qui pourraient correspondre à votre offre, rattache chaque information à sa source, estime automatiquement un score selon la fiabilité de chaque source, le confirme avec les preuves que vous avez vérifiées, puis prépare une approche personnalisée. Il n’envoie jamais de message à votre place. Cette page décrit ce que fait le logiciel, pour qui il est conçu et ce qu’il ne fait pas.',
+    h1:'Logiciel de prospection B2B : qui contacter, pourquoi maintenant, sur quelle source',
+    intro:'Un logiciel de prospection B2B doit répondre à trois questions avant tout envoi : quelle entreprise contacter, pourquoi maintenant, et sur quelle source repose cette réponse. ProspectOS y répond à partir de sources officielles françaises : le registre des entreprises, les annonces légales du BODACC et les appels d’offres du BOAMP. Chaque fait garde son lien vers la source, une personne le vérifie, et aucun message ne part automatiquement. Cette page compare les grandes approches de prospection, décrit ce que fait le logiciel et dit aussi ce qu’il ne fait pas.',
     sections:[
-      {h2:'Ce que fait ProspectOS, étape par étape',blocks:[
+      {h2:'Quatre façons de trouver des prospects B2B, et leurs limites',blocks:[
+        {type:'p',text:'Aucune approche n’est parfaite. Le bon choix dépend de ce que vous vendez, du volume visé et du temps que vous pouvez consacrer à chaque contact.'},
+        {type:'ul',items:[
+          'Fichiers de contacts achetés : rapides à obtenir, mais leur fraîcheur varie et l’origine de chaque coordonnée doit pouvoir être justifiée au regard du RGPD. Ils disent qui existe, rarement pourquoi contacter maintenant.',
+          'Extraction de profils sur les réseaux sociaux : riche en noms et en fonctions, mais les conditions d’utilisation de LinkedIn interdisent l’extraction automatisée, et le compte utilisé peut être restreint.',
+          'Outils d’envoi automatique : utiles pour le volume, mais des messages génériques envoyés en masse exposent la réputation de votre domaine d’envoi et obtiennent peu de réponses qualifiées.',
+          'Sources officielles, l’approche de ProspectOS : des faits publics, datés et vérifiables (création, reprise, appel d’offres). En contrepartie, ces sources ne donnent ni e-mail ni téléphone, et un événement non publié reste invisible.',
+        ]},
+      ]},
+      {h2:'Ce que fait ProspectOS au quotidien',blocks:[
         {type:'ol',items:[
-          'Vous décrivez votre offre ; l’analyse d’offre IA propose un profil client idéal (ICP) en critères pondérés, que vous corrigez et validez.',
-          'Vous lancez une recherche : secteur, zone, tranche d’effectif. Les entreprises françaises sont trouvées dans le registre public des entreprises ; le web complète pour les autres cas.',
-          'Pour chaque entreprise retenue, l’analyse de prospect lit son site officiel et propose des observations : une affirmation, l’URL, l’extrait exact et la date.',
-          'Le score est estimé automatiquement, chaque source pondérée par sa fiabilité. Vous vérifiez les observations : seules celles que vous confirmez deviennent des preuves et comptent dans le score vérifié.',
-          'Le score de 0 à 100 s’explique critère par critère et sert à ordonner votre liste.',
+          'Vous décrivez votre offre ; l’analyse d’offre propose un profil client idéal (ICP) en critères pondérés, que vous corrigez et validez.',
+          'Vous lancez une recherche par secteur, zone et tranche d’effectif dans le registre, ou une recherche de reprises récentes dans le BODACC.',
+          'Dans l’écran Recherche, le bloc « Appels d’offres ouverts » liste les marchés publics du BOAMP auxquels vous pouvez encore répondre, avec le mot-clé qui a fait ressortir chaque avis.',
+          'Pour chaque entreprise retenue, les observations sont rattachées à leur source : l’URL, l’extrait exact et la date. Seules celles que vous confirmez deviennent des preuves.',
+          'Le score de 0 à 100 s’explique critère par critère ; il ordonne votre liste, il ne prédit pas une vente.',
           'ProspectOS prépare une approche à partir du fait vérifié le plus important ; vous la relisez et l’envoyez depuis votre propre messagerie.',
         ]},
+        {type:'p',text:'Les étapes de la méthode elle-même, indépendamment du logiciel, sont décrites dans [la méthode de prospection B2B](/prospection-b2b). Le calcul du score est détaillé sur la page [lead scoring explicable](/lead-scoring).'},
       ]},
-      {h2:'Des sources publiques, citées à chaque fois',blocks:[
-        {type:'p',text:'Pour la France, la découverte s’appuie sur l’API Recherche d’entreprises, qui publie les données du registre public des entreprises sous Licence Ouverte. Vos mots métier sont traduits en activités de la nomenclature NAF, avec une explication que vous confirmez avant l’envoi ; un mot qui ne correspond à aucune activité connue est signalé, jamais deviné.'},
-        {type:'p',text:'Les données du registre aident à trouver des candidats, mais elles ne sont jamais traitées comme une preuve et ne modifient jamais le score. Une preuve vient toujours d’une observation vérifiée par une personne. La lecture des sites respecte leur fichier robots.txt.'},
+      {h2:'Les sources : registre, BODACC et BOAMP',blocks:[
+        {type:'h3',text:'Le registre des entreprises'},
+        {type:'p',text:'L’API Recherche d’entreprises publie les données du registre national sous Licence Ouverte : activité (code NAF), adresse de l’établissement, tranche d’effectif, état administratif. Vos mots métier sont traduits en activités NAF, avec une explication que vous confirmez ; un mot sans correspondance est signalé, jamais deviné.'},
+        {type:'h3',text:'Le BODACC'},
+        {type:'p',text:'Le Bulletin officiel des annonces civiles et commerciales publie les créations, les ventes de fonds de commerce et les changements de dirigeant. Une reprise ou un nouveau dirigeant est souvent le moment où une entreprise revoit ses outils et ses prestataires. Chaque annonce est datée et accessible par son lien officiel.'},
+        {type:'h3',text:'Le BOAMP'},
+        {type:'p',text:'Le Bulletin officiel des annonces des marchés publics liste les appels d’offres en cours. ProspectOS n’affiche que les avis dont la date limite n’est pas passée et renvoie toujours vers l’avis officiel. Rien n’est enregistré ni répondu à votre place.'},
       ]},
-      {h2:'Un score explicable plutôt qu’une prédiction',blocks:[
-        {type:'p',text:'Beaucoup d’outils affichent une note sans dire d’où elle vient. Dans ProspectOS, chaque point du score vérifié correspond à un critère de votre ICP et à une preuve que vous avez confirmée ; le score estimé montre en plus ce que les sources restant à vérifier pourraient confirmer. Un critère non documenté reste « à confirmer » au lieu d’être supposé. Le score est un ordre de priorité, pas une probabilité de vente : la page sur le [lead scoring explicable](/lead-scoring) détaille ce choix, et celle sur la façon de [qualifier un prospect B2B](/qualifier-un-prospect-b2b) décrit la lecture des statuts.'},
+      {h2:'Trois recherches menées avec ProspectOS',blocks:[
+        {type:'p',text:'Ces cas décrivent la démarche, sans résultat commercial annoncé. Les entreprises citées dans les listes livrées ne sont pas nommées ici.'},
+        {type:'h3',text:'Garages repris en Île-de-France'},
+        {type:'p',text:'Pour un éditeur d’assistant de messagerie destiné aux garages : les ventes de fonds de garages publiées au BODACC dans les huit départements franciliens, chaque acquéreur vérifié au registre, les garages qui vendent des véhicules placés en tête, et une première phrase qui cite la reprise.'},
+        {type:'h3',text:'Hôtels et restaurants qui changent de propriétaire'},
+        {type:'p',text:'Pour un fournisseur de l’hôtellerie : les reprises d’hôtels et de restaurants sur 90 jours dans plusieurs régions, avec le prix de cession quand l’annonce l’indique. La liste signale aussi sa limite : un rachat des parts de la société n’apparaît pas dans les ventes de fonds.'},
+        {type:'h3',text:'Appels d’offres en sécurité incendie'},
+        {type:'p',text:'Pour une entreprise de sécurité incendie : les marchés publics ouverts du BOAMP dans ses départements d’intervention, triés par date limite de réponse, chacun avec son acheteur public et le lien vers l’avis.'},
       ]},
-      {h2:'Pour qui ProspectOS est conçu',blocks:[
-        {type:'ul',items:[
-          'Les dirigeants et indépendants qui prospectent eux-mêmes et veulent savoir pourquoi contacter une entreprise plutôt qu’une autre.',
-          'Les équipes commerciales de 2 à 5 personnes qui partagent un marché et ne veulent pas payer deux fois la même recherche (offre Équipe).',
-          'Les entreprises qui vendent à d’autres entreprises en France et ont besoin de cibler par secteur d’activité, zone et effectif.',
-        ]},
-        {type:'callout',title:'Ce que ProspectOS ne fait pas',text:'Il n’envoie aucun message automatiquement, ne vend pas de fichier de contacts, ne déduit pas d’information personnelle à partir de connaissances externes et ne transforme pas une supposition en preuve. Les décisions de contact restent humaines.'},
+      {h2:'Ce que ProspectOS ne fait pas',blocks:[
+        {type:'callout',title:'Des limites assumées',text:'ProspectOS n’envoie aucun message automatiquement, ne vend pas de fichier de contacts, n’extrait pas de données de LinkedIn ni des pages de résultats des moteurs de recherche, ne fournit ni e-mail ni téléphone personnels et ne transforme jamais une supposition en preuve. La décision de contacter reste humaine.'},
       ]},
-      {h2:'Offres et premiers pas',blocks:[
-        {type:'p',text:`L’essai gratuit dure 7 jours, sans carte bancaire. Ensuite, ProspectOS Solo coûte ${SOLO_EUR} € par mois et ProspectOS Pro ${PRO_EUR} € par mois pour 1 compte ; ProspectOS Équipe coûte ${TEAM_EUR} € par mois pour ${TEAM_INCL} comptes, + ${TEAM_EXTRA_EUR} € par compte supplémentaire, jusqu’à ${TEAM_MAX} comptes. Les quotas et les règles de décompte sont détaillés sur la page des [tarifs](/tarifs). Une démonstration publique avec des données de test est accessible sans compte.`},
+      {h2:'Tarif et premiers pas',blocks:[
+        {type:'p',text:`L’essai gratuit dure 7 jours, sans carte bancaire. Ensuite, ProspectOS Solo coûte ${SOLO_EUR} € par mois et ProspectOS Pro ${PRO_EUR} € par mois pour un compte ; ProspectOS Équipe coûte ${TEAM_EUR} € par mois pour ${TEAM_INCL} comptes, + ${TEAM_EXTRA_EUR} € par compte supplémentaire, jusqu’à ${TEAM_MAX} comptes. Les quotas et les règles de décompte sont détaillés sur la page des [tarifs de ProspectOS](/tarifs). Une démonstration publique avec des données de test est accessible sans compte.`},
       ]},
     ],
     faq:[
-      {q:'ProspectOS est-il un fichier de prospects ?',a:'Non. ProspectOS ne vend pas de base de contacts : il trouve des entreprises dans des sources publiques au moment de votre recherche et vous aide à documenter pourquoi chacune correspond, ou non, à votre offre.'},
-      {q:'ProspectOS envoie-t-il des e-mails de prospection ?',a:'Non. Il prépare une approche personnalisée à partir des faits vérifiés ; l’envoi reste une action humaine, depuis votre propre outil.'},
-      {q:'Quelles entreprises peut-on trouver ?',a:'Les entreprises françaises inscrites au registre public, filtrables par activité NAF, zone et tranche d’effectif, ainsi que des entreprises trouvées par recherche web.'},
+      {q:'Quelle différence entre un logiciel de prospection et un fichier de prospects ?',a:'Un fichier donne une liste figée de contacts. ProspectOS cherche les entreprises au moment de votre recherche, dans des sources publiques, et documente pourquoi chacune correspond ou non à votre offre, avec la source de chaque fait.'},
+      {q:'ProspectOS fournit-il des e-mails ou des numéros de téléphone ?',a:'Non. Les sources officielles n’en publient pas pour les personnes, et ProspectOS n’en invente pas. Un canal de contact professionnel peut être rattaché à une fiche s’il est trouvé sur le site officiel de l’entreprise, avec sa source.'},
+      {q:'ProspectOS envoie-t-il des messages à ma place ?',a:'Non. Il prépare une approche à partir des faits vérifiés ; vous la relisez, la modifiez si besoin et l’envoyez depuis votre propre outil.'},
+      {q:'Quelles entreprises peut-on trouver ?',a:'Les entreprises françaises inscrites au registre, filtrables par activité, zone et effectif, celles qui apparaissent dans les annonces du BODACC (créations, reprises, changements de dirigeant), et les acheteurs publics qui publient des appels d’offres au BOAMP.'},
     ],
-    cta:{title:'Explorer ProspectOS sans compte',text:'La démonstration publique montre des prospects de test, leurs sources et un score expliqué.'},
-    related:['tarifs','prospection-b2b','lead-scoring','a-propos'],
+    cta:{title:'Essayer le logiciel sur votre cible',text:'La démonstration publique montre, sans compte, des prospects de test avec leurs sources ; l’essai de 7 jours lance de vraies recherches sur vos critères.'},
+    related:['prospection-b2b','tarifs','qualifier-un-prospect-b2b','a-propos'],
   },
   {
     slug:'a-propos',

@@ -208,7 +208,13 @@ test('11 — commercial copy is NOT changed by ZF1 (the trial stays as on main u
   // Owner decision (11 nov. 2026, SEO): the /tarifs title, description and date were rewritten; the prices they quote
   // still come from plans.ts. Those three lines alone are set aside before comparing.
   const tarifsSeo=(t:string)=>t.replace(/(slug:'tarifs',[\s\S]*?)updated:'[^']*',([\s\S]*?)title:[^\n]*\n\s*description:[^\n]*\n/,'$1TARIFS_SEO$2');
-  const outside=(t:string)=>tarifsSeo(t.split(ABOUT)[0]!).replace(/cta:\{title:'Voir la méthode appliquée',text:'[^']*'\}/,'CTA');
+  // Owner decision (14 nov. 2026, SEO, option B): /logiciel-prospection-b2b rewritten (title, description, H1, content, FAQ,
+  // date) and linked from /prospection-b2b — one sentence in its « Où intervient ProspectOS » callout and its related block.
+  // That whole entry and those two lines alone are set aside before comparing; every other page stays main's text.
+  const logiciel=(t:string)=>t.split("  {\n    slug:'logiciel-prospection-b2b'")[0]!
+   .replace(/ Le fonctionnement du logiciel, ses sources officielles et son tarif sont détaillés sur la page \[logiciel de prospection B2B\]\(\/logiciel-prospection-b2b\)\./,'')
+   .replace(/related:\['(?:logiciel-prospection-b2b','qualifier-un-prospect-b2b','lead-scoring'|qualifier-un-prospect-b2b','prioriser-liste-prospects','lead-scoring'),'prospection-ia'\]/,'RELATED_PROSPECTION_B2B');
+  const outside=(t:string)=>logiciel(tarifsSeo(t.split(ABOUT)[0]!)).replace(/cta:\{title:'Voir la méthode appliquée',text:'[^']*'\}/,'CTA');
   assert.equal(outside(now),outside(main),'seo-content.ts outside /a-propos and the /prospection-b2b call to action');
   const commercial=(t:string)=>t.split(ABOUT)[1]!.split('\n').filter(l=>/essai|€|_EUR|Solo|Pro |Équipe|tarifs|offre/.test(l)&&!/démonstration publique/.test(l));
   assert.deepEqual(commercial(now),commercial(main),'commercial lines of /a-propos');

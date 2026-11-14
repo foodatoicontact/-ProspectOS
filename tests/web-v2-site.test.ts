@@ -72,7 +72,9 @@ test('freeze — legal text, SEO content, prices, quotas, trial, plans, i18n and
   // WEB-2.1 / 2.2: the /a-propos entry (demo wording, recommendation instead of score, its date) and the /prospection-b2b
   // closing call to action only; every other page is main's text.
   // Owner decision (11 nov. 2026, SEO): the /tarifs and /a-propos titles, descriptions and dates rewritten.
-  'src/domain/seo-content.ts':'0211af8377843686095e309db97b7fe6d5bafa086ff612590f2d8cde99b46510',
+  // Owner decision (14 nov. 2026, SEO, option B): /logiciel-prospection-b2b rewritten for « logiciel de prospection B2B » and
+  // linked from /prospection-b2b (one sentence, related block).
+  'src/domain/seo-content.ts':'fd1d9fc651958c21c2d6650d930c7cf7a5f00e5daaf67d1a4ae320a8ef585a80',
   // Owner decision (11 nov. 2026, SEO): prospectos.fr as the default site address, robots closing the connected and
   // technical routes, the LinkedIn pages of ProspectOS and of its founder as sameAs.
   // Owner request (13 nov. 2026, demo links, migration 042): robots also closes /d/ (private demo pages) — that one entry only.

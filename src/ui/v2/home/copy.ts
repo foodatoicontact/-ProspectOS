@@ -15,7 +15,9 @@ export type HomeCopy={
  demo:{label:string;why:string;whyTitle:string;now:string;nowText:string;source:string;sourceText:string;matching:string;
   matchingItems:string[];missing:string;missingItems:string[];completeTitle:string;completeText:string;caption:string;
   signalPrefix:string;verified:string;todo:string;close:string};
- positioning:{line1:string;line2:string;pillars:{key:string;question:string;body:string}[]};
+ positioning:{line1:string;line2:string;pillars:{key:string;question:string;body:string}[];
+  // The text link under the guarantee, to the « logiciel de prospection B2B » page (owner request, 14 nov. 2026).
+  software:string};
  workflow:{title:string;steps:{name:string;body:string}[];motto:[string,string,string];guarantee:string};
  product:{title:string;body:string;darkTitle:string;darkBody:string;mockAria:string;mockDarkAria:string;today:string;project:string;
   filters:string;counts:{contact:string;verify:string;watch:string};none:string};
@@ -42,6 +44,7 @@ export const HOME_COPY:Record<Locale,HomeCopy>={
    caption:'Entreprise inventée pour la démonstration. Dans ProspectOS, chaque élément renvoie à sa source.',
    signalPrefix:'Signal : ',verified:'Vérifié',todo:'À documenter',close:'Fermer le détail'},
   positioning:{line1:'Une liste vous dit qui existe.',line2:'ProspectOS vous dit qui mérite votre attention maintenant.',
+   software:'Le logiciel en détail : sources officielles, preuves et tarif',
    pillars:[
     {key:'Fit',question:'Est-ce la bonne entreprise ?',body:'Chaque critère de votre cible est vérifié, ou signalé comme manquant.'},
     {key:'Timing',question:'Pourquoi maintenant ?',body:'Un signal public récent rend le contact pertinent : ouverture, recrutement, levée de fonds, lancement.'},
@@ -96,6 +99,7 @@ export const HOME_COPY:Record<Locale,HomeCopy>={
    caption:'Company invented for the demo. In ProspectOS, every item links to its source.',
    signalPrefix:'Signal: ',verified:'Verified',todo:'To document',close:'Close the detail'},
   positioning:{line1:'A list tells you who exists.',line2:'ProspectOS tells you who deserves your attention now.',
+   software:'The software in detail: official sources, evidence and pricing (in French)',
    pillars:[
     {key:'Fit',question:'Is it the right company?',body:'Every criterion of your target is verified, or flagged as missing.'},
     {key:'Timing',question:'Why now?',body:'A recent public signal makes the contact relevant: opening, hiring, funding, launch.'},

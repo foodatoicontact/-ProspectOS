@@ -87,6 +87,7 @@ export function HomeV2({locale,localeSwitch,authCard,onLocale,cta,demoLabel,onDe
      <h3>{p.question}</h3><p>{p.body}</p>
     </li>)}</ul>
     <p className="pos-home__guarantee"><Icon name="check" size={18}/>{copy.workflow.guarantee}</p>
+    <a className="pos-home__textlink pos-home__software" href="/logiciel-prospection-b2b">{copy.positioning.software} <span aria-hidden="true">→</span></a>
    </section>
 
    <section className="pos-home__section pos-home__wrap pos-home__signup" aria-labelledby="pos-home-signup">

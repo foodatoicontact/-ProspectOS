@@ -3,15 +3,26 @@
   "denomination": "Exemple Garages Conseil",
   "adresse": "1 rue de l'Exemple, 31000 Toulouse",
   "siren": "",
-  "contact": { "nom": "Camille Exemple", "fonction": "Gérante" },
-  "regions": ["Île-de-France", "Occitanie"],
-  "sources": ["BODACC", "BOAMP"],
-  "metiers": ["Garages et commerce de véhicules (NAF 45.11Z, 45.20A, 45.20B)"],
+  "contact": {
+    "nom": "Camille Exemple",
+    "fonction": "Gérante"
+  },
+  "regions": [
+    "Île-de-France",
+    "Occitanie"
+  ],
+  "sources": [
+    "BODACC",
+    "BOAMP"
+  ],
+  "metiers": [
+    "Garages et commerce de véhicules (NAF 45.11Z, 45.20A, 45.20B)"
+  ],
   "livrable": "PDF et CSV, un lien de démo en lecture seule",
   "frequence": "chaque lundi",
   "prix_ht_par_region_par_mois": 149,
-  "mois_offerts": 1,
+  "essai_mois": 1,
   "engagement": "mensuel",
-  "nombre_mois": 3,
+  "nombre_mois": 1,
   "date_debut": "2026-12-01"
 }

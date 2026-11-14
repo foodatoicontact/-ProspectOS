@@ -6,9 +6,16 @@ export type Mode='proposition'|'devis';
 export type Vendeur={denomination:string;nom_commercial?:string;forme_juridique:string;capital:string;adresse:string;siren:string;rcs_ville:string;
  tva:{regime:''|'franchise'|'assujetti';numero?:string;taux?:number};email:string;telephone?:string;iban?:string;bic?:string};
 export type Client={denomination:string;adresse:string;siren?:string;contact:{nom:string;fonction:string};regions:string[];sources:string[];metiers:string[];
- livrable:string;frequence:string;prix_ht_par_region_par_mois:number;mois_offerts:number;engagement:'mensuel'|'annuel';nombre_mois?:number;date_debut:string};
+ livrable:string;frequence:string;prix_ht_par_region_par_mois:number;
+ // Période d'essai gratuite qui PRÉCÈDE le contrat (hors engagement), en mois ; 0 = pas d'essai.
+ essai_mois:number;
+ engagement:'mensuel'|'annuel';nombre_mois?:number;date_debut:string;
+ // Ancien champ (« premier mois offert » déduit dans la période facturée) : refusé, il cumulerait les remises.
+ mois_offerts?:number};
 export type Ligne={libelle:string;quantite:number;unitaire:number;montant:number};   // montants en centimes ; remise = montant négatif
-export type Totaux={lignes:Ligne[];totalHT:number;tva:number;totalTTC:number;mentionTva:string|null;tauxTva:number|null};
+export type Ligne2=Ligne&{periode?:string};
+export type Totaux={lignes:Ligne2[];totalHT:number;tva:number;totalTTC:number;mentionTva:string|null;tauxTva:number|null;
+ essai:{debut:string;fin:string}|null;engagement:{formule:string;debut:string;fin:string;moisFactures:number}};
 
 const vide=(v:unknown)=>v===undefined||v===null||String(v).trim()==='';
 // Sociétés : le capital est une mention obligatoire des documents commerciaux (Code de commerce, art. R123-238).
@@ -46,7 +53,10 @@ export function clientIssues(c:Client):string[]{
  if(!Array.isArray(c.sources)||!c.sources.length)p.push('sources');
  if(!Array.isArray(c.metiers)||!c.metiers.length)p.push('metiers');
  if(!(Number.isFinite(c.prix_ht_par_region_par_mois)&&c.prix_ht_par_region_par_mois>0))p.push('prix_ht_par_region_par_mois');
- if(!(Number.isInteger(c.mois_offerts)&&c.mois_offerts>=0))p.push('mois_offerts');
+ if(!(Number.isInteger(c.essai_mois)&&c.essai_mois>=0&&c.essai_mois<=3))p.push('essai_mois (0 à 3)');
+ // Les remises sont exclusives : la seule gratuité possible est l'essai avant le contrat, la seule remise dans le contrat
+ // est celle de la formule annuelle. Un « mois offert » dans la période facturée est refusé, quelle que soit la formule.
+ if(c.mois_offerts!==undefined)p.push('mois_offerts : cumul de remises interdit, utilisez essai_mois (période d’essai avant le contrat)');
  if(c.engagement!=='mensuel'&&c.engagement!=='annuel')p.push('engagement (« mensuel » ou « annuel »)');
  if(c.nombre_mois!==undefined&&!(Number.isInteger(c.nombre_mois)&&c.nombre_mois>=1&&c.nombre_mois<=36))p.push('nombre_mois');
  if(!/^\d{4}-\d{2}-\d{2}$/.test(c.date_debut??''))p.push('date_debut (AAAA-MM-JJ)');
@@ -54,21 +64,37 @@ export function clientIssues(c:Client):string[]{
 }
 
 const cents=(eur:number)=>Math.round(eur*100);
-const pluriel=(n:number,s:string,p=s+'s')=>`${n} ${n>1?p:s}`;
-/** Lines and totals. Annual: 12 months, 2 of them offered. Monthly: `nombre_mois` (1 by default) months shown. */
+/** Adds `n` months to an ISO date (day clamped to the end of the target month). */
+export function ajouterMois(iso:string,n:number):string{
+ const [y,m,d]=iso.slice(0,10).split('-').map(Number);const t=new Date(Date.UTC(y!,m!-1+n,1));
+ const fin=new Date(Date.UTC(t.getUTCFullYear(),t.getUTCMonth()+1,0)).getUTCDate();
+ return new Date(Date.UTC(t.getUTCFullYear(),t.getUTCMonth(),Math.min(d!,fin))).toISOString().slice(0,10);
+}
+export const veille=(iso:string)=>new Date(Date.parse(iso.slice(0,10)+'T12:00:00Z')-86400000).toISOString().slice(0,10);
+/** Lines and totals. Optional free trial BEFORE the contract (0 €, outside the commitment), then the contract from
+ *  date_debut: monthly (`nombre_mois` months quoted, 1 by default, no discount) or annual (12 months billed 10).
+ *  The two discounts never apply to the same period. */
 export function calcul(c:Client,v:Vendeur):Totaux{
- const mois=c.engagement==='annuel'?12:(c.nombre_mois??1);
- const pu=cents(c.prix_ht_par_region_par_mois);
- const lignes:Ligne[]=c.regions.map(r=>({libelle:`Veille dédiée — ${r}`,quantite:mois,unitaire:pu,montant:pu*mois}));
- const parMois=pu*c.regions.length;
- if(c.mois_offerts>0)lignes.push({libelle:c.mois_offerts===1?'Premier mois offert':`${pluriel(c.mois_offerts,'mois offert','mois offerts')}`,quantite:c.mois_offerts,unitaire:-parMois,montant:-parMois*c.mois_offerts});
- if(c.engagement==='annuel')lignes.push({libelle:'Engagement annuel : 2 mois offerts',quantite:2,unitaire:-parMois,montant:-parMois*2});
- const totalHT=Math.max(0,lignes.reduce((s,l)=>s+l.montant,0));
+ if(c.mois_offerts!==undefined)throw Error('CUMUL_INTERDIT : « mois_offerts » cumulerait une remise dans la période facturée ; utilisez « essai_mois ».');
+ const annuel=c.engagement==='annuel';const mois=annuel?12:(c.nombre_mois??1);
+ const pu=cents(c.prix_ht_par_region_par_mois);const parMois=pu*c.regions.length;
+ const debut=c.date_debut.slice(0,10);const fin=veille(ajouterMois(debut,mois));
+ const lignes:Ligne2[]=[];
+ let essai:Totaux['essai']=null;
+ if(c.essai_mois>0){
+  essai={debut:ajouterMois(debut,-c.essai_mois),fin:veille(debut)};
+  lignes.push({libelle:`Période d’essai offerte, hors engagement — ${c.regions.join(', ')}`,quantite:c.essai_mois,unitaire:0,montant:0,periode:`du ${dateFr(essai.debut)} au ${dateFr(essai.fin)}`});
+ }
+ for(const r of c.regions)lignes.push({libelle:`Veille dédiée — ${r}`,quantite:mois,unitaire:pu,montant:pu*mois,periode:`du ${dateFr(debut)} au ${dateFr(fin)}`});
+ if(annuel)lignes.push({libelle:'Formule annuelle : 12 mois facturés 10',quantite:2,unitaire:-parMois,montant:-parMois*2,periode:`du ${dateFr(debut)} au ${dateFr(fin)}`});
+ const totalHT=lignes.reduce((s,l)=>s+l.montant,0);
+ const engagement={formule:annuel?'Annuelle : engagement ferme de 12 mois, 12 mois facturés 10':`Mensuelle : sans durée minimale, reconduite chaque mois`,
+  debut,fin,moisFactures:annuel?10:mois};
  if(v.tva?.regime==='assujetti'){
   const taux=v.tva.taux??20;const tva=Math.round(totalHT*taux/100);
-  return {lignes,totalHT,tva,totalTTC:totalHT+tva,mentionTva:null,tauxTva:taux};
+  return {lignes,totalHT,tva,totalTTC:totalHT+tva,mentionTva:null,tauxTva:taux,essai,engagement};
  }
- return {lignes,totalHT,tva:0,totalTTC:totalHT,mentionTva:'TVA non applicable, art. 293 B du CGI',tauxTva:null};
+ return {lignes,totalHT,tva:0,totalTTC:totalHT,mentionTva:'TVA non applicable, art. 293 B du CGI',tauxTva:null,essai,engagement};
 }
 
 /** DEV-AAAA-NNNN, numbered per year; returns the number and the counter to save (only once the PDF exists). */
@@ -110,15 +136,14 @@ h2{font-size:11.5pt;margin:16px 0 6px;color:#0b0f24}table{width:100%;border-coll
 td{padding:6px;border-bottom:1px solid #eceef6}td.n,th.n{text-align:right;white-space:nowrap}tr.remise td{color:#12733a}
 .tot{margin-left:auto;width:52%;margin-top:6px}.tot td{border:0;padding:3px 6px}.tot tr.grand td{font-weight:700;font-size:11pt;border-top:2px solid #0b0f24;padding-top:6px}
 ul{margin:4px 0;padding-left:18px}li{margin:2px 0}.sign{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:14px}.sign .box{height:92px}
-.accord{break-inside:avoid}.annexe{break-before:page}.annexe h2{font-size:13pt}.annexe h3{font-size:10pt;margin:12px 0 3px}.annexe p,.annexe li{font-size:9pt}`;
+.accord{break-inside:avoid}.eng td{border-bottom:1px solid #eceef6;padding:5px 6px}.eng td:first-child{width:32%;color:#6b7090}.annexe{break-before:page}.annexe h2{font-size:13pt}.annexe h3{font-size:10pt;margin:9px 0 2px}.annexe p,.annexe li{font-size:8.6pt;line-height:1.42}`;
 
 export function renderHtml(o:{mode:Mode;vendeur:Vendeur;client:Client;date:string;numero?:string|null;conditions:string}):string{
  const {mode,vendeur:v,client:c}=o;const t=calcul(c,v);
  const nomV=v.denomination||v.nom_commercial||'ProspectOS';
  const idV=[v.forme_juridique&&`${v.forme_juridique}${v.capital?` au capital de ${v.capital}`:''}`,v.siren&&`SIREN ${v.siren}`,v.rcs_ville&&`RCS ${v.rcs_ville}`,
   v.tva?.regime==='assujetti'&&v.tva.numero?`TVA ${v.tva.numero}`:null].filter(Boolean).join(' · ');
- const mois=c.engagement==='annuel'?12:(c.nombre_mois??1);
- const lignes=t.lignes.map(l=>`<tr class="${l.montant<0?'remise':''}"><td>${esc(l.libelle)}</td><td class="n">${l.quantite} mois</td><td class="n">${eur(l.unitaire)}</td><td class="n">${eur(l.montant)}</td></tr>`).join('');
+ const lignes=t.lignes.map(l=>`<tr class="${l.montant<=0?'remise':''}"><td>${esc(l.libelle)}${l.periode?`<br><span class="muted">${esc(l.periode)}</span>`:''}</td><td class="n">${l.quantite} mois</td><td class="n">${eur(l.unitaire)}</td><td class="n">${eur(l.montant)}</td></tr>`).join('');
  const tvaLigne=t.mentionTva?`<tr><td colspan="2" class="muted">${esc(t.mentionTva)}</td></tr>`:`<tr><td>TVA ${t.tauxTva} %</td><td class="n">${eur(t.tva)}</td></tr>`;
  const titre=mode==='devis'?'Devis':'Proposition commerciale';
  return `<!doctype html><html lang="fr"><head><meta charset="utf-8"><title>${esc(titre)} — ${esc(c.denomination)}</title><style>${CSS}</style></head><body>
@@ -132,10 +157,16 @@ ${mode==='proposition'?'<span class="imm">Société en cours d’immatriculation
 <h2>Prestations</h2>
 <table><thead><tr><th>Désignation</th><th class="n">Quantité</th><th class="n">Prix unitaire HT</th><th class="n">Montant HT</th></tr></thead><tbody>${lignes}</tbody></table>
 <table class="tot"><tr><td>Total HT</td><td class="n">${eur(t.totalHT)}</td></tr>${tvaLigne}<tr class="grand"><td>Total TTC</td><td class="n">${eur(t.totalTTC)}</td></tr></table>
+<h2>Formule et engagement</h2>
+<table class="eng"><tr><td>Formule choisie</td><td><b>${esc(t.engagement.formule)}</b></td></tr>
+${t.essai?`<tr><td>Période d’essai</td><td>Du ${dateFr(t.essai.debut)} au ${dateFr(t.essai.fin)} : offerte, hors engagement, sans facturation</td></tr>`:''}
+<tr><td>Début du contrat</td><td>${dateFr(t.engagement.debut)}</td></tr>
+<tr><td>${c.engagement==='annuel'?'Fin de l’engagement':'Fin de la première période'}</td><td><b>${dateFr(t.engagement.fin)}</b>${c.engagement==='annuel'
+ ?' — puis reconduction tacite par période de 12 mois, résiliable au plus tard 30 jours avant l’échéance'
+ :' — puis reconduction mois par mois, résiliable à tout moment avec un préavis de 30 jours, sans frais'}</td></tr></table>
 <h2>Périmètre et livrable</h2><ul>
 <li>Régions : ${esc(c.regions.join(', '))}</li><li>Sources : ${esc(c.sources.join(', '))}, et registre national des entreprises pour vérifier chaque entreprise</li>
 <li>Métiers ciblés : ${esc(c.metiers.join(' ; '))}</li><li>Livrable : ${esc(c.livrable)}</li><li>Fréquence : ${esc(c.frequence)}, à partir du ${dateFr(c.date_debut)}</li>
-<li>Engagement : ${c.engagement==='annuel'?'annuel (12 mois, dont 2 offerts)':`mensuel, reconduit tacitement (${pluriel(mois,'mois')} chiffré${mois>1?'s':''} ci-dessus)`} ; résiliation avec un préavis de 30 jours, sans frais</li>
 <li>Aucun volume de fiches n’est garanti : il dépend des publications officielles de la période.</li></ul>
 <h2>Conditions de paiement</h2><ul>
 <li>Paiement par virement à 30 jours à compter de la date de la facture${v.iban?` — IBAN ${esc(v.iban)}${v.bic?`, BIC ${esc(v.bic)}`:''}`:''}.</li>

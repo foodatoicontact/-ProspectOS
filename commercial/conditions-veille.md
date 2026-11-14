@@ -7,11 +7,12 @@ Ces conditions s'appliquent à la prestation « Veille dédiée » décrite dans
 
 Le vendeur prépare pour le client une liste d'entreprises correspondant au périmètre défini dans le devis (régions, sources, métiers) et la lui livre à la fréquence convenue, dans le format convenu.
 
-## 2. Durée et résiliation
+## 2. Période d'essai, durée et résiliation
 
-- Engagement mensuel : la prestation est conclue pour un mois et se renouvelle automatiquement chaque mois.
-- Engagement annuel : la prestation est conclue pour douze mois.
-- Chaque partie peut y mettre fin par écrit (e-mail compris) avec un préavis de 30 jours, sans frais. Les livraisons continuent jusqu'à la fin du préavis ; les sommes correspondant à des périodes déjà livrées restent dues.
+- Période d'essai : lorsque le devis en prévoit une, elle précède le contrat. Elle est offerte, n'est pas facturée et n'engage pas le client. Le contrat commence à la date de début indiquée au devis.
+- Formule mensuelle : le contrat est conclu pour un mois et se renouvelle automatiquement chaque mois. Le client peut le résilier à tout moment, par écrit (e-mail compris), avec un préavis de 30 jours, sans frais.
+- Formule annuelle : le contrat est conclu pour une durée ferme de 12 mois à compter de la date de début, facturés au prix de 10 mois. Il ne peut pas être résilié avant son terme, sauf manquement grave du vendeur à ses obligations, non corrigé dans les 15 jours suivant une mise en demeure écrite. À son terme, il se renouvelle automatiquement pour une nouvelle période de 12 mois, sauf résiliation par écrit au plus tard 30 jours avant l'échéance.
+- Les sommes correspondant à des périodes déjà livrées restent dues.
 
 ## 3. Origine et qualité des données
 

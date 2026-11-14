@@ -26,7 +26,10 @@ test('devis: refused while the seller is not identifiable, with the list of miss
  assert.deepEqual(devisRefusal(VENDEUR_VERSIONNE),['dénomination','SIREN','RCS (ville du greffe)','forme juridique','adresse','régime de TVA (« franchise » ou « assujetti »)']);
  assert.deepEqual(devisRefusal(COMPLET),[]);
  assert.deepEqual(devisRefusal({...COMPLET,capital:''}),['capital social (obligatoire pour une société)']);
- assert.deepEqual(devisRefusal({...COMPLET,forme_juridique:'Entrepreneur individuel',capital:''}),[],'no capital for a sole trader');
+ assert.deepEqual(devisRefusal({...COMPLET,denomination:'Camille Test EI',forme_juridique:'Entrepreneur individuel',capital:''}),[],'no capital for a sole trader');
+ // An EI must show « EI » (or « entrepreneur individuel ») next to its name on every document.
+ assert.deepEqual(devisRefusal({...COMPLET,denomination:'Camille Test',forme_juridique:'Entrepreneur individuel (micro-entreprise)',capital:''}),['mention « EI » dans la dénomination (par exemple « Kevin Cardia EI »)']);
+ assert.deepEqual(devisRefusal({...COMPLET,denomination:'Camille Test, entrepreneur individuel',forme_juridique:'EI',capital:''}),[]);
  assert.deepEqual(devisRefusal({...COMPLET,siren:'12345'}),['SIREN (9 chiffres attendus)']);
  assert.deepEqual(devisRefusal({...COMPLET,tva:{regime:'assujetti',numero:''}}),['numéro de TVA intracommunautaire']);
 });
@@ -55,7 +58,11 @@ test('proposition: no number, no signature, « en cours d’immatriculation », 
  assert.match(h,/<h1>Proposition commerciale<\/h1>/);assert.match(h,/Société en cours d’immatriculation/);
  assert.doesNotMatch(h,/N° DEV|Bon pour accord|SIREN \d/);
  assert.match(h,/Valable jusqu’au 14 décembre 2026 \(30 jours\)/);
- assert.equal(PIED.proposition,'Document non contractuel. Un devis vous sera adressé dès l’immatriculation finalisée.');
+ assert.equal(PIED.proposition(VENDEUR_VERSIONNE),'Document non contractuel. Un devis vous sera adressé dès l’immatriculation finalisée.');
+ // Once the seller has a SIREN, « en cours d'immatriculation » would be false: neither the badge nor that footer.
+ const immat=renderHtml({mode:'proposition',vendeur:COMPLET,client:EXEMPLE,date:'2026-11-14',conditions:CONDITIONS});
+ assert.doesNotMatch(immat,/en cours d’immatriculation/);assert.doesNotMatch(immat,/Bon pour accord|N° DEV/);
+ assert.equal(PIED.proposition(COMPLET),'Société Test · SIREN 000000000 · Document non contractuel. Un devis vous sera adressé sur demande.');
  for(const piece of ['Paiement par virement à 30 jours','trois fois le taux d’intérêt légal','indemnité forfaitaire pour frais de recouvrement de 40 €',
   'Aucun volume de fiches n’est garanti','TVA non applicable, art. 293 B du CGI','Total TTC','chaque lundi','Période d’essai offerte, hors engagement',
   'Conditions particulières de la veille dédiée','préavis de 30 jours','Licence d','tribunal de commerce de Toulouse','12 derniers mois','nom et la qualité des dirigeants',
@@ -168,4 +175,35 @@ test('renunciation: shown until the last day of the trial when there is one, abs
  }
  const deux=renderHtml({mode:'devis',vendeur:COMPLET,client:{...DEUX,engagement:'mensuel',essai_mois:2},date:'2026-11-14',numero:'DEV-2026-0001',conditions:CONDITIONS});
  assert.ok(deux.includes('Renonciation possible sans frais jusqu’au 30 novembre 2026'),'last day of a 2-month trial too');assert.ok(deux.includes('Du 1er octobre 2026 au 30 novembre 2026'));
+});
+
+// ------------------------------------------------------------------ formule mixte : minimum garanti + commission (apport d'affaires)
+const APPORT=read('commercial/conditions-apport.md');
+const MIXTE:Client={...EXEMPLE,regions:['Île-de-France'],formule:'mixte',prix_ht_par_region_par_mois:undefined,minimum_garanti_ht_par_mois:99,commission_ht_par_client:179,
+ essai_mois:1,engagement:'mensuel',nombre_mois:1,date_debut:'2026-12-15'};
+delete (MIXTE as Partial<Client>).prix_ht_par_region_par_mois;
+test('mixed formula: trial 0 €, then the monthly guaranteed minimum; the commission is shown, never added to the total',()=>{
+ assert.deepEqual(clientIssues(MIXTE),[]);
+ const t=calcul(MIXTE,COMPLET);
+ assert.deepEqual(t.lignes.map(l=>[l.libelle,l.quantite,l.unitaire,l.montant]),[
+  ['Période d’essai offerte, hors engagement — Île-de-France',1,0,0],
+  ['Veille dédiée — Île-de-France : minimum garanti mensuel, déduit des commissions du mois',1,9900,9900]]);
+ assert.equal(t.totalHT,9900);assert.deepEqual(t.essai,{debut:'2026-11-15',fin:'2026-12-14'});
+ assert.match(t.engagement.formule,/^Mixte : minimum garanti mensuel et commission par client signé/);
+ const h=renderHtml({mode:'proposition',vendeur:COMPLET,client:MIXTE,date:'2026-11-14',conditions:CONDITIONS,conditionsApport:APPORT});
+ for(const piece of ['Rémunération au résultat et suivi','Commission : 179,00\u00a0€ HT par client signé','le plus élevé des deux : le minimum garanti de 99,00\u00a0€ HT',
+  'dans les 6 mois suivant la livraison','dans les 15 jours suivant la livraison','Le vendeur ne contacte pas les entreprises et ne négocie pas',
+  '8. Rémunération au résultat (apport d','Fin du contrat : les commissions restent dues','Renonciation possible sans frais jusqu’au 14 décembre 2026'])
+  assert.ok(h.includes(piece),piece);
+ const forfait=renderHtml({mode:'proposition',vendeur:COMPLET,client:EXEMPLE,date:'2026-11-14',conditions:CONDITIONS,conditionsApport:APPORT});
+ assert.ok(!forfait.includes('Rémunération au résultat'),'no commission clause on a flat-fee document');
+ assert.match(APPORT,/^<!-- À faire relire par un juriste avant la première signature\./);
+});
+test('mixed formula: refused when incomplete, annual, or carrying a per-region price',()=>{
+ assert.ok(clientIssues({...MIXTE,commission_ht_par_client:undefined}).includes('commission_ht_par_client'));
+ assert.ok(clientIssues({...MIXTE,minimum_garanti_ht_par_mois:0}).includes('minimum_garanti_ht_par_mois'));
+ assert.ok(clientIssues({...MIXTE,engagement:'annuel'}).some(x=>x.startsWith('engagement : la formule mixte est mensuelle')));
+ assert.ok(clientIssues({...MIXTE,prix_ht_par_region_par_mois:149}).some(x=>x.startsWith('prix_ht_par_region_par_mois : sans objet')));
+ assert.ok(clientIssues({...MIXTE,formule:'abonnement' as 'mixte'}).some(x=>x.startsWith('formule')));
+ assert.ok(clientIssues({...EXEMPLE,prix_ht_par_region_par_mois:undefined}).includes('prix_ht_par_region_par_mois'),'the flat fee still needs its price');
 });

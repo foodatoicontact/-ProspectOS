@@ -34,10 +34,11 @@ if(mode==='devis'){
  ({numero,compteur}=prochainNumero(existsSync(compteurPath)?json<Record<string,number>>(compteurPath):{},Number(date.slice(0,4))));
 }
 
-const html=renderHtml({mode,vendeur,client,date,numero,conditions:readFileSync(join(DIR,'conditions-veille.md'),'utf8')});
+const html=renderHtml({mode,vendeur,client,date,numero,conditions:readFileSync(join(DIR,'conditions-veille.md'),'utf8'),
+ conditionsApport:readFileSync(join(DIR,'conditions-apport.md'),'utf8')});
 const out=join(DIR,'sortie');mkdirSync(out,{recursive:true});
 const file=join(out,`${mode==='devis'?numero:`proposition-${slug}-${date}`}.pdf`);
-const pied=mode==='devis'?PIED.devis(vendeur,numero!):PIED.proposition;
+const pied=mode==='devis'?PIED.devis(vendeur,numero!):PIED.proposition(vendeur);
 // Playwright (déjà présent dans l'environnement de développement) : chargé seulement ici, jamais par le site.
 const {chromium}=createRequire(import.meta.url)('playwright') as {chromium:{launch():Promise<any>}};
 const browser=await chromium.launch();

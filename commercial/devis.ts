@@ -6,7 +6,13 @@ export type Mode='proposition'|'devis';
 export type Vendeur={denomination:string;nom_commercial?:string;forme_juridique:string;capital:string;adresse:string;siren:string;rcs_ville:string;
  tva:{regime:''|'franchise'|'assujetti';numero?:string;taux?:number};email:string;telephone?:string;iban?:string;bic?:string};
 export type Client={denomination:string;adresse:string;siren?:string;contact:{nom:string;fonction:string};regions:string[];sources:string[];metiers:string[];
- livrable:string;frequence:string;prix_ht_par_region_par_mois:number;
+ livrable:string;frequence:string;
+ // « forfait » (défaut) : prix par région et par mois. « mixte » : minimum garanti mensuel + commission par client signé,
+ // le minimum étant déduit des commissions du même mois ; mensuel uniquement.
+ formule?:'forfait'|'mixte';
+ prix_ht_par_region_par_mois?:number;
+ minimum_garanti_ht_par_mois?:number;commission_ht_par_client?:number;
+ fenetre_attribution_mois?:number;delai_clients_connus_jours?:number;
  // Période d'essai gratuite qui PRÉCÈDE le contrat (hors engagement), en mois ; 0 = pas d'essai.
  essai_mois:number;
  engagement:'mensuel'|'annuel';nombre_mois?:number;date_debut:string;
@@ -19,6 +25,7 @@ export type Totaux={lignes:Ligne2[];totalHT:number;tva:number;totalTTC:number;me
 
 const vide=(v:unknown)=>v===undefined||v===null||String(v).trim()==='';
 // Sociétés : le capital est une mention obligatoire des documents commerciaux (Code de commerce, art. R123-238).
+const EI=/\bEI\b|entrepreneur individuel|entreprise individuelle/i;
 const SOCIETE=/\b(SAS|SASU|SARL|EURL|SA|SNC|SCOP|SELARL|SELAS)\b|société/i;
 
 /** Merge the versioned (empty) seller file with the local one, which only fills what it sets. */
@@ -38,6 +45,8 @@ export function devisRefusal(v:Vendeur):string[]{
  else if(!/^\d{9}$/.test(String(v.siren).replace(/\s/g,'')))missing.push('SIREN (9 chiffres attendus)');
  if(vide(v.rcs_ville))missing.push('RCS (ville du greffe)');
  if(vide(v.forme_juridique))missing.push('forme juridique');
+ // Entrepreneur individuel : « EI » ou « entrepreneur individuel » doit précéder ou suivre le nom sur tout document (loi du 14 février 2022).
+ else if(EI.test(v.forme_juridique)&&!EI.test(v.denomination??''))missing.push('mention « EI » dans la dénomination (par exemple « Kevin Cardia EI »)');
  else if(SOCIETE.test(v.forme_juridique)&&vide(v.capital))missing.push('capital social (obligatoire pour une société)');
  if(vide(v.adresse))missing.push('adresse');
  if(v.tva?.regime!=='franchise'&&v.tva?.regime!=='assujetti')missing.push('régime de TVA (« franchise » ou « assujetti »)');
@@ -52,7 +61,15 @@ export function clientIssues(c:Client):string[]{
  if(!Array.isArray(c.regions)||!c.regions.length)p.push('regions');
  if(!Array.isArray(c.sources)||!c.sources.length)p.push('sources');
  if(!Array.isArray(c.metiers)||!c.metiers.length)p.push('metiers');
- if(!(Number.isFinite(c.prix_ht_par_region_par_mois)&&c.prix_ht_par_region_par_mois>0))p.push('prix_ht_par_region_par_mois');
+ const pos=(x:unknown)=>typeof x==='number'&&Number.isFinite(x)&&x>0;
+ if(c.formule!==undefined&&c.formule!=='forfait'&&c.formule!=='mixte')p.push('formule (« forfait » ou « mixte »)');
+ if(c.formule==='mixte'){
+  if(!pos(c.minimum_garanti_ht_par_mois))p.push('minimum_garanti_ht_par_mois');
+  if(!pos(c.commission_ht_par_client))p.push('commission_ht_par_client');
+  if(c.engagement!=='mensuel')p.push('engagement : la formule mixte est mensuelle uniquement');
+  if(c.prix_ht_par_region_par_mois!==undefined)p.push('prix_ht_par_region_par_mois : sans objet en formule mixte (le minimum garanti le remplace)');
+  for(const k of ['fenetre_attribution_mois','delai_clients_connus_jours'] as const)if(c[k]!==undefined&&!(Number.isInteger(c[k])&&c[k]!>0))p.push(k);
+ }else if(!pos(c.prix_ht_par_region_par_mois))p.push('prix_ht_par_region_par_mois');
  if(!(Number.isInteger(c.essai_mois)&&c.essai_mois>=0&&c.essai_mois<=3))p.push('essai_mois (0 à 3)');
  // Les remises sont exclusives : la seule gratuité possible est l'essai avant le contrat, la seule remise dans le contrat
  // est celle de la formule annuelle. Un « mois offert » dans la période facturée est refusé, quelle que soit la formule.
@@ -77,7 +94,8 @@ export const veille=(iso:string)=>new Date(Date.parse(iso.slice(0,10)+'T12:00:00
 export function calcul(c:Client,v:Vendeur):Totaux{
  if(c.mois_offerts!==undefined)throw Error('CUMUL_INTERDIT : « mois_offerts » cumulerait une remise dans la période facturée ; utilisez « essai_mois ».');
  const annuel=c.engagement==='annuel';const mois=annuel?12:(c.nombre_mois??1);
- const pu=cents(c.prix_ht_par_region_par_mois);const parMois=pu*c.regions.length;
+ const mixte=c.formule==='mixte';
+ const pu=cents(c.prix_ht_par_region_par_mois??0);const parMois=pu*c.regions.length;
  const debut=c.date_debut.slice(0,10);const fin=veille(ajouterMois(debut,mois));
  const lignes:Ligne2[]=[];
  let essai:Totaux['essai']=null;
@@ -85,10 +103,12 @@ export function calcul(c:Client,v:Vendeur):Totaux{
   essai={debut:ajouterMois(debut,-c.essai_mois),fin:veille(debut)};
   lignes.push({libelle:`Période d’essai offerte, hors engagement — ${c.regions.join(', ')}`,quantite:c.essai_mois,unitaire:0,montant:0,periode:`du ${dateFr(essai.debut)} au ${dateFr(essai.fin)}`});
  }
- for(const r of c.regions)lignes.push({libelle:`Veille dédiée — ${r}`,quantite:mois,unitaire:pu,montant:pu*mois,periode:`du ${dateFr(debut)} au ${dateFr(fin)}`});
+ if(mixte){const m=cents(c.minimum_garanti_ht_par_mois!);
+  lignes.push({libelle:`Veille dédiée — ${c.regions.join(', ')} : minimum garanti mensuel, déduit des commissions du mois`,quantite:mois,unitaire:m,montant:m*mois,periode:`du ${dateFr(debut)} au ${dateFr(fin)}`});
+ }else for(const r of c.regions)lignes.push({libelle:`Veille dédiée — ${r}`,quantite:mois,unitaire:pu,montant:pu*mois,periode:`du ${dateFr(debut)} au ${dateFr(fin)}`});
  if(annuel)lignes.push({libelle:'Formule annuelle : 12 mois facturés 10',quantite:2,unitaire:-parMois,montant:-parMois*2,periode:`du ${dateFr(debut)} au ${dateFr(fin)}`});
  const totalHT=lignes.reduce((s,l)=>s+l.montant,0);
- const engagement={formule:annuel?'Annuelle : engagement ferme de 12 mois, 12 mois facturés 10':`Mensuelle : sans durée minimale, reconduite chaque mois`,
+ const engagement={formule:annuel?'Annuelle : engagement ferme de 12 mois, 12 mois facturés 10':mixte?'Mixte : minimum garanti mensuel et commission par client signé, sans durée minimale, reconduite chaque mois':`Mensuelle : sans durée minimale, reconduite chaque mois`,
   debut,fin,moisFactures:annuel?10:mois};
  if(v.tva?.regime==='assujetti'){
   const taux=v.tva.taux??20;const tva=Math.round(totalHT*taux/100);
@@ -136,9 +156,9 @@ h2{font-size:11.5pt;margin:16px 0 6px;color:#0b0f24}table{width:100%;border-coll
 td{padding:6px;border-bottom:1px solid #eceef6}td.n,th.n{text-align:right;white-space:nowrap}tr.remise td{color:#12733a}
 .tot{margin-left:auto;width:52%;margin-top:6px}.tot td{border:0;padding:3px 6px}.tot tr.grand td{font-weight:700;font-size:11pt;border-top:2px solid #0b0f24;padding-top:6px}
 ul{margin:4px 0;padding-left:18px}li{margin:2px 0}.sign{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:14px}.sign .box{height:92px}
-.accord{break-inside:avoid}.eng td{border-bottom:1px solid #eceef6;padding:5px 6px}.eng td:first-child{width:32%;color:#6b7090}.annexe{break-before:page}.annexe h2{font-size:13pt}.annexe h3{font-size:10pt;margin:9px 0 2px}.annexe p,.annexe li{font-size:8.6pt;line-height:1.42}`;
+.accord{break-inside:avoid}.annexe h2,.annexe h3{break-after:avoid}.eng td{border-bottom:1px solid #eceef6;padding:5px 6px}.eng td:first-child{width:32%;color:#6b7090}.annexe{break-before:page}.annexe h2{font-size:13pt}.annexe h3{font-size:10pt;margin:9px 0 2px}.annexe p,.annexe li{font-size:8.6pt;line-height:1.42}`;
 
-export function renderHtml(o:{mode:Mode;vendeur:Vendeur;client:Client;date:string;numero?:string|null;conditions:string}):string{
+export function renderHtml(o:{mode:Mode;vendeur:Vendeur;client:Client;date:string;numero?:string|null;conditions:string;conditionsApport?:string}):string{
  const {mode,vendeur:v,client:c}=o;const t=calcul(c,v);
  const nomV=v.denomination||v.nom_commercial||'ProspectOS';
  const idV=[v.forme_juridique&&`${v.forme_juridique}${v.capital?` au capital de ${v.capital}`:''}`,v.siren&&`SIREN ${v.siren}`,v.rcs_ville&&`RCS ${v.rcs_ville}`,
@@ -149,7 +169,7 @@ export function renderHtml(o:{mode:Mode;vendeur:Vendeur;client:Client;date:strin
  return `<!doctype html><html lang="fr"><head><meta charset="utf-8"><title>${esc(titre)} — ${esc(c.denomination)}</title><style>${CSS}</style></head><body>
 <div class="top"><div><div class="logo"><span>P.</span>${esc(v.nom_commercial||'ProspectOS')}</div></div>
 <div class="doc"><h1>${titre}</h1>${o.numero?`<p>N° ${esc(o.numero)}</p>`:''}<p>Date : ${dateFr(o.date)}</p><p>Valable jusqu’au ${dateFr(plusJours(o.date,30))} (30 jours)</p>
-${mode==='proposition'?'<span class="imm">Société en cours d’immatriculation</span>':''}</div></div>
+${mode==='proposition'&&vide(v.siren)?'<span class="imm">Société en cours d’immatriculation</span>':''}</div></div>
 <div class="parties"><div class="box"><h3>Vendeur</h3><p><b>${esc(nomV)}</b></p>${idV?`<p class="muted">${esc(idV)}</p>`:''}${v.adresse?`<p>${esc(v.adresse)}</p>`:''}
 <p>${esc(v.email)}${v.telephone?` · ${esc(v.telephone)}`:''}</p></div>
 <div class="box"><h3>Client</h3><p><b>${esc(c.denomination)}</b></p>${c.siren?`<p class="muted">SIREN ${esc(c.siren)}</p>`:''}<p>${esc(c.adresse)}</p>
@@ -169,14 +189,21 @@ ${t.essai?`<tr><td>Période d’essai</td><td>Du ${dateFr(t.essai.debut)} au ${d
 <li>Régions : ${esc(c.regions.join(', '))}</li><li>Sources : ${esc(c.sources.join(', '))}, et registre national des entreprises pour vérifier chaque entreprise</li>
 <li>Métiers ciblés : ${esc(c.metiers.join(' ; '))}</li><li>Livrable : ${esc(c.livrable)}</li><li>Fréquence : ${esc(c.frequence)}, à partir du ${dateFr(c.date_debut)}</li>
 <li>Aucun volume de fiches n’est garanti : il dépend des publications officielles de la période.</li></ul>
+${c.formule==='mixte'?`<h2>Rémunération au résultat et suivi</h2><ul>
+<li><b>Commission : ${eur(cents(c.commission_ht_par_client!))} HT par client signé</b>, due à l’émission de la première facture de ${esc(c.denomination)} à ce client.</li>
+<li>Chaque mois, le montant facturé est le plus élevé des deux : le minimum garanti de ${eur(cents(c.minimum_garanti_ht_par_mois!))} HT, ou la somme des commissions dues pour le mois.</li>
+<li>Client apporté : une entreprise d’une liste livrée (numérotée, datée, avec son SIREN) qui signe avec ${esc(c.denomination)} dans les ${c.fenetre_attribution_mois??6} mois suivant la livraison.</li>
+<li>Les entreprises déjà connues de ${esc(c.denomination)} sont exclues si elles sont signalées dans les ${c.delai_clients_connus_jours??15} jours suivant la livraison, avec un élément daté.</li>
+<li>Suivi dans un tableau partagé ; relevé des signatures au plus tard le 5 de chaque mois. Le vendeur ne contacte pas les entreprises et ne négocie pas pour le compte du client.</li></ul>`:''}
 <h2>Conditions de paiement</h2><ul>
 <li>Paiement par virement à 30 jours à compter de la date de la facture${v.iban?` — IBAN ${esc(v.iban)}${v.bic?`, BIC ${esc(v.bic)}`:''}`:''}.</li>
 <li>En cas de retard, des pénalités sont dues au taux de trois fois le taux d’intérêt légal, ainsi qu’une indemnité forfaitaire pour frais de recouvrement de 40 € (articles L441-10 et D441-5 du Code de commerce).</li>
 <li>Pas d’escompte pour paiement anticipé.</li></ul>
 <p class="muted">Les conditions particulières de la veille dédiée, jointes en annexe, font partie de ce document.</p>
 ${mode==='devis'?`<div class="accord"><h2>Bon pour accord</h2><div class="sign"><div class="box"><h3>Date</h3></div><div class="box"><h3>Signature et cachet du client</h3><p class="muted">Précédés de la mention « Bon pour accord »</p></div></div></div>`:''}
-<section class="annexe">${mdToHtml(o.conditions)}</section></body></html>`;
+<section class="annexe">${mdToHtml(o.conditions)}${c.formule==='mixte'&&o.conditionsApport?mdToHtml(o.conditionsApport):''}</section></body></html>`;
 }
 
-export const PIED={proposition:'Document non contractuel. Un devis vous sera adressé dès l’immatriculation finalisée.',
+export const PIED={proposition:(v:Vendeur)=>vide(v.siren)?'Document non contractuel. Un devis vous sera adressé dès l’immatriculation finalisée.'
+  :`${v.denomination} · SIREN ${v.siren} · Document non contractuel. Un devis vous sera adressé sur demande.`,
  devis:(v:Vendeur,numero:string)=>`${v.denomination} · SIREN ${v.siren} · RCS ${v.rcs_ville} · Devis ${numero}`};

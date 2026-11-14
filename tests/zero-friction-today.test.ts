@@ -193,9 +193,12 @@ test('10 — only trusted user clicks/submits count; automatic events, renders a
 // ------------------------------------------------------------ 11 copy
 test('11 — commercial copy is NOT changed by ZF1 (the trial stays as on main until the separate NO_TRIAL_RELEASE)',async()=>{
  // Option C (owner decision): ZF1 merges without any commercial change; Production copy, flag OFF, stays exactly main's.
+ // Owner decision (14 nov. 2026, /tarifs): the « Veille dédiée, sur devis » paragraph (and its comment) is the only addition to
+ // the offers block; it is set aside before comparing. Prices, quotas and the trial wording stay main's.
+ const withoutWatch=(t:string)=>t.replace(/  \{\/\* Owner decision \(14 nov\. 2026\): the dedicated watch[\s\S]*?Demander un devis<\/a><\/p>\n/,'');
  for(const f of ['src/components/PricingPage.tsx','src/domain/geo.ts','src/components/DemoModeBanner.tsx']){
   const main=execSync(`git show cca808c:${f}`,{cwd:new URL('..',import.meta.url),encoding:'utf8'});
-  assert.equal(await read(f),main,f);
+  assert.equal(withoutWatch(await read(f)),main,f);
  }
 
  // WEB-2.1 / 2.2 (owner decision): only the /a-propos wording about the demo and the score (and its date) changed. Every other page is main's text,
@@ -211,10 +214,14 @@ test('11 — commercial copy is NOT changed by ZF1 (the trial stays as on main u
   // Owner decision (14 nov. 2026, SEO, option B): /logiciel-prospection-b2b rewritten (title, description, H1, content, FAQ,
   // date) and linked from /prospection-b2b — one sentence in its « Où intervient ProspectOS » callout and its related block.
   // That whole entry and those two lines alone are set aside before comparing; every other page stays main's text.
+  // Owner decision (14 nov. 2026, /tarifs): the « Libre-service ou veille dédiée » section and two price questions added to
+  // its FAQ (its date is already set aside with the title and description). Those lines alone are removed before comparing.
+  const watch=(t:string)=>t.replace(/      \{h2:'Libre-service ou veille dédiée[\s\S]*?\n      \]\},\n/,'')
+   .replace(/      \{q:'(?:Quelle différence entre un abonnement et la veille dédiée|Comment est fixé le prix de la veille dédiée) \?'[^\n]*\n/g,'');
   const logiciel=(t:string)=>t.split("  {\n    slug:'logiciel-prospection-b2b'")[0]!
    .replace(/ Le fonctionnement du logiciel, ses sources officielles et son tarif sont détaillés sur la page \[logiciel de prospection B2B\]\(\/logiciel-prospection-b2b\)\./,'')
    .replace(/related:\['(?:logiciel-prospection-b2b','qualifier-un-prospect-b2b','lead-scoring'|qualifier-un-prospect-b2b','prioriser-liste-prospects','lead-scoring'),'prospection-ia'\]/,'RELATED_PROSPECTION_B2B');
-  const outside=(t:string)=>logiciel(tarifsSeo(t.split(ABOUT)[0]!)).replace(/cta:\{title:'Voir la méthode appliquée',text:'[^']*'\}/,'CTA');
+  const outside=(t:string)=>logiciel(tarifsSeo(watch(t.split(ABOUT)[0]!))).replace(/cta:\{title:'Voir la méthode appliquée',text:'[^']*'\}/,'CTA');
   assert.equal(outside(now),outside(main),'seo-content.ts outside /a-propos and the /prospection-b2b call to action');
   const commercial=(t:string)=>t.split(ABOUT)[1]!.split('\n').filter(l=>/essai|€|_EUR|Solo|Pro |Équipe|tarifs|offre/.test(l)&&!/démonstration publique/.test(l));
   assert.deepEqual(commercial(now),commercial(main),'commercial lines of /a-propos');

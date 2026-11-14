@@ -36,7 +36,10 @@ for(const slug of SLUGS){
     assert.doesNotMatch(related,new RegExp(`href="/${slug}"`),'related links to the current page');
     const relCount=(related.match(/<a /g)??[]).length;
     assert.ok(relCount>=2&&relCount<=4,`related count ${relCount}`);
-    const article=/<article[\s\S]*?<\/article>/.exec(body)?.[0]??'';
+    // The page's own article (v1: class "seo-article", v2: the first bare <article>), up to its LAST closing tag: the offers
+    // block of /tarifs nests <article class="plan-card"> cards, and a lazy match used to stop at the first card (170 words).
+    const open=body.search(/<article(?: class="seo-article")?>/);
+    const article=open<0?'':body.slice(open,body.lastIndexOf('</article>')+'</article>'.length);
     const contextual=[...article.matchAll(/<a [^>]*href="(\/[^"]*)"/g)].map(m=>m[1]).filter(h=>h!=='/');
     assert.ok(contextual.length>=2,'contextual links in the article');
     assert.ok(!contextual.includes(`/${slug}`),'article links to itself');

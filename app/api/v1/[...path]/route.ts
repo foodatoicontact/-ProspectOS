@@ -13,6 +13,7 @@ import {handleDemoShares} from '../../../../src/demo-share/api';
 import {handleDedicated,memberOrganizations} from '../../../../src/dedicated/api';
 import {dedicatedTrackingEnabled} from '../../../../src/dedicated/flag';
 import {notifyAcceptance} from '../../../../src/dedicated/send';
+import {handleNotifications} from '../../../../src/notifications/api';
 import {analyzeCompanyGuarded} from '../../../../src/server/ai-guard';
 import {checked as checkedRpc} from '../../../../src/discovery/repository';
 import {CriterionContextSchema,normalizeCriteriaInput,criteriaIssueMessage} from '../../../../src/discovery/types';
@@ -113,6 +114,14 @@ async function handler(request:Request,context:{params:Promise<{path:string[]}>}
  const dedicatedResponse=await handleDedicated(request,path,db,json,{enabled:dedicatedTrackingEnabled(process.env),now:()=>new Date(),userEmail:user.email??null,
   notifyAccepted:notifyAcceptance});
  if(dedicatedResponse)return dedicatedResponse;
+ // Notification centre (migration 044): the bell of the v2 shell. The administrator flag is the caller's OWN active INTERNAL
+ // entitlement, read under RLS (the database still decides what each one may read).
+ if(path[0]==='notifications'){
+  const {data:ent}=await db.from('account_entitlements').select('plan,status').eq('user_id',user.id).maybeSingle();
+  const notificationsResponse=await handleNotifications(request,path,db,json,{dedicatedEnabled:dedicatedTrackingEnabled(process.env),now:()=>new Date(),
+   admin:(ent as {plan?:string;status?:string}|null)?.plan==='INTERNAL'&&(ent as {status?:string}).status==='ACTIVE'});
+  if(notificationsResponse)return notificationsResponse;
+ }
  let body:Record<string,any>={};
  if(!['GET','HEAD'].includes(request.method)){const raw=await request.text();if(raw.length>20000)return json({error:'Corps trop volumineux'},413);try{body=JSON.parse(raw||'{}')}catch{return json({error:'JSON invalide'},400)}if(!body||Array.isArray(body))return json({error:'Objet requis'},400)}
  const discoveryResponse=await handleDiscovery(request,path,body,db,user);if(discoveryResponse)return discoveryResponse;

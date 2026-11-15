@@ -46,5 +46,6 @@ jobs:
       - run: npm run test:demo-shares-db
       - run: npm run test:dedicated-tracking-db
       - run: npm run test:notification-state-db
+      - run: npm run test:public-events-db
       - run: npm run test:icp-import-db
       - run: npm run test:icp-rollback-db

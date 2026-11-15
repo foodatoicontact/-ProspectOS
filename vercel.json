@@ -16,6 +16,10 @@
     {
       "path": "/api/cron/dedicated-statements",
       "schedule": "23 6 * * *"
+    },
+    {
+      "path": "/api/cron/collect",
+      "schedule": "13 3 * * *"
     }
   ]
 }

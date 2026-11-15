@@ -60,7 +60,7 @@ try {
   `);
   await db.exec(await readFile(new URL('../db/schema.sql', import.meta.url), 'utf8'));
   const migrations = (await readdir(new URL('../db/migrations/', import.meta.url))).filter(f => f.endsWith('.sql')).sort();
-  assert.deepEqual(migrations.slice(migrations.indexOf('034_release_legacy_test_billing.sql')), ['034_release_legacy_test_billing.sql', '035_self_outreach.sql', '036_outreach_evidence_revalidation.sql', '037_outreach_booking_meetings.sql', '039_discovery_bodacc_sales_provider.sql', '040_morning_digest.sql', '041_icp_import.sql', '042_demo_shares.sql', '043_dedicated_tracking.sql', '044_notification_state.sql'], '034 is followed only by 035 (Self-Outreach: its own tables), 036 (outreach evidence provenance: one refusing trigger function) and 037 (Self-Outreach booking link and meetings: its own tables and functions); none writes a billing or entitlement row');
+  assert.deepEqual(migrations.slice(migrations.indexOf('034_release_legacy_test_billing.sql')), ['034_release_legacy_test_billing.sql', '035_self_outreach.sql', '036_outreach_evidence_revalidation.sql', '037_outreach_booking_meetings.sql', '039_discovery_bodacc_sales_provider.sql', '040_morning_digest.sql', '041_icp_import.sql', '042_demo_shares.sql', '043_dedicated_tracking.sql', '044_notification_state.sql', '045_public_events.sql'], '034 is followed only by 035 (Self-Outreach: its own tables), 036 (outreach evidence provenance: one refusing trigger function) and 037 (Self-Outreach booking link and meetings: its own tables and functions); none writes a billing or entitlement row');
   assert.doesNotMatch((await readFile(new URL('../db/migrations/037_outreach_booking_meetings.sql', import.meta.url), 'utf8')).split('\n').filter(l => !l.trim().startsWith('--')).join('\n'), /stripe|billing|entitlement/i, '037 has no billing object');
   // 039 (Discovery provider bodacc_sales): provider constraints, start_discovery and run_reusable only — no billing.
   assert.doesNotMatch((await readFile(new URL('../db/migrations/039_discovery_bodacc_sales_provider.sql', import.meta.url), 'utf8')).split('\n').filter(l => !l.trim().startsWith('--')).join('\n'), /stripe|billing|entitlement/i);
@@ -75,6 +75,8 @@ try {
   assert.doesNotMatch((await readFile(new URL('../db/migrations/043_dedicated_tracking.sql', import.meta.url), 'utf8')).split('\n').filter(l => !l.trim().startsWith('--')).join('\n'), /stripe|billing|(insert into|update|delete from) public\.account_entitlements/i);
   // 044 (notification centre: one read-state table, one function) — no billing, no entitlement write.
   assert.doesNotMatch((await readFile(new URL('../db/migrations/044_notification_state.sql', import.meta.url), 'utf8')).split('\n').filter(l => !l.trim().startsWith('--')).join('\n'), /stripe|billing|(insert into|update|delete from) public\.account_entitlements/i);
+  // 045 (national collection of public events: its own tables and server-only functions) — no billing, no entitlement.
+  assert.doesNotMatch((await readFile(new URL('../db/migrations/045_public_events.sql', import.meta.url), 'utf8')).split('\n').filter(l => !l.trim().startsWith('--')).join('\n'), /stripe|billing|(insert into|update|delete from) public\.account_entitlements/i);
 
   await check('FILE: one DO block, no persistent object, no audit or Stripe event write', async () => {
     assert.match(code, /^do \$\$/m);

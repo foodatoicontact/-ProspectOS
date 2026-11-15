@@ -1,0 +1,77 @@
+// Collecte nationale (migration 045, src/collect): the BODACC of a day for all of France, legal persons only, mapped to
+// four kinds; the company record once per SIREN, a sole trader's name never kept; the nightly job behind its flag.
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
+import {exportUrl,parseBodacc} from '../src/collect/bodacc.ts';
+import {parseCompany} from '../src/collect/enrich.ts';
+import {runCollection} from '../src/collect/run.ts';
+import {collectConfigFrom,enrichDepartments,publicEventsEnabled} from '../src/collect/config.ts';
+const read=(p:string)=>readFileSync(new URL(`../${p}`,import.meta.url),'utf8');
+// Fictitious announcements, shaped like the BODACC open-data export.
+const pm=(denomination:string,siren:string)=>JSON.stringify({personne:{typePersonne:'pm',denomination,numeroImmatriculation:{numeroIdentification:siren.replace(/(\d{3})(\d{3})(\d{3})/,'$1 $2 $3')}}});
+const row=(o:Record<string,unknown>)=>({id:'A1',dateparution:'2026-11-06',registre:['900000001','900 000 001'],commercant:'EXEMPLE SAS',ville:'Meaux',cp:'77100',numerodepartement:'77',
+ url_complete:'https://www.bodacc.fr/pages/annonces-commerciales-detail/?q.id=id:A1',listepersonnes:pm('EXEMPLE SAS','900000001'),...o});
+
+test('BODACC export: one request per family and day, transfers filtered at the source',()=>{
+ const u=new URL(exportUrl('2026-11-06','modification'));
+ assert.equal(u.origin+u.pathname,'https://bodacc-datadila.opendatasoft.com/api/explore/v2.1/catalog/datasets/annonces-commerciales/exports/json');
+ assert.equal(u.searchParams.get('where'),`familleavis="modification" and dateparution=date'2026-11-06' and search("transfert du siège")`);
+ assert.doesNotMatch(new URL(exportUrl('2026-11-06','creation')).searchParams.get('where')!,/search/);
+ assert.throws(()=>exportUrl('06/11/2026','creation'));
+});
+test('BODACC parsing: legal persons only (a natural person is dropped and counted), four kinds, SIREN from the register',()=>{
+ const r=parseBodacc([
+  row({}),
+  row({id:'A2',registre:'900 000 002',listepersonnes:pm('ENTREPOT EXEMPLE','900000002'),listeetablissements:JSON.stringify({etablissement:{qualiteEtablissement:'établissement secondaire',activite:'Entreposage  et   stockage'}})}),
+  row({id:'A3',listepersonnes:JSON.stringify({personne:{typePersonne:'pp',nom:'DUPONT',prenom:'Jean'}})}),
+  row({id:'A4',registre:'pas de numéro'}),
+ ],'creation');
+ assert.equal(r.skippedPersons,1);
+ assert.deepEqual(r.events.map(e=>[e.source_id,e.kind,e.siren]),[['A1','CREATION','900000001'],['A2','ETABLISSEMENT','900000002']]);
+ assert.equal(r.events[1]!.activity,'Entreposage et stockage');
+ assert.equal(r.events[0]!.name,'EXEMPLE SAS');assert.equal(r.events[0]!.department,'77');assert.equal(r.events[0]!.postal_code,'77100');
+ assert.ok(!JSON.stringify(r.events).includes('DUPONT'),'no natural person is kept');
+ const t=parseBodacc([row({modificationsgenerales:JSON.stringify({descriptif:'Modification survenue sur l’activité, transfert du siège social.'})}),
+  row({id:'A9',modificationsgenerales:JSON.stringify({descriptif:'Modification du capital.'})})],'modification');
+ assert.deepEqual(t.events.map(e=>e.kind),['TRANSFERT_SIEGE'],'only stated transfers');
+ assert.deepEqual(parseBodacc([row({})],'vente').events.map(e=>e.kind),['VENTE_FONDS']);
+});
+test('company record: activity, size, legal form, active, objection; a sole trader keeps no name',()=>{
+ const body=(o:Record<string,unknown>)=>({results:[{siren:'900000001',nom_complet:'EXEMPLE SAS',nom_raison_sociale:'EXEMPLE SAS',nature_juridique:'5710',activite_principale:'52.10B',
+  tranche_effectif_salarie:'12',etat_administratif:'A',opposition_diffusion_commerciale:false,complements:{est_entrepreneur_individuel:false},
+  siege:{departement:'77',libelle_commune:'MEAUX'},dirigeants:[{nom:'DUPONT'}],...o}]});
+ assert.deepEqual(parseCompany('900000001',body({})),{siren:'900000001',name:'EXEMPLE SAS',naf:'52.10B',legal_form:'5710',employee_band:'12',active:true,individual:false,
+  opposition:false,department:'77',commune:'MEAUX'});
+ const ei=parseCompany('900000001',body({nature_juridique:'1000',nom_complet:'Jean DUPONT',complements:{est_entrepreneur_individuel:true}}))!;
+ assert.deepEqual([ei.individual,ei.name],[true,null]);
+ assert.equal(parseCompany('900000001',body({opposition_diffusion_commerciale:true}))!.opposition,true);
+ assert.equal(parseCompany('900000001',body({etat_administratif:'C'}))!.active,false);
+ assert.equal(parseCompany('900000009',body({})),null,'another SIREN is never taken');
+ assert.ok(!JSON.stringify(parseCompany('900000001',body({}))).includes('DUPONT'),'no executive');
+});
+test('nightly job: two days × three families, then the records asked, within the time budget; a failure is reported, not fatal',async()=>{
+ const calls:[string,Record<string,unknown>][]=[];let t=0;
+ const rpc=async(name:string,args:Record<string,unknown>)=>{calls.push([name,args]);return name==='ingest_public_events'?{inserted:(args.p_events as unknown[]).length}:name==='sirens_to_enrich'?['900000001','900000002']:2};
+ const fetchJson=async(url:string)=>{t+=100;if(url.includes('recherche-entreprises'))return {results:[{siren:new URL(url).searchParams.get('q'),etat_administratif:'A',nature_juridique:'5710'}]};
+  if(url.includes('%22vente%22')&&url.includes('2026-11-14'))throw Error('HTTP_503');return [row({})]};
+ const r=await runCollection(rpc,fetchJson,{days:['2026-11-14','2026-11-13'],enrich:{departments:['77'],kinds:['CREATION'],since:'2026-10-15',limit:400},deadline:1e9,now:()=>t,sleep:async()=>{}});
+ assert.equal(r.days.length,6);assert.equal(r.days.find(d=>d.error)!.error,'HTTP_503');
+ assert.equal(calls.filter(c=>c[0]==='ingest_public_events').length,5);
+ assert.deepEqual([r.enriched,r.enrichFailed],[2,0]);
+ assert.equal(calls.filter(c=>c[0]==='upsert_company_cache').length,1);
+ // Past the deadline nothing more is fetched.
+ const late=await runCollection(rpc,fetchJson,{days:['2026-11-14'],enrich:null,deadline:0,now:()=>1000,sleep:async()=>{}});
+ assert.deepEqual(late.days,[]);
+});
+test('configuration and wiring: off by default; the two previous Paris days; enrichment only for the departments listed',()=>{
+ assert.equal(publicEventsEnabled({}),false);assert.equal(publicEventsEnabled({PUBLIC_EVENTS_COLLECT_ENABLED:'true'}),true);
+ assert.deepEqual(enrichDepartments({PUBLIC_EVENTS_ENRICH_DEPARTMENTS:' 75,77 ,2a,999x,75'}),['75','77','2A']);
+ const c=collectConfigFrom({},new Date('2026-11-15T02:13:00Z'),{deadline:0,now:()=>0,sleep:async()=>{}});
+ assert.deepEqual(c.days,['2026-11-14','2026-11-13']);assert.equal(c.enrich,null);
+ const route=read('app/api/cron/collect/route.ts');
+ assert.match(route,/if\(!publicEventsEnabled\(process\.env\)\)return json\(\{skipped:'PUBLIC_EVENTS_COLLECT_DISABLED'\}\)/);
+ assert.match(route,/cronAuthorized\(request\.headers\.get\('authorization'\),process\.env\.CRON_SECRET\)/);
+ assert.match(route,/redirect:'error'/);
+ assert.equal(JSON.parse(read('vercel.json')).crons.filter((x:{path:string})=>x.path==='/api/cron/collect').length,1);
+});

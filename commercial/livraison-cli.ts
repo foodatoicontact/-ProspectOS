@@ -7,7 +7,7 @@ import {join,dirname} from 'node:path';
 import {fileURLToPath,pathToFileURL} from 'node:url';
 import {createRequire} from 'node:module';
 import {createHash} from 'node:crypto';
-import {renderHtml,toImport,issues,type Livraison} from './livraison.ts';
+import {renderHtml,toImport,issues,verifierEntreprises,type Livraison} from './livraison.ts';
 import {LIVRAISON_CSS} from '../src/dedicated/livraison-style.ts';
 const DIR=dirname(fileURLToPath(import.meta.url));
 const arg=(k:string)=>{const i=process.argv.indexOf(`--${k}`);return i>0?process.argv[i+1]:undefined};
@@ -17,6 +17,10 @@ const file=join(DIR,'livraisons',`${nom}.json`);
 if(!existsSync(file)){console.error(`Fichier introuvable : ${file}`);process.exit(2)}
 const l=JSON.parse(readFileSync(file,'utf8')) as Livraison;
 const p=issues(l);if(p.length){console.error(`Livraison refusée :\n- ${p.join('\n- ')}`);process.exit(1)}
+// The register check (opposition to prospecting, sole traders, closed companies): no list leaves without it.
+const reg=await verifierEntreprises(l,async url=>{const res=await fetch(url,{signal:AbortSignal.timeout(12000)});if(!res.ok)throw Error(`HTTP_${res.status}`);return res.json()},
+ ()=>new Promise(r=>setTimeout(r,170)));
+if(reg.length){console.error(`Livraison refusée après vérification au registre :\n- ${reg.join('\n- ')}`);process.exit(1)}
 const out=join(DIR,'sortie');mkdirSync(out,{recursive:true});
 const html=join(out,`${nom}.html`),pdf=join(out,`${nom}.pdf`);
 writeFileSync(html,renderHtml(l,LIVRAISON_CSS));

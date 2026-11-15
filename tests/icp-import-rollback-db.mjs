@@ -41,11 +41,12 @@ try {
   // 042 (demo links) came after 041 and is independent of it: its own tables and functions, and of the ICP it only copies
   // icps.name and icps.criteria, which exist since the base schema. It is not applied here: this test pins the rollback of
   // 041 on the chain that ends with it. A later migration that depends on 041 must come with its own rollback order.
-  assert.deepEqual(from041, ['041_icp_import.sql', '042_demo_shares.sql', '043_dedicated_tracking.sql', '044_notification_state.sql', '045_public_events.sql'], 'this rollback is written for 041; only reviewed independent migrations may follow');
+  assert.deepEqual(from041, ['041_icp_import.sql', '042_demo_shares.sql', '043_dedicated_tracking.sql', '044_notification_state.sql', '045_public_events.sql', '046_prospect_lists.sql'], 'this rollback is written for 041; only reviewed independent migrations may follow');
   assert.doesNotMatch((await readFile(new URL('../db/migrations/042_demo_shares.sql', import.meta.url), 'utf8')).split('\n').filter(l => !l.trim().startsWith('--')).join('\n'), /icp_import|icp_profile|guard_icp_profile|validate_icp_import/i);
   assert.doesNotMatch((await readFile(new URL('../db/migrations/043_dedicated_tracking.sql', import.meta.url), 'utf8')).split('\n').filter(l => !l.trim().startsWith('--')).join('\n'), /icp_import|icp_profile|guard_icp_profile|validate_icp_import/i);
   assert.doesNotMatch((await readFile(new URL('../db/migrations/044_notification_state.sql', import.meta.url), 'utf8')).split('\n').filter(l => !l.trim().startsWith('--')).join('\n'), /icp_import|icp_profile|guard_icp_profile|validate_icp_import/i);
   assert.doesNotMatch((await readFile(new URL('../db/migrations/045_public_events.sql', import.meta.url), 'utf8')).split('\n').filter(l => !l.trim().startsWith('--')).join('\n'), /icp_import|icp_profile|guard_icp_profile|validate_icp_import/i);
+  assert.doesNotMatch((await readFile(new URL('../db/migrations/046_prospect_lists.sql', import.meta.url), 'utf8')).split('\n').filter(l => !l.trim().startsWith('--')).join('\n'), /icp_import|icp_profile|guard_icp_profile|validate_icp_import/i);
   for (const f of before041) await db.exec(await readFile(new URL(`../db/migrations/${f}`, import.meta.url), 'utf8'));
   await db.query(`insert into auth.users(id,email) values ('00000000-0000-4000-8000-0000000000a1','a@client.fr')`);
   await db.query(`insert into supabase_migrations.schema_migrations(version,name) values ('20261101214740','040_morning_digest')`);

@@ -40,6 +40,26 @@ export function issues(l:Livraison):string[]{
  if(!n)p.push('aucune fiche');
  return p;
 }
+// Before any delivery: every company is checked in the official register (API Recherche d'entreprises). A company that
+// objects to commercial prospecting (opposition_diffusion_commerciale), a sole trader, a closed company or one the register
+// does not know is refused — the list cannot be generated until it is removed. fetchJson is injected (tests, CLI).
+export type FetchJson=(url:string)=>Promise<unknown>;
+export async function verifierEntreprises(l:Livraison,fetchJson:FetchJson,pause:()=>Promise<void>=async()=>{}):Promise<string[]>{
+ const p:string[]=[];let n=0;
+ for(const s of l.sections)for(const f of s.fiches){n++;
+  let r:Record<string,any>|undefined;
+  try{const body=await fetchJson(`https://recherche-entreprises.api.gouv.fr/search?${new URLSearchParams({q:f.siren,per_page:'1'})}`) as {results?:Record<string,any>[]};
+   r=(body.results??[]).find(x=>x?.siren===f.siren)}catch{p.push(`fiche ${n} (${f.nom}) : registre injoignable, réessayez`);await pause();continue}
+  if(!r)p.push(`fiche ${n} (${f.nom}) : SIREN ${f.siren} introuvable au registre`);
+  else{
+   if(r.opposition_diffusion_commerciale===true)p.push(`fiche ${n} (${f.nom}) : opposée à la prospection commerciale (registre Sirene) — à retirer`);
+   if(r.complements?.est_entrepreneur_individuel===true||String(r.nature_juridique??'').startsWith('1'))p.push(`fiche ${n} (${f.nom}) : entrepreneur individuel — à retirer`);
+   if(r.etat_administratif!=='A')p.push(`fiche ${n} (${f.nom}) : entreprise fermée — à retirer`);
+  }
+  await pause();
+ }
+ return p;
+}
 // The document, as the original generator wrote it (same markup, same order, same anchors c1…cN).
 export function renderHtml(l:Livraison,css:string):string{
  const all=l.sections.flatMap(s=>s.fiches);const total=all.length;

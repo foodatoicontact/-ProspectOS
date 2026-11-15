@@ -76,5 +76,5 @@ Dans ProspectOS, ouvrir « Veille dédiée — clients » → « Nouvelle livrai
 - **Numérotation** : la fiche n de l'outil est la n-ième carte du PDF, dans l'ordre du document (référence `L<livraison>-F<n>`).
 - **Fiches** : chaque fiche reprend les mêmes champs, dans le même ordre et avec les mêmes intitulés que la carte du PDF. Le statut et le journal s'ajoutent en bas de la carte.
 - **Export PDF depuis l'outil** : il rend le PDF envoyé, à l'identique, avec seulement un filigrane et le numéro de livraison en plus. C'est une mise à jour incrémentale : les octets d'origine restent le début exact du fichier.
-- **Style** : il est défini une seule fois, dans `livraison-style.ts`. Le générateur l'écrit tel quel ; l'application l'applique dans son propre bloc.
+- **Style** : il est défini une seule fois, dans `src/dedicated/livraison-style.ts`. Le générateur l'écrit tel quel ; l'application l'applique dans son propre bloc.
 - **SIREN déjà livré** : une entreprise déjà livrée à ce client est refusée, pour que les numéros restent ceux du document. Il faut la retirer du fichier et régénérer le PDF.

@@ -193,8 +193,8 @@ ${c.formule==='mixte'?`<h2>Rémunération au résultat et suivi</h2><ul>
 <li><b>Commission : ${eur(cents(c.commission_ht_par_client!))} HT par client signé</b>, due à l’émission de la première facture de ${esc(c.denomination)} à ce client.</li>
 <li>Chaque mois, le montant facturé est le plus élevé des deux : le minimum garanti de ${eur(cents(c.minimum_garanti_ht_par_mois!))} HT, ou la somme des commissions dues pour le mois.</li>
 <li>Client apporté : une entreprise d’une liste livrée (numérotée, datée, avec son SIREN) qui signe avec ${esc(c.denomination)} dans les ${c.fenetre_attribution_mois??6} mois suivant la livraison.</li>
-<li>Les entreprises déjà connues de ${esc(c.denomination)} sont exclues si elles sont signalées dans les ${c.delai_clients_connus_jours??15} jours suivant la livraison, avec un élément daté.</li>
-<li>Suivi dans un tableau partagé ; relevé des signatures au plus tard le 5 de chaque mois. Le vendeur ne contacte pas les entreprises et ne négocie pas pour le compte du client.</li></ul>`:''}
+<li>Les entreprises déjà connues de ${esc(c.denomination)} sont exclues si elles sont signalées dans l’espace de suivi dans les ${c.delai_clients_connus_jours??15} jours suivant la livraison, avec un élément daté.</li>
+<li>Suivi dans l’espace de suivi ProspectOS : chaque action y est horodatée dans un journal non modifiable. Le relevé des signatures est généré le 1<sup>er</sup> de chaque mois et validé dans l’espace au plus tard le 4. Le vendeur ne contacte pas les entreprises et ne négocie pas pour le compte du client.</li></ul>`:''}
 <h2>Conditions de paiement</h2><ul>
 <li>Paiement par virement à 30 jours à compter de la date de la facture${v.iban?` — IBAN ${esc(v.iban)}${v.bic?`, BIC ${esc(v.bic)}`:''}`:''}.</li>
 <li>En cas de retard, des pénalités sont dues au taux de trois fois le taux d’intérêt légal, ainsi qu’une indemnité forfaitaire pour frais de recouvrement de 40 € (articles L441-10 et D441-5 du Code de commerce).</li>

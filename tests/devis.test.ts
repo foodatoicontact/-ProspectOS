@@ -213,3 +213,11 @@ test('deliveries start with the free trial, not with the contract: the scope lin
  const sans=renderHtml({mode:'proposition',vendeur:COMPLET,client:{...EXEMPLE,essai_mois:0},date:'2026-11-14',conditions:CONDITIONS});
  assert.match(sans,/Fréquence : [^<]*, à partir du 1(er)? décembre 2026<\/li>/);
 });
+test('mixed formula: the follow-up is the ProspectOS follow-up space, not a shared sheet (proposal and clause 8)',()=>{
+ const APP=read('commercial/conditions-apport.md');
+ const h=renderHtml({mode:'proposition',vendeur:COMPLET,client:MIXTE,date:'2026-11-15',conditions:CONDITIONS,conditionsApport:APP});
+ assert.doesNotMatch(h,/tableau partagé|tableau de suivi|e-mail d.envoi fait foi/i);
+ for(const piece of ['Suivi dans l’espace de suivi ProspectOS','validé dans l’espace au plus tard le 4','signalées dans l’espace de suivi dans les 15 jours',
+  'espace de suivi ProspectOS fait foi','Journal : les actions des deux parties','cette validation valant attestation de son exactitude'])
+  assert.ok(h.includes(piece),piece);
+});

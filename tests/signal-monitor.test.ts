@@ -96,7 +96,9 @@ test('route and schedule: GET only, only the Authorization header is read; daily
  assert.deepEqual(vercel.crons.filter((c:any)=>c.path==='/api/cron/signals'),[{path:'/api/cron/signals',schedule:'17 5 * * *'}]);
  // 1 nov. 2026: the morning recap job (migration 040, approved by Kevin) runs after the monitoring; it sends nothing
  // unless MORNING_DIGEST_ENABLED, its secret and the SMTP configuration are set (tests/morning-digest.test.ts).
- assert.deepEqual(vercel.crons.map((c:any)=>c.path).sort(),['/api/cron/morning-digest','/api/cron/self-outreach','/api/cron/signals']);
+ // 15 nov. 2026 (owner request): the veille dédiée statements job (migration 043) — generates the previous month's
+ // statements and announces the unvalidated ones; it does nothing unless DEDICATED_TRACKING_ENABLED (tests/dedicated-tracking.test.ts).
+ assert.deepEqual(vercel.crons.map((c:any)=>c.path).sort(),['/api/cron/dedicated-statements','/api/cron/morning-digest','/api/cron/self-outreach','/api/cron/signals']);
  const src=await readFile(new URL('../src/signals/monitor.ts',import.meta.url),'utf8');
  assert.doesNotMatch(src,/linkedin|anthropic|openai/i);
 });

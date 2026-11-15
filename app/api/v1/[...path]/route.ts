@@ -10,6 +10,9 @@ import {handleIcpImport} from '../../../../src/icp-import/api';
 import {icpImportEnabled} from '../../../../src/icp-import/flag';
 import {handleTenders,tendersEnabled} from '../../../../src/tenders/api';
 import {handleDemoShares} from '../../../../src/demo-share/api';
+import {handleDedicated,memberOrganizations} from '../../../../src/dedicated/api';
+import {dedicatedTrackingEnabled} from '../../../../src/dedicated/flag';
+import {notifyAcceptance} from '../../../../src/dedicated/send';
 import {analyzeCompanyGuarded} from '../../../../src/server/ai-guard';
 import {checked as checkedRpc} from '../../../../src/discovery/repository';
 import {CriterionContextSchema,normalizeCriteriaInput,criteriaIssueMessage} from '../../../../src/discovery/types';
@@ -75,6 +78,15 @@ async function callProviderMeteringFailure(call:()=>ReturnType<typeof analyzeOff
   throw err instanceof AnalyzeOfferError?Error(err.message):err;
  }
 }
+async function dedicatedTrackingFor(db:Awaited<ReturnType<typeof authenticatedDb>>['db']){
+ if(!dedicatedTrackingEnabled(process.env))return {enabled:false,client:false};
+ // A contract of one of the account's OWN organizations (the administrator reads every contract, but is not their client).
+ try{
+  const orgs=await memberOrganizations(db);if(!orgs.length)return {enabled:true,client:false};
+  const {count,error}=await db.from('dedicated_contracts').select('id',{count:'exact',head:true}).in('organization_id',orgs);
+  return {enabled:true,client:!error&&(count??0)>0};
+ }catch{return {enabled:true,client:false}}
+}
 async function handler(request:Request,context:{params:Promise<{path:string[]}>}){
  try {
  const {db,user}=await authenticatedDb(request);const {path}=await context.params;const [resource,id]=path;
@@ -93,6 +105,11 @@ async function handler(request:Request,context:{params:Promise<{path:string[]}>}
  const tendersResponse=await handleTenders(request,path,json,{enabled:tendersEnabled(process.env),requireEntitlement:()=>requireActiveEntitlement(db,user.id),
   log:event=>console.info(JSON.stringify(event))});
  if(tendersResponse)return tendersResponse;
+ // Veille dédiée (migration 043, src/dedicated/api.ts): reads its own body (a delivery or a proposal PDF exceeds the 20 kB
+ // limit below), behind DEDICATED_TRACKING_ENABLED; independent of the subscription (no entitlement check).
+ const dedicatedResponse=await handleDedicated(request,path,db,json,{enabled:dedicatedTrackingEnabled(process.env),now:()=>new Date(),userEmail:user.email??null,
+  notifyAccepted:notifyAcceptance});
+ if(dedicatedResponse)return dedicatedResponse;
  let body:Record<string,any>={};
  if(!['GET','HEAD'].includes(request.method)){const raw=await request.text();if(raw.length>20000)return json({error:'Corps trop volumineux'},413);try{body=JSON.parse(raw||'{}')}catch{return json({error:'JSON invalide'},400)}if(!body||Array.isArray(body))return json({error:'Objet requis'},400)}
  const discoveryResponse=await handleDiscovery(request,path,body,db,user);if(discoveryResponse)return discoveryResponse;
@@ -416,6 +433,9 @@ async function handler(request:Request,context:{params:Promise<{path:string[]}>}
   // Self-Outreach: the flag AND one of the account's own organizations in SELF_OUTREACH_ORG_IDS. Not only the workspace
   // chosen above (a team membership wins there): the routes and the database then check each project's organization.
   self_outreach_enabled:selfOutreachEnabledForAny(process.env,memberships.map((m:any)=>m.organization_id)),
+  // Veille dédiée (migration 043): the flag, and whether this account has a contract to follow (RLS: its own) — the
+  // administrator's dashboard is shown from the INTERNAL entitlement above.
+  dedicated_tracking:await dedicatedTrackingFor(db),
   billing:billingAnswer.error?null:billingAnswer.data??null,
   billing_offers:checkoutAvailability(billingConfig()),
  });

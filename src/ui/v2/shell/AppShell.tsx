@@ -149,3 +149,5 @@ export {TendersPanel} from '../../../components/TendersPanel.tsx';
 // « Partager une démo » (migration 042), under the prospect list; DemoClaim copies a shared project after sign-up.
 export {DemoSharePanel,DemoClaim} from '../../../components/DemoSharePanel.tsx';
 export {ActivityV2,ActionsNative,ActivityOverview} from '../activity/ActivityV2.tsx';
+// Veille dédiée — suivi (migration 043): the client's space and the administrator's dashboard, behind DEDICATED_TRACKING_ENABLED.
+export {DedicatedClient,DedicatedAdmin} from '../dedicated/Dedicated.tsx';

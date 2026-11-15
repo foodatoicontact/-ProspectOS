@@ -1,0 +1,125 @@
+{
+ "client": "Exemple Sécurité",
+ "titre_document": "Exemple Sécurité × ProspectOS — {total} entreprises à appeler (exemple fictif)",
+ "eyebrow": "Exemple fictif · Île-de-France · 16 novembre 2026",
+ "lead": "Exemple fictif : aucune de ces entreprises n’existe. Le gabarit est celui des listes livrées.",
+ "kpis": [
+  [
+   "2",
+   "signaux d’achat"
+  ],
+  [
+   "2",
+   "départements"
+  ],
+  [
+   "100 %",
+   "sourcé officiel"
+  ]
+ ],
+ "departements": {
+  "77": "Seine-et-Marne",
+  "93": "Seine-Saint-Denis"
+ },
+ "note_departements": "Départements : 77, 93.",
+ "signaux": [
+  {
+   "titre": "Transfert de siège",
+   "texte": "De nouveaux locaux à équiper et à faire vérifier.",
+   "couleur": "#5b8def"
+  },
+  {
+   "titre": "Rachat de portefeuille",
+   "texte": "Un syndic reprend des immeubles.",
+   "couleur": "#f0a33a"
+  }
+ ],
+ "par_ou_commencer": [
+  {
+   "nom": "EXEMPLE LOGISTIQUE",
+   "ville": "Meaux (77)",
+   "texte": "Siège transféré le 12 novembre.",
+   "fiche": 1
+  }
+ ],
+ "methode": [
+  {
+   "titre": "BODACC",
+   "texte": "Bulletin officiel des annonces civiles et commerciales (DILA)."
+  }
+ ],
+ "ecartes": [
+  "Les entrepreneurs individuels et tout nom de personne."
+ ],
+ "cta": {
+  "titre": "Cette liste, chaque semaine, sur vos zones.",
+  "texte": "ProspectOS surveille les sources publiques.",
+  "lien": "https://prospectos.fr",
+  "libelle": "prospectos.fr ↗"
+ },
+ "mention_legale": "Exemple fictif généré pour les tests.",
+ "sections": [
+  {
+   "cle": "tr",
+   "titre": "Entreprises qui déménagent",
+   "sous_titre": "transfert de siège publié ces trois dernières semaines",
+   "source": "BODACC — annonces légales",
+   "couleur": "#5b8def",
+   "badge": "BODACC",
+   "fiches": [
+    {
+     "siren": "900000001",
+     "nom": "EXEMPLE LOGISTIQUE",
+     "ville": "Meaux",
+     "dep": "77",
+     "date": "12 novembre 2026",
+     "fait": "Transfert du siège social.",
+     "pourquoi": "De nouveaux locaux à équiper.",
+     "accroche": "J’ai vu que vous avez transféré votre siège à Meaux mi-novembre.",
+     "url": "https://www.bodacc.fr/pages/annonces-commerciales-detail/?q.id=id:B000000001",
+     "puces": [
+      "Entreposage · 20 à 49 salariés"
+     ]
+    },
+    {
+     "siren": "900000002",
+     "nom": "ATELIER FICTIF",
+     "ville": "Montreuil",
+     "dep": "93",
+     "date": "10 novembre 2026",
+     "fait": "Transfert du siège social.",
+     "pourquoi": "De nouveaux locaux à équiper.",
+     "accroche": "J’ai vu que vous avez transféré votre siège à Montreuil.",
+     "url": "https://www.bodacc.fr/pages/annonces-commerciales-detail/?q.id=id:B000000002",
+     "puces": [
+      "Menuiserie · 10 à 19 salariés"
+     ]
+    }
+   ]
+  },
+  {
+   "cle": "syn",
+   "titre": "Syndics & administrateurs de biens",
+   "sous_titre": "qui viennent de racheter un portefeuille",
+   "source": "BODACC — annonces légales",
+   "couleur": "#f0a33a",
+   "badge": "BODACC",
+   "fiches": [
+    {
+     "siren": "900000003",
+     "nom": "SYNDIC EXEMPLE",
+     "ville": "Chelles",
+     "dep": "77",
+     "date": "2 octobre 2026",
+     "fait": "Rachat d’un portefeuille de gestion.",
+     "pourquoi": "Nouveaux immeubles à prendre en main.",
+     "accroche": "J’ai vu que vous avez repris un portefeuille en octobre.",
+     "url": "https://www.bodacc.fr/pages/annonces-commerciales-detail/?q.id=id:A000000003",
+     "puces": [
+      "Fonds acquis : 100 000 €"
+     ]
+    }
+   ]
+  }
+ ]
+}

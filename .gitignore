@@ -7,6 +7,8 @@ node_modules/
 # Propositions et devis de la veille dédiée (commercial/README.md) : aucune donnée client ni bancaire dans git.
 commercial/clients/*
 !commercial/clients/exemple.json
+commercial/livraisons/*
+!commercial/livraisons/exemple.json
 commercial/vendeur.local.json
 commercial/sortie/
 commercial/.compteur-devis.json

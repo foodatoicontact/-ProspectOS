@@ -17,16 +17,18 @@ const PAGE_FRAGMENTS=[
 // Veille dédiée (migration 043, owner request 15 nov. 2026) is set aside the same way: its account state, the two v2
 // account-menu entries and the two v2 screens — nothing in the legacy shell, nothing in the i18n files.
 const DEDICATED_FRAGMENTS=[
- " // Veille dédiée (migration 043): set from the account answer; shown in the v2 shell only.\n const [dedicatedAccess,setDedicatedAccess]=useState({enabled:false,client:false});\n",
- ";setDedicatedAccess({enabled:acc.dedicated_tracking?.enabled===true,client:acc.dedicated_tracking?.client===true})",
- "dedicated:mode==='live'&&dedicatedAccess.client?()=>{setV2Nav(null);setView('dedicated');setFromList(false)}:null,dedicatedAdmin:mode==='live'&&dedicatedAccess.enabled&&entitlementPlan==='INTERNAL'?()=>{setV2Nav(null);setView('dedicated-admin');setFromList(false)}:null,",
+ " // Veille dédiée (migration 043): set from the account answer; shown in the v2 shell only.\n const [dedicatedAccess,setDedicatedAccess]=useState({enabled:false,client:false,proposals:0,statements:0});\n",
+ ";setDedicatedAccess({enabled:acc.dedicated_tracking?.enabled===true,client:acc.dedicated_tracking?.client===true,proposals:Number(acc.dedicated_tracking?.proposals)||0,statements:Number(acc.dedicated_tracking?.statements)||0})",
+ // The sign-in notice (proposal to accept, statement to validate), passed to the shell.
+ " notice={mode==='live'&&dedicatedAccess.client&&view!=='dedicated'&&<v2.DedicatedNotice proposals={dedicatedAccess.proposals} statements={dedicatedAccess.statements} onOpen={()=>{setV2Nav(null);setView('dedicated');setFromList(false)}}/>}",
+ "dedicated:mode==='live'&&dedicatedAccess.client?()=>{setV2Nav(null);setView('dedicated');setFromList(false)}:null,dedicatedPending:dedicatedAccess.proposals+dedicatedAccess.statements,dedicatedAdmin:mode==='live'&&dedicatedAccess.enabled&&entitlementPlan==='INTERNAL'?()=>{setV2Nav(null);setView('dedicated-admin');setFromList(false)}:null,",
  "   :view==='dedicated'&&mode==='live'&&dedicatedAccess.client?<v2.DedicatedClient api={api} token={token}/>\n   :view==='dedicated-admin'&&mode==='live'&&dedicatedAccess.enabled&&entitlementPlan==='INTERNAL'?<v2.DedicatedAdmin api={api}/>\n",
 ];
 const I18N_KEYS=/^ '(?:nav\.selfOutreach|so\.[A-Za-z.]+)':.*\n/gm;
 export function withoutSelfOutreach(src:string):string{
  let out=src;
  for(const f of DEDICATED_FRAGMENTS)out=out.split(f).join('');
- if(/dedicatedAccess|DedicatedClient|DedicatedAdmin|dedicated_tracking/.test(out))throw Error('a veille dédiée fragment outside the known ones');
+ if(/dedicatedAccess|DedicatedClient|DedicatedAdmin|DedicatedNotice|dedicated_tracking/.test(out))throw Error('a veille dédiée fragment outside the known ones');
  for(const f of PAGE_FRAGMENTS)out=out.split(f).join('');
  out=out.replace(I18N_KEYS,'');
  if(/SelfOutreach|selfOutreach|soOn|setSoOn|self_outreach|'so\./.test(out))throw Error('a Self-Outreach fragment outside the known ones');

@@ -22,6 +22,10 @@ export type AppShellProps={
  locale:Locale;current:NavKey|null;onNavigate:(key:NavKey)=>void;
  project:ProjectSwitcherProps;account:Omit<UserMenuProps,'locale'>;
  title:string;actions?:ShellAction[];debug?:ReactNode;children:ReactNode;
+ // A notice shown over the workspace (e.g. the veille dédiée sign-in notice); absent = nothing.
+ notice?:ReactNode;
+ // The notification centre (NotificationBell), shown in the top bar and in the side navigation; absent = no bell.
+ bell?:(variant:'top'|'side')=>ReactNode;
  // A screen already migrated to v2 (UI-3: Today 2.0) replaces the legacy region for that view.
  screen?:ReactNode;
 };
@@ -54,12 +58,13 @@ function ProjectTrigger({p,locale,open,onOpen,triggerRef,variant}:{p:ProjectSwit
  </button>;
 }
 
-export function TopBar({locale,project,account,projectOpen,menuOpen,onProject,onMenu,projectRef,menuRef}:{locale:Locale;project:ProjectSwitcherProps;
+export function TopBar({locale,project,account,projectOpen,menuOpen,onProject,onMenu,projectRef,menuRef,bell}:{locale:Locale;project:ProjectSwitcherProps;bell?:ReactNode;
  account:Omit<UserMenuProps,'locale'>;projectOpen:boolean;menuOpen:boolean;onProject:()=>void;onMenu:()=>void;
  projectRef:RefObject<HTMLButtonElement|null>;menuRef:RefObject<HTMLButtonElement|null>}){
  return <header className="pos-topbar pos-glass">
   <span className="pos-brand"><Mark/><span className="pos-brand__name">ProspectOS</span></span>
   <ProjectTrigger p={project} locale={locale} open={projectOpen} onOpen={onProject} triggerRef={projectRef} variant="top"/>
+  {bell}
   <button ref={menuRef} type="button" className="pos-avatar" aria-haspopup="dialog" aria-expanded={menuOpen} aria-label={MENU_TEXT[locale].trigger} onClick={onMenu}>
    {account.mode==='live'?initials(account.email):<Icon name="declared" size={18}/>}
   </button>
@@ -72,13 +77,13 @@ export function BottomNav({locale,current,onNavigate}:{locale:Locale;current:Nav
  </nav>;
 }
 
-export function SideNav({locale,current,onNavigate,project,account,projectOpen,menuOpen,onProject,onMenu,projectRef,menuRef,onCloseProject,onCloseMenu}:{
- locale:Locale;current:NavKey|null;onNavigate:(k:NavKey)=>void;project:ProjectSwitcherProps;account:Omit<UserMenuProps,'locale'>;
+export function SideNav({locale,current,onNavigate,project,account,projectOpen,menuOpen,onProject,onMenu,projectRef,menuRef,onCloseProject,onCloseMenu,bell}:{
+ bell?:ReactNode;locale:Locale;current:NavKey|null;onNavigate:(k:NavKey)=>void;project:ProjectSwitcherProps;account:Omit<UserMenuProps,'locale'>;
  projectOpen:boolean;menuOpen:boolean;onProject:()=>void;onMenu:()=>void;onCloseProject:()=>void;onCloseMenu:()=>void;
  projectRef:RefObject<HTMLButtonElement|null>;menuRef:RefObject<HTMLButtonElement|null>}){
  const t=SHELL_TEXT[locale];
  return <aside className="pos-sidenav pos-glass">
-  <span className="pos-brand"><Mark/><span className="pos-brand__name">ProspectOS</span></span>
+  <span className="pos-brand" style={bell?{display:'flex',alignItems:'center',justifyContent:'space-between'}:undefined}><span style={{display:'inline-flex',alignItems:'center',gap:'inherit'}}><Mark/><span className="pos-brand__name">ProspectOS</span></span>{bell}</span>
   <div className="pos-sidenav__anchor">
    <ProjectTrigger p={project} locale={locale} open={projectOpen} onOpen={onProject} triggerRef={projectRef} variant="side"/>
    <Popover open={projectOpen} onClose={onCloseProject} label={PROJECT_TEXT[locale].title} anchor={projectRef} className="pos-popover--below">
@@ -105,7 +110,7 @@ export function SideNav({locale,current,onNavigate,project,account,projectOpen,m
  </aside>;
 }
 
-export function AppShell({locale,current,onNavigate,project,account,title,actions,debug,children,screen}:AppShellProps){
+export function AppShell({locale,current,onNavigate,project,account,title,actions,debug,notice,bell,children,screen}:AppShellProps){
  const desktop=useIsDesktop();
  const [projectOpen,setProjectOpen]=useState(false);
  const [menuOpen,setMenuOpen]=useState(false);
@@ -117,13 +122,13 @@ export function AppShell({locale,current,onNavigate,project,account,title,action
   <style href="pos-ui-tokens" precedence="default">{tokensCss()}</style>
   <a className="pos-skip" href="#pos-main">{t.skip}</a>
   <TopBar locale={locale} project={project} account={account} projectOpen={projectOpen&&!desktop} menuOpen={menuOpen&&!desktop}
-   onProject={()=>{setMenuOpen(false);setProjectOpen(true)}} onMenu={()=>{setProjectOpen(false);setMenuOpen(true)}} projectRef={topProject} menuRef={topMenu}/>
+   onProject={()=>{setMenuOpen(false);setProjectOpen(true)}} onMenu={()=>{setProjectOpen(false);setMenuOpen(true)}} projectRef={topProject} menuRef={topMenu} bell={bell?.('top')}/>
   <SideNav locale={locale} current={current} onNavigate={navigate} project={project} account={account}
    projectOpen={projectOpen&&desktop} menuOpen={menuOpen&&desktop} onProject={()=>{setMenuOpen(false);setProjectOpen(o=>!o)}} onMenu={()=>{setProjectOpen(false);setMenuOpen(o=>!o)}}
-   onCloseProject={()=>setProjectOpen(false)} onCloseMenu={()=>setMenuOpen(false)} projectRef={sideProject} menuRef={sideMenu}/>
+   onCloseProject={()=>setProjectOpen(false)} onCloseMenu={()=>setMenuOpen(false)} projectRef={sideProject} menuRef={sideMenu} bell={bell?.('side')}/>
   <main id="pos-main" className="pos-app__main" tabIndex={-1}>
    <h1 className="pos-visually-hidden">{title}</h1>
-   {debug}
+   {debug}{notice}
    {actions&&actions.length>0&&<div className="pos-app__toolbar">{actions.map(a=><Button key={a.key} variant={a.primary?'primary':'secondary'} size="sm"
     iconStart={a.icon} disabled={a.disabled} onClick={a.onClick}>{a.label.replace(/^＋\s*/,'')}</Button>)}</div>}
    {screen??<div className="pos-legacy">{children}</div>}
@@ -151,3 +156,6 @@ export {DemoSharePanel,DemoClaim} from '../../../components/DemoSharePanel.tsx';
 export {ActivityV2,ActionsNative,ActivityOverview} from '../activity/ActivityV2.tsx';
 // Veille dédiée — suivi (migration 043): the client's space and the administrator's dashboard, behind DEDICATED_TRACKING_ENABLED.
 export {DedicatedClient,DedicatedAdmin} from '../dedicated/Dedicated.tsx';
+export {DedicatedNotice} from '../dedicated/DedicatedNotice.tsx';
+// The notification centre (migration 044).
+export {NotificationBell} from './NotificationBell.tsx';

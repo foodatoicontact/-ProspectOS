@@ -39,6 +39,20 @@ export function previousMonth(at:Date):string{
  const t=parisDate(at);const y=+t.slice(0,4),m=+t.slice(5,7);const p=m===1?[y-1,12]:[y,m-1];
  return `${p[0]}-${String(p[1]).padStart(2,'0')}-01`;
 }
+// The first statement month of a proposal: not before the month the trial starts (a statement would bill the minimum
+// during the free trial), and not absurdly late (a mistyped year). null = acceptable.
+export function firstStatementIssue(trialStartsOn:string,firstStatementMonth:string):string|null{
+ if(!/^\d{4}-\d{2}-\d{2}$/.test(trialStartsOn)||!/^\d{4}-\d{2}-01$/.test(firstStatementMonth))return 'Dates invalides.';
+ const months=(Number(firstStatementMonth.slice(0,4))-Number(trialStartsOn.slice(0,4)))*12+Number(firstStatementMonth.slice(5,7))-Number(trialStartsOn.slice(5,7));
+ if(months<0)return `Le premier mois de relevé (${monthLabel(firstStatementMonth)}) est avant le début de l’essai (${monthLabel(trialStartsOn.slice(0,8)+'01')}) : vérifiez l’année.`;
+ if(months>24)return `Le premier mois de relevé (${monthLabel(firstStatementMonth)}) est à plus de deux ans du début de l’essai : vérifiez l’année.`;
+ return null;
+}
+// The day the first statement is generated (the 1st of the following month).
+export function firstStatementDate(firstStatementMonth:string):string{
+ const y=Number(firstStatementMonth.slice(0,4)),m=Number(firstStatementMonth.slice(5,7));
+ return m===12?`${y+1}-01-01`:`${y}-${String(m+1).padStart(2,'0')}-01`;
+}
 export function monthLabel(month:string):string{
  return new Intl.DateTimeFormat('fr-FR',{month:'long',year:'numeric',timeZone:'UTC'}).format(new Date(`${month.slice(0,7)}-01T12:00:00Z`));
 }
@@ -119,4 +133,13 @@ export function parseDelivery(text:string):{items:DeliveryLine[];errors:string[]
  });
  if(items.length>1000)errors.push('1000 fiches au plus par livraison');
  return {items,errors};
+}
+
+// The sign-in notice of the client (src/ui/v2/dedicated/DedicatedNotice.tsx): what waits for them, in one sentence.
+export function noticeText(proposals:number,statements:number):{title:string;text:string;action:string}|null{
+ if(proposals>0&&statements>0)return {title:'Veille dédiée : deux actions vous attendent',text:'Une proposition à accepter et un relevé à valider dans votre espace de suivi.',action:'Ouvrir mon espace'};
+ if(proposals>0)return {title:proposals>1?`${proposals} propositions de veille vous attendent`:'Nouvelle proposition de veille',
+  text:'Lisez-la et acceptez-la pour ouvrir votre espace de suivi : vos livraisons, le statut de chaque entreprise et le relevé du mois.',action:'Voir la proposition'};
+ if(statements>0)return {title:statements>1?`${statements} relevés à valider`:'Relevé du mois à valider',text:'Votre relevé de signatures est prêt : vérifiez-le et validez-le avant le 5.',action:'Voir le relevé'};
+ return null;
 }

@@ -100,3 +100,23 @@ Le job `/api/cron/dedicated-statements` tourne chaque jour à 06:23 UTC. Son pas
 ## Captures
 
 Le banc `/ui-v2/veille-dediee?view=client|admin` affiche les deux écrans sur des données fictives. Il n'est servi que si `UI_V2_ENABLED` et `UI_V2_BENCH_ENABLED` sont actifs, et jamais en production.
+
+## Notifications
+
+La cloche de ProspectOS (barre du haut sur mobile, barre latérale sur ordinateur) affiche le nombre de notifications non lues. Le panneau liste les 90 derniers jours ; chaque notification mène à l'écran concerné.
+
+**Ce que reçoit le client** :
+- une nouvelle proposition, marquée « À faire » tant qu'elle n'est pas acceptée ;
+- une nouvelle livraison ;
+- un relevé à valider, marqué « À faire » tant qu'il n'est pas validé ;
+- la résiliation.
+
+**Ce que reçoit l'administrateur** :
+- l'acceptation d'une proposition ;
+- la validation d'un relevé ;
+- un relevé non validé au 5.
+
+**Comment ça marche** :
+- Les notifications sont lues dans le journal de la veille, qui est en ajout seul, avec ses propres règles d'accès : rien n'est copié.
+- L'état « lu » est enregistré par compte (migration 044, `user_notification_state`). Ouvrir le panneau marque tout comme lu, sur tous les appareils.
+- À la connexion, un message rappelle aussi ce qui reste à faire. « Plus tard » le masque jusqu'à la connexion suivante.

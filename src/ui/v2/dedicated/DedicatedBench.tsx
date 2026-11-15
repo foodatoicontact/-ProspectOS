@@ -3,6 +3,13 @@
 // both screens on FICTITIOUS data, actions applied locally. No real company, person or client in this file.
 import {useEffect,useState} from 'react';
 import {DedicatedClientView,DedicatedAdminView,type ClientData,type AdminView} from './DedicatedViews.tsx';
+import {DedicatedNotice} from './DedicatedNotice.tsx';
+import {NotificationBell} from '../shell/NotificationBell.tsx';
+// The bell on fictitious notifications (no request): the same component as in the shell.
+const BENCH_BELL=async(path:string)=>path==='notifications'?{unread:2,items:[
+ {id:'3',title:'Nouvelle proposition de veille',body:'« Veille Île-de-France — exemple » : lisez-la et acceptez-la pour ouvrir votre espace de suivi.',at:new Date(Date.now()-3600e3).toISOString(),unread:true,pending:true,target:'dedicated'},
+ {id:'2',title:'Livraison n° 2 disponible',body:'3 entreprises à appeler · « Veille Île-de-France — exemple ».',at:new Date(Date.now()-2*86400e3).toISOString(),unread:true,pending:false,target:'dedicated'},
+ {id:'1',title:'Relevé de décembre 2026 à valider',body:'179,00 € HT · à valider avant le 5.',at:new Date(Date.now()-9*86400e3).toISOString(),unread:false,pending:false,target:'dedicated'}]}:{seen:true};
 const C='00000000-0000-4000-8000-00000000c001',D1='00000000-0000-4000-8000-0000000000d1',D2='00000000-0000-4000-8000-0000000000d2';
 const src=(n:number)=>`https://www.bodacc.fr/pages/annonces-commerciales-detail/?q.id=id:A2026${String(n).padStart(4,'0')}`;
 const item=(n:number,d:string,num:number,name:string,city:string,status:ClientData['items'][number]['status'],extra:Partial<ClientData['items'][number]>={}):ClientData['items'][number]=>({
@@ -43,10 +50,11 @@ export const BENCH_ADMIN:AdminView[]=[
 // A local review can pass other data (a real delivery kept outside git) through window.__POS_DEDICATED_BENCH__, set by the
 // browser automation before the page loads. Nothing is fetched and nothing is stored: without it, the fictitious data.
 const injected=():ClientData|null=>typeof window!=='undefined'?((window as unknown as {__POS_DEDICATED_BENCH__?:ClientData}).__POS_DEDICATED_BENCH__??null):null;
-export function DedicatedBench({view}:{view:'client'|'admin'|'proposal'}){
+export function DedicatedBench({view}:{view:'client'|'admin'|'proposal'|'bell'}){
  const [data,setData]=useState<ClientData>(()=>(view==='proposal'?{...BENCH_CLIENT,contracts:BENCH_CLIENT.contracts.map(c=>({...c,status:'PROPOSED',accepted_at:null})),deliveries:[],items:[],statements:[]}:BENCH_CLIENT));
  useEffect(()=>{const i=injected();if(i)setData(i)},[]);const [notice,setNotice]=useState('');
- return <div className="pos-ui" style={{minHeight:'100vh',background:'var(--pos-bg)'}}>{view==='admin'
+ const [signIn,setSignIn]=useState(view==='proposal');
+ return <div className="pos-ui" style={{minHeight:'100vh',background:'var(--pos-bg)'}}>{view==='bell'&&<div style={{display:'flex',justifyContent:'flex-end',padding:12}}><NotificationBell api={BENCH_BELL} onOpen={()=>{}}/></div>}{signIn&&<DedicatedNotice proposals={1} statements={0} onOpen={()=>setSignIn(false)}/>}{view==='admin'
   ?<DedicatedAdminView rows={BENCH_ADMIN} busy={false} error="" notice={notice} onDelivery={()=>setNotice('Livraison créée (banc de test).')} onDocDelivery={()=>setNotice('Livraison créée (banc de test).')} onSearch={async()=>[]} onPropose={()=>setNotice('Veille proposée (banc de test).')} onReplace={()=>setNotice('Version jointe (banc de test).')} onTerminate={()=>setNotice('Veille résiliée (banc de test).')}/>
   :<DedicatedClientView data={data} today="2027-01-02" busy={false} error="" notice={notice}
     onReadProposal={()=>setNotice('Ouverture du PDF (banc de test).')} onAccept={()=>{setData({...data,contracts:data.contracts.map(c=>({...c,status:'ACTIVE',accepted_at:'2027-01-02T10:00:00Z'}))});setNotice('Proposition acceptée : votre espace de suivi est ouvert.')}}

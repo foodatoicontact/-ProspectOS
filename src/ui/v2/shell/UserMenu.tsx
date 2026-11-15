@@ -17,6 +17,8 @@ export type UserMenuProps={
  selfOutreach?:(()=>void)|null;
  // Veille dédiée (migration 043): the client's follow-up space / the administrator's dashboard. Absent or null = no entry.
  dedicated?:(()=>void)|null;dedicatedAdmin?:(()=>void)|null;
+ // Actions waiting in the follow-up space (proposal to accept, statement to validate): shown next to the entry.
+ dedicatedPending?:number;
 };
 
 export const MENU_TEXT:Record<Locale,{title:string;trigger:string;demo:string;account:string;team:string;offer:string;sources:string;
@@ -53,7 +55,7 @@ export function UserMenuContent(p:UserMenuProps&{onDone:()=>void}){
    {live&&<Item icon="info" label={t.privacy} onClick={act(p.onPrivacy)}/>}
    {live&&p.internal&&<Item icon="activity" label={t.beta} onClick={act(p.onBetaAnalytics)}/>}
    {live&&p.selfOutreach&&<Item icon="contact" label={t.selfOutreach} onClick={act(p.selfOutreach)}/>}
-   {live&&p.dedicated&&<Item icon="signal" label={t.dedicated} onClick={act(p.dedicated)}/>}
+   {live&&p.dedicated&&<Item icon="signal" label={p.dedicatedPending?`${t.dedicated} (${p.dedicatedPending})`:t.dedicated} onClick={act(p.dedicated)}/>}
    {live&&p.dedicatedAdmin&&<Item icon="activity" label={t.dedicatedAdmin} onClick={act(p.dedicatedAdmin)}/>}
   </ul>
   <div className="pos-menu__group">

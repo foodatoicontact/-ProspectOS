@@ -370,7 +370,7 @@ export const seoPages:SeoPage[]=[
         ]},
       ]},
       {h2:'Libre-service ou veille dédiée : deux façons d’utiliser ProspectOS',blocks:[
-        {type:'p',text:'Les offres Solo, Pro et Équipe sont en libre-service : vous lancez vos recherches et vérifiez vous-même les preuves, au prix affiché. La veille dédiée est un service : ProspectOS prépare une liste sur votre cible et vos zones (registre, BODACC, BOAMP), la met à jour à la fréquence convenue et vous la livre en PDF et en CSV.'},
+        {type:'p',text:'Les offres Solo, Pro et Équipe sont en libre-service : vous lancez vos recherches et vérifiez vous-même les preuves, au prix affiché. La veille dédiée est un service : ProspectOS prépare une liste sur votre cible et vos zones (registre, BODACC, BOAMP), la met à jour à la fréquence convenue et vous la livre en PDF et en CSV. Son fonctionnement est détaillé sur la page [veille entreprises](/veille-entreprises).'},
         {type:'p',text:'Son prix dépend des zones, des sources et de la fréquence : il est fixé sur devis, avant tout engagement. La méthode suivie est décrite sur la page [prospection B2B](/prospection-b2b).'},
       ]},
       {h2:'Choisir entre Solo, Pro et Équipe',blocks:[
@@ -453,6 +453,56 @@ export const seoPages:SeoPage[]=[
     ],
     cta:{title:'Essayer le logiciel sur votre cible',text:'La démonstration publique montre, sans compte, des prospects de test avec leurs sources ; l’essai de 7 jours lance de vraies recherches sur vos critères.'},
     related:['prospection-b2b','tarifs','qualifier-un-prospect-b2b','a-propos'],
+  },
+  {
+    slug:'veille-entreprises',
+    navLabel:'Veille entreprises : chaque lundi',
+    updated:'2026-11-15',
+    keywords:{primary:'veille entreprises',secondary:['liste des entreprises nouvellement créées','veille BODACC','entreprises qui déménagent','fichier de prospection B2B']},
+    title:'Veille entreprises : nouvelles sociétés et reprises | ProspectOS',
+    description:'Veille entreprises dédiée : chaque lundi, les sociétés qui viennent de s’installer, de déménager ou d’être reprises dans vos zones, vérifiées et sourcées au BODACC.',
+    eyebrow:'SERVICE · VEILLE DÉDIÉE',
+    h1:'Veille entreprises : les sociétés à appeler cette semaine, livrées chaque lundi',
+    intro:'Une entreprise qui vient de s’installer, d’ouvrir un établissement, de déménager son siège ou d’être reprise revoit ses prestataires : locaux à équiper, contrats à renégocier, vérifications à programmer. Ces événements sont publics, datés et publiés chaque jour. La veille dédiée de ProspectOS les repère pour vous, les vérifie et vous livre chaque lundi la liste des entreprises à appeler dans vos zones, avec la raison de l’appel et le lien vers la source officielle.',
+    sections:[
+      {h2:'Ce que vous recevez chaque lundi',blocks:[
+        {type:'ul',items:[
+          'Une liste numérotée et datée, en PDF et en CSV, des entreprises qui correspondent à votre métier et à vos départements.',
+          'Pour chaque entreprise : le fait publié et sa date, pourquoi c’est le bon moment, une première phrase d’accroche qui cite ce fait, et le lien vers la publication officielle.',
+          'Un espace de suivi dans ProspectOS : le statut de chaque entreprise (à contacter, contacté, devis envoyé, signé, perdu), un journal horodaté et, si vous êtes rémunéré au résultat, le relevé du mois.',
+        ]},
+        {type:'p',text:'Le nombre d’entreprises dépend de ce qui est publié pendant la semaine : aucun volume minimum n’est promis. Une liste courte et juste vaut mieux qu’un long fichier à trier.'},
+      ]},
+      {h2:'Les événements qui déclenchent un appel',blocks:[
+        {type:'h3',text:'Créations et nouveaux établissements'},
+        {type:'p',text:'Une société qui s’immatricule ou ouvre un établissement doit équiper ses locaux et choisir ses premiers fournisseurs. L’annonce indique l’activité déclarée et la commune.'},
+        {type:'h3',text:'Transferts de siège'},
+        {type:'p',text:'Une nouvelle adresse signifie souvent de nouveaux locaux : aménagement, sécurité, maintenance, télécoms. C’est le signal le plus utile pour les métiers qui interviennent sur place.'},
+        {type:'h3',text:'Reprises de fonds de commerce'},
+        {type:'p',text:'Un nouveau propriétaire remet les contrats à plat. La veille signale les ventes de fonds publiées au BODACC, côté acquéreur, avec le prix quand l’annonce l’indique.'},
+        {type:'h3',text:'Installations classées inspectées'},
+        {type:'p',text:'Pour la sécurité incendie et la maintenance industrielle, la base officielle des installations classées indique les entrepôts et sites inspectés récemment.'},
+      ]},
+      {h2:'Pourquoi une veille plutôt qu’un fichier acheté',blocks:[
+        {type:'p',text:'Le BODACC publie plusieurs milliers d’annonces chaque semaine : environ 5 500 en Île-de-France sur la semaine du 2 au 8 novembre 2026. Les lire, écarter le hors-cible, vérifier chaque entreprise au registre et préparer une raison d’appeler représente plusieurs heures par semaine. Un fichier acheté dit qui existe ; la veille dit qui vient de changer, et pourquoi l’appeler maintenant.'},
+        {type:'p',text:'Le même travail peut être fait en libre-service avec le [logiciel de prospection B2B](/logiciel-prospection-b2b), si vous préférez mener vos recherches vous-même. La méthode de fond est décrite dans [la méthode de prospection B2B](/prospection-b2b).'},
+      ]},
+      {h2:'Sources officielles et données personnelles',blocks:[
+        {type:'p',text:'Les faits viennent du BODACC (DILA), de la base des installations classées (Géorisques) et du registre des entreprises (API Recherche d’entreprises), publiés sous Licence Ouverte. Chaque entreprise est vérifiée au registre avant livraison : active, avec un SIREN, et sans opposition à la prospection commerciale.'},
+        {type:'callout',title:'Des entreprises, pas des personnes',text:'Les entrepreneurs individuels et les entreprises inscrites comme opposées à la prospection commerciale sont retirés de chaque liste. Aucune adresse ni coordonnée personnelle n’est fournie, et ProspectOS ne contacte jamais les entreprises à votre place.'},
+      ]},
+      {h2:'Tarif : au forfait ou au résultat',blocks:[
+        {type:'p',text:'La veille dédiée est proposée sur devis, au forfait par région ou au résultat : un minimum mensuel et une commission par client signé, le plus élevé des deux étant facturé. Le premier mois peut être offert, sans engagement. Les abonnements en libre-service sont détaillés sur la page [tarifs](/tarifs).'},
+      ]},
+    ],
+    faq:[
+      {q:'Quelles zones peut couvrir la veille ?',a:'Toute la France métropolitaine et les départements d’outre-mer publiés au BODACC. Vous choisissez vos départements ; la liste ne contient que ceux-là.'},
+      {q:'Combien d’entreprises par semaine ?',a:'Cela dépend de votre métier, de vos zones et de ce qui est publié : aucun volume minimum n’est promis. Chaque entreprise livrée est vérifiée et sourcée.'},
+      {q:'Puis-je arrêter quand je veux ?',a:'Oui. Au mois, la veille est résiliable avec un préavis de 30 jours ; le premier mois peut être offert et renonçable sans frais.'},
+      {q:'Est-ce conforme au RGPD ?',a:'La veille ne livre que des entreprises, à partir de données publiques officielles. Les entrepreneurs individuels et les entreprises opposées à la prospection commerciale sont retirés avant livraison.'},
+    ],
+    cta:{title:'Recevoir un échantillon sur votre zone',text:'Écrivez à contact@prospectos.fr avec votre métier et vos départements : vous recevez un échantillon de la liste avant toute décision.',href:'/tarifs',label:'Voir les tarifs'},
+    related:['logiciel-prospection-b2b','tarifs','prospection-b2b'],
   },
   {
     slug:'a-propos',

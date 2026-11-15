@@ -19,7 +19,7 @@
 // the administrator's uploads, 20 kB otherwise. No subscription is checked here: the veille is independent of it.
 import {z} from 'zod';
 import type {SupabaseClient} from '@supabase/supabase-js';
-import {ATTESTATION,PROOF_KINDS,alerts,counters,exportCsv,parseDelivery,isDedicatedStatus,dateFr,parisDate,type AdminContract,type ExportRow} from './model.ts';
+import {ATTESTATION,PROOF_KINDS,firstStatementIssue,alerts,counters,exportCsv,parseDelivery,isDedicatedStatus,dateFr,parisDate,type AdminContract,type ExportRow} from './model.ts';
 import {exportPdf} from './pdf.ts';
 import {stampPdf} from './stamp.ts';
 type Json=(value:unknown,status?:number)=>Response;
@@ -184,6 +184,7 @@ export async function handleDedicated(request:Request,path:string[],db:SupabaseC
   }
   if(request.method==='POST'&&b==='proposals'&&!c){
    const p=Proposal.safeParse(body);if(!p.success)return json({error:'Demande invalide'},400);
+   const monthIssue=firstStatementIssue(p.data.trial_starts_on,p.data.first_statement_month);if(monthIssue)return json({error:monthIssue,code:'FIRST_STATEMENT_MONTH'},422);
    const r=await call('propose_dedicated_watch',{p_organization_id:p.data.organization_id,p_label:p.data.label,p_minimum_ht_cents:Math.round(p.data.minimum_eur*100),
     p_commission_ht_cents:Math.round(p.data.commission_eur*100),p_known_client_days:p.data.known_client_days??15,p_trial_starts_on:p.data.trial_starts_on,
     p_first_statement_month:p.data.first_statement_month,p_file_name:p.data.file_name,p_pdf_base64:p.data.pdf_base64});

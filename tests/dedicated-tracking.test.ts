@@ -194,3 +194,16 @@ test('proposal screens: « J’accepte la proposition » before the space; termi
  assert.doesNotMatch(views,/client_email/,'no attachment by e-mail address');
  assert.match(read('src/dedicated/api.ts'),/p_organization_id:p\.data\.organization_id/);
 });
+
+test('first statement month: never before the trial starts (a mistyped year is refused), the generation date is shown',async()=>{
+ const {firstStatementIssue,firstStatementDate}=await import('../src/dedicated/model.ts');
+ assert.match(firstStatementIssue('2026-11-16','2026-01-01')!,/avant le début de l’essai.*vérifiez l’année/);
+ assert.match(firstStatementIssue('2026-11-16','2029-01-01')!,/plus de deux ans/);
+ assert.equal(firstStatementIssue('2026-11-16','2026-11-01'),null);assert.equal(firstStatementIssue('2026-11-16','2027-01-01'),null);
+ assert.equal(firstStatementDate('2027-01-01'),'2027-02-01');assert.equal(firstStatementDate('2026-12-01'),'2027-01-01');
+ const db={rpc:async()=>{throw Error('must not reach the database')}} as never;
+ const r=await handleDedicated(new Request('https://prospectos.fr/api/v1/dedicated/admin/proposals',{method:'POST',body:JSON.stringify({organization_id:'00000000-0000-4000-8000-000000000001',label:'Veille',
+  minimum_eur:99,commission_eur:179,trial_starts_on:'2026-11-16',first_statement_month:'2026-01-01',file_name:'p.pdf',pdf_base64:'J'.repeat(200)})}),['dedicated','admin','proposals'],db,json,{enabled:true,now:()=>NOW});
+ assert.equal(r!.status,422);assert.equal((await r!.json()).code,'FIRST_STATEMENT_MONTH');
+ assert.match(read('src/ui/v2/dedicated/DedicatedViews.tsx'),/&&!monthIssue;/,'the button stays disabled');
+});

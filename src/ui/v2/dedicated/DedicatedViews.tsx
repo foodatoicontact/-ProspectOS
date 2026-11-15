@@ -6,7 +6,7 @@
 // « signé » asks for the first invoice date, the statement needs the attestation box) and reports the server's refusal.
 import {useState} from 'react';
 import {STATUS_LABEL,DEDICATED_STATUSES,PROOF_KINDS,PROOF_LABEL,ATTESTATION,eur,dateFr,monthLabel,knownClientOpen,knownClientDeadline,statementDeadline,
- type DedicatedStatus,type Counters,type Alert} from '../../../dedicated/model.ts';
+ type DedicatedStatus,type Counters,type Alert,firstStatementIssue,firstStatementDate} from '../../../dedicated/model.ts';
 import './dedicated.css';
 import {DeliveryDocument,LivraisonStyle} from './DeliveryView.tsx';
 
@@ -118,7 +118,8 @@ export function DedicatedAdminView(p:{rows:AdminView[];busy:boolean;error:string
  const [docs,setDocs]=useState<Record<string,{imp?:File;pdf?:File}>>({});
  const [q,setQ]=useState('');const [hits,setHits]=useState<OrgHit[]>([]);const [org,setOrg]=useState<OrgHit|null>(null);const [file,setFile]=useState<File|null>(null);
  const [nc,setNc]=useState({label:'',minimum_eur:'99',commission_eur:'179',trial_starts_on:'',first_statement_month:''});
- const ready=!!org&&!!file&&!!nc.label.trim()&&!!nc.trial_starts_on&&!!nc.first_statement_month;
+ const monthIssue=nc.trial_starts_on&&nc.first_statement_month?firstStatementIssue(nc.trial_starts_on,nc.first_statement_month):null;
+ const ready=!!org&&!!file&&!!nc.label.trim()&&!!nc.trial_starts_on&&!!nc.first_statement_month&&!monthIssue;
  const alertsCount=p.rows.reduce((n,r)=>n+r.alerts.length,0);
  return <div className="pos-ded">
   <header><h2>Veille dédiée — clients</h2><p className="pos-ded__muted">{plural(p.rows.length,'client','clients')} · {plural(alertsCount,'alerte','alertes')}. Visible par l’administrateur seulement.</p></header>
@@ -158,6 +159,8 @@ export function DedicatedAdminView(p:{rows:AdminView[];busy:boolean;error:string
      <label>Début de l’essai<input type="date" value={nc.trial_starts_on} onChange={e=>setNc({...nc,trial_starts_on:e.target.value})}/></label>
     </div>
     <label>Premier mois de relevé<input type="month" value={nc.first_statement_month.slice(0,7)} onChange={e=>setNc({...nc,first_statement_month:e.target.value?`${e.target.value}-01`:''})}/></label>
+    {monthIssue?<p className="pos-ded__note pos-ded__note--error" role="alert">{monthIssue}</p>
+     :nc.first_statement_month&&<p className="pos-ded__note">Premier relevé : {monthLabel(nc.first_statement_month)}, généré le {dateFr(firstStatementDate(nc.first_statement_month))}. Les signatures antérieures y sont reprises.</p>}
     <label>Proposition (PDF généré par npm run devis)<input type="file" accept="application/pdf" onChange={e=>setFile(e.target.files?.[0]??null)}/></label>
     <div className="pos-ded__actions"><button type="button" className="pos-ded__btn pos-ded__btn--primary" disabled={p.busy||!ready}
      onClick={()=>p.onPropose({organization_id:org!.id,label:nc.label.trim(),minimum_eur:Number(nc.minimum_eur.replace(',','.')),commission_eur:Number(nc.commission_eur.replace(',','.')),trial_starts_on:nc.trial_starts_on,first_statement_month:nc.first_statement_month,file:file!})}>Proposer la veille</button></div>

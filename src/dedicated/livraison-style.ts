@@ -1,5 +1,5 @@
 // The style sheet of the delivered lists (the PDFs already sent), unchanged. One source for the two places that must look
-// alike: the generator writes it as is into the document (commercial/livraison.ts), the follow-up space applies it inside
+// alike: the generator writes it as is into the document (commercial/livraison.ts imports it from here), the follow-up space applies it inside
 // its own block (scopedLivraisonCss). Change it here only: both follow.
 export const LIVRAISON_CSS=`@page{size:A4;margin:0}
 *{box-sizing:border-box;margin:0;padding:0}

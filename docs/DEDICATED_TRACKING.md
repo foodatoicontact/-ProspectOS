@@ -41,7 +41,7 @@ Le suivi des signatures se fait **dans ProspectOS**, pas dans un tableau externe
 
 ## Apparence des livraisons
 
-Une livraison ressemble dans l'outil au PDF que le client a reçu (gabarit : `commercial/livraison.ts`, `commercial/livraison-style.ts`).
+Une livraison ressemble dans l'outil au PDF que le client a reçu (gabarit : `commercial/livraison.ts`, `src/dedicated/livraison-style.ts`).
 
 - **En-tête** : même logo, « Préparé pour », bandeau avec la date (le numéro de livraison est ajouté devant), même titre.
 - **Sections** : un bandeau sombre par signal, avec le nombre d'entreprises, le titre et « sous-titre · source : … ».

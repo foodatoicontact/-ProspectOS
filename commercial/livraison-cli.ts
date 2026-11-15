@@ -8,7 +8,7 @@ import {fileURLToPath,pathToFileURL} from 'node:url';
 import {createRequire} from 'node:module';
 import {createHash} from 'node:crypto';
 import {renderHtml,toImport,issues,type Livraison} from './livraison.ts';
-import {LIVRAISON_CSS} from './livraison-style.ts';
+import {LIVRAISON_CSS} from '../src/dedicated/livraison-style.ts';
 const DIR=dirname(fileURLToPath(import.meta.url));
 const arg=(k:string)=>{const i=process.argv.indexOf(`--${k}`);return i>0?process.argv[i+1]:undefined};
 const nom=arg('livraison');

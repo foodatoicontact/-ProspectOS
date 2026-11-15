@@ -6,7 +6,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {renderHtml,toImport,issues,dateIso,type Livraison} from '../commercial/livraison.ts';
-import {LIVRAISON_CSS,scopedLivraisonCss} from '../commercial/livraison-style.ts';
+import {LIVRAISON_CSS,scopedLivraisonCss} from '../src/dedicated/livraison-style.ts';
 import {stampPdf,PdfNotStampable} from '../src/dedicated/stamp.ts';
 import {exportPdf} from '../src/dedicated/pdf.ts';
 const read=(p:string)=>readFileSync(new URL(`../${p}`,import.meta.url),'utf8');

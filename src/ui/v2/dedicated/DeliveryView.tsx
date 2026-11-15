@@ -6,7 +6,7 @@
 // (scopedLivraisonCss). What the follow-up adds comes AFTER, at the bottom of the card: the card's number in the document,
 // the status menu (with the date or the proof it needs, inline), the card's journal. Fiche n = the n-th card of the PDF.
 import {useState} from 'react';
-import {scopedLivraisonCss} from '../../../../commercial/livraison-style.ts';
+import {scopedLivraisonCss} from '../../../dedicated/livraison-style.ts';
 import {STATUS_LABEL,DEDICATED_STATUSES,PROOF_KINDS,PROOF_LABEL,dateFr,knownClientOpen,knownClientDeadline,ficheNumber,type DedicatedStatus} from '../../../dedicated/model.ts';
 import type {Contract,Delivery,Item,HistoryEntry,StatusChange} from './DedicatedViews.tsx';
 

@@ -6,7 +6,7 @@ import type {IconName} from '../icons.ts';
 
 export type NavKey='today'|'prospects'|'search'|'activity'|'sources'|'settings';
 // The views app/page.tsx already renders (its `view` state).
-export type AppView='today'|'prospects'|'discovery'|'actions'|'dashboard'|'icp'|'beta-analytics'|'outreach';
+export type AppView='today'|'prospects'|'discovery'|'actions'|'dashboard'|'icp'|'beta-analytics'|'outreach'|'dedicated'|'dedicated-admin';
 // What this account can see today: "Aujourd'hui" (ZF1) and "À faire" (NBA) exist only for a live account with their flag.
 export type NavCaps={live:boolean;today:boolean;actions:boolean};
 
@@ -56,5 +56,7 @@ export function viewTitle(view:AppView,locale:Locale):string{
   case 'icp':return fr?'Offre & cible':'Offer & target';
   case 'beta-analytics':return 'Bêta Analytics';
   case 'outreach':return fr?'Outreach ProspectOS':'ProspectOS outreach';
+  case 'dedicated':return fr?'Veille dédiée — suivi':'Dedicated watch — tracking';
+  case 'dedicated-admin':return fr?'Veille dédiée — clients':'Dedicated watch — clients';
  }
 }

@@ -10,6 +10,8 @@ import {handleIcpImport} from '../../../../src/icp-import/api';
 import {icpImportEnabled} from '../../../../src/icp-import/flag';
 import {handleTenders,tendersEnabled} from '../../../../src/tenders/api';
 import {handleDemoShares} from '../../../../src/demo-share/api';
+import {handleDedicated,memberOrganizations} from '../../../../src/dedicated/api';
+import {dedicatedTrackingEnabled} from '../../../../src/dedicated/flag';
 import {analyzeCompanyGuarded} from '../../../../src/server/ai-guard';
 import {checked as checkedRpc} from '../../../../src/discovery/repository';
 import {CriterionContextSchema,normalizeCriteriaInput,criteriaIssueMessage} from '../../../../src/discovery/types';
@@ -75,6 +77,15 @@ async function callProviderMeteringFailure(call:()=>ReturnType<typeof analyzeOff
   throw err instanceof AnalyzeOfferError?Error(err.message):err;
  }
 }
+async function dedicatedTrackingFor(db:Awaited<ReturnType<typeof authenticatedDb>>['db']){
+ if(!dedicatedTrackingEnabled(process.env))return {enabled:false,client:false};
+ // A contract of one of the account's OWN organizations (the administrator reads every contract, but is not their client).
+ try{
+  const orgs=await memberOrganizations(db);if(!orgs.length)return {enabled:true,client:false};
+  const {count,error}=await db.from('dedicated_contracts').select('id',{count:'exact',head:true}).in('organization_id',orgs);
+  return {enabled:true,client:!error&&(count??0)>0};
+ }catch{return {enabled:true,client:false}}
+}
 async function handler(request:Request,context:{params:Promise<{path:string[]}>}){
  try {
  const {db,user}=await authenticatedDb(request);const {path}=await context.params;const [resource,id]=path;
@@ -129,6 +140,7 @@ async function handler(request:Request,context:{params:Promise<{path:string[]}>}
  const morningDigestResponse=await handleMorningDigest(request,path,body,db,json,{env:process.env,userId:user.id});if(morningDigestResponse)return morningDigestResponse;
  // Demo links (src/demo-share/api.ts, migration 042): owner-only create / list / revoke, and the copy after sign-up.
  const demoShareResponse=await handleDemoShares(request,path,body,db,json);if(demoShareResponse)return demoShareResponse;
+ const dedicatedResponse=await handleDedicated(request,path,body,db,json,{enabled:dedicatedTrackingEnabled(process.env),now:()=>new Date()});if(dedicatedResponse)return dedicatedResponse;
  const selfOutreachResponse=await handleSelfOutreach(request,path,body,db,json,{env:process.env,now:()=>new Date(),requireEntitlement:()=>requireActiveEntitlement(db,user.id)});if(selfOutreachResponse)return selfOutreachResponse;
  const checked=async(query:PromiseLike<any>)=>{const {data,error}=await query;if(error)throw Error('DATABASE_REQUEST_FAILED');return data};
  if(resource==='organizations'){
@@ -416,6 +428,9 @@ async function handler(request:Request,context:{params:Promise<{path:string[]}>}
   // Self-Outreach: the flag AND one of the account's own organizations in SELF_OUTREACH_ORG_IDS. Not only the workspace
   // chosen above (a team membership wins there): the routes and the database then check each project's organization.
   self_outreach_enabled:selfOutreachEnabledForAny(process.env,memberships.map((m:any)=>m.organization_id)),
+  // Veille dédiée (migration 043): the flag, and whether this account has a contract to follow (RLS: its own) — the
+  // administrator's dashboard is shown from the INTERNAL entitlement above.
+  dedicated_tracking:await dedicatedTrackingFor(db),
   billing:billingAnswer.error?null:billingAnswer.data??null,
   billing_offers:checkoutAvailability(billingConfig()),
  });

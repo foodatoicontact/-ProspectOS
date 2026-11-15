@@ -159,12 +159,12 @@ export default function Home(){
  const acc=await api('account','GET',undefined,t);lastAccount.current=acc;
  let entitlement=acc.entitlement;
  if(!entitlement&&acc.role!=='member'){try{const activated=await api('account/activate-trial','POST',{},t);entitlement={plan:activated.plan,status:activated.status,expires_at:activated.expires_at,active:activated.status==='ACTIVE'&&new Date(activated.expires_at).getTime()>Date.now()}}catch(e){if(e instanceof Error&&(e as Error&{code?:string}).code==='BETA_CAPACITY_REACHED'){setNotice(e.message);setTrialAvailable(false);setModal('pricing')}}}
- setOrgName(acc.organization?.name??'');setOrgId(acc.organization_id??'');setRole(acc.role??'');setBetaActive(entitlement?entitlement.active:null);setBetaExpiresAt(entitlement?.expires_at??'');setEntitlementPlan(entitlement?.plan??null);setUsage(usageView(acc.usage));setBillingOffers(acc.billing_offers??null);setBillingStatus(acc.billing??null);setAiOutreachOn(acc.ai_outreach_enabled===true);setNbaOn(acc.next_best_action_enabled===true);setSoOn(acc.self_outreach_enabled===true);setZfOn(acc.zero_friction_today_enabled===true);
+ setOrgName(acc.organization?.name??'');setOrgId(acc.organization_id??'');setRole(acc.role??'');setBetaActive(entitlement?entitlement.active:null);setBetaExpiresAt(entitlement?.expires_at??'');setEntitlementPlan(entitlement?.plan??null);setUsage(usageView(acc.usage));setBillingOffers(acc.billing_offers??null);setBillingStatus(acc.billing??null);setAiOutreachOn(acc.ai_outreach_enabled===true);setNbaOn(acc.next_best_action_enabled===true);setSoOn(acc.self_outreach_enabled===true);setDedicatedAccess({enabled:acc.dedicated_tracking?.enabled===true,client:acc.dedicated_tracking?.client===true});setZfOn(acc.zero_friction_today_enabled===true);
  if(!acc.entitlement&&entitlement)await refreshUsage(t)
  }catch{}}
  // Commercial counters, read-only (get_commercial_usage on the server). Display only: every limit is enforced
  // by the database; a failed read leaves the last known counters in place.
- async function refreshUsage(t=token){try{const acc=await api('account','GET',undefined,t);setUsage(usageView(acc.usage));setBillingOffers(acc.billing_offers??null);setBillingStatus(acc.billing??null);setAiOutreachOn(acc.ai_outreach_enabled===true);setNbaOn(acc.next_best_action_enabled===true);setSoOn(acc.self_outreach_enabled===true);setZfOn(acc.zero_friction_today_enabled===true);if(acc.entitlement){setEntitlementPlan(acc.entitlement.plan);setBetaActive(acc.entitlement.active);setBetaExpiresAt(acc.entitlement.expires_at)}}catch{}}
+ async function refreshUsage(t=token){try{const acc=await api('account','GET',undefined,t);setUsage(usageView(acc.usage));setBillingOffers(acc.billing_offers??null);setBillingStatus(acc.billing??null);setAiOutreachOn(acc.ai_outreach_enabled===true);setNbaOn(acc.next_best_action_enabled===true);setSoOn(acc.self_outreach_enabled===true);setDedicatedAccess({enabled:acc.dedicated_tracking?.enabled===true,client:acc.dedicated_tracking?.client===true});setZfOn(acc.zero_friction_today_enabled===true);if(acc.entitlement){setEntitlementPlan(acc.entitlement.plan);setBetaActive(acc.entitlement.active);setBetaExpiresAt(acc.entitlement.expires_at)}}catch{}}
  // Subscription: the browser names the offer only; the server answers with the hosted payment page (or the
  // billing portal) URL. Access is granted later by the server, never by coming back from that page.
  async function startCheckout(plan:PlanName,t=token){const {url}=await api('billing/checkout','POST',{plan},t);if(typeof url==='string'){clearPlanIntent(browserStorage());setPlanIntent(null);window.location.assign(url)}}
@@ -324,6 +324,8 @@ export default function Home(){
  useEffect(()=>{if(uxAssignment.variant!=='B'||!fromList||!selected)return;try{if(window.matchMedia('(max-width:1023px)').matches)detailRef.current?.scrollIntoView({block:'start'})}catch{}},[selected,fromList,uxAssignment.variant]);
  // UI-2 (docs/UI_V2.md): the ProspectOS 2.0 shell, decided per request by the server (UI_V2_ENABLED, Preview only). Its code
  // and styles are loaded only when the server says so; while it is off this page renders exactly as before.
+ // Veille dédiée (migration 043): set from the account answer; shown in the v2 shell only.
+ const [dedicatedAccess,setDedicatedAccess]=useState({enabled:false,client:false});
  const [v2,setV2]=useState<V2Module|null>(null);const [v2Nav,setV2Nav]=useState<NavKey|null>(null);const v2Landed=useRef(false);
  // UI-5A: the record a person opened in Prospects 2.0 (the legacy screen auto-selects a prospect; v2 shows the list until one is opened).
  const [v2Record,setV2Record]=useState('');const [v2Focus,setV2Focus]=useState<string|null>(null);
@@ -433,7 +435,7 @@ export default function Home(){
   const demoClaim=mode==='live'&&token&&<v2.DemoClaim api={api} onClaimed={id=>{work(async()=>{const rows=await api('projects');setProjects(rows.map((p:any)=>({...p,criteria:projectCriteria(p.icps)})));selectProject(id)})}}/>;return <>{demoClaim}<Shell locale={locale} current={navNow} onNavigate={v2Navigate} title={viewTitle(view as AppView,locale)} debug={uxDebug}
   project={{projects:projects.map(p=>({id:p.id,name:p.name})),currentId:projectId,busy,onSelect:selectProject,onNew:()=>{setQuickResume(null);setModal(mode==='live'?'quickstart':'project')}}}
   account={{mode:mode==='live'?'live':'demo',email:userEmail,internal:entitlementPlan==='INTERNAL',busy,onLocale:setLocale,onAccount:()=>openAccount(),onTeam:()=>openAccount('team'),onOfferTarget:()=>v2Navigate('settings'),onSources:()=>v2Navigate('sources'),onPrivacy:()=>openAccount('privacy'),
-   onBetaAnalytics:()=>{setV2Nav(null);setView('beta-analytics');setFromList(false);work(loadBetaAnalytics)},onSignOut:()=>work(logout),onResetDemo:resetDemo,selfOutreach:mode==='live'&&soOn?()=>{setV2Nav(null);setView('outreach');setFromList(false)}:null}}
+   onBetaAnalytics:()=>{setV2Nav(null);setView('beta-analytics');setFromList(false);work(loadBetaAnalytics)},onSignOut:()=>work(logout),onResetDemo:resetDemo,dedicated:mode==='live'&&dedicatedAccess.client?()=>{setV2Nav(null);setView('dedicated');setFromList(false)}:null,dedicatedAdmin:mode==='live'&&dedicatedAccess.enabled&&entitlementPlan==='INTERNAL'?()=>{setV2Nav(null);setView('dedicated-admin');setFromList(false)}:null,selfOutreach:mode==='live'&&soOn?()=>{setV2Nav(null);setView('outreach');setFromList(false)}:null}}
   screen={view==='today'&&mode==='live'&&zfOn&&project?<v2.TodayV2 key={`today-v2-${projectId}`} projectId={projectId} api={api} locale={locale} dirty={todayDirty} onCleaned={()=>setTodayDirty(false)} criteria={criteria}
    onOpenProspect={id=>{setSelected(id);setV2Record(id);setFromDiscovery(false);setFromList(false);setView('prospects')}} track={k=>zfSession.current?.emit(k)} onSearch={()=>v2Navigate('search')}
    notice={notice} onDismissNotice={()=>setNotice('')} paywall={v2Paywall}/>
@@ -475,6 +477,8 @@ export default function Home(){
       {label:tr('metrics.avgScore'),value:`${avg}/100`,sub:tr('metrics.avgScoreSub')},
       {label:tr('metrics.conversations'),value:all.filter(p=>['Contacté','Réponse','Intéressé','Gagné'].includes(p.status)).length.toString().padStart(2,'0'),sub:tr('metrics.conversationsSub')}]}
      pipeline={STATUSES.map(s=>({status:s,label:statusLabel(s,locale),count:all.filter(p=>p.status===s).length}))}/></v2.ActivityV2>
+   :view==='dedicated'&&mode==='live'&&dedicatedAccess.client?<v2.DedicatedClient api={api} token={token}/>
+   :view==='dedicated-admin'&&mode==='live'&&dedicatedAccess.enabled&&entitlementPlan==='INTERNAL'?<v2.DedicatedAdmin api={api}/>
    :undefined}>
   <div className={contentClass}>{banners}{view==='icp'&&mode==='live'&&project&&<v2.IcpImport key={project.id} locale={locale} projectId={project.id} token={token} onUnauthorized={()=>{work(logout)}}
    onValidated={()=>{work(async()=>{const rows=await api('projects');setProjects(rows.map((p:any)=>({...p,criteria:projectCriteria(p.icps)})))})}}/>}{workspace}</div></Shell>{overlays}</>}

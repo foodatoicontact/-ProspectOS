@@ -15,16 +15,18 @@ export type UserMenuProps={
  onBetaAnalytics:()=>void;onSignOut:()=>void;onResetDemo:()=>void;
  // Self-Outreach (docs/SELF_OUTREACH.md): absent or null = no entry.
  selfOutreach?:(()=>void)|null;
+ // Veille dédiée (migration 043): the client's follow-up space / the administrator's dashboard. Absent or null = no entry.
+ dedicated?:(()=>void)|null;dedicatedAdmin?:(()=>void)|null;
 };
 
 export const MENU_TEXT:Record<Locale,{title:string;trigger:string;demo:string;account:string;team:string;offer:string;sources:string;
- language:string;theme:string;privacy:string;privacyPolicy:string;creations:string;beta:string;selfOutreach:string;signOut:string;exitDemo:string;resetDemo:string}>={
+ language:string;theme:string;privacy:string;privacyPolicy:string;creations:string;beta:string;selfOutreach:string;dedicated:string;dedicatedAdmin:string;signOut:string;exitDemo:string;resetDemo:string}>={
  fr:{title:'Compte',trigger:'Menu du compte : langue, thème, compte, déconnexion',demo:'Démo sur cet appareil',account:'Compte',
   team:'Organisation et équipe',offer:'Offre et cible',sources:'Sources',language:'Langue',theme:'Thème',privacy:'Données et confidentialité',
-  privacyPolicy:'Politique de confidentialité',creations:'Créations d’entreprises',beta:'Bêta Analytics',selfOutreach:'Outreach ProspectOS',signOut:'Se déconnecter',exitDemo:'Quitter la démo',resetDemo:'Réinitialiser la démo'},
+  privacyPolicy:'Politique de confidentialité',creations:'Créations d’entreprises',beta:'Bêta Analytics',selfOutreach:'Outreach ProspectOS',dedicated:'Veille dédiée — suivi',dedicatedAdmin:'Veille dédiée — clients',signOut:'Se déconnecter',exitDemo:'Quitter la démo',resetDemo:'Réinitialiser la démo'},
  en:{title:'Account',trigger:'Account menu: language, theme, account, sign out',demo:'Demo on this device',account:'Account',
   team:'Organization and team',offer:'Offer and target',sources:'Sources',language:'Language',theme:'Theme',privacy:'Data and privacy',
-  privacyPolicy:'Privacy policy',creations:'New businesses (France)',beta:'Beta Analytics',selfOutreach:'ProspectOS outreach',signOut:'Sign out',exitDemo:'Exit demo',resetDemo:'Reset demo'},
+  privacyPolicy:'Privacy policy',creations:'New businesses (France)',beta:'Beta Analytics',selfOutreach:'ProspectOS outreach',dedicated:'Dedicated watch — tracking',dedicatedAdmin:'Dedicated watch — clients',signOut:'Sign out',exitDemo:'Exit demo',resetDemo:'Reset demo'},
 };
 
 function Item({icon,label,onClick,disabled,danger}:{icon:IconName;label:string;onClick:()=>void;disabled?:boolean;danger?:boolean}){
@@ -51,6 +53,8 @@ export function UserMenuContent(p:UserMenuProps&{onDone:()=>void}){
    {live&&<Item icon="info" label={t.privacy} onClick={act(p.onPrivacy)}/>}
    {live&&p.internal&&<Item icon="activity" label={t.beta} onClick={act(p.onBetaAnalytics)}/>}
    {live&&p.selfOutreach&&<Item icon="contact" label={t.selfOutreach} onClick={act(p.selfOutreach)}/>}
+   {live&&p.dedicated&&<Item icon="signal" label={t.dedicated} onClick={act(p.dedicated)}/>}
+   {live&&p.dedicatedAdmin&&<Item icon="activity" label={t.dedicatedAdmin} onClick={act(p.dedicatedAdmin)}/>}
   </ul>
   <div className="pos-menu__group">
    <p className="pos-menu__heading">{t.language}</p>

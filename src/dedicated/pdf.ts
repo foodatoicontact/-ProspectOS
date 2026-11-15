@@ -3,13 +3,13 @@ import {STATUS_LABEL,dateFr,type ExportRow} from './model.ts';
 // the item reference, the SIREN, the official source and its link. Text only — no image, no script, no form, no link
 // annotation; characters outside WinAnsi become "?".
 const WIN:Record<string,number>={'€':0x80,'‚':0x82,'„':0x84,'…':0x85,'‘':0x91,'’':0x92,'“':0x93,'”':0x94,'•':0x95,'–':0x96,'—':0x97,'œ':0x9c,'Œ':0x8c,'Ÿ':0x9f,' ':0x20,' ':0x20};
-function winAnsi(s:string):number[]{
+export function winAnsi(s:string):number[]{
  const out:number[]=[];
  for(const ch of s){const c=ch.codePointAt(0)!;
   if(WIN[ch]!==undefined)out.push(WIN[ch]);else if(c>=0x20&&c<0x7f)out.push(c);else if(c>=0xa0&&c<=0xff)out.push(c);else out.push(0x3f);}
  return out;
 }
-const esc=(bytes:number[])=>bytes.map(b=>b===0x28||b===0x29||b===0x5c?`\\${String.fromCharCode(b)}`:b<0x20||b>0x7e?`\\${b.toString(8).padStart(3,'0')}`:String.fromCharCode(b)).join('');
+export const pdfString=(bytes:number[])=>bytes.map(b=>b===0x28||b===0x29||b===0x5c?`\\${String.fromCharCode(b)}`:b<0x20||b>0x7e?`\\${b.toString(8).padStart(3,'0')}`:String.fromCharCode(b)).join('');
 const clip=(s:string,n:number)=>s.length>n?`${s.slice(0,n-1)}…`:s;
 type Line={x:number;size:number;bold?:boolean;text:string};
 type Placed=Line&{y:number};
@@ -32,8 +32,8 @@ export function exportPdf(o:{title:string;subtitle:string;rows:ExportRow[];gener
  const catalog=add(''),pagesObj=add(''),font=add('<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>'),bold=add('<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>');
  const kids:number[]=[];
  pages.forEach((p,n)=>{
-  const ops=p.map(l=>`BT /${l.bold?'F2':'F1'} ${l.size} Tf ${l.x} ${l.y} Td (${esc(winAnsi(l.text))}) Tj ET`);
-  ops.push(`BT /F1 7 Tf ${W-M-60} ${M/2} Td (${esc(winAnsi(`Page ${n+1} / ${pages.length}`))}) Tj ET`);
+  const ops=p.map(l=>`BT /${l.bold?'F2':'F1'} ${l.size} Tf ${l.x} ${l.y} Td (${pdfString(winAnsi(l.text))}) Tj ET`);
+  ops.push(`BT /F1 7 Tf ${W-M-60} ${M/2} Td (${pdfString(winAnsi(`Page ${n+1} / ${pages.length}`))}) Tj ET`);
   const stream=ops.join('\n');
   const content=add(`<< /Length ${stream.length} >>\nstream\n${stream}\nendstream`);
   kids.push(add(`<< /Type /Page /Parent ${pagesObj} 0 R /MediaBox [0 0 ${W} ${H}] /Resources << /Font << /F1 ${font} 0 R /F2 ${bold} 0 R >> >> /Contents ${content} 0 R >>`));

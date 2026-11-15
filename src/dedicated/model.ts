@@ -87,11 +87,17 @@ export function alerts(c:AdminContract,now:Date):Alert[]{
 }
 
 // ---------------------------------------------------------------- exports
-export type ExportRow={id:string;delivery_number:number;reference:string;siren:string;name:string;city:string|null;source_label:string;source_url:string;delivered_on:string;status:DedicatedStatus};
+export type ExportRow={id:string;delivery_number:number;reference:string;siren:string;name:string;city:string|null;source_label:string;source_url:string;delivered_on:string;status:DedicatedStatus;
+ department?:string|null;event_label?:string|null;badge?:string|null;chips?:string[]|null;fact?:string|null;why_now?:string|null;hook?:string|null};
+// « Fiche 7 » = the 7th card of the delivered document (reference L<n>-F007).
+export const ficheNumber=(reference:string)=>Number(/-F(\d+)$/.exec(reference)?.[1]??0);
 const cell=(v:string)=>{const s=/^[=+\-@\t\r]/.test(v)?`'${v}`:v;return /[";\n\r]/.test(s)?`"${s.replace(/"/g,'""')}"`:s};
+// The columns follow the card of the delivered document (name, department · city, details, source and date, the fact,
+// why now, the hook, the link), then what the follow-up adds: SIREN, delivery date, status.
 export function exportCsv(rows:ExportRow[]):string{
- const head=['N° livraison','Identifiant fiche','SIREN','Entreprise','Ville','Source officielle','Lien de la source','Date de livraison','Statut'];
- return '﻿'+[head,...rows.map(r=>[String(r.delivery_number),r.reference,r.siren,r.name,r.city??'',r.source_label,r.source_url,r.delivered_on,STATUS_LABEL[r.status]])]
+ const head=['N° livraison','N° fiche','Identifiant fiche','Entreprise','Département','Ville','Précisions','Source','Date','Le fait','Pourquoi maintenant','Votre accroche','Lien de la source','SIREN','Date de livraison','Statut'];
+ return '\ufeff'+[head,...rows.map(r=>[String(r.delivery_number),String(ficheNumber(r.reference)),r.reference,r.name,r.department??'',r.city??'',(r.chips??[]).join(' · '),r.badge??r.source_label,
+  r.event_label??'',r.fact??'',r.why_now??'',r.hook??'',r.source_url,r.siren,r.delivered_on,STATUS_LABEL[r.status]])]
   .map(l=>l.map(cell).join(';')).join('\r\n')+'\r\n';
 }
 

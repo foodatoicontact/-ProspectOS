@@ -19,8 +19,9 @@
 // the administrator's uploads, 20 kB otherwise. No subscription is checked here: the veille is independent of it.
 import {z} from 'zod';
 import type {SupabaseClient} from '@supabase/supabase-js';
-import {ATTESTATION,PROOF_KINDS,alerts,counters,exportCsv,parseDelivery,isDedicatedStatus,type AdminContract,type ExportRow} from './model.ts';
+import {ATTESTATION,PROOF_KINDS,alerts,counters,exportCsv,parseDelivery,isDedicatedStatus,dateFr,parisDate,type AdminContract,type ExportRow} from './model.ts';
 import {exportPdf} from './pdf.ts';
+import {stampPdf} from './stamp.ts';
 type Json=(value:unknown,status?:number)=>Response;
 export type Acceptance={label:string;organization:string;trial_starts_on:string;version:number;sha256:string;accepted_at:string;userEmail:string|null};
 export type DedicatedDeps={enabled:boolean;now:()=>Date;userEmail?:string|null;notifyAccepted?:(a:Acceptance)=>Promise<void>};
@@ -41,6 +42,8 @@ const KNOWN:Record<string,[string,number,string]>={
  dedicated_proposal_missing:['Aucune proposition jointe.',409,'PROPOSAL_MISSING'],
  dedicated_space_closed:['L’espace de suivi n’est pas ouvert : la proposition n’est pas encore acceptée, ou l’accès a pris fin.',403,'SPACE_CLOSED'],
  dedicated_contract_not_active:['Ce contrat n’est pas actif (proposition non acceptée ou contrat résilié).',409,'CONTRACT_NOT_ACTIVE'],
+ dedicated_siren_already_delivered:['Une entreprise de ce document a déjà été livrée à ce client : retirez-la du fichier de livraison et régénérez le PDF, pour que les numéros restent ceux du document.',409,'SIREN_ALREADY_DELIVERED'],
+ dedicated_delivery_pdf_invalid:['Le PDF de la livraison n’est pas valide (5 Mo au plus).',422,'DELIVERY_PDF_INVALID'],
  dedicated_delivery_empty:['Toutes ces entreprises ont déjà été livrées à ce client : rien de nouveau.',409,'DELIVERY_EMPTY'],
  dedicated_contracts_organization_id_label_key:['Ce client a déjà un contrat avec ce libellé.',409,'CONTRACT_EXISTS'],
 };
@@ -65,6 +68,16 @@ export function byteaToBytes(v:unknown):Uint8Array{
  return Uint8Array.from(Buffer.from(s.slice(2),'hex'));
 }
 const Delivery=z.object({contract_id:uuid,scope:z.string().trim().min(1).max(500),lines:z.string().max(400000)}).strict();
+// The delivered document (npm run livraison): its import file and the PDF sent to the client.
+const txt=(n:number)=>z.string().max(n);
+const ImportItem=z.object({siren:z.string().regex(/^\d{9}$/),name:txt(200).min(1),city:txt(120),department:z.string().regex(/^(\d{2,3}|2[AB])$/),event_date:z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+ event_label:txt(40),badge:txt(40).min(1),chips:z.array(txt(200)).max(6),fact:txt(1000),why_now:txt(1000),hook:txt(1000),source_url:z.string().url().startsWith('https://').max(1000),
+ source_label:txt(160).min(1),section_key:z.string().regex(/^[a-z0-9-]{1,30}$/)}).strict();
+const DocDelivery=z.object({contract_id:uuid,scope:z.string().trim().min(1).max(500),
+ import:z.object({header:z.object({prepared_for:txt(160),eyebrow:txt(300),lead:txt(1000),title_count:z.number().int()}).strict(),
+  sections:z.array(z.object({key:z.string().regex(/^[a-z0-9-]{1,30}$/),title:txt(160),subtitle:txt(300),source:txt(160),color:z.string().regex(/^#[0-9a-fA-F]{6}$/),badge:txt(40)}).strict()).max(12),
+  items:z.array(ImportItem).min(1).max(1000)}).strict(),
+ pdf_base64:z.string().min(100).max(UPLOAD_LIMIT),pdf_file_name:z.string().trim().regex(/^[A-Za-z0-9._ -]{1,120}\.pdf$/)}).strict();
 const fileName=(label:string,ext:string,at:Date)=>`veille-${label.toLowerCase().normalize('NFD').replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'').slice(0,40)||'dediee'}-${at.toISOString().slice(0,10)}.${ext}`;
 
 // Organizations the signed-in user belongs to (memberships: own rows only, RLS).
@@ -89,8 +102,8 @@ export async function handleDedicated(request:Request,path:string[],db:SupabaseC
   const read=async(t:string,cols:string,order:string,limit:number)=>{if(!orgs.length)return [];const {data,error}=await db.from(t).select(cols).in('organization_id',orgs).order(order,{ascending:false}).limit(limit);if(error)throw Error('DATABASE_REQUEST_FAILED');return data??[]};
   const [contracts,deliveries,items,statements]=await Promise.all([
    read('dedicated_contracts','id,label,minimum_ht_cents,commission_ht_cents,known_client_days,first_statement_month,status,trial_starts_on,accepted_at,terminated_at','created_at',20),
-   read('dedicated_deliveries','id,contract_id,number,delivered_on,scope','delivered_on',200),
-   read('dedicated_items','id,delivery_id,contract_id,reference,siren,name,city,source_label,source_url,delivered_on,status,status_changed_at,first_invoice_on,known_proof,statement_id','delivered_on',5000),
+   read('dedicated_deliveries','id,contract_id,number,delivered_on,scope,header,sections,pdf_sha256,pdf_file_name','delivered_on',200),
+   read('dedicated_items','id,delivery_id,contract_id,position,reference,siren,name,city,source_label,source_url,delivered_on,status,status_changed_at,first_invoice_on,known_proof,statement_id,section_key,badge,event_date,event_label,department,chips,fact,why_now,hook','delivered_on',5000),
    read('dedicated_statements','id,contract_id,month,signed_count,minimum_ht_cents,commission_ht_cents,amount_ht_cents,items,generated_at,validated_at','month',36)]);
   // The latest proposal of each contract (metadata only: the PDF itself is downloaded on demand).
   const {data:props,error:pe}=orgs.length?await db.from('dedicated_proposals').select('contract_id,version,file_name,sha256,created_at').in('organization_id',orgs).order('version',{ascending:false}).limit(100):{data:[],error:null};
@@ -120,6 +133,20 @@ export async function handleDedicated(request:Request,path:string[],db:SupabaseC
   const headers={'Cache-Control':'no-store','X-Content-Type-Options':'nosniff'};
   if(format==='csv')return new Response(exportCsv(out.rows),{headers:{...headers,'content-type':'text/csv; charset=utf-8','content-disposition':`attachment; filename="${fileName(out.contract,'csv',now)}"`}});
   const numbers=[...new Set(out.rows.map(x=>x.delivery_number))];
+  // A delivered document: the PDF as it was sent, with only a watermark and the delivery number added.
+  if(delivery){
+   const {data:doc,error:de}=await db.from('dedicated_deliveries').select('number,delivered_on,header,pdf,pdf_file_name').eq('id',delivery).maybeSingle();
+   if(de)throw Error('DATABASE_REQUEST_FAILED');
+   const dd=doc as {number:number;delivered_on:string;header:{prepared_for?:string};pdf:unknown;pdf_file_name:string|null}|null;
+   if(dd?.pdf){
+    const who=dd.header?.prepared_for||out.contract;
+    try{
+     const stamped=stampPdf(byteaToBytes(dd.pdf),{watermark:`Livraison n° ${dd.number} · ${who} · confidentiel`,
+      footer:`ProspectOS · Livraison n° ${dd.number} du ${dateFr(dd.delivered_on)} · ${who} · exportée le ${dateFr(parisDate(now))}`});
+     return new Response(stamped as BodyInit,{headers:{...headers,'content-type':'application/pdf','content-disposition':`attachment; filename="livraison-${dd.number}-${(dd.pdf_file_name??'liste.pdf').replace(/"/g,'')}"`}});
+    }catch{/* not stampable: the generated list below */}
+   }
+  }
   const pdf=exportPdf({title:`Veille dédiée — ${out.contract}`,subtitle:delivery?`Livraison n° ${numbers[0]??'—'}`:`Toutes les livraisons (${numbers.length})`,rows:out.rows,generatedAt:now});
   return new Response(pdf as BodyInit,{headers:{...headers,'content-type':'application/pdf','content-disposition':`attachment; filename="${fileName(out.contract,'pdf',now)}"`}});
  }
@@ -167,6 +194,14 @@ export async function handleDedicated(request:Request,path:string[],db:SupabaseC
    if(op==='proposal'){const p=Replace.safeParse(body);if(!p.success)return json({error:'Demande invalide'},400);
     const r=await call('replace_dedicated_proposal',{p_contract_id:c,p_file_name:p.data.file_name,p_pdf_base64:p.data.pdf_base64});return r.response??json(r.data,201)}
    if(op==='terminate'){const r=await call('terminate_dedicated_contract',{p_contract_id:c});return r.response??json(r.data)}
+  }
+  if(request.method==='POST'&&b==='deliveries'&&'import' in body){
+   const p=DocDelivery.safeParse(body);if(!p.success)return json({error:'Fichier d’import invalide (npm run livraison).',code:'DELIVERY_INVALID'},422);
+   const keys=new Set(p.data.import.sections.map(s=>s.key));
+   if(p.data.import.items.some(i=>!keys.has(i.section_key)))return json({error:'Fichier d’import invalide : une fiche renvoie à une section absente.',code:'DELIVERY_INVALID'},422);
+   const r=await call('create_dedicated_delivery',{p_contract_id:p.data.contract_id,p_scope:p.data.scope,p_items:p.data.import.items,p_header:p.data.import.header,
+    p_sections:p.data.import.sections,p_pdf_base64:p.data.pdf_base64,p_pdf_file_name:p.data.pdf_file_name});
+   return r.response??json(r.data,201);
   }
   if(request.method==='POST'&&b==='deliveries'){
    const p=Delivery.safeParse(body);if(!p.success)return json({error:'Demande invalide'},400);

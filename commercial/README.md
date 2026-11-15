@@ -57,3 +57,24 @@ Dans `vendeur.local.json`, `tva.regime` vaut `franchise` (mention « TVA non app
 `assujetti`, avec `tva.numero` et `tva.taux` (20 par défaut).
 
 Les calculs sont faits en centimes. Les tests sont dans `tests/devis.test.ts`.
+
+## Listes livrées (veille dédiée)
+
+Les listes envoyées au client gardent le gabarit des PDF déjà livrés : couverture, « L'essentiel en une page », une section par signal, des cartes sur deux colonnes, « Méthode & sources ». Le même gabarit sert à l'espace de suivi de ProspectOS.
+
+```bash
+npm run livraison -- --livraison <nom>
+```
+
+La commande lit `commercial/livraisons/<nom>.json`. Ce dossier est ignoré par git, sauf `exemple.json`, qui est fictif. Elle écrit dans `commercial/sortie/` :
+
+- `<nom>.pdf` : le PDF à envoyer au client ;
+- `<nom>.import.json` : le fichier d'import de l'espace de suivi.
+
+Dans ProspectOS, ouvrir « Veille dédiée — clients » → « Nouvelle livraison » et joindre ces deux fichiers.
+
+- **Numérotation** : la fiche n de l'outil est la n-ième carte du PDF, dans l'ordre du document (référence `L<livraison>-F<n>`).
+- **Fiches** : chaque fiche reprend les mêmes champs, dans le même ordre et avec les mêmes intitulés que la carte du PDF. Le statut et le journal s'ajoutent en bas de la carte.
+- **Export PDF depuis l'outil** : il rend le PDF envoyé, à l'identique, avec seulement un filigrane et le numéro de livraison en plus. C'est une mise à jour incrémentale : les octets d'origine restent le début exact du fichier.
+- **Style** : il est défini une seule fois, dans `livraison-style.ts`. Le générateur l'écrit tel quel ; l'application l'applique dans son propre bloc.
+- **SIREN déjà livré** : une entreprise déjà livrée à ce client est refusée, pour que les numéros restent ceux du document. Il faut la retirer du fichier et régénérer le PDF.

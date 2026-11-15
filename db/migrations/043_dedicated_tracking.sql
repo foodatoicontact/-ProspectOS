@@ -40,8 +40,9 @@
 -- Rollback (only while no client uses it — the journal is the evidence of both parties):
 --   drop function public.dedicated_find_organizations(text), public.propose_dedicated_watch(uuid,text,int,int,int,date,date,text,text),
 --    public.replace_dedicated_proposal(uuid,text,text), public.terminate_dedicated_contract(uuid), public.accept_dedicated_proposal(uuid,text),
+--    public.create_dedicated_delivery(uuid,text,jsonb,jsonb,jsonb,text,text),
 --    prospectos_private.dedicated_store_proposal(public.dedicated_contracts,text,text), prospectos_private.dedicated_visible(uuid),
---    prospectos_private.dedicated_require_open(uuid), public.create_dedicated_delivery(uuid,text,jsonb),
+--    prospectos_private.dedicated_require_open(uuid),
 --    public.dedicated_admin_overview(), public.open_dedicated_item(uuid), public.set_dedicated_item_status(uuid,text,date,jsonb),
 --    public.export_dedicated_items(uuid,uuid,text), public.validate_dedicated_statement(uuid,text),
 --    public.generate_dedicated_statements(date), public.claim_dedicated_reminders(), public.release_dedicated_reminder(uuid),
@@ -110,8 +111,16 @@ create table if not exists public.dedicated_deliveries (
  number int not null check(number>=1),
  delivered_on date not null,
  scope text not null check(length(trim(scope)) between 1 and 500),
+ -- The delivered document (npm run livraison): its header and sections, and the PDF exactly as sent (exported again with
+ -- only a watermark and the delivery number added). Absent for a list pasted by hand.
+ header jsonb not null default '{}'::jsonb check(jsonb_typeof(header)='object' and octet_length(header::text)<=8000),
+ sections jsonb not null default '[]'::jsonb check(jsonb_typeof(sections)='array' and octet_length(sections::text)<=8000),
+ pdf bytea check(pdf is null or (octet_length(pdf) between 100 and 5242880 and substring(pdf from 1 for 5)='\x255044462d'::bytea)),
+ pdf_sha256 text check(pdf_sha256 is null or pdf_sha256 ~ '^[0-9a-f]{64}$'),
+ pdf_file_name text check(pdf_file_name is null or pdf_file_name ~ '^[A-Za-z0-9._ -]{1,120}\.pdf$'),
  created_by uuid not null,
  created_at timestamptz not null default now(),
+ check((pdf is null)=(pdf_sha256 is null) and (pdf is null)=(pdf_file_name is null)),
  unique(contract_id,number),
  unique(id,contract_id,organization_id),
  foreign key(contract_id,organization_id) references public.dedicated_contracts(id,organization_id)
@@ -131,6 +140,16 @@ create table if not exists public.dedicated_items (
  source_label text not null check(length(trim(source_label)) between 1 and 160),
  source_url text not null check(source_url ~ '^https://[^\s]+$' and length(source_url)<=1000),
  delivered_on date not null,
+ -- The card of the delivered document, field for field (empty for a list pasted by hand).
+ section_key text check(section_key is null or section_key ~ '^[a-z0-9-]{1,30}$'),
+ badge text check(badge is null or length(badge) between 1 and 40),
+ event_date date,
+ event_label text check(event_label is null or length(event_label)<=40),
+ department text check(department is null or department ~ '^[0-9]{2,3}$|^2[AB]$'),
+ chips jsonb not null default '[]'::jsonb check(jsonb_typeof(chips)='array' and jsonb_array_length(chips)<=6),
+ fact text check(fact is null or length(fact)<=1000),
+ why_now text check(why_now is null or length(why_now)<=1000),
+ hook text check(hook is null or length(hook)<=1000),
  status text not null default 'A_CONTACTER' check(status in ('A_CONTACTER','CONTACTE','DEVIS_ENVOYE','SIGNE','PERDU','DEJA_CLIENT')),
  status_changed_at timestamptz,
  signed_at timestamptz,
@@ -324,12 +343,15 @@ end $$;
 revoke all on function public.terminate_dedicated_contract(uuid) from public,anon;
 grant execute on function public.terminate_dedicated_contract(uuid) to authenticated;
 
--- p_items: [{siren,name,city?,source_label,source_url}, …] — 1 to 1000. A SIREN already delivered under this contract is
--- skipped (and reported), never delivered twice. The delivery date is the Paris date of the call: never chosen.
-create or replace function public.create_dedicated_delivery(p_contract_id uuid,p_scope text,p_items jsonb) returns jsonb
+-- p_items: [{siren,name,city?,source_label,source_url, and for a delivered document: section_key,badge,event_date,
+-- event_label,department,chips[],fact,why_now,hook}, …] — 1 to 1000, IN THE DOCUMENT'S ORDER: fiche n means the n-th card of
+-- the PDF (reference L<delivery>-F<n>). With a PDF, a SIREN already delivered under this contract is refused (the numbers
+-- must stay those of the document); a pasted list skips it and reports it. The delivery date is the Paris date of the call.
+create or replace function public.create_dedicated_delivery(p_contract_id uuid,p_scope text,p_items jsonb,p_header jsonb default null,
+ p_sections jsonb default null,p_pdf_base64 text default null,p_pdf_file_name text default null) returns jsonb
 language plpgsql security definer set search_path='' as $$
 declare c public.dedicated_contracts; d public.dedicated_deliveries; next_number int; it jsonb; pos int:=0; added int:=0; skipped text[]:='{}';
- today date:=prospectos_private.paris_today(); s text;
+ today date:=prospectos_private.paris_today(); s text; bytes bytea:=null;
 begin
  if not prospectos_private.is_internal_admin() then raise exception 'Admin access required' using errcode='42501'; end if;
  select * into c from public.dedicated_contracts where id=p_contract_id for update;
@@ -337,25 +359,37 @@ begin
  if c.status<>'ACTIVE' then raise exception 'dedicated_contract_not_active' using errcode='P0001'; end if;
  if p_items is null or jsonb_typeof(p_items)<>'array' or jsonb_array_length(p_items) not between 1 and 1000 then
   raise exception 'Invalid delivery items' using errcode='22023'; end if;
+ if p_pdf_base64 is not null then
+  begin bytes:=decode(regexp_replace(p_pdf_base64,'\s','','g'),'base64'); exception when others then raise exception 'dedicated_delivery_pdf_invalid' using errcode='22023'; end;
+  if octet_length(bytes)<100 or octet_length(bytes)>5242880 or substring(bytes from 1 for 5)<>'\x255044462d'::bytea or p_pdf_file_name is null then
+   raise exception 'dedicated_delivery_pdf_invalid' using errcode='22023'; end if;
+ end if;
  select coalesce(max(number),0)+1 into next_number from public.dedicated_deliveries where contract_id=c.id;
- insert into public.dedicated_deliveries(contract_id,organization_id,number,delivered_on,scope,created_by)
- values(c.id,c.organization_id,next_number,today,trim(coalesce(p_scope,'')),auth.uid()) returning * into d;
+ insert into public.dedicated_deliveries(contract_id,organization_id,number,delivered_on,scope,header,sections,pdf,pdf_sha256,pdf_file_name,created_by)
+ values(c.id,c.organization_id,next_number,today,trim(coalesce(p_scope,'')),coalesce(p_header,'{}'::jsonb),coalesce(p_sections,'[]'::jsonb),
+  bytes,case when bytes is null then null else encode(sha256(bytes),'hex') end,case when bytes is null then null else trim(p_pdf_file_name) end,auth.uid()) returning * into d;
  for it in select value from jsonb_array_elements(p_items) loop
   s:=regexp_replace(coalesce(it->>'siren',''),'\s','','g');
-  if exists(select 1 from public.dedicated_items where contract_id=c.id and siren=s) then skipped:=skipped||s; continue; end if;
+  if exists(select 1 from public.dedicated_items where contract_id=c.id and siren=s) then
+   if bytes is not null then raise exception 'dedicated_siren_already_delivered: %',s using errcode='P0001'; end if;
+   skipped:=skipped||s; continue;
+  end if;
   pos:=pos+1;
-  insert into public.dedicated_items(delivery_id,contract_id,organization_id,position,reference,siren,name,city,source_label,source_url,delivered_on)
+  insert into public.dedicated_items(delivery_id,contract_id,organization_id,position,reference,siren,name,city,source_label,source_url,delivered_on,
+   section_key,badge,event_date,event_label,department,chips,fact,why_now,hook)
   values(d.id,c.id,c.organization_id,pos,'L'||d.number||'-F'||lpad(pos::text,3,'0'),s,trim(coalesce(it->>'name','')),
-   nullif(trim(coalesce(it->>'city','')),''),trim(coalesce(it->>'source_label','')),trim(coalesce(it->>'source_url','')),today);
+   nullif(trim(coalesce(it->>'city','')),''),trim(coalesce(it->>'source_label','')),trim(coalesce(it->>'source_url','')),today,
+   nullif(it->>'section_key',''),nullif(it->>'badge',''),nullif(it->>'event_date','')::date,nullif(it->>'event_label',''),nullif(it->>'department',''),
+   coalesce(it->'chips','[]'::jsonb),nullif(it->>'fact',''),nullif(it->>'why_now',''),nullif(it->>'hook',''));
   added:=added+1;
  end loop;
  if added=0 then raise exception 'dedicated_delivery_empty' using errcode='P0001'; end if;
  perform prospectos_private.dedicated_log(c.organization_id,c.id,d.id,null,null,'DELIVERY_CREATED',
-  jsonb_build_object('number',d.number,'items',added,'skipped_sirens',to_jsonb(skipped)));
- return jsonb_build_object('id',d.id,'number',d.number,'delivered_on',d.delivered_on,'items',added,'skipped_sirens',to_jsonb(skipped));
+  jsonb_strip_nulls(jsonb_build_object('number',d.number,'items',added,'skipped_sirens',to_jsonb(skipped),'pdf_sha256',d.pdf_sha256,'pdf_file_name',d.pdf_file_name)));
+ return jsonb_build_object('id',d.id,'number',d.number,'delivered_on',d.delivered_on,'items',added,'skipped_sirens',to_jsonb(skipped),'pdf_sha256',d.pdf_sha256);
 end $$;
-revoke all on function public.create_dedicated_delivery(uuid,text,jsonb) from public,anon;
-grant execute on function public.create_dedicated_delivery(uuid,text,jsonb) to authenticated;
+revoke all on function public.create_dedicated_delivery(uuid,text,jsonb,jsonb,jsonb,text,text) from public,anon;
+grant execute on function public.create_dedicated_delivery(uuid,text,jsonb,jsonb,jsonb,text,text) to authenticated;
 
 -- Facts for the administrator's dashboard, per contract; counters and alerts are derived in src/dedicated/model.ts.
 create or replace function public.dedicated_admin_overview() returns jsonb
@@ -439,7 +473,8 @@ begin
  if p_delivery_id is not null and not exists(select 1 from public.dedicated_deliveries where id=p_delivery_id and contract_id=c.id) then
   raise exception 'dedicated_delivery_not_found' using errcode='P0002'; end if;
  select coalesce(jsonb_agg(jsonb_build_object('id',i.id,'delivery_number',d.number,'reference',i.reference,'siren',i.siren,'name',i.name,'city',i.city,
-   'source_label',i.source_label,'source_url',i.source_url,'delivered_on',i.delivered_on,'status',i.status) order by d.number,i.position),'[]'::jsonb)
+   'source_label',i.source_label,'source_url',i.source_url,'delivered_on',i.delivered_on,'status',i.status,'department',i.department,'event_label',i.event_label,
+   'badge',i.badge,'chips',i.chips,'fact',i.fact,'why_now',i.why_now,'hook',i.hook) order by d.number,i.position),'[]'::jsonb)
   into rows from public.dedicated_items i join public.dedicated_deliveries d on d.id=i.delivery_id
   where i.contract_id=c.id and (p_delivery_id is null or i.delivery_id=p_delivery_id);
  perform prospectos_private.dedicated_log(c.organization_id,c.id,p_delivery_id,null,null,'EXPORT',

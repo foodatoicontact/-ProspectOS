@@ -66,9 +66,9 @@ const ROWS:ExportRow[]=[{id:'i1',delivery_number:3,reference:'L3-F001',siren:'12
  {id:'i2',delivery_number:3,reference:'L3-F002',siren:'987654321',name:'SARL L’ÉTÉ; « Feu »',city:null,source_label:'BODACC',source_url:'https://www.bodacc.fr/b',delivered_on:'2026-11-16',status:'SIGNE'}];
 test('CSV export: every line carries the delivery number and the item identifier; formulas are neutralized',()=>{
  const csv=exportCsv(ROWS);const lines=csv.replace('﻿','').trim().split('\r\n');
- assert.equal(lines[0],'N° livraison;Identifiant fiche;SIREN;Entreprise;Ville;Source officielle;Lien de la source;Date de livraison;Statut');
- assert.ok(lines[1].startsWith('3;L3-F001;123456789;"\'=HYPERLINK(""x"")";Meaux;BODACC;https://www.bodacc.fr/a;2026-11-16;À contacter'));
- assert.ok(lines[2].startsWith('3;L3-F002;987654321;"SARL L’ÉTÉ; « Feu »";'));
+ assert.equal(lines[0],'N° livraison;N° fiche;Identifiant fiche;Entreprise;Département;Ville;Précisions;Source;Date;Le fait;Pourquoi maintenant;Votre accroche;Lien de la source;SIREN;Date de livraison;Statut');
+ assert.ok(lines[1].startsWith('3;1;L3-F001;"\'=HYPERLINK(""x"")";;Meaux;;BODACC;;;;;https://www.bodacc.fr/a;123456789;2026-11-16;À contacter'),lines[1]);
+ assert.ok(lines[2].startsWith('3;2;L3-F002;"SARL L’ÉTÉ; « Feu »";'));
 });
 test('PDF export: a valid PDF whose text carries the delivery number and the item identifier',()=>{
  const bytes=exportPdf({title:'Veille dédiée — Test',subtitle:'Livraison n° 3',rows:ROWS,generatedAt:new Date('2026-11-16T10:00:00Z')});
@@ -149,7 +149,7 @@ test('screens: v2 only, behind the account flag; the client entry needs a contra
  assert.match(menu,/\{live&&p\.dedicated&&<Item icon="signal" label=\{t\.dedicated\}/);assert.match(menu,/\{live&&p\.dedicatedAdmin&&<Item icon="activity" label=\{t\.dedicatedAdmin\}/);
  assert.match(read('src/ui/v2/shell/AppShell.tsx'),/export \{DedicatedClient,DedicatedAdmin\} from '\.\.\/dedicated\/Dedicated\.tsx';/);
  const views=read('src/ui/v2/dedicated/DedicatedViews.tsx');
- assert.match(views,/disabled=\{s==='DEJA_CLIENT'&&!knownOpen&&it\.status!=='DEJA_CLIENT'\}/,'« déjà client » greyed out after the window');
+ assert.match(read('src/ui/v2/dedicated/DeliveryView.tsx'),/disabled=\{s==='DEJA_CLIENT'&&!knownOpen&&it\.status!=='DEJA_CLIENT'\}/,'« déjà client » greyed out after the window');
  assert.match(views,/disabled=\{!checked\|\|busy\}/,'validation needs the attestation box');
  assert.match(read('app/ui-v2/veille-dediee/page.tsx'),/DedicatedBench/);
  assert.match(read('src/ui/v2/dedicated/DedicatedBench.tsx'),/FICTITIOUS data/);

@@ -39,6 +39,23 @@ Le suivi des signatures se fait **dans ProspectOS**, pas dans un tableau externe
    - au client : « Votre espace de veille est ouvert », avec le lien.
 6. Les livraisons se font par « Nouvelle livraison » (contrat actif seulement) : on indique le périmètre et on colle une entreprise par ligne, au format `SIREN;Entreprise;Ville;Source;Lien https`.
 
+## Apparence des livraisons
+
+Une livraison ressemble dans l'outil au PDF que le client a reçu (gabarit : `commercial/livraison.ts`, `commercial/livraison-style.ts`).
+
+- **En-tête** : même logo, « Préparé pour », bandeau avec la date (le numéro de livraison est ajouté devant), même titre.
+- **Sections** : un bandeau sombre par signal, avec le nombre d'entreprises, le titre et « sous-titre · source : … ».
+- **Cartes** : dans l'ordre du document, avec les mêmes champs et les mêmes intitulés :
+  - nom ;
+  - département · ville, puis les précisions ;
+  - badge de source et date ;
+  - « Le fait », « Pourquoi maintenant », « Votre accroche » ;
+  - « Voir la source officielle ↗ ».
+- **Ajouts du suivi**, en bas de chaque carte : le numéro de fiche (n = n-ième carte du PDF), le SIREN, le menu de statut (avec la date de facture ou la pièce demandée, sur place) et le journal de la fiche.
+- **Mise en page** : deux colonnes sur ordinateur, une seule à 390 px. L'ordre des informations reste le même.
+- **Export PDF** d'une livraison : le PDF envoyé, avec seulement un filigrane et le numéro de livraison. Les octets d'origine restent intacts (mise à jour incrémentale).
+- **« Ouverture de fiche »** : elle est inscrite au journal au premier clic sur la source officielle ou sur le journal de la carte.
+
 ## Abonnement et résiliation
 
 - **Abonnement** : l'accès à la veille ne dépend d'aucun abonnement ProspectOS. Il reste ouvert si l'essai est expiré ou si l'abonnement est résilié. Aucune fonction de la veille ne lit un droit d'accès, sauf la vérification administrateur. Rien ne passe par Stripe.

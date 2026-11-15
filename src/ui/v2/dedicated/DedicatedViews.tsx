@@ -8,14 +8,20 @@ import {useState} from 'react';
 import {STATUS_LABEL,DEDICATED_STATUSES,PROOF_KINDS,PROOF_LABEL,ATTESTATION,eur,dateFr,monthLabel,knownClientOpen,knownClientDeadline,statementDeadline,
  type DedicatedStatus,type Counters,type Alert} from '../../../dedicated/model.ts';
 import './dedicated.css';
+import {DeliveryDocument,LivraisonStyle} from './DeliveryView.tsx';
 
 export type ContractStatus='PROPOSED'|'ACTIVE'|'TERMINATED';
 export type Contract={id:string;label:string;minimum_ht_cents:number;commission_ht_cents:number;known_client_days:number;first_statement_month:string;
  status:ContractStatus;trial_starts_on:string;accepted_at:string|null;terminated_at:string|null};
 export type Proposal={contract_id:string;version:number;file_name:string;sha256:string;created_at:string};
-export type Delivery={id:string;contract_id:string;number:number;delivered_on:string;scope:string};
+export type DeliverySection={key:string;title:string;subtitle:string;source:string;color:string;badge:string};
+export type Delivery={id:string;contract_id:string;number:number;delivered_on:string;scope:string;
+ header?:{prepared_for?:string;eyebrow?:string;lead?:string;title_count?:number}|null;sections?:DeliverySection[]|null;pdf_sha256?:string|null;pdf_file_name?:string|null};
 export type Item={id:string;delivery_id:string;contract_id:string;reference:string;siren:string;name:string;city:string|null;source_label:string;source_url:string;
- delivered_on:string;status:DedicatedStatus;status_changed_at:string|null;first_invoice_on:string|null;known_proof:{kind:string;dated_on:string;reference:string}|null;statement_id:string|null};
+ delivered_on:string;status:DedicatedStatus;status_changed_at:string|null;first_invoice_on:string|null;known_proof:{kind:string;dated_on:string;reference:string}|null;statement_id:string|null;
+ position?:number;section_key?:string|null;badge?:string|null;event_date?:string|null;event_label?:string|null;department?:string|null;chips?:string[]|null;
+ fact?:string|null;why_now?:string|null;hook?:string|null};
+
 export type Statement={id:string;contract_id:string;month:string;signed_count:number;minimum_ht_cents:number;commission_ht_cents:number;amount_ht_cents:number;
  items:{reference:string;name:string;siren:string;first_invoice_on:string}[];validated_at:string|null};
 export type ClientData={contracts:Contract[];deliveries:Delivery[];items:Item[];statements:Statement[];proposals:Proposal[]};
@@ -61,44 +67,15 @@ function StatementCard({s,busy,onValidate}:{s:Statement;busy:boolean;onValidate:
  </section>;
 }
 
-function ItemCard({it,contract,today,busy,onOpen,onStatus}:{it:Item;contract:Contract;today:string;busy:boolean;onOpen:(id:string)=>Promise<HistoryEntry[]>;onStatus:(id:string,c:StatusChange)=>Promise<void>}){
- const [open,setOpen]=useState(false);const [history,setHistory]=useState<HistoryEntry[]|null>(null);
- const [status,setStatus]=useState<DedicatedStatus>(it.status);const [invoice,setInvoice]=useState('');
- const [proofKind,setProofKind]=useState<typeof PROOF_KINDS[number]>('facture');const [proofDate,setProofDate]=useState('');const [proofRef,setProofRef]=useState('');
- const knownOpen=knownClientOpen(it.delivered_on,today,contract.known_client_days);
- const locked=!!it.statement_id;
- const ready=status!==it.status&&(status!=='SIGNE'||!!invoice)&&(status!=='DEJA_CLIENT'||(!!proofDate&&proofRef.trim().length>=3));
- return <li className="pos-ded__item">
-  <div className="pos-ded__itemtop"><span className="pos-ded__name">{it.name}</span><span className="pos-ded__ref">{it.reference}</span></div>
-  <p className="pos-ded__meta">SIREN {it.siren}{it.city?` · ${it.city}`:''} · <a href={it.source_url} target="_blank" rel="noopener noreferrer">{it.source_label}</a></p>
-  <div className="pos-ded__row"><StatusBadge s={it.status}/>{it.status==='SIGNE'&&<span className="pos-ded__meta">1re facture le {dateFr(it.first_invoice_on)}</span>}
-   <button type="button" className="pos-ded__btn" aria-expanded={open} onClick={async()=>{const next=!open;setOpen(next);if(next&&!history){try{setHistory(await onOpen(it.id))}catch{setHistory([])}}}}>{open?'Fermer':'Ouvrir la fiche'}</button></div>
-  {open&&<div className="pos-ded__form">
-   {locked?<p className="pos-ded__note">Fiche comptée dans un relevé : son statut ne change plus.</p>:<>
-    <label>Statut<select value={status} disabled={busy} onChange={e=>setStatus(e.target.value as DedicatedStatus)}>
-     {DEDICATED_STATUSES.map(s=><option key={s} value={s} disabled={s==='DEJA_CLIENT'&&!knownOpen&&it.status!=='DEJA_CLIENT'}>{STATUS_LABEL[s]}{s==='DEJA_CLIENT'&&!knownOpen?' (délai dépassé)':''}</option>)}
-    </select></label>
-    {it.status!=='DEJA_CLIENT'&&<p className="pos-ded__muted">{knownOpen?`« Déjà client » possible jusqu’au ${dateFr(knownClientDeadline(it.delivered_on,contract.known_client_days))}, avec une pièce datée.`:`« Déjà client » n’est plus possible : le délai de ${contract.known_client_days} jours après la livraison est passé.`}</p>}
-    {status==='SIGNE'&&status!==it.status&&<label>Date de la première facture<input type="date" value={invoice} min={it.delivered_on} max={today} onChange={e=>setInvoice(e.target.value)} required/></label>}
-    {status==='DEJA_CLIENT'&&status!==it.status&&<div className="pos-ded__formrow">
-     <label>Pièce<select value={proofKind} onChange={e=>setProofKind(e.target.value as typeof PROOF_KINDS[number])}>{PROOF_KINDS.map(k=><option key={k} value={k}>{PROOF_LABEL[k]}</option>)}</select></label>
-     <label>Date de la pièce<input type="date" value={proofDate} max={it.delivered_on} onChange={e=>setProofDate(e.target.value)}/></label>
-     <label>Référence<input value={proofRef} maxLength={200} placeholder="N° de facture, de devis…" onChange={e=>setProofRef(e.target.value)}/></label>
-    </div>}
-    <div className="pos-ded__actions"><button type="button" className="pos-ded__btn pos-ded__btn--primary" disabled={!ready||busy}
-     onClick={()=>onStatus(it.id,{status,...(status==='SIGNE'?{first_invoice_on:invoice}:{}),...(status==='DEJA_CLIENT'?{proof:{kind:proofKind,dated_on:proofDate,reference:proofRef.trim()}}:{})})}>Enregistrer</button></div>
-   </>}
-   {history&&history.length>0&&<><p className="pos-ded__muted">Journal de la fiche</p><ol className="pos-ded__history">{history.map((h,n)=><li key={n}>{at(h.created_at)} — {KIND_LABEL[h.kind]??h.kind}{h.kind==='STATUS_CHANGED'?` : ${STATUS_LABEL[h.detail.from as DedicatedStatus]??''} → ${STATUS_LABEL[h.detail.to as DedicatedStatus]??''}`:''}</li>)}</ol></>}
-  </div>}
- </li>;
-}
 
 export function DedicatedClientView(p:{data:ClientData;today:string;busy:boolean;error:string;notice:string;
  onReadProposal:(contractId:string)=>void;onAccept:(contractId:string,sha256:string)=>void;
  onValidate:(id:string)=>void;onOpen:(id:string)=>Promise<HistoryEntry[]>;onStatus:(id:string,c:StatusChange)=>Promise<void>;onExport:(contractId:string,deliveryId:string|null,format:'csv'|'pdf')=>void}){
  const {contracts,deliveries,items,statements}=p.data;
+ const [openDel,setOpenDel]=useState<Record<string,boolean>>({});
  if(!contracts.length)return <div className="pos-ded"><h2>Veille dédiée</h2><p className="pos-ded__muted">Aucune veille dédiée n’est active sur ce compte.</p></div>;
  return <div className="pos-ded">
+  <LivraisonStyle/>
   <header><h2>Veille dédiée — suivi</h2><p className="pos-ded__muted">Vos livraisons, le statut de chaque entreprise et le relevé du mois. Chaque action est horodatée dans un journal que personne ne peut modifier.</p></header>
   {p.error&&<p className="pos-ded__note pos-ded__note--error" role="alert">{p.error}</p>}
   {p.notice&&<p className="pos-ded__note" role="status">{p.notice}</p>}
@@ -116,13 +93,9 @@ export function DedicatedClientView(p:{data:ClientData;today:string;busy:boolean
      <div className="pos-ded__grid">{counts.map(([s,n])=><div key={s} className="pos-ded__stat"><b>{n}</b><span>{STATUS_LABEL[s]}</span></div>)}</div>
     </div>
     {pending.map(s=><StatementCard key={s.id} s={s} busy={p.busy} onValidate={p.onValidate}/>)}
-    {dels.map((d,n)=>{const its=items.filter(i=>i.delivery_id===d.id);return <details key={d.id} className="pos-ded__card pos-ded__delivery" open={n===0}>
-     <summary><span className="pos-ded__row"><h3>Livraison n° {d.number}</h3><span className="pos-ded__pill">{plural(its.length,'fiche','fiches')}</span></span>
-      <span className="pos-ded__muted">{dateFr(d.delivered_on)} · {d.scope}</span></summary>
-     <div className="pos-ded__actions"><button type="button" className="pos-ded__btn" disabled={p.busy} onClick={()=>p.onExport(c.id,d.id,'csv')}>Exporter CSV</button>
-      <button type="button" className="pos-ded__btn" disabled={p.busy} onClick={()=>p.onExport(c.id,d.id,'pdf')}>Exporter PDF</button></div>
-     <ul className="pos-ded__list">{its.map(i=><ItemCard key={`${i.id}:${i.status}`} it={i} contract={c} today={p.today} busy={p.busy} onOpen={p.onOpen} onStatus={p.onStatus}/>)}</ul>
-    </details>})}
+    {dels.map((d,n)=><DeliveryDocument key={d.id} d={d} items={items.filter(i=>i.delivery_id===d.id)} contract={c} today={p.today} busy={p.busy}
+      open={(openDel[d.id]??n===0)} onToggle={()=>setOpenDel({...openDel,[d.id]:!(openDel[d.id]??n===0)})}
+      onOpen={p.onOpen} onStatus={p.onStatus} onExport={f=>p.onExport(c.id,d.id,f)}/>)}
     {done.length>0&&<div className="pos-ded__card"><h3>Relevés validés</h3><table className="pos-ded__table"><tbody>{done.map(s=><tr key={s.id}><td>{monthLabel(s.month)}<br/><span className="pos-ded__meta">{plural(s.signed_count,'signature','signatures')} · validé le {dateFr(s.validated_at)}</span></td><td>{eur(s.amount_ht_cents)} HT</td></tr>)}</tbody></table></div>}
    </section>;
   })}
@@ -139,9 +112,10 @@ export type NewProposal={organization_id:string;label:string;minimum_eur:number;
 const STATUS_TEXT:Record<ContractStatus,string>={PROPOSED:'Proposée — en attente d’acceptation',ACTIVE:'Active',TERMINATED:'Résiliée'};
 
 export function DedicatedAdminView(p:{rows:AdminView[];busy:boolean;error:string;notice:string;
- onDelivery:(contractId:string,scope:string,lines:string)=>void;onSearch:(q:string)=>Promise<OrgHit[]>;onPropose:(n:NewProposal)=>void;
+ onDelivery:(contractId:string,scope:string,lines:string)=>void;onDocDelivery:(contractId:string,scope:string,importFile:File,pdf:File)=>void;onSearch:(q:string)=>Promise<OrgHit[]>;onPropose:(n:NewProposal)=>void;
  onReplace:(contractId:string,file:File)=>void;onTerminate:(contractId:string)=>void}){
  const [scope,setScope]=useState<Record<string,string>>({});const [lines,setLines]=useState<Record<string,string>>({});
+ const [docs,setDocs]=useState<Record<string,{imp?:File;pdf?:File}>>({});
  const [q,setQ]=useState('');const [hits,setHits]=useState<OrgHit[]>([]);const [org,setOrg]=useState<OrgHit|null>(null);const [file,setFile]=useState<File|null>(null);
  const [nc,setNc]=useState({label:'',minimum_eur:'99',commission_eur:'179',trial_starts_on:'',first_statement_month:''});
  const ready=!!org&&!!file&&!!nc.label.trim()&&!!nc.trial_starts_on&&!!nc.first_statement_month;
@@ -162,6 +136,11 @@ export function DedicatedAdminView(p:{rows:AdminView[];busy:boolean;error:string
    {r.contract.status==='ACTIVE'&&<details><summary className="pos-ded__btn">Nouvelle livraison</summary>
     <div className="pos-ded__form" style={{marginTop:8}}>
      <label>Périmètre<input value={scope[r.contract.id]??''} maxLength={500} placeholder="Île-de-France — créations, semaine 47" onChange={e=>setScope({...scope,[r.contract.id]:e.target.value})}/></label>
+     <label>Fichier d’import (commercial/sortie/&lt;nom&gt;.import.json, npm run livraison)<input type="file" accept="application/json,.json" onChange={e=>setDocs({...docs,[r.contract.id]:{...docs[r.contract.id],imp:e.target.files?.[0]}})}/></label>
+     <label>PDF de la livraison, tel qu’envoyé au client<input type="file" accept="application/pdf" onChange={e=>setDocs({...docs,[r.contract.id]:{...docs[r.contract.id],pdf:e.target.files?.[0]}})}/></label>
+     <div className="pos-ded__actions"><button type="button" className="pos-ded__btn pos-ded__btn--primary" disabled={p.busy||!(scope[r.contract.id]??'').trim()||!docs[r.contract.id]?.imp||!docs[r.contract.id]?.pdf}
+      onClick={()=>p.onDocDelivery(r.contract.id,scope[r.contract.id]!,docs[r.contract.id]!.imp!,docs[r.contract.id]!.pdf!)}>Livrer le document</button></div>
+     <p className="pos-ded__muted">Ou, sans document : une liste simple.</p>
      <label>Entreprises (une par ligne : SIREN;Entreprise;Ville;Source;Lien https)<textarea value={lines[r.contract.id]??''} onChange={e=>setLines({...lines,[r.contract.id]:e.target.value})}/></label>
      <div className="pos-ded__actions"><button type="button" className="pos-ded__btn pos-ded__btn--primary" disabled={p.busy||!(scope[r.contract.id]??'').trim()||!(lines[r.contract.id]??'').trim()}
       onClick={()=>p.onDelivery(r.contract.id,scope[r.contract.id]!,lines[r.contract.id]!)}>Livrer</button></div>

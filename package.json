@@ -10,6 +10,7 @@
     "test": "node --experimental-strip-types --experimental-test-module-mocks --test tests/*.test.ts",
     "typecheck": "tsc --noEmit",
     "devis": "node --experimental-strip-types commercial/cli.ts",
+    "livraison": "node --experimental-strip-types commercial/livraison-cli.ts",
     "test:seo-html": "node tests/seo-html.mjs",
     "test:db": "node tests/rls-runner.mjs",
     "test:discovery-db": "node tests/discovery-db.mjs",

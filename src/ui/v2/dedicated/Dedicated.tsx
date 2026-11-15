@@ -46,6 +46,9 @@ export function DedicatedAdmin({api}:{api:Api}){
  return <DedicatedAdminView rows={rows} busy={busy} error={error} notice={notice}
   onDelivery={(contract_id,scope,lines)=>run(async()=>{const r=await api('dedicated/admin/deliveries','POST',{contract_id,scope,lines});
    return `Livraison n° ${r.number} créée : ${r.items} fiche${r.items>1?'s':''}${r.skipped_sirens?.length?` (${r.skipped_sirens.length} déjà livrée${r.skipped_sirens.length>1?'s':''}, ignorée${r.skipped_sirens.length>1?'s':''})`:''}.`})}
+  onDocDelivery={(contract_id,scope,importFile,pdf)=>run(async()=>{let imp:unknown;try{imp=JSON.parse(await importFile.text())}catch{throw Error('Le fichier d’import n’est pas un JSON lisible.')}
+   const r=await api('dedicated/admin/deliveries','POST',{contract_id,scope,import:imp,pdf_base64:await fileBase64(pdf),pdf_file_name:pdfName(pdf)});
+   return `Livraison n° ${r.number} créée : ${r.items} fiche${r.items>1?'s':''}, numérotées dans l’ordre du PDF (empreinte ${String(r.pdf_sha256).slice(0,12)}…).`})}
   onSearch={async q=>{try{return (await api(`dedicated/admin/organizations?q=${encodeURIComponent(q)}`)) as OrgHit[]}catch{return []}}}
   onPropose={n=>run(async()=>{const {file,...rest}=n;await api('dedicated/admin/proposals','POST',{...rest,file_name:pdfName(file),pdf_base64:await fileBase64(file)});
    return `Veille proposée : le client la voit dans son espace avec le bouton « J’accepte la proposition ».`})}

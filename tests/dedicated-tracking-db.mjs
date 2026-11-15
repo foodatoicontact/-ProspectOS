@@ -269,13 +269,34 @@ try {
     assert.equal(first.opened, true); assert.ok(first.first_export_at); assert.ok(first.reached.CONTACTE); assert.ok(first.reached.SIGNE);
   });
 
+  await check('DOCUMENT_DELIVERY: the delivered PDF and its cards, numbered in the document’s order; a re-delivered SIREN is refused', async () => {
+    const PDF = pdfBytes('livraison 3');
+    const card = (siren, name, n) => ({ ...item(siren, name), section_key: 'tr', badge: 'BODACC', event_date: '2026-11-06', event_label: '6 novembre 2026', department: '93',
+      chips: [`Activité ${n} · 10 à 19 salariés`], fact: 'Transfert du siège social.', why_now: 'De nouveaux locaux.', hook: `Accroche ${n}` });
+    const header = { prepared_for: 'Client 1', eyebrow: 'Île-de-France · 16 novembre 2026', lead: 'Lead', title_count: 2 };
+    const sections = [{ key: 'tr', title: 'Entreprises qui déménagent', subtitle: 'transfert de siège', source: 'BODACC — annonces légales', color: '#5b8def', badge: 'BODACC' }];
+    await refused(() => as(K, `select public.create_dedicated_delivery($1,'Semaine 47',$2,$3,$4,$5,'liste.pdf')`, [c1.id, JSON.stringify([card('777777771', 'NOUVELLE A', 1), card('111111111', 'DÉJÀ LIVRÉE', 2)]), header, JSON.stringify(sections), PDF.toString('base64')]),
+      /dedicated_siren_already_delivered: 111111111/, 'a SIREN already delivered, with a PDF whose numbering must hold');
+    const d = (await as(K, `select public.create_dedicated_delivery($1,'Semaine 47',$2,$3,$4,$5,'liste.pdf') r`, [c1.id, JSON.stringify([card('777777771', 'NOUVELLE A', 1), card('777777772', 'NOUVELLE B', 2)]), header, JSON.stringify(sections), PDF.toString('base64')])).rows[0].r;
+    assert.equal(d.pdf_sha256, sha(PDF));
+    const rows = (await as(S, `select reference,name,chips,hook,event_label,department from public.dedicated_items where delivery_id=$1 order by position`, [d.id])).rows;
+    assert.deepEqual(rows.map(r => [r.reference, r.name, r.hook]), [[`L${d.number}-F001`, 'NOUVELLE A', 'Accroche 1'], [`L${d.number}-F002`, 'NOUVELLE B', 'Accroche 2']]);
+    assert.deepEqual(rows[0].chips, ['Activité 1 · 10 à 19 salariés']);
+    const del = (await as(S, `select header,sections,pdf_sha256,pdf from public.dedicated_deliveries where id=$1`, [d.id])).rows[0];
+    assert.equal(del.header.prepared_for, 'Client 1'); assert.equal(del.sections[0].key, 'tr');
+    assert.equal(sha(Buffer.from(del.pdf)), del.pdf_sha256, 'the stored PDF is the one sent');
+    const exp = (await as(S, `select public.export_dedicated_items($1,$2,'pdf') r`, [c1.id, d.id])).rows[0].r.rows;
+    assert.deepEqual([exp[0].hook, exp[0].event_label, exp[0].badge], ['Accroche 1', '6 novembre 2026', 'BODACC']);
+    await refused(() => as(K, `select public.create_dedicated_delivery($1,'X',$2,null,null,$3,'x.pdf')`, [c1.id, JSON.stringify([card('777777779', 'Z', 9)]), Buffer.from('nope'.repeat(40)).toString('base64')]), /dedicated_delivery_pdf_invalid/, 'a file that is not a PDF');
+  });
+
   await check('SUBSCRIPTION_INDEPENDENT: an expired trial or a cancelled subscription changes nothing to the veille', async () => {
     await sql(`insert into public.account_entitlements(user_id,plan,status,starts_at,expires_at,updated_at) values($1,'BETA','EXPIRED',now()-interval '60 days',now()-interval '30 days',now())`, [S]);
     const it = (await sql(`select id from public.dedicated_items where contract_id=$1 and statement_id is null order by reference limit 1`, [c1.id])).rows[0];
     await as(S, `select public.open_dedicated_item($1)`, [it.id]);
     await as(S, `select public.set_dedicated_item_status($1,'CONTACTE')`, [it.id]);
-    assert.equal((await as(S, `select public.export_dedicated_items($1,null,'pdf') r`, [c1.id])).rows[0].r.rows.length, 6);
-    assert.equal((await as(S, `select count(*)::int n from public.dedicated_items`)).rows[0].n, 6, 'still readable');
+    assert.equal((await as(S, `select public.export_dedicated_items($1,null,'pdf') r`, [c1.id])).rows[0].r.rows.length, 8);
+    assert.equal((await as(S, `select count(*)::int n from public.dedicated_items`)).rows[0].n, 8, 'still readable');
     const m = (await readFile(new URL('../db/migrations/043_dedicated_tracking.sql', import.meta.url), 'utf8')).split('\n').filter(l => !l.trim().startsWith('--')).join('\n');
     assert.doesNotMatch(m.replace(/create or replace function prospectos_private\.is_internal_admin[\s\S]*?\$\$;/, ''), /account_entitlements|stripe|billing|subscription/i, 'no access rule reads a subscription (the admin check aside)');
   });

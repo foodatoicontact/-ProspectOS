@@ -146,7 +146,7 @@ test('screens: v2 only, behind the account flag; the client entry needs a contra
  const {withoutSelfOutreach}=await import('./self-outreach-strip.ts');
  assert.doesNotMatch(withoutSelfOutreach(page),/dedicated/i,'every fragment is known to the strip used by the byte-identical pins');
  const menu=read('src/ui/v2/shell/UserMenu.tsx');
- assert.match(menu,/\{live&&p\.dedicated&&<Item icon="signal" label=\{t\.dedicated\}/);assert.match(menu,/\{live&&p\.dedicatedAdmin&&<Item icon="activity" label=\{t\.dedicatedAdmin\}/);
+ assert.match(menu,/\{live&&p\.dedicated&&<Item icon="signal" label=\{p\.dedicatedPending\?`\$\{t\.dedicated\} \(\$\{p\.dedicatedPending\}\)`:t\.dedicated\}/);assert.match(menu,/\{live&&p\.dedicatedAdmin&&<Item icon="activity" label=\{t\.dedicatedAdmin\}/);
  assert.match(read('src/ui/v2/shell/AppShell.tsx'),/export \{DedicatedClient,DedicatedAdmin\} from '\.\.\/dedicated\/Dedicated\.tsx';/);
  const views=read('src/ui/v2/dedicated/DedicatedViews.tsx');
  assert.match(read('src/ui/v2/dedicated/DeliveryView.tsx'),/disabled=\{s==='DEJA_CLIENT'&&!knownOpen&&it\.status!=='DEJA_CLIENT'\}/,'« déjà client » greyed out after the window');
@@ -206,4 +206,17 @@ test('first statement month: never before the trial starts (a mistyped year is r
   minimum_eur:99,commission_eur:179,trial_starts_on:'2026-11-16',first_statement_month:'2026-01-01',file_name:'p.pdf',pdf_base64:'J'.repeat(200)})}),['dedicated','admin','proposals'],db,json,{enabled:true,now:()=>NOW});
  assert.equal(r!.status,422);assert.equal((await r!.json()).code,'FIRST_STATEMENT_MONTH');
  assert.match(read('src/ui/v2/dedicated/DedicatedViews.tsx'),/&&!monthIssue;/,'the button stays disabled');
+});
+
+test('sign-in notice: a proposal to accept or a statement to validate is announced, one tap opens the space',async()=>{
+ const {noticeText}=await import('../src/dedicated/model.ts');
+ assert.equal(noticeText(0,0),null);
+ assert.deepEqual(noticeText(1,0),{title:'Nouvelle proposition de veille',text:'Lisez-la et acceptez-la pour ouvrir votre espace de suivi : vos livraisons, le statut de chaque entreprise et le relevé du mois.',action:'Voir la proposition'});
+ assert.equal(noticeText(0,1)!.title,'Relevé du mois à valider');assert.match(noticeText(1,1)!.title,/deux actions/);
+ const page=read('app/page.tsx');
+ assert.ok(page.includes(" notice={mode==='live'&&dedicatedAccess.client&&view!=='dedicated'&&<v2.DedicatedNotice proposals={dedicatedAccess.proposals} statements={dedicatedAccess.statements} onOpen={()=>{setV2Nav(null);setView('dedicated');setFromList(false)}}/>}"));
+ const route=read('app/api/v1/[...path]/route.ts');
+ assert.match(route,/\.in\('organization_id',orgs\)\.eq\('status','PROPOSED'\)/,'only the caller’s own proposals');
+ assert.match(route,/from\('dedicated_statements'\)\.select\('id',\{count:'exact',head:true\}\)\.in\('organization_id',orgs\)\.is\('validated_at',null\)/);
+ assert.match(read('src/ui/v2/dedicated/DedicatedNotice.tsx'),/sessionStorage\.setItem\(KEY,signature\)/,'« Plus tard » until the next sign-in');
 });

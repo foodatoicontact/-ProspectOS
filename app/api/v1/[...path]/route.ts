@@ -79,13 +79,16 @@ async function callProviderMeteringFailure(call:()=>ReturnType<typeof analyzeOff
  }
 }
 async function dedicatedTrackingFor(db:Awaited<ReturnType<typeof authenticatedDb>>['db']){
- if(!dedicatedTrackingEnabled(process.env))return {enabled:false,client:false};
+ if(!dedicatedTrackingEnabled(process.env))return {enabled:false,client:false,proposals:0,statements:0};
  // A contract of one of the account's OWN organizations (the administrator reads every contract, but is not their client).
  try{
-  const orgs=await memberOrganizations(db);if(!orgs.length)return {enabled:true,client:false};
+  const orgs=await memberOrganizations(db);if(!orgs.length)return {enabled:true,client:false,proposals:0,statements:0};
   const {count,error}=await db.from('dedicated_contracts').select('id',{count:'exact',head:true}).in('organization_id',orgs);
-  return {enabled:true,client:!error&&(count??0)>0};
- }catch{return {enabled:true,client:false}}
+  // What waits for the client (the sign-in notice): proposals to accept, statements to validate.
+  const [p,s]=await Promise.all([db.from('dedicated_contracts').select('id',{count:'exact',head:true}).in('organization_id',orgs).eq('status','PROPOSED'),
+   db.from('dedicated_statements').select('id',{count:'exact',head:true}).in('organization_id',orgs).is('validated_at',null)]);
+  return {enabled:true,client:!error&&(count??0)>0,proposals:p.error?0:p.count??0,statements:s.error?0:s.count??0};
+ }catch{return {enabled:true,client:false,proposals:0,statements:0}}
 }
 async function handler(request:Request,context:{params:Promise<{path:string[]}>}){
  try {

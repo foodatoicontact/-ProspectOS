@@ -22,6 +22,8 @@ export type AppShellProps={
  locale:Locale;current:NavKey|null;onNavigate:(key:NavKey)=>void;
  project:ProjectSwitcherProps;account:Omit<UserMenuProps,'locale'>;
  title:string;actions?:ShellAction[];debug?:ReactNode;children:ReactNode;
+ // A notice shown over the workspace (e.g. the veille dédiée sign-in notice); absent = nothing.
+ notice?:ReactNode;
  // A screen already migrated to v2 (UI-3: Today 2.0) replaces the legacy region for that view.
  screen?:ReactNode;
 };
@@ -105,7 +107,7 @@ export function SideNav({locale,current,onNavigate,project,account,projectOpen,m
  </aside>;
 }
 
-export function AppShell({locale,current,onNavigate,project,account,title,actions,debug,children,screen}:AppShellProps){
+export function AppShell({locale,current,onNavigate,project,account,title,actions,debug,notice,children,screen}:AppShellProps){
  const desktop=useIsDesktop();
  const [projectOpen,setProjectOpen]=useState(false);
  const [menuOpen,setMenuOpen]=useState(false);
@@ -123,7 +125,7 @@ export function AppShell({locale,current,onNavigate,project,account,title,action
    onCloseProject={()=>setProjectOpen(false)} onCloseMenu={()=>setMenuOpen(false)} projectRef={sideProject} menuRef={sideMenu}/>
   <main id="pos-main" className="pos-app__main" tabIndex={-1}>
    <h1 className="pos-visually-hidden">{title}</h1>
-   {debug}
+   {debug}{notice}
    {actions&&actions.length>0&&<div className="pos-app__toolbar">{actions.map(a=><Button key={a.key} variant={a.primary?'primary':'secondary'} size="sm"
     iconStart={a.icon} disabled={a.disabled} onClick={a.onClick}>{a.label.replace(/^＋\s*/,'')}</Button>)}</div>}
    {screen??<div className="pos-legacy">{children}</div>}
@@ -151,3 +153,4 @@ export {DemoSharePanel,DemoClaim} from '../../../components/DemoSharePanel.tsx';
 export {ActivityV2,ActionsNative,ActivityOverview} from '../activity/ActivityV2.tsx';
 // Veille dédiée — suivi (migration 043): the client's space and the administrator's dashboard, behind DEDICATED_TRACKING_ENABLED.
 export {DedicatedClient,DedicatedAdmin} from '../dedicated/Dedicated.tsx';
+export {DedicatedNotice} from '../dedicated/DedicatedNotice.tsx';

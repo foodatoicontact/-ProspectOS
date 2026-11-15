@@ -134,3 +134,12 @@ export function parseDelivery(text:string):{items:DeliveryLine[];errors:string[]
  if(items.length>1000)errors.push('1000 fiches au plus par livraison');
  return {items,errors};
 }
+
+// The sign-in notice of the client (src/ui/v2/dedicated/DedicatedNotice.tsx): what waits for them, in one sentence.
+export function noticeText(proposals:number,statements:number):{title:string;text:string;action:string}|null{
+ if(proposals>0&&statements>0)return {title:'Veille dédiée : deux actions vous attendent',text:'Une proposition à accepter et un relevé à valider dans votre espace de suivi.',action:'Ouvrir mon espace'};
+ if(proposals>0)return {title:proposals>1?`${proposals} propositions de veille vous attendent`:'Nouvelle proposition de veille',
+  text:'Lisez-la et acceptez-la pour ouvrir votre espace de suivi : vos livraisons, le statut de chaque entreprise et le relevé du mois.',action:'Voir la proposition'};
+ if(statements>0)return {title:statements>1?`${statements} relevés à valider`:'Relevé du mois à valider',text:'Votre relevé de signatures est prêt : vérifiez-le et validez-le avant le 5.',action:'Voir le relevé'};
+ return null;
+}

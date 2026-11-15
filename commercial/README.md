@@ -77,4 +77,5 @@ Dans ProspectOS, ouvrir « Veille dédiée — clients » → « Nouvelle livrai
 - **Fiches** : chaque fiche reprend les mêmes champs, dans le même ordre et avec les mêmes intitulés que la carte du PDF. Le statut et le journal s'ajoutent en bas de la carte.
 - **Export PDF depuis l'outil** : il rend le PDF envoyé, à l'identique, avec seulement un filigrane et le numéro de livraison en plus. C'est une mise à jour incrémentale : les octets d'origine restent le début exact du fichier.
 - **Style** : il est défini une seule fois, dans `src/dedicated/livraison-style.ts`. Le générateur l'écrit tel quel ; l'application l'applique dans son propre bloc.
+- **Contrôle au registre avant chaque livraison** : `npm run livraison` interroge l'API Recherche d'entreprises pour chaque SIREN. Il refuse de produire le PDF si une entreprise est opposée à la prospection commerciale, est un entrepreneur individuel, est fermée ou est introuvable. Il faut la retirer du fichier, puis relancer.
 - **SIREN déjà livré** : une entreprise déjà livrée à ce client est refusée, pour que les numéros restent ceux du document. Il faut la retirer du fichier et régénérer le PDF.

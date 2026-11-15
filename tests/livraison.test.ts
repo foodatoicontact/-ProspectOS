@@ -90,3 +90,17 @@ test('no client data in the repository: deliveries live in an ignored folder, ex
  const ignore=read('.gitignore');assert.match(ignore,/^commercial\/livraisons\/\*$/m);assert.match(ignore,/^!commercial\/livraisons\/exemple\.json$/m);
  assert.match(EX.lead,/fictif/);
 });
+
+test('register check before any delivery: opposition to prospecting, sole trader, closed or unknown company → refused',async()=>{
+ const {verifierEntreprises}=await import('../commercial/livraison.ts');
+ const reg:Record<string,Record<string,unknown>>={
+  '900000001':{siren:'900000001',etat_administratif:'A',nature_juridique:'5710',opposition_diffusion_commerciale:false},
+  '900000002':{siren:'900000002',etat_administratif:'A',nature_juridique:'5710',opposition_diffusion_commerciale:true},
+  '900000003':{siren:'900000003',etat_administratif:'C',nature_juridique:'1000',complements:{est_entrepreneur_individuel:true}}};
+ const fetchJson=async(url:string)=>{const q=new URL(url).searchParams.get('q')!;return {results:reg[q]?[reg[q]]:[]}};
+ assert.deepEqual(await verifierEntreprises(EX,fetchJson),['fiche 2 (ATELIER FICTIF) : opposée à la prospection commerciale (registre Sirene) — à retirer',
+  'fiche 3 (SYNDIC EXEMPLE) : entrepreneur individuel — à retirer','fiche 3 (SYNDIC EXEMPLE) : entreprise fermée — à retirer']);
+ const down=await verifierEntreprises(EX,async()=>{throw Error('x')});
+ assert.equal(down.length,3);assert.match(down[0]!,/registre injoignable/);
+ assert.match(read('commercial/livraison-cli.ts'),/const reg=await verifierEntreprises\(l,/,'the CLI runs it before generating');
+});

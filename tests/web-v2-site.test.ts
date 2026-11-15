@@ -76,7 +76,8 @@ test('freeze — legal text, SEO content, prices, quotas, trial, plans, i18n and
   // Owner decision (14 nov. 2026, SEO, option B): /logiciel-prospection-b2b rewritten for « logiciel de prospection B2B » and
   // linked from /prospection-b2b (one sentence, related block).
   // Owner decision (14 nov. 2026, /tarifs): the « Veille dédiée, sur devis » service is stated next to the self-service plans, with its section and two price questions in the FAQ.
-  'src/domain/seo-content.ts':'a9ab3d2740f7889ed5074b14d02d9dcb157d62a18e456e583f313cab4d894191',
+  // Owner request (15 nov. 2026, SEO): a /veille-entreprises page for the veille dédiée, linked from /tarifs (one sentence).
+  'src/domain/seo-content.ts':'bd6ff9ecd899702fb3b46b11f315666dac530ffb9b128ba071d9790f25a77bf4',
   // Owner decision (11 nov. 2026, SEO): prospectos.fr as the default site address, robots closing the connected and
   // technical routes, the LinkedIn pages of ProspectOS and of its founder as sameAs.
   // Owner request (13 nov. 2026, demo links, migration 042): robots also closes /d/ (private demo pages) — that one entry only.

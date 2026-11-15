@@ -12,7 +12,9 @@ test('site metadata targets generic B2B prospecting rather than only Foodatoi',(
 
 test('SEO landing pages cover the approved search intents and the factual pages (tarifs, logiciel, à propos)',()=>{
   assert.deepEqual(seoPages.map(p=>p.slug).sort(),[
-    'a-propos','lead-scoring','logiciel-prospection-b2b','prioriser-liste-prospects','prospection-b2b','prospection-ia','prospection-restaurants','qualifier-un-prospect-b2b','tarifs'
+    'a-propos','lead-scoring','logiciel-prospection-b2b','prioriser-liste-prospects','prospection-b2b','prospection-ia','prospection-restaurants','qualifier-un-prospect-b2b','tarifs',
+    // Owner request (15 nov. 2026): the veille dédiée offered in search results — « veille entreprises ».
+    'veille-entreprises'
   ]);
   for(const page of seoPages){
     assert.ok(page.title.length>20);

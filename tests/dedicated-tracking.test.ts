@@ -7,9 +7,9 @@ import {readFileSync} from 'node:fs';
 import {statementAmount,knownClientOpen,knownClientDeadline,statementDeadline,previousMonth,counters,alerts,exportCsv,parseDelivery,parisDate,ATTESTATION,
  type AdminContract,type AdminItem,type ExportRow} from '../src/dedicated/model.ts';
 import {exportPdf} from '../src/dedicated/pdf.ts';
-import {handleDedicated} from '../src/dedicated/api.ts';
+import {handleDedicated,byteaToBytes} from '../src/dedicated/api.ts';
 import {dedicatedTrackingEnabled,dedicatedNotifyEmail} from '../src/dedicated/flag.ts';
-import {runDedicatedStatements,reminderEmail} from '../src/dedicated/notify.ts';
+import {runDedicatedStatements,reminderEmail,acceptanceEmails} from '../src/dedicated/notify.ts';
 const read=(p:string)=>readFileSync(new URL(`../${p}`,import.meta.url),'utf8');
 const json=(value:unknown,status=200)=>Response.json(value,{status});
 
@@ -89,15 +89,15 @@ test('pasted delivery: SIREN;Entreprise;Ville;Source;Lien — header skipped, ht
 test('routes: off by default (404); on, refusals map to clear French messages; nothing for another path',async()=>{
  assert.equal(dedicatedTrackingEnabled({}),false);assert.equal(dedicatedTrackingEnabled({DEDICATED_TRACKING_ENABLED:'true'}),true);
  const db={rpc:async(fn:string)=>({data:null,error:{message:fn==='set_dedicated_item_status'?'known_window_closed':'Admin access required',code:'P0001'}}),from:()=>{throw Error('no direct read here')}} as never;
- const req=(m:string,u:string)=>new Request(`https://prospectos.fr/api/v1/${u}`,{method:m});
- assert.equal(await handleDedicated(req('GET','prospects'),['prospects'],{},db,json,{enabled:true,now:()=>NOW}),null);
- assert.equal((await handleDedicated(req('GET','dedicated'),['dedicated'],{},db,json,{enabled:false,now:()=>NOW}))!.status,404);
+ const req=(m:string,u:string,b?:unknown)=>new Request(`https://prospectos.fr/api/v1/${u}`,{method:m,...(b?{body:JSON.stringify(b)}:{})});
+ assert.equal(await handleDedicated(req('GET','prospects'),['prospects'],db,json,{enabled:true,now:()=>NOW}),null);
+ assert.equal((await handleDedicated(req('GET','dedicated'),['dedicated'],db,json,{enabled:false,now:()=>NOW}))!.status,404);
  const id='00000000-0000-4000-8000-000000000001';
- const r=await handleDedicated(req('POST',`dedicated/items/${id}/status`),['dedicated','items',id,'status'],{status:'DEJA_CLIENT',proof:{kind:'facture',dated_on:'2026-01-02',reference:'F-12'}},db,json,{enabled:true,now:()=>NOW});
+ const r=await handleDedicated(req('POST',`dedicated/items/${id}/status`,{status:'DEJA_CLIENT',proof:{kind:'facture',dated_on:'2026-01-02',reference:'F-12'}}),['dedicated','items',id,'status'],db,json,{enabled:true,now:()=>NOW});
  assert.equal(r!.status,409);assert.equal((await r!.json()).code,'KNOWN_WINDOW_CLOSED');
- const bad=await handleDedicated(req('POST',`dedicated/items/${id}/status`),['dedicated','items',id,'status'],{status:'GAGNE'},db,json,{enabled:true,now:()=>NOW});
+ const bad=await handleDedicated(req('POST',`dedicated/items/${id}/status`,{status:'GAGNE'}),['dedicated','items',id,'status'],db,json,{enabled:true,now:()=>NOW});
  assert.equal(bad!.status,400);
- const admin=await handleDedicated(req('GET','dedicated/admin'),['dedicated','admin'],{},db,json,{enabled:true,now:()=>NOW});
+ const admin=await handleDedicated(req('GET','dedicated/admin'),['dedicated','admin'],db,json,{enabled:true,now:()=>NOW});
  assert.equal(admin!.status,403);
 });
 
@@ -120,7 +120,11 @@ test('monthly job: generates, then reminds once; a failed send is released for t
 
 test('wiring: the route module, the account flag, one daily cron behind the flag; no client data in the repository',()=>{
  const route=read('app/api/v1/[...path]/route.ts');
- assert.match(route,/handleDedicated\(request,path,body,db,json,\{enabled:dedicatedTrackingEnabled\(process\.env\),now:\(\)=>new Date\(\)\}\)/);
+ assert.match(route,/handleDedicated\(request,path,db,json,\{enabled:dedicatedTrackingEnabled\(process\.env\),now:\(\)=>new Date\(\),userEmail:user\.email\?\?null,/);
+ // Before the general 20 kB body parsing (a delivery or a proposal PDF is larger), and with no entitlement check.
+ assert.ok(route.indexOf('const dedicatedResponse=await handleDedicated(')<route.indexOf(" let body:Record<string,any>={};"));
+ const block=route.slice(route.indexOf('const dedicatedResponse='),route.indexOf('if(dedicatedResponse)return dedicatedResponse;'));
+ assert.doesNotMatch(block,/requireActiveEntitlement|requireEntitlement|billing|stripe/i,'the veille is independent of the subscription');
  assert.match(route,/dedicated_tracking:await dedicatedTrackingFor\(db\)/);
  const vercel=JSON.parse(read('vercel.json'));
  assert.equal(vercel.crons.filter((c:{path:string})=>c.path==='/api/cron/dedicated-statements').length,1);
@@ -156,8 +160,37 @@ test('client space: only the caller’s own organizations, even for the administ
  const chain=(t:string)=>{const q:any={select:()=>q,in:(c:string,v:string[])=>{seen.push(`${t}:${c}=${v.join(',')}`);return q},order:()=>q,limit:async()=>({data:[],error:null}),
   then:(r:(v:unknown)=>void)=>r({data:t==='memberships'?[{organization_id:'org-own'}]:[],error:null})};return q};
  const db={from:chain,rpc:async()=>({data:null,error:null})} as never;
- const r=await handleDedicated(new Request('https://prospectos.fr/api/v1/dedicated'),['dedicated'],{},db,json,{enabled:true,now:()=>NOW});
+ const r=await handleDedicated(new Request('https://prospectos.fr/api/v1/dedicated'),['dedicated'],db,json,{enabled:true,now:()=>NOW});
  assert.equal(r!.status,200);
- assert.deepEqual(seen.sort(),['dedicated_contracts:organization_id=org-own','dedicated_deliveries:organization_id=org-own','dedicated_items:organization_id=org-own','dedicated_statements:organization_id=org-own']);
+ assert.deepEqual(seen.sort(),['dedicated_contracts:organization_id=org-own','dedicated_deliveries:organization_id=org-own','dedicated_items:organization_id=org-own','dedicated_proposals:organization_id=org-own','dedicated_statements:organization_id=org-own']);
  assert.match(read('app/api/v1/[...path]/route.ts'),/select\('id',\{count:'exact',head:true\}\)\.in\('organization_id',orgs\)/);
+});
+
+test('proposal: acceptance with the shown fingerprint, then the two e-mails; uploads up to 4 MB for the administrator only',async()=>{
+ const id='00000000-0000-4000-8000-000000000009',SHA='a'.repeat(64);const calls:unknown[]=[];const sent:unknown[]=[];
+ const db={rpc:async(fn:string,args:Record<string,unknown>)=>{calls.push([fn,args]);return fn==='accept_dedicated_proposal'?{data:{label:'Veille IDF',organization:'Exemple',trial_starts_on:'2026-11-16',version:2,sha256:SHA,accepted_at:'2026-11-15T10:00:00Z'},error:null}:{data:null,error:{message:'dedicated_proposal_changed',code:'P0001'}}}} as never;
+ const deps={enabled:true,now:()=>NOW,userEmail:'client@exemple.fr',notifyAccepted:async(a:unknown)=>{sent.push(a)}};
+ const post=(path:string[],body:unknown)=>handleDedicated(new Request(`https://prospectos.fr/api/v1/${path.join('/')}`,{method:'POST',body:JSON.stringify(body)}),path,db,json,deps);
+ assert.equal((await post(['dedicated','proposals',id,'accept'],{sha256:'nope'}))!.status,400,'a fingerprint is required');
+ const ok=await post(['dedicated','proposals',id,'accept'],{sha256:SHA});assert.equal(ok!.status,200);
+ assert.deepEqual(calls.at(-1),['accept_dedicated_proposal',{p_contract_id:id,p_sha256:SHA}]);
+ assert.equal((sent[0] as {userEmail:string;sha256:string}).userEmail,'client@exemple.fr');assert.equal((sent[0] as {sha256:string}).sha256,SHA);
+ // A body over 20 kB is refused outside the administrator's uploads; an upload may reach 4 MB.
+ const big={status:'CONTACTE',pad:'x'.repeat(25000)};
+ assert.equal((await post(['dedicated','items',id,'status'],big))!.status,413);
+ const upload=await post(['dedicated','admin','proposals'],{organization_id:id,label:'X',minimum_eur:99,commission_eur:179,trial_starts_on:'2026-11-16',first_statement_month:'2026-12-01',file_name:'p.pdf',pdf_base64:'J'.repeat(100000)});
+ assert.notEqual(upload!.status,413);
+ assert.deepEqual([...byteaToBytes('\\x255044462d')],[0x25,0x50,0x44,0x46,0x2d]);
+ const m=acceptanceEmails({label:'Veille IDF',organization:'Exemple',trial_starts_on:'2026-11-16',version:2,sha256:SHA,accepted_at:'2026-11-15T10:00:00Z',userEmail:'client@exemple.fr'},'https://prospectos.fr');
+ assert.equal(m.client.subject,'Votre espace de veille est ouvert');assert.match(m.client.text,/https:\/\/prospectos\.fr/);assert.match(m.client.text,/16 novembre 2026/);
+ assert.match(m.admin.text,new RegExp(SHA));assert.match(m.admin.subject,/Proposition acceptée — Exemple/);
+});
+
+test('proposal screens: « J’accepte la proposition » before the space; termination keeps 6 months of access; attach by organization',()=>{
+ const views=read('src/ui/v2/dedicated/DedicatedViews.tsx');
+ assert.match(views,/if\(c\.status==='PROPOSED'\)return <ProposalCard /);
+ assert.match(views,/onClick=\{\(\)=>onAccept\(c\.id,prop\.sha256\)\}>J’accepte la proposition<\/button>/);
+ assert.match(views,/Proposer une veille/);assert.match(views,/Aucun compte n’est créé/);
+ assert.doesNotMatch(views,/client_email/,'no attachment by e-mail address');
+ assert.match(read('src/dedicated/api.ts'),/p_organization_id:p\.data\.organization_id/);
 });

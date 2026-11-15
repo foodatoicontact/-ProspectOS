@@ -9,7 +9,8 @@ const item=(n:number,d:string,num:number,name:string,city:string,status:ClientDa
  id:`00000000-0000-4000-8000-${String(n).padStart(12,'0')}`,delivery_id:d,contract_id:C,reference:`L${num}-F${String(n%100).padStart(3,'0')}`,siren:String(800000000+n*1117).slice(0,9),
  name,city,source_label:'BODACC — immatriculation',source_url:src(n),delivered_on:num===2?'2026-11-23':'2026-11-16',status,status_changed_at:null,first_invoice_on:null,known_proof:null,statement_id:null,...extra});
 export const BENCH_CLIENT:ClientData={
- contracts:[{id:C,label:'Veille Île-de-France — exemple',minimum_ht_cents:9900,commission_ht_cents:17900,known_client_days:15,first_statement_month:'2026-12-01'}],
+ contracts:[{id:C,label:'Veille Île-de-France — exemple',minimum_ht_cents:9900,commission_ht_cents:17900,known_client_days:15,first_statement_month:'2026-12-01',status:'ACTIVE',trial_starts_on:'2026-11-16',accepted_at:'2026-11-15T18:20:00Z',terminated_at:null}],
+ proposals:[{contract_id:C,version:1,file_name:'proposition-exemple.pdf',sha256:'3f0c1d9e8b7a6f5e4d3c2b1a0f9e8d7c6b5a4f3e2d1c0b9a8f7e6d5c4b3a2f10',created_at:'2026-11-14T10:00:00Z'}],
  deliveries:[{id:D2,contract_id:C,number:2,delivered_on:'2026-11-23',scope:'Île-de-France — créations et transferts, semaine 48'},{id:D1,contract_id:C,number:1,delivered_on:'2026-11-16',scope:'Île-de-France — créations et transferts, semaine 47'}],
  items:[item(101,D2,2,'ATELIER EXEMPLE BOIS','Meaux','A_CONTACTER'),item(102,D2,2,'SAS CUISINES FICTIVES','Torcy','CONTACTE'),
   item(1,D1,1,'ENTREPÔT DÉMO LOGISTIQUE','Chelles','SIGNE',{first_invoice_on:'2026-12-03'}),item(2,D1,1,'SARL BOULANGERIE EXEMPLE','Lagny-sur-Marne','DEVIS_ENVOYE'),
@@ -18,18 +19,20 @@ export const BENCH_CLIENT:ClientData={
   items:[{reference:'L1-F001',name:'ENTREPÔT DÉMO LOGISTIQUE',siren:'800001117',first_invoice_on:'2026-12-03'}],validated_at:null}],
 };
 export const BENCH_ADMIN:AdminView[]=[
- {contract:{...BENCH_CLIENT.contracts[0],organization:'Exemple Sécurité Incendie'},deliveries:2,counters:{delivered:6,opened:5,exported:4,contacted:3,quoted:2,signed:1,lost:1,known:1},
+ {contract:{...BENCH_CLIENT.contracts[0],organization:'Exemple Sécurité Incendie',proposal:{version:1,sha256:'3f0c1d9e8b7a6f5e4d3c2b1a0f9e8d7c6b5a4f3e2d1c0b9a8f7e6d5c4b3a2f10',file_name:'proposition-exemple.pdf'}},deliveries:2,counters:{delivered:6,opened:5,exported:4,contacted:3,quoted:2,signed:1,lost:1,known:1},
   alerts:[{kind:'EXPORT_IDLE',text:'2 fiches exportées sans changement de statut depuis 30 jours',items:['L1-F005','L1-F006']},{kind:'STATEMENT_UNVALIDATED',text:'Relevé de décembre 2026 non validé (179,00 € HT)'}],
   statements:[{id:'s1',month:'2026-12-01',signed_count:1,amount_ht_cents:17900,validated_at:null}]},
- {contract:{id:'00000000-0000-4000-8000-00000000c002',label:'Veille Occitanie — exemple',minimum_ht_cents:9900,commission_ht_cents:17900,known_client_days:15,first_statement_month:'2026-12-01',organization:'Exemple Rénovation Sud'},
+ {contract:{id:'00000000-0000-4000-8000-00000000c002',label:'Veille Occitanie — exemple',minimum_ht_cents:9900,commission_ht_cents:17900,known_client_days:15,first_statement_month:'2026-12-01',organization:'Exemple Rénovation Sud',
+   status:'PROPOSED',trial_starts_on:'2026-12-01',accepted_at:null,terminated_at:null,proposal:{version:2,sha256:'a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60718293a4b5c6d7e8f9',file_name:'proposition-renovation-v2.pdf'}},
   deliveries:4,counters:{delivered:48,opened:41,exported:30,contacted:22,quoted:9,signed:3,lost:4,known:2},alerts:[],
   statements:[{id:'s2',month:'2026-12-01',signed_count:3,amount_ht_cents:53700,validated_at:'2027-01-03T09:12:00Z'}]},
 ];
-export function DedicatedBench({view}:{view:'client'|'admin'}){
- const [data,setData]=useState(BENCH_CLIENT);const [notice,setNotice]=useState('');
+export function DedicatedBench({view}:{view:'client'|'admin'|'proposal'}){
+ const [data,setData]=useState<ClientData>(view==='proposal'?{...BENCH_CLIENT,contracts:BENCH_CLIENT.contracts.map(c=>({...c,status:'PROPOSED',accepted_at:null})),deliveries:[],items:[],statements:[]}:BENCH_CLIENT);const [notice,setNotice]=useState('');
  return <div className="pos-ui" style={{minHeight:'100vh',background:'var(--pos-bg)'}}>{view==='admin'
-  ?<DedicatedAdminView rows={BENCH_ADMIN} busy={false} error="" notice={notice} onDelivery={()=>setNotice('Livraison créée (banc de test).')} onContract={()=>setNotice('Contrat créé (banc de test).')}/>
+  ?<DedicatedAdminView rows={BENCH_ADMIN} busy={false} error="" notice={notice} onDelivery={()=>setNotice('Livraison créée (banc de test).')} onSearch={async()=>[]} onPropose={()=>setNotice('Veille proposée (banc de test).')} onReplace={()=>setNotice('Version jointe (banc de test).')} onTerminate={()=>setNotice('Veille résiliée (banc de test).')}/>
   :<DedicatedClientView data={data} today="2027-01-02" busy={false} error="" notice={notice}
+    onReadProposal={()=>setNotice('Ouverture du PDF (banc de test).')} onAccept={()=>{setData({...data,contracts:data.contracts.map(c=>({...c,status:'ACTIVE',accepted_at:'2027-01-02T10:00:00Z'}))});setNotice('Proposition acceptée : votre espace de suivi est ouvert.')}}
     onValidate={id=>{setData({...data,statements:data.statements.map(s=>s.id===id?{...s,validated_at:'2027-01-02T10:00:00Z'}:s)});setNotice('Relevé validé. Merci.')}}
     onOpen={async()=>[{kind:'ITEM_OPENED',detail:{},created_at:'2027-01-02T09:40:00Z'},{kind:'STATUS_CHANGED',detail:{from:'A_CONTACTER',to:'CONTACTE'},created_at:'2026-11-25T14:02:00Z'},{kind:'EXPORT',detail:{},created_at:'2026-11-24T08:15:00Z'}]}
     onStatus={async(id,c)=>{setData({...data,items:data.items.map(i=>i.id===id?{...i,status:c.status}:i)});setNotice('Statut enregistré.')}}

@@ -18,9 +18,15 @@
 -- Who sees what (RLS): a member of the client organization sees its own contract, deliveries, items, statements and
 -- journal — never another organization's. The administrator (an ACTIVE INTERNAL entitlement, the existing admin model of
 -- migration 013) sees every contract. Nobody writes the tables directly: the functions below decide.
---   admin (authenticated, INTERNAL): create_dedicated_contract, create_dedicated_delivery, dedicated_admin_overview
---   client (authenticated, member): open_dedicated_item, set_dedicated_item_status, export_dedicated_items,
---                                    validate_dedicated_statement
+--   admin (authenticated, INTERNAL): dedicated_find_organizations, propose_dedicated_watch (an EXISTING organization, by
+--     identifier, with the proposal PDF), replace_dedicated_proposal, create_dedicated_delivery, terminate_dedicated_contract,
+--     dedicated_admin_overview
+--   client (authenticated, member): accept_dedicated_proposal (the SHA-256 of the latest version), open_dedicated_item,
+--     set_dedicated_item_status, export_dedicated_items, validate_dedicated_statement
+-- Lifecycle: PROPOSED (space closed, the proposal only) → ACTIVE (accepted: journal with user, time, version and SHA-256 of
+-- the PDF; the trial starts on its planned date) → TERMINATED (no new delivery; reading and status updates for 6 months,
+-- for the commissions still due; statements after the termination month carry no minimum). No subscription, entitlement
+-- or payment is read or written: the veille stays open whatever the ProspectOS subscription.
 --   server only (service_role, cron): generate_dedicated_statements, claim_dedicated_reminders, release_dedicated_reminder
 -- Rules held by the database, whatever the caller sends:
 --   - DEJA_CLIENT is accepted only up to delivered_on + known_client_days (Paris date), with a dated proof whose date is
@@ -32,14 +38,17 @@
 -- Nothing else is touched: no existing table, policy, function, quota, entitlement, evidence or billing object changes.
 --
 -- Rollback (only while no client uses it — the journal is the evidence of both parties):
---   drop function public.create_dedicated_contract(text,text,int,int,int,date), public.create_dedicated_delivery(uuid,text,jsonb),
+--   drop function public.dedicated_find_organizations(text), public.propose_dedicated_watch(uuid,text,int,int,int,date,date,text,text),
+--    public.replace_dedicated_proposal(uuid,text,text), public.terminate_dedicated_contract(uuid), public.accept_dedicated_proposal(uuid,text),
+--    prospectos_private.dedicated_store_proposal(public.dedicated_contracts,text,text), prospectos_private.dedicated_visible(uuid),
+--    prospectos_private.dedicated_require_open(uuid), public.create_dedicated_delivery(uuid,text,jsonb),
 --    public.dedicated_admin_overview(), public.open_dedicated_item(uuid), public.set_dedicated_item_status(uuid,text,date,jsonb),
 --    public.export_dedicated_items(uuid,uuid,text), public.validate_dedicated_statement(uuid,text),
 --    public.generate_dedicated_statements(date), public.claim_dedicated_reminders(), public.release_dedicated_reminder(uuid),
 --    prospectos_private.is_internal_admin(), prospectos_private.paris_today(), prospectos_private.dedicated_log(uuid,uuid,uuid,uuid,uuid,text,jsonb),
 --    prospectos_private.deny_dedicated_journal_mutation();
 --   drop table public.dedicated_journal, public.dedicated_statements, public.dedicated_items, public.dedicated_deliveries,
---    public.dedicated_contracts;
+--    public.dedicated_proposals, public.dedicated_contracts;
 begin;
 
 create or replace function prospectos_private.paris_today() returns date
@@ -62,10 +71,36 @@ create table if not exists public.dedicated_contracts (
  commission_ht_cents int not null check(commission_ht_cents between 1 and 10000000),
  known_client_days int not null default 15 check(known_client_days between 1 and 60),
  first_statement_month date not null check(extract(day from first_statement_month)=1),
+ -- PROPOSED (the client has not accepted: the space stays closed) → ACTIVE (accepted) → TERMINATED (by the administrator:
+ -- no new delivery; reading and status updates stay open for 6 months, for the commissions still due).
+ status text not null default 'PROPOSED' check(status in ('PROPOSED','ACTIVE','TERMINATED')),
+ trial_starts_on date not null,
+ accepted_at timestamptz,
+ accepted_by uuid,
+ accepted_sha256 text check(accepted_sha256 is null or accepted_sha256 ~ '^[0-9a-f]{64}$'),
+ terminated_at timestamptz,
  created_by uuid not null,
  created_at timestamptz not null default now(),
  unique(id,organization_id),
- unique(organization_id,label)
+ unique(organization_id,label),
+ check((status='PROPOSED')=(accepted_at is null)),
+ check((accepted_at is null)=(accepted_by is null) and (accepted_at is null)=(accepted_sha256 is null)),
+ check((status='TERMINATED')=(terminated_at is not null))
+);
+
+-- The commercial proposal attached by the administrator (the PDF made by `npm run devis`), versioned: the client accepts
+-- the latest version, identified by its SHA-256 computed here from the stored bytes.
+create table if not exists public.dedicated_proposals (
+ contract_id uuid not null,
+ organization_id uuid not null,
+ version int not null check(version>=1),
+ file_name text not null check(file_name ~ '^[A-Za-z0-9._ -]{1,120}\.pdf$'),
+ pdf bytea not null check(octet_length(pdf) between 100 and 5242880 and substring(pdf from 1 for 5)='\x255044462d'::bytea),
+ sha256 text not null check(sha256 ~ '^[0-9a-f]{64}$'),
+ created_by uuid not null,
+ created_at timestamptz not null default now(),
+ primary key(contract_id,version),
+ foreign key(contract_id,organization_id) references public.dedicated_contracts(id,organization_id)
 );
 
 create table if not exists public.dedicated_deliveries (
@@ -135,13 +170,13 @@ alter table public.dedicated_items add constraint dedicated_items_statement_fk f
 create table if not exists public.dedicated_journal (
  id bigint generated always as identity primary key,
  organization_id uuid not null references public.organizations(id),
- contract_id uuid references public.dedicated_contracts(id),
+ contract_id uuid not null references public.dedicated_contracts(id),
  delivery_id uuid references public.dedicated_deliveries(id),
  item_id uuid references public.dedicated_items(id),
  statement_id uuid references public.dedicated_statements(id),
  actor_id uuid,
- kind text not null check(kind in ('CONTRACT_CREATED','DELIVERY_CREATED','ITEM_OPENED','EXPORT','STATUS_CHANGED',
-  'STATEMENT_GENERATED','STATEMENT_VALIDATED','STATEMENT_REMINDER')),
+ kind text not null check(kind in ('PROPOSAL_SENT','PROPOSAL_ACCEPTED','CONTRACT_TERMINATED','DELIVERY_CREATED','ITEM_OPENED','EXPORT',
+  'STATUS_CHANGED','STATEMENT_GENERATED','STATEMENT_VALIDATED','STATEMENT_REMINDER')),
  detail jsonb not null default '{}'::jsonb,
  created_at timestamptz not null default now()
 );
@@ -165,41 +200,129 @@ returns void language sql security definer set search_path='' as $$
 $$;
 revoke all on function prospectos_private.dedicated_log(uuid,uuid,uuid,uuid,uuid,text,jsonb) from public,anon,authenticated;
 
--- Read access: members of the client organization, or the administrator. No direct write for any browser role.
+-- What a member of the client organization may still see of a contract: everything until it is terminated, then 6 months.
+create or replace function prospectos_private.dedicated_visible(p_contract uuid) returns boolean
+language sql stable security definer set search_path='' as $$
+ select exists(select 1 from public.dedicated_contracts c where c.id=p_contract and prospectos_private.is_member(c.organization_id)
+  and (c.status<>'TERMINATED' or c.terminated_at>now()-interval '6 months'))
+$$;
+revoke all on function prospectos_private.dedicated_visible(uuid) from public,anon;
+grant execute on function prospectos_private.dedicated_visible(uuid) to authenticated;
+-- What a member may DO (open, update a status, export, validate): an accepted contract, or a terminated one for 6 months.
+create or replace function prospectos_private.dedicated_require_open(p_contract uuid) returns public.dedicated_contracts
+language plpgsql stable security definer set search_path='' as $$
+declare c public.dedicated_contracts;
+begin
+ select * into c from public.dedicated_contracts where id=p_contract;
+ if not found or not prospectos_private.is_member(c.organization_id) then raise exception 'dedicated_contract_not_found' using errcode='P0002'; end if;
+ if c.status='PROPOSED' then raise exception 'dedicated_space_closed' using errcode='P0001'; end if;
+ if c.status='TERMINATED' and c.terminated_at<=now()-interval '6 months' then raise exception 'dedicated_space_closed' using errcode='P0001'; end if;
+ return c;
+end $$;
+revoke all on function prospectos_private.dedicated_require_open(uuid) from public,anon,authenticated;
+
+-- Read access: members of the client organization (within the rules above), or the administrator. No direct write.
+alter table public.dedicated_proposals enable row level security;
 alter table public.dedicated_contracts enable row level security;
 alter table public.dedicated_deliveries enable row level security;
 alter table public.dedicated_items enable row level security;
 alter table public.dedicated_statements enable row level security;
 alter table public.dedicated_journal enable row level security;
+drop policy if exists dedicated_read on public.dedicated_contracts;
+create policy dedicated_read on public.dedicated_contracts for select to authenticated using (prospectos_private.dedicated_visible(id) or prospectos_private.is_internal_admin());
 do $$ declare tbl text; begin
- foreach tbl in array array['dedicated_contracts','dedicated_deliveries','dedicated_items','dedicated_statements','dedicated_journal'] loop
+ foreach tbl in array array['dedicated_proposals','dedicated_deliveries','dedicated_items','dedicated_statements','dedicated_journal'] loop
   execute format('drop policy if exists dedicated_read on public.%I',tbl);
-  execute format('create policy dedicated_read on public.%I for select to authenticated using (prospectos_private.is_member(organization_id) or prospectos_private.is_internal_admin())',tbl);
+  execute format('create policy dedicated_read on public.%I for select to authenticated using (prospectos_private.dedicated_visible(contract_id) or prospectos_private.is_internal_admin())',tbl);
  end loop;
 end $$;
-revoke all on public.dedicated_contracts,public.dedicated_deliveries,public.dedicated_items,public.dedicated_statements,public.dedicated_journal from public,anon,authenticated;
-grant select on public.dedicated_contracts,public.dedicated_deliveries,public.dedicated_items,public.dedicated_statements,public.dedicated_journal to authenticated;
+revoke all on public.dedicated_contracts,public.dedicated_proposals,public.dedicated_deliveries,public.dedicated_items,public.dedicated_statements,public.dedicated_journal from public,anon,authenticated;
+grant select on public.dedicated_contracts,public.dedicated_proposals,public.dedicated_deliveries,public.dedicated_items,public.dedicated_statements,public.dedicated_journal to authenticated;
 
 -- ---------------------------------------------------------------- administrator
-create or replace function public.create_dedicated_contract(p_client_email text,p_label text,p_minimum_ht_cents int,p_commission_ht_cents int,
- p_known_client_days int default 15,p_first_statement_month date default null) returns jsonb
-language plpgsql security definer set search_path='' as $$
-declare tenant uuid; row public.dedicated_contracts;
+-- Organizations the administrator can attach a veille to (an EXISTING account: never a new one), found by organization
+-- name or by a member's sign-in address; the contract is then attached by the organization's identifier.
+create or replace function public.dedicated_find_organizations(p_query text) returns jsonb
+language plpgsql stable security definer set search_path='' as $$
+declare q text:=lower(trim(coalesce(p_query,'')));
 begin
  if not prospectos_private.is_internal_admin() then raise exception 'Admin access required' using errcode='42501'; end if;
- select m.organization_id into tenant from auth.users u join public.memberships m on m.user_id=u.id and m.role='owner'
-  where lower(u.email)=lower(trim(coalesce(p_client_email,''))) order by m.created_at,m.organization_id limit 1;
- if tenant is null then raise exception 'dedicated_client_not_found' using errcode='P0002'; end if;
- insert into public.dedicated_contracts(organization_id,label,minimum_ht_cents,commission_ht_cents,known_client_days,first_statement_month,created_by)
- values(tenant,trim(p_label),p_minimum_ht_cents,p_commission_ht_cents,coalesce(p_known_client_days,15),
-  coalesce(p_first_statement_month,date_trunc('month',prospectos_private.paris_today()::timestamp)::date),auth.uid()) returning * into row;
- perform prospectos_private.dedicated_log(tenant,row.id,null,null,null,'CONTRACT_CREATED',
-  jsonb_build_object('minimum_ht_cents',row.minimum_ht_cents,'commission_ht_cents',row.commission_ht_cents,'known_client_days',row.known_client_days,
-   'first_statement_month',row.first_statement_month));
- return to_jsonb(row);
+ if length(q)<3 then return '[]'::jsonb; end if;
+ return coalesce((select jsonb_agg(x order by x->>'name') from (
+  select jsonb_build_object('id',o.id,'name',o.name,'created_at',o.created_at,
+   'members',(select jsonb_agg(jsonb_build_object('email',u.email,'role',m.role) order by m.role desc,u.email) from public.memberships m join auth.users u on u.id=m.user_id where m.organization_id=o.id)) x
+  from public.organizations o
+  where position(q in lower(o.name))>0 or exists(select 1 from public.memberships m join auth.users u on u.id=m.user_id where m.organization_id=o.id and position(q in lower(coalesce(u.email,'')))>0)
+  order by o.created_at limit 20) t),'[]'::jsonb);
 end $$;
-revoke all on function public.create_dedicated_contract(text,text,int,int,int,date) from public,anon;
-grant execute on function public.create_dedicated_contract(text,text,int,int,int,date) to authenticated;
+revoke all on function public.dedicated_find_organizations(text) from public,anon;
+grant execute on function public.dedicated_find_organizations(text) to authenticated;
+
+create or replace function prospectos_private.dedicated_store_proposal(p_contract public.dedicated_contracts,p_file_name text,p_pdf_base64 text) returns jsonb
+language plpgsql security definer set search_path='' as $$
+declare bytes bytea; v int; h text;
+begin
+ begin bytes:=decode(regexp_replace(coalesce(p_pdf_base64,''),'\s','','g'),'base64'); exception when others then raise exception 'dedicated_proposal_invalid' using errcode='22023'; end;
+ if bytes is null or octet_length(bytes)<100 or octet_length(bytes)>5242880 or substring(bytes from 1 for 5)<>'\x255044462d'::bytea then
+  raise exception 'dedicated_proposal_invalid' using errcode='22023'; end if;
+ h:=encode(sha256(bytes),'hex');
+ select coalesce(max(version),0)+1 into v from public.dedicated_proposals where contract_id=p_contract.id;
+ insert into public.dedicated_proposals(contract_id,organization_id,version,file_name,pdf,sha256,created_by)
+ values(p_contract.id,p_contract.organization_id,v,trim(p_file_name),bytes,h,auth.uid());
+ perform prospectos_private.dedicated_log(p_contract.organization_id,p_contract.id,null,null,null,'PROPOSAL_SENT',
+  jsonb_build_object('version',v,'sha256',h,'file_name',trim(p_file_name),'bytes',octet_length(bytes)));
+ return jsonb_build_object('version',v,'sha256',h);
+end $$;
+revoke all on function prospectos_private.dedicated_store_proposal(public.dedicated_contracts,text,text) from public,anon,authenticated;
+
+-- « Proposer une veille »: a contract PROPOSED to an existing organization (by identifier), with its proposal PDF.
+create or replace function public.propose_dedicated_watch(p_organization_id uuid,p_label text,p_minimum_ht_cents int,p_commission_ht_cents int,
+ p_known_client_days int,p_trial_starts_on date,p_first_statement_month date,p_file_name text,p_pdf_base64 text) returns jsonb
+language plpgsql security definer set search_path='' as $$
+declare row public.dedicated_contracts; prop jsonb;
+begin
+ if not prospectos_private.is_internal_admin() then raise exception 'Admin access required' using errcode='42501'; end if;
+ if not exists(select 1 from public.organizations where id=p_organization_id) then raise exception 'dedicated_organization_not_found' using errcode='P0002'; end if;
+ if p_trial_starts_on is null or p_first_statement_month is null then raise exception 'Invalid proposal dates' using errcode='22023'; end if;
+ insert into public.dedicated_contracts(organization_id,label,minimum_ht_cents,commission_ht_cents,known_client_days,first_statement_month,trial_starts_on,created_by)
+ values(p_organization_id,trim(p_label),p_minimum_ht_cents,p_commission_ht_cents,coalesce(p_known_client_days,15),p_first_statement_month,p_trial_starts_on,auth.uid())
+ returning * into row;
+ prop:=prospectos_private.dedicated_store_proposal(row,p_file_name,p_pdf_base64);
+ return to_jsonb(row)||jsonb_build_object('proposal',prop);
+end $$;
+revoke all on function public.propose_dedicated_watch(uuid,text,int,int,int,date,date,text,text) from public,anon;
+grant execute on function public.propose_dedicated_watch(uuid,text,int,int,int,date,date,text,text) to authenticated;
+
+-- A new version of the proposal while it is not accepted yet (the client then accepts that version).
+create or replace function public.replace_dedicated_proposal(p_contract_id uuid,p_file_name text,p_pdf_base64 text) returns jsonb
+language plpgsql security definer set search_path='' as $$
+declare c public.dedicated_contracts;
+begin
+ if not prospectos_private.is_internal_admin() then raise exception 'Admin access required' using errcode='42501'; end if;
+ select * into c from public.dedicated_contracts where id=p_contract_id for update;
+ if not found then raise exception 'dedicated_contract_not_found' using errcode='P0002'; end if;
+ if c.status<>'PROPOSED' then raise exception 'dedicated_proposal_already_accepted' using errcode='P0001'; end if;
+ return prospectos_private.dedicated_store_proposal(c,p_file_name,p_pdf_base64);
+end $$;
+revoke all on function public.replace_dedicated_proposal(uuid,text,text) from public,anon;
+grant execute on function public.replace_dedicated_proposal(uuid,text,text) to authenticated;
+
+-- Termination by the administrator: no new delivery; the client keeps reading and updating statuses for 6 months.
+create or replace function public.terminate_dedicated_contract(p_contract_id uuid) returns jsonb
+language plpgsql security definer set search_path='' as $$
+declare c public.dedicated_contracts;
+begin
+ if not prospectos_private.is_internal_admin() then raise exception 'Admin access required' using errcode='42501'; end if;
+ select * into c from public.dedicated_contracts where id=p_contract_id for update;
+ if not found then raise exception 'dedicated_contract_not_found' using errcode='P0002'; end if;
+ if c.status<>'ACTIVE' then raise exception 'dedicated_contract_not_active' using errcode='P0001'; end if;
+ update public.dedicated_contracts set status='TERMINATED',terminated_at=now() where id=c.id returning * into c;
+ perform prospectos_private.dedicated_log(c.organization_id,c.id,null,null,null,'CONTRACT_TERMINATED',
+  jsonb_build_object('access_until',(c.terminated_at+interval '6 months')));
+ return jsonb_build_object('id',c.id,'status',c.status,'terminated_at',c.terminated_at,'access_until',c.terminated_at+interval '6 months');
+end $$;
+revoke all on function public.terminate_dedicated_contract(uuid) from public,anon;
+grant execute on function public.terminate_dedicated_contract(uuid) to authenticated;
 
 -- p_items: [{siren,name,city?,source_label,source_url}, …] — 1 to 1000. A SIREN already delivered under this contract is
 -- skipped (and reported), never delivered twice. The delivery date is the Paris date of the call: never chosen.
@@ -211,6 +334,7 @@ begin
  if not prospectos_private.is_internal_admin() then raise exception 'Admin access required' using errcode='42501'; end if;
  select * into c from public.dedicated_contracts where id=p_contract_id for update;
  if not found then raise exception 'dedicated_contract_not_found' using errcode='P0002'; end if;
+ if c.status<>'ACTIVE' then raise exception 'dedicated_contract_not_active' using errcode='P0001'; end if;
  if p_items is null or jsonb_typeof(p_items)<>'array' or jsonb_array_length(p_items) not between 1 and 1000 then
   raise exception 'Invalid delivery items' using errcode='22023'; end if;
  select coalesce(max(number),0)+1 into next_number from public.dedicated_deliveries where contract_id=c.id;
@@ -239,8 +363,10 @@ language plpgsql stable security definer set search_path='' as $$
 begin
  if not prospectos_private.is_internal_admin() then raise exception 'Admin access required' using errcode='42501'; end if;
  return coalesce((select jsonb_agg(jsonb_build_object(
-  'contract',jsonb_build_object('id',c.id,'label',c.label,'organization',o.name,'minimum_ht_cents',c.minimum_ht_cents,
-   'commission_ht_cents',c.commission_ht_cents,'known_client_days',c.known_client_days,'first_statement_month',c.first_statement_month),
+  'contract',jsonb_build_object('id',c.id,'label',c.label,'organization',o.name,'organization_id',o.id,'minimum_ht_cents',c.minimum_ht_cents,
+   'commission_ht_cents',c.commission_ht_cents,'known_client_days',c.known_client_days,'first_statement_month',c.first_statement_month,
+   'status',c.status,'trial_starts_on',c.trial_starts_on,'accepted_at',c.accepted_at,'terminated_at',c.terminated_at,
+   'proposal',(select jsonb_build_object('version',p.version,'sha256',p.sha256,'file_name',p.file_name) from public.dedicated_proposals p where p.contract_id=c.id order by p.version desc limit 1)),
   'deliveries',(select count(*) from public.dedicated_deliveries d where d.contract_id=c.id),
   'items',coalesce((select jsonb_agg(jsonb_build_object('id',i.id,'reference',i.reference,'name',i.name,'status',i.status,
      'delivered_on',i.delivered_on,'status_changed_at',i.status_changed_at,'signed_at',i.signed_at,
@@ -263,6 +389,7 @@ declare i public.dedicated_items;
 begin
  select * into i from public.dedicated_items where id=p_item_id;
  if not found or not prospectos_private.is_member(i.organization_id) then raise exception 'dedicated_item_not_found' using errcode='P0002'; end if;
+ perform prospectos_private.dedicated_require_open(i.contract_id);
  perform prospectos_private.dedicated_log(i.organization_id,i.contract_id,i.delivery_id,i.id,null,'ITEM_OPENED','{}'::jsonb);
  return true;
 end $$;
@@ -278,9 +405,9 @@ begin
  if not found or not prospectos_private.is_member(i.organization_id) then raise exception 'dedicated_item_not_found' using errcode='P0002'; end if;
  if p_status is null or p_status not in ('A_CONTACTER','CONTACTE','DEVIS_ENVOYE','SIGNE','PERDU','DEJA_CLIENT') then
   raise exception 'dedicated_status_invalid' using errcode='22023'; end if;
+ c:=prospectos_private.dedicated_require_open(i.contract_id);
  if i.statement_id is not null then raise exception 'item_in_statement' using errcode='P0001'; end if;
  if p_status=i.status then return jsonb_build_object('id',i.id,'status',i.status,'changed',false); end if;
- select * into c from public.dedicated_contracts where id=i.contract_id;
  if p_status='DEJA_CLIENT' then
   if today>i.delivered_on+c.known_client_days then raise exception 'known_window_closed' using errcode='P0001'; end if;
   begin proof_date:=(p_proof->>'dated_on')::date; exception when others then proof_date:=null; end;
@@ -307,8 +434,7 @@ create or replace function public.export_dedicated_items(p_contract_id uuid,p_de
 language plpgsql security definer set search_path='' as $$
 declare c public.dedicated_contracts; rows jsonb;
 begin
- select * into c from public.dedicated_contracts where id=p_contract_id;
- if not found or not prospectos_private.is_member(c.organization_id) then raise exception 'dedicated_contract_not_found' using errcode='P0002'; end if;
+ c:=prospectos_private.dedicated_require_open(p_contract_id);
  if p_format not in ('csv','pdf') then raise exception 'Invalid export format' using errcode='22023'; end if;
  if p_delivery_id is not null and not exists(select 1 from public.dedicated_deliveries where id=p_delivery_id and contract_id=c.id) then
   raise exception 'dedicated_delivery_not_found' using errcode='P0002'; end if;
@@ -329,6 +455,7 @@ declare s public.dedicated_statements; late boolean;
 begin
  select * into s from public.dedicated_statements where id=p_statement_id for update;
  if not found or not prospectos_private.is_member(s.organization_id) then raise exception 'dedicated_statement_not_found' using errcode='P0002'; end if;
+ perform prospectos_private.dedicated_require_open(s.contract_id);
  if p_attestation is distinct from 'J''atteste l''exactitude de ce relevé' then raise exception 'attestation_required' using errcode='22023'; end if;
  if s.validated_at is not null then raise exception 'statement_already_validated' using errcode='P0001'; end if;
  late:=prospectos_private.paris_today()>=(s.month+interval '1 month' + interval '4 days')::date;
@@ -340,23 +467,51 @@ end $$;
 revoke all on function public.validate_dedicated_statement(uuid,text) from public,anon;
 grant execute on function public.validate_dedicated_statement(uuid,text) to authenticated;
 
+-- « J'accepte la proposition »: a member of the organization accepts the LATEST version of the proposal, identified by the
+-- SHA-256 the screen showed. Journaled (user, time, version, SHA-256); the space opens and the trial starts on the planned
+-- date. Independent of any subscription: no entitlement is read or written, no payment.
+create or replace function public.accept_dedicated_proposal(p_contract_id uuid,p_sha256 text) returns jsonb
+language plpgsql security definer set search_path='' as $$
+declare c public.dedicated_contracts; prop public.dedicated_proposals;
+begin
+ select * into c from public.dedicated_contracts where id=p_contract_id for update;
+ if not found or not prospectos_private.is_member(c.organization_id) then raise exception 'dedicated_contract_not_found' using errcode='P0002'; end if;
+ if c.status<>'PROPOSED' then raise exception 'dedicated_proposal_already_accepted' using errcode='P0001'; end if;
+ select * into prop from public.dedicated_proposals where contract_id=c.id order by version desc limit 1;
+ if not found then raise exception 'dedicated_proposal_missing' using errcode='P0001'; end if;
+ if p_sha256 is distinct from prop.sha256 then raise exception 'dedicated_proposal_changed' using errcode='P0001'; end if;
+ update public.dedicated_contracts set status='ACTIVE',accepted_at=now(),accepted_by=auth.uid(),accepted_sha256=prop.sha256 where id=c.id returning * into c;
+ perform prospectos_private.dedicated_log(c.organization_id,c.id,null,null,null,'PROPOSAL_ACCEPTED',
+  jsonb_build_object('version',prop.version,'sha256',prop.sha256,'file_name',prop.file_name,'trial_starts_on',c.trial_starts_on,
+   'mention','J''accepte la proposition'));
+ return jsonb_build_object('id',c.id,'status',c.status,'accepted_at',c.accepted_at,'trial_starts_on',c.trial_starts_on,'version',prop.version,'sha256',prop.sha256,
+  'label',c.label,'organization',(select name from public.organizations where id=c.organization_id));
+end $$;
+revoke all on function public.accept_dedicated_proposal(uuid,text) from public,anon;
+grant execute on function public.accept_dedicated_proposal(uuid,text) to authenticated;
+
 -- ---------------------------------------------------------------- server only (cron)
 -- The statement of p_month (first day of a past month) for every contract whose first statement month is reached:
 -- every SIGNE item signed before the end of that month and not yet in a statement. Idempotent (one per contract and month).
 create or replace function public.generate_dedicated_statements(p_month date) returns jsonb
 language plpgsql security definer set search_path='' as $$
-declare c public.dedicated_contracts; month_end timestamptz; picked jsonb; n int; s public.dedicated_statements; made int:=0;
+declare c public.dedicated_contracts; month_end timestamptz; picked jsonb; n int; s public.dedicated_statements; made int:=0; minimum int;
 begin
  if p_month is null or extract(day from p_month)<>1 or p_month>=date_trunc('month',prospectos_private.paris_today()::timestamp)::date then
   raise exception 'Invalid statement month' using errcode='22023'; end if;
  month_end:=((p_month+interval '1 month')::timestamp at time zone 'Europe/Paris');
- for c in select * from public.dedicated_contracts where first_statement_month<=p_month order by created_at for update loop
+ -- Accepted contracts only. After its termination month a contract still gets a statement for the commissions due
+ -- (6 months), without guaranteed minimum, and only when there is at least one signature.
+ for c in select * from public.dedicated_contracts where first_statement_month<=p_month and status<>'PROPOSED'
+   and (status='ACTIVE' or p_month<=(terminated_at+interval '6 months')::date) order by created_at for update loop
   if exists(select 1 from public.dedicated_statements where contract_id=c.id and month=p_month) then continue; end if;
+  minimum:=case when c.status='TERMINATED' and p_month>date_trunc('month',c.terminated_at at time zone 'Europe/Paris')::date then 0 else c.minimum_ht_cents end;
   select coalesce(jsonb_agg(jsonb_build_object('id',i.id,'reference',i.reference,'siren',i.siren,'name',i.name,'first_invoice_on',i.first_invoice_on,
     'signed_at',i.signed_at) order by i.signed_at,i.reference),'[]'::jsonb), count(*)
    into picked,n from public.dedicated_items i where i.contract_id=c.id and i.status='SIGNE' and i.statement_id is null and i.signed_at<month_end;
+  if minimum=0 and n=0 then continue; end if;
   insert into public.dedicated_statements(contract_id,organization_id,month,signed_count,minimum_ht_cents,commission_ht_cents,amount_ht_cents,items)
-  values(c.id,c.organization_id,p_month,n,c.minimum_ht_cents,c.commission_ht_cents,greatest(c.minimum_ht_cents,c.commission_ht_cents*n),picked)
+  values(c.id,c.organization_id,p_month,n,minimum,c.commission_ht_cents,greatest(minimum,c.commission_ht_cents*n),picked)
   returning * into s;
   update public.dedicated_items set statement_id=s.id where id in (select (x->>'id')::uuid from jsonb_array_elements(picked) x);
   perform prospectos_private.dedicated_log(c.organization_id,c.id,null,null,s.id,'STATEMENT_GENERATED',

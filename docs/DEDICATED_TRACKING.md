@@ -25,19 +25,25 @@ Le suivi des signatures se fait **dans ProspectOS**, pas dans un tableau externe
 - **Administrateur** : le compte avec un droit `INTERNAL` `ACTIVE` (le modèle admin de la migration 013) voit tous les clients.
 - **Écriture** : personne n'écrit directement dans les tables. Toute modification passe par les fonctions de la migration 043.
 
-## Mise en place d'un client
+## Mise en place d'un client (compte existant)
 
-1. Le client crée son compte ProspectOS. Il devient propriétaire de son espace.
-2. L'administrateur ouvre le menu du compte, puis « Veille dédiée — clients » et « Nouveau contrat ». Il saisit :
-   - l'e-mail du compte client ;
-   - le libellé ;
-   - le minimum et la commission HT ;
-   - le premier mois de relevé.
-3. Pour chaque livraison, il utilise « Nouvelle livraison » :
-   - il indique le périmètre ;
-   - il colle une entreprise par ligne, au format `SIREN;Entreprise;Ville;Source;Lien https`.
+1. Le client a déjà son compte ProspectOS. Aucun compte n'est créé : la veille est rattachée à **son organisation existante, par identifiant**.
+2. L'administrateur ouvre le menu du compte → « Veille dédiée — clients » → **« Proposer une veille »** :
+   - il cherche l'organisation par son nom ou par l'adresse d'un membre, puis la choisit (identifiant) ;
+   - il saisit le libellé, le minimum et la commission HT, le début de l'essai et le premier mois de relevé ;
+   - il joint la proposition PDF générée par `npm run devis` (5 Mo au plus). Le serveur calcule son empreinte SHA-256 à partir des octets stockés.
+3. Le client voit la proposition dans son espace, peut lire le PDF, et clique sur **« J'accepte la proposition »**. Tant qu'il n'a pas accepté, l'espace de suivi reste fermé : aucune livraison, aucun export, aucune action.
+4. L'acceptation est inscrite au journal en ajout seul : utilisateur, horodatage, version et **empreinte SHA-256 du PDF accepté**. Si la proposition a été remplacée entre-temps, l'ancienne empreinte est refusée. L'espace s'ouvre et l'essai commence à la date prévue.
+5. Deux e-mails partent alors (au mieux, s'il y a une configuration SMTP) :
+   - à l'administrateur : « Proposition acceptée » ;
+   - au client : « Votre espace de veille est ouvert », avec le lien.
+6. Les livraisons se font par « Nouvelle livraison » (contrat actif seulement) : on indique le périmètre et on colle une entreprise par ligne, au format `SIREN;Entreprise;Ville;Source;Lien https`.
 
-   La livraison reçoit un numéro (1, 2, 3…). Chaque fiche reçoit une référence `L<n>-F<nnn>`. Un SIREN déjà livré dans ce contrat est ignoré, puis signalé.
+## Abonnement et résiliation
+
+- **Abonnement** : l'accès à la veille ne dépend d'aucun abonnement ProspectOS. Il reste ouvert si l'essai est expiré ou si l'abonnement est résilié. Aucune fonction de la veille ne lit un droit d'accès, sauf la vérification administrateur. Rien ne passe par Stripe.
+- **Résiliation** : l'administrateur utilise « Résilier ». Il n'y a plus de nouvelle livraison. Le client garde la consultation et la mise à jour des statuts **pendant 6 mois**, pour les commissions qui restent dues ; ensuite, l'espace se ferme pour lui.
+- **Relevés après résiliation** : après le mois de la résiliation, ils ne portent plus de minimum garanti (commissions seules). Aucun relevé n'est émis pour un mois sans signature.
 
 ## Règles tenues par la base de données
 

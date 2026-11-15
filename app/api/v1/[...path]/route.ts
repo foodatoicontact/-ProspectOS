@@ -12,6 +12,7 @@ import {handleTenders,tendersEnabled} from '../../../../src/tenders/api';
 import {handleDemoShares} from '../../../../src/demo-share/api';
 import {handleDedicated,memberOrganizations} from '../../../../src/dedicated/api';
 import {dedicatedTrackingEnabled} from '../../../../src/dedicated/flag';
+import {notifyAcceptance} from '../../../../src/dedicated/send';
 import {analyzeCompanyGuarded} from '../../../../src/server/ai-guard';
 import {checked as checkedRpc} from '../../../../src/discovery/repository';
 import {CriterionContextSchema,normalizeCriteriaInput,criteriaIssueMessage} from '../../../../src/discovery/types';
@@ -104,6 +105,11 @@ async function handler(request:Request,context:{params:Promise<{path:string[]}>}
  const tendersResponse=await handleTenders(request,path,json,{enabled:tendersEnabled(process.env),requireEntitlement:()=>requireActiveEntitlement(db,user.id),
   log:event=>console.info(JSON.stringify(event))});
  if(tendersResponse)return tendersResponse;
+ // Veille dédiée (migration 043, src/dedicated/api.ts): reads its own body (a delivery or a proposal PDF exceeds the 20 kB
+ // limit below), behind DEDICATED_TRACKING_ENABLED; independent of the subscription (no entitlement check).
+ const dedicatedResponse=await handleDedicated(request,path,db,json,{enabled:dedicatedTrackingEnabled(process.env),now:()=>new Date(),userEmail:user.email??null,
+  notifyAccepted:notifyAcceptance});
+ if(dedicatedResponse)return dedicatedResponse;
  let body:Record<string,any>={};
  if(!['GET','HEAD'].includes(request.method)){const raw=await request.text();if(raw.length>20000)return json({error:'Corps trop volumineux'},413);try{body=JSON.parse(raw||'{}')}catch{return json({error:'JSON invalide'},400)}if(!body||Array.isArray(body))return json({error:'Objet requis'},400)}
  const discoveryResponse=await handleDiscovery(request,path,body,db,user);if(discoveryResponse)return discoveryResponse;
@@ -140,7 +146,6 @@ async function handler(request:Request,context:{params:Promise<{path:string[]}>}
  const morningDigestResponse=await handleMorningDigest(request,path,body,db,json,{env:process.env,userId:user.id});if(morningDigestResponse)return morningDigestResponse;
  // Demo links (src/demo-share/api.ts, migration 042): owner-only create / list / revoke, and the copy after sign-up.
  const demoShareResponse=await handleDemoShares(request,path,body,db,json);if(demoShareResponse)return demoShareResponse;
- const dedicatedResponse=await handleDedicated(request,path,body,db,json,{enabled:dedicatedTrackingEnabled(process.env),now:()=>new Date()});if(dedicatedResponse)return dedicatedResponse;
  const selfOutreachResponse=await handleSelfOutreach(request,path,body,db,json,{env:process.env,now:()=>new Date(),requireEntitlement:()=>requireActiveEntitlement(db,user.id)});if(selfOutreachResponse)return selfOutreachResponse;
  const checked=async(query:PromiseLike<any>)=>{const {data,error}=await query;if(error)throw Error('DATABASE_REQUEST_FAILED');return data};
  if(resource==='organizations'){

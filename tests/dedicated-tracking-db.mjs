@@ -6,6 +6,7 @@
 // WITHOUT_043=1 runs the checks without the migration: they must fail.
 import { strict as assert } from 'node:assert';
 import { readFile, readdir } from 'node:fs/promises';
+import { createHash } from 'node:crypto';
 import { PGlite } from '@electric-sql/pglite';
 
 const db = new PGlite();
@@ -34,6 +35,9 @@ async function refused(operation, pattern, what) {
   if (!pattern.test(outcome)) throw new Error(`refused for the wrong reason (${outcome})`);
 }
 const ATTEST = 'J\'atteste l\'exactitude de ce relevé';
+// A small but real PDF (the proposal made by `npm run devis` in practice) and its SHA-256 computed here, independently.
+const pdfBytes = text => Buffer.from(`%PDF-1.4\n% proposition ${text}\n${'x'.repeat(200)}\n%%EOF\n`, 'latin1');
+const sha = bytes => createHash('sha256').update(bytes).digest('hex');
 const item = (siren, name) => ({ siren, name, city: 'Meaux', source_label: 'BODACC — création', source_url: `https://www.bodacc.fr/annonce/${siren}` });
 
 try {
@@ -67,13 +71,54 @@ try {
   await sql(`insert into public.memberships(organization_id,user_id,role) values($1,$2,'member')`, [org1, T]);
 
   let c1, c2, d1, d2, items1, items2;
-  await check('ADMIN_ONLY_SETUP: only the administrator creates contracts and deliveries', async () => {
-    await refused(() => as(S, `select public.create_dedicated_contract('client1@test.fr','Veille IDF',9900,17900,15,'2026-12-01')`), /Admin access required/, 'a client creating a contract');
-    await refused(() => as(undefined, `select public.create_dedicated_contract('client1@test.fr','Veille IDF',9900,17900,15,'2026-12-01')`), /permission denied/i, 'anon creating a contract');
-    c1 = (await as(K, `select public.create_dedicated_contract('client1@test.fr','Veille IDF',9900,17900,15,'2026-01-01') r`)).rows[0].r;
-    c2 = (await as(K, `select public.create_dedicated_contract('CLIENT2@test.fr','Veille Occitanie',9900,17900,15,'2026-01-01') r`)).rows[0].r;
-    assert.equal(c1.organization_id, org1); assert.equal(c2.organization_id, org2);
-    await refused(() => as(K, `select public.create_dedicated_contract('inconnu@test.fr','X',9900,17900)`), /dedicated_client_not_found/, 'a contract for an unknown account');
+  const PDF1 = pdfBytes('v1'), PDF2 = pdfBytes('v2');
+  const propose = (user, orgId, label, pdf = PDF1) => as(user, `select public.propose_dedicated_watch($1,$2,9900,17900,15,'2026-11-16','2026-01-01','proposition-veille.pdf',$3) r`, [orgId, label, pdf.toString('base64')]);
+  await check('PROPOSAL: the administrator attaches a veille to an EXISTING organization, by identifier, with the proposal PDF', async () => {
+    await refused(() => propose(S, org1, 'Veille IDF'), /Admin access required/, 'a client proposing');
+    await refused(() => propose(undefined, org1, 'Veille IDF'), /permission denied/i, 'anon proposing');
+    await refused(() => propose(K, '00000000-0000-4000-8000-00000000dead', 'X'), /dedicated_organization_not_found/, 'an unknown organization');
+    await refused(() => as(K, `select public.propose_dedicated_watch($1,'X',9900,17900,15,'2026-11-16','2026-01-01','x.pdf',$2)`, [org1, Buffer.from('not a pdf at all '.repeat(10)).toString('base64')]), /dedicated_proposal_invalid/, 'a file that is not a PDF');
+    const found = (await as(K, `select public.dedicated_find_organizations('client1@') r`)).rows[0].r;
+    assert.deepEqual(found.map(o => o.id), [org1], 'found by a member address');
+    await refused(() => as(S, `select public.dedicated_find_organizations('client')`), /Admin access required/, 'a client searching organizations');
+    const users = (await sql(`select count(*)::int n from auth.users`)).rows[0].n;
+    c1 = (await propose(K, org1, 'Veille IDF')).rows[0].r;
+    c2 = (await propose(K, org2, 'Veille Occitanie')).rows[0].r;
+    assert.equal(c1.organization_id, org1); assert.equal(c1.status, 'PROPOSED'); assert.equal(c1.proposal.sha256, sha(PDF1));
+    assert.equal((await sql(`select count(*)::int n from auth.users`)).rows[0].n, users, 'no account created');
+    assert.equal((await sql(`select count(*)::int n from public.memberships where organization_id=$1`, [org1])).rows[0].n, 2, 'no membership created');
+  });
+
+  await check('CLOSED_BEFORE_ACCEPTANCE: before acceptance the client sees the proposal only; no delivery, no action', async () => {
+    await refused(() => as(K, `select public.create_dedicated_delivery($1,'IDF',$2)`, [c1.id, JSON.stringify([item('111111111', 'A')])]), /dedicated_contract_not_active/, 'a delivery before acceptance');
+    await refused(() => as(S, `select public.export_dedicated_items($1,null,'csv')`, [c1.id]), /dedicated_space_closed/, 'an export before acceptance');
+    const seen = (await as(S, `select status from public.dedicated_contracts`)).rows; assert.deepEqual(seen.map(r => r.status), ['PROPOSED']);
+    assert.equal((await as(S, `select count(*)::int n from public.dedicated_proposals`)).rows[0].n, 1, 'the proposal is visible');
+    assert.equal((await as(S, `select count(*)::int n from public.dedicated_deliveries`)).rows[0].n, 0);
+  });
+
+  await check('ACCEPTANCE: refused for a non-member and for a stale version; journaled with user, time and the SHA-256 of the accepted PDF', async () => {
+    await refused(() => as(G, `select public.accept_dedicated_proposal($1,$2)`, [c1.id, sha(PDF1)]), /dedicated_contract_not_found/, 'another client accepting');
+    await refused(() => as(X, `select public.accept_dedicated_proposal($1,$2)`, [c1.id, sha(PDF1)]), /dedicated_contract_not_found/, 'a stranger accepting');
+    await refused(() => as(K, `select public.accept_dedicated_proposal($1,$2)`, [c1.id, sha(PDF1)]), /dedicated_contract_not_found/, 'the administrator accepting for the client');
+    // A new version replaces the first one: the old fingerprint no longer opens the space.
+    const v2 = (await as(K, `select public.replace_dedicated_proposal($1,'proposition-veille-v2.pdf',$2) r`, [c1.id, PDF2.toString('base64')])).rows[0].r;
+    assert.deepEqual([v2.version, v2.sha256], [2, sha(PDF2)]);
+    await refused(() => as(S, `select public.accept_dedicated_proposal($1,$2)`, [c1.id, sha(PDF1)]), /dedicated_proposal_changed/, 'accepting a replaced version');
+    const r = (await as(T, `select public.accept_dedicated_proposal($1,$2) r`, [c1.id, sha(PDF2)])).rows[0].r;
+    assert.equal(r.status, 'ACTIVE'); assert.equal(r.trial_starts_on, '2026-11-16'); assert.equal(r.version, 2);
+    const j = (await as(S, `select actor_id,detail,created_at from public.dedicated_journal where kind='PROPOSAL_ACCEPTED' and contract_id=$1`, [c1.id])).rows;
+    assert.equal(j.length, 1); assert.equal(j[0].actor_id, T); assert.ok(j[0].created_at);
+    const stored = (await sql(`select pdf from public.dedicated_proposals where contract_id=$1 and version=2`, [c1.id])).rows[0].pdf;
+    assert.equal(j[0].detail.sha256, sha(Buffer.from(stored)), 'the journal fingerprint is the stored PDF’s');
+    assert.equal(j[0].detail.sha256, sha(PDF2), 'and the PDF the client was shown');
+    assert.equal((await sql(`select accepted_sha256 from public.dedicated_contracts where id=$1`, [c1.id])).rows[0].accepted_sha256, sha(PDF2));
+    await refused(() => as(S, `select public.accept_dedicated_proposal($1,$2)`, [c1.id, sha(PDF2)]), /dedicated_proposal_already_accepted/, 'a second acceptance');
+    await refused(() => as(K, `select public.replace_dedicated_proposal($1,'v3.pdf',$2)`, [c1.id, PDF1.toString('base64')]), /dedicated_proposal_already_accepted/, 'replacing an accepted proposal');
+    await as(G, `select public.accept_dedicated_proposal($1,$2)`, [c2.id, sha(PDF1)]);
+  });
+
+  await check('ADMIN_ONLY_SETUP: only the administrator delivers; numbering per contract; a SIREN delivered once', async () => {
     await refused(() => as(S, `select public.create_dedicated_delivery($1,'IDF',$2)`, [c1.id, JSON.stringify([item('111111111', 'A')])]), /Admin access required/, 'a client creating a delivery');
     d1 = (await as(K, `select public.create_dedicated_delivery($1,'Île-de-France — créations',$2) r`, [c1.id, JSON.stringify(['111111111', '222222222', '333333333', '444444444', '555555555'].map((s, i) => item(s, `ENTREPRISE ${i + 1}`)))])).rows[0].r;
     assert.equal(d1.number, 1); assert.equal(d1.items, 5);
@@ -119,7 +164,7 @@ try {
     await as(S, `select public.set_dedicated_item_status($1,'CONTACTE')`, [items1[0].id]);
     const j = (await as(S, `select kind,actor_id,item_id,detail,created_at from public.dedicated_journal where organization_id=$1 order by id`, [org1])).rows;
     const kinds = j.map(r => r.kind);
-    for (const k of ['CONTRACT_CREATED', 'DELIVERY_CREATED', 'ITEM_OPENED', 'EXPORT', 'STATUS_CHANGED']) assert.ok(kinds.includes(k), k);
+    for (const k of ['PROPOSAL_SENT', 'PROPOSAL_ACCEPTED', 'DELIVERY_CREATED', 'ITEM_OPENED', 'EXPORT', 'STATUS_CHANGED']) assert.ok(kinds.includes(k), k);
     const opened = j.find(r => r.kind === 'ITEM_OPENED'); assert.equal(opened.actor_id, S); assert.equal(opened.item_id, items1[0].id); assert.ok(opened.created_at);
     const exported = j.find(r => r.kind === 'EXPORT'); assert.equal(exported.actor_id, T); assert.equal(exported.detail.count, 5); assert.equal(exported.detail.item_ids.length, 5);
     const changed = j.find(r => r.kind === 'STATUS_CHANGED'); assert.deepEqual([changed.detail.from, changed.detail.to, changed.actor_id], ['A_CONTACTER', 'CONTACTE', S]);
@@ -222,6 +267,44 @@ try {
     assert.equal(one.items.length, 6); assert.equal(one.statements.length, 3);
     const first = one.items.find(i => i.reference === 'L1-F001');
     assert.equal(first.opened, true); assert.ok(first.first_export_at); assert.ok(first.reached.CONTACTE); assert.ok(first.reached.SIGNE);
+  });
+
+  await check('SUBSCRIPTION_INDEPENDENT: an expired trial or a cancelled subscription changes nothing to the veille', async () => {
+    await sql(`insert into public.account_entitlements(user_id,plan,status,starts_at,expires_at,updated_at) values($1,'BETA','EXPIRED',now()-interval '60 days',now()-interval '30 days',now())`, [S]);
+    const it = (await sql(`select id from public.dedicated_items where contract_id=$1 and statement_id is null order by reference limit 1`, [c1.id])).rows[0];
+    await as(S, `select public.open_dedicated_item($1)`, [it.id]);
+    await as(S, `select public.set_dedicated_item_status($1,'CONTACTE')`, [it.id]);
+    assert.equal((await as(S, `select public.export_dedicated_items($1,null,'pdf') r`, [c1.id])).rows[0].r.rows.length, 6);
+    assert.equal((await as(S, `select count(*)::int n from public.dedicated_items`)).rows[0].n, 6, 'still readable');
+    const m = (await readFile(new URL('../db/migrations/043_dedicated_tracking.sql', import.meta.url), 'utf8')).split('\n').filter(l => !l.trim().startsWith('--')).join('\n');
+    assert.doesNotMatch(m.replace(/create or replace function prospectos_private\.is_internal_admin[\s\S]*?\$\$;/, ''), /account_entitlements|stripe|billing|subscription/i, 'no access rule reads a subscription (the admin check aside)');
+  });
+
+  await check('TERMINATION: no new delivery; reading and status updates for 6 months, then closed; statements without minimum after', async () => {
+    const orgX = (await sql(`select organization_id from public.memberships where user_id=$1`, [X])).rows[0].organization_id;
+    const c3 = (await propose(K, orgX, 'Veille Nord')).rows[0].r;
+    await as(X, `select public.accept_dedicated_proposal($1,$2)`, [c3.id, sha(PDF1)]);
+    await as(K, `select public.create_dedicated_delivery($1,'Nord',$2)`, [c3.id, JSON.stringify([item('888888881', 'NORD UN'), item('888888882', 'NORD DEUX')])]);
+    await refused(() => as(S, `select public.terminate_dedicated_contract($1)`, [c3.id]), /Admin access required/, 'a client terminating');
+    const t = (await as(K, `select public.terminate_dedicated_contract($1) r`, [c3.id])).rows[0].r;
+    assert.equal(t.status, 'TERMINATED');
+    await refused(() => as(K, `select public.create_dedicated_delivery($1,'Nord',$2)`, [c3.id, JSON.stringify([item('888888883', 'NORD TROIS')])]), /dedicated_contract_not_active/, 'a delivery after termination');
+    const [n1, n2] = (await sql(`select id from public.dedicated_items where contract_id=$1 order by reference`, [c3.id])).rows.map(r => r.id);
+    await as(X, `select public.set_dedicated_item_status($1,'SIGNE',prospectos_private.paris_today())`, [n1]);
+    assert.equal((await as(X, `select count(*)::int n from public.dedicated_items`)).rows[0].n, 2, 'readable during the 6 months');
+    // Months after the termination month: commissions only (no minimum), and no statement without a signature.
+    await sql(`update public.dedicated_contracts set terminated_at=now()-interval '2 months' where id=$1`, [c3.id]);
+    await sql(`update public.dedicated_items set signed_at=(date_trunc('month',now())-interval '1 month'+interval '3 days') where id=$1`, [n1]);
+    const prev = (await sql(`select (date_trunc('month',prospectos_private.paris_today()::timestamp)-interval '1 month')::date m`)).rows[0].m.toISOString().slice(0, 10);
+    await asService(`select public.generate_dedicated_statements($1)`, [prev]);
+    const st = (await sql(`select minimum_ht_cents,amount_ht_cents,signed_count from public.dedicated_statements where contract_id=$1 and month=$2`, [c3.id, prev])).rows[0];
+    assert.deepEqual([st.minimum_ht_cents, st.amount_ht_cents, st.signed_count], [0, 17900, 1]);
+    // Six months later: closed for the client, still visible to the administrator.
+    await sql(`update public.dedicated_contracts set terminated_at=now()-interval '7 months' where id=$1`, [c3.id]);
+    assert.equal((await as(X, `select count(*)::int n from public.dedicated_items`)).rows[0].n, 0, 'no longer readable after 6 months');
+    assert.equal((await as(X, `select count(*)::int n from public.dedicated_contracts`)).rows[0].n, 0);
+    await refused(() => as(X, `select public.set_dedicated_item_status($1,'PERDU')`, [n2]), /dedicated_space_closed/, 'a status update after 6 months');
+    assert.equal((await as(K, `select count(*)::int n from public.dedicated_items where contract_id=$1`, [c3.id])).rows[0].n, 2, 'the administrator still sees it');
   });
 
   await check('NOTHING_ELSE: no existing table, policy or function is touched', async () => {

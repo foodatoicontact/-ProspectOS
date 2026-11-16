@@ -64,6 +64,21 @@ test('nightly job: two days × three families, then the records asked, within th
  const late=await runCollection(rpc,fetchJson,{days:['2026-11-14'],enrich:null,deadline:0,now:()=>1000,sleep:async()=>{}});
  assert.deepEqual(late.days,[]);
 });
+test('enrichment: several requests at once, never more than 7 starts in any second (API limit), stops before the deadline',async()=>{
+ // Real timers, time scaled ×20: each answer takes 700 ms, the budget is 55 s (≈ 2.8 s of test). 400 SIRENs to enrich.
+ const K=20;const t0=performance.now();const now=()=>(performance.now()-t0)*K;const starts:number[]=[];let upserted=0;
+ const sirens=Array.from({length:400},(_,i)=>String(900000000+i));
+ const rpc=async(name:string,args:Record<string,unknown>)=>{if(name==='sirens_to_enrich')return sirens;if(name==='upsert_company_cache')upserted+=(args.p_rows as unknown[]).length;return 0};
+ const fetchJson=async(url:string)=>{starts.push(now());await new Promise(r=>setTimeout(r,700/K));
+  return {results:[{siren:new URL(url).searchParams.get('q'),etat_administratif:'A',nature_juridique:'5710'}]}};
+ const r=await runCollection(rpc,fetchJson,{days:[],enrich:{departments:['75'],kinds:['CREATION'],since:'2026-10-15',limit:400},deadline:55000,now,
+  sleep:ms=>new Promise(res=>setTimeout(res,ms/K))});
+ const s=[...starts].sort((a,b)=>a-b);
+ for(let i=7;i<s.length;i++)assert.ok(s[i]-s[i-7]>=1000,`8 starts within ${Math.round(s[i]-s[i-7])} ms`);
+ assert.ok(r.enriched>200,`only ${r.enriched} enriched (one at a time gave ~70)`);
+ assert.ok(s[s.length-1]<=55000,'nothing starts after the deadline');
+ assert.equal(upserted,r.enriched,'every record fetched is stored');
+});
 test('configuration and wiring: off by default; the two previous Paris days; enrichment only for the departments listed',()=>{
  assert.equal(publicEventsEnabled({}),false);assert.equal(publicEventsEnabled({PUBLIC_EVENTS_COLLECT_ENABLED:'true'}),true);
  assert.deepEqual(enrichDepartments({PUBLIC_EVENTS_ENRICH_DEPARTMENTS:' 75,77 ,2a,999x,75'}),['75','77','2A']);

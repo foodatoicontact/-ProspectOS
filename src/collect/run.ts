@@ -22,14 +22,23 @@ export async function runCollection(rpc:Rpc,fetchJson:Fetcher,c:CollectConfig):P
  if(c.enrich&&c.enrich.departments.length){
   const sirens=await rpc('sirens_to_enrich',{p_departments:c.enrich.departments,p_kinds:c.enrich.kinds,p_since:c.enrich.since,p_limit:c.enrich.limit}) as string[]|{sirens_to_enrich:string}[];
   const list=(sirens??[]).map(s=>typeof s==='string'?s:s.sirens_to_enrich);
-  const rows:CompanyRow[]=[];
-  for(const siren of list){
-   if(c.now()>c.deadline-3000)break;
-   try{const row=parseCompany(siren,await fetchJson(`${RECHERCHE}?${new URLSearchParams({q:siren,per_page:'1'})}`,8000) as Record<string,unknown>);if(row){rows.push(row);report.enriched++}else report.enrichFailed++}
-   catch{report.enrichFailed++}
-   await c.sleep(170);
-   if(rows.length>=200){await rpc('upsert_company_cache',{p_rows:rows.splice(0)});}
-  }
+  // Up to 6 requests run at once, but one gate spaces their starts by 170 ms at least (≈ 6 per second, under the API's 7):
+  // the API answers in ~0.7 s, so one request at a time only enriched ~70 companies in the 55 s budget (first night,
+  // 16 nov. 2026).
+  const rows:CompanyRow[]=[];let next=0;let gate:Promise<void>=Promise.resolve();let last=-Infinity;
+  const pace=()=>gate=gate.then(async()=>{const wait=last+170-c.now();if(wait>0)await c.sleep(wait);last=c.now()});
+  const worker=async()=>{
+   while(next<list.length){
+    if(c.now()>c.deadline-3000)return;
+    const siren=list[next++];
+    await pace();
+    if(c.now()>c.deadline-3000)return;
+    try{const row=parseCompany(siren,await fetchJson(`${RECHERCHE}?${new URLSearchParams({q:siren,per_page:'1'})}`,8000) as Record<string,unknown>);if(row){rows.push(row);report.enriched++}else report.enrichFailed++}
+    catch{report.enrichFailed++}
+    if(rows.length>=200)await rpc('upsert_company_cache',{p_rows:rows.splice(0)});
+   }
+  };
+  await Promise.all(Array.from({length:Math.min(6,list.length)},worker));
   if(rows.length)await rpc('upsert_company_cache',{p_rows:rows});
  }
  return report;

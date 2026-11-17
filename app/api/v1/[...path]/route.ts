@@ -22,6 +22,7 @@ import {attachEvidenceSources} from '../../../../src/server/evidence-sources';
 import {handleUserDeclared} from '../../../../src/server/user-declared';
 import {buildAccountExportZip,anonymizeAuthUser} from '../../../../src/server/account';
 import {recordApiUsage} from '../../../../src/server/usage';
+import {hitForAccount,ruleForPath,tooManyRequests} from '../../../../src/server/rate-limit';
 import {releaseCommercialUse} from '../../../../src/server/commercial-usage';
 import {newInviteToken,inviteTokenHash,isInviteToken,inviteLink,teamError,TEAM_ERRORS} from '../../../../src/server/team';
 import {createAdminClient} from '../../../../src/server/admin-client';
@@ -94,6 +95,9 @@ async function dedicatedTrackingFor(db:Awaited<ReturnType<typeof authenticatedDb
 async function handler(request:Request,context:{params:Promise<{path:string[]}>}){
  try {
  const {db,user}=await authenticatedDb(request);const {path}=await context.params;const [resource,id]=path;
+ // Shared rate limit per account (migration 047, src/server/rate-limit.ts): fail-open if the counter is unavailable.
+ const rate=await hitForAccount((fn,args)=>db.rpc(fn,args),ruleForPath(path),e=>console.warn(JSON.stringify(e)));
+ if(!rate.allowed)return tooManyRequests(rate.retryAfter,{error:'Trop de requêtes. Réessayez dans un instant.',code:'RATE_LIMITED'});
  // UX A/B (src/ux/variant.ts): a presentation label for analytics only, never read by any check below.
  const ux=parseUxHeader(request.headers.get(UX_HEADER));
  const uxAdmin=()=>{try{return createAdminClient()}catch{return null}};

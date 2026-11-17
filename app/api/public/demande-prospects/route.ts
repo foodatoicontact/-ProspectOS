@@ -1,6 +1,8 @@
 import {randomUUID} from 'node:crypto';
 import {PROSPECT_REQUEST_TO,createThrottle,notificationMail,parseProspectRequest} from '../../../../src/domain/prospect-request';
 import {smtpConfig} from '../../../../src/self-outreach/config';
+import {createAdminClient} from '../../../../src/server/admin-client';
+import {hitForAddress} from '../../../../src/server/rate-limit';
 import {smtpTransportFrom} from '../../../../src/self-outreach/transport';
 
 // "3 prospects de votre zone" (src/domain/prospect-request.ts). The request is emailed to ProspectOS's own mailbox
@@ -18,6 +20,10 @@ export async function POST(request:Request){
  try{if(!origin||!host||new URL(origin).host!==host)return json(403,{error:'FORBIDDEN'})}catch{return json(403,{error:'FORBIDDEN'})}
  const ip=(request.headers.get('x-forwarded-for')??'').split(',')[0]!.trim()||'unknown';
  if(!throttle(ip))return json(429,{error:'TOO_MANY_REQUESTS'});
+ // The same limit shared by every server instance (migration 047): 5 requests an hour per client address, fail-open.
+ const shared=await (async()=>{try{const admin=createAdminClient();return await hitForAddress((fn,args)=>admin.rpc(fn,args),{bucket:'prospect_request',limit:5,windowSeconds:3600},ip,
+  e=>console.warn(JSON.stringify(e)))}catch{return {allowed:true,retryAfter:0}}})();
+ if(!shared.allowed)return json(429,{error:'TOO_MANY_REQUESTS'});
  const raw=await request.text();
  if(raw.length>4000)return json(413,{error:'TOO_LARGE'});
  let body:unknown;try{body=JSON.parse(raw)}catch{return json(400,{error:'INVALID_REQUEST'})}

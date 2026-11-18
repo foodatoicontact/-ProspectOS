@@ -22,6 +22,8 @@ function Block({block}:{block:SeoBlock}){
     case 'ul':return <ul>{block.items.map((item,i)=><li key={i}>{renderRich(item)}</li>)}</ul>;
     case 'ol':return <ol>{block.items.map((item,i)=><li key={i}>{renderRich(item)}</li>)}</ol>;
     case 'callout':return <aside className="seo-callout"><p className="seo-callout-title">{block.title}</p><p>{renderRich(block.text)}</p></aside>;
+    case 'table':return <div className="seo-table"><table><caption>{block.caption}</caption><thead><tr>{block.head.map((h,i)=><th key={i} scope="col">{h}</th>)}</tr></thead>
+      <tbody>{block.rows.map((r,i)=><tr key={i}>{r.map((c,j)=>j===0?<th key={j} scope="row">{renderRich(c)}</th>:<td key={j}>{renderRich(c)}</td>)}</tr>)}</tbody></table></div>;
   }
 }
 

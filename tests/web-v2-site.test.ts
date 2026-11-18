@@ -51,7 +51,8 @@ test('flag OFF parity — the legacy envelopes are byte-for-byte main’s once t
   const s=read(p).split('\n// WEB-2 (docs/UI_V2.md)')[0]!.replace(/\n+$/,'\n');
   return s.split('\n').filter(l=>!/^import .*(ui\/v2\/public\/|Children,cloneElement)|if\(WEB_V2\)return </.test(l)).join('\n');
  };
- assert.equal(sha(legacy('src/components/PublicSeoPage.tsx')),'a8bb7fa6afcbc6cb6b653ff2787097413962be554f1bd0a14f902cc929affa32');
+ // Owner request (18 nov. 2026, SEO): the shared block renderer learns the « table » block (one case added), legacy and v2 alike.
+ assert.equal(sha(legacy('src/components/PublicSeoPage.tsx')),'d4d4e3018903f1fda1fe09bacd525e1a8f75e9587fa487d96ae760aab28bde5f');
  assert.equal(sha(legacy('src/components/LegalPage.tsx')),'da4b65ef59aa51e03aa5994ada8ff714c510bb4d42211a7ab05dd38a87e470db');
  // The v2 branch is the first statement after the JSON-LD (SEO) or the very first one (legal): nothing else moved.
  assert.match(read('src/components/PublicSeoPage.tsx'),/\.replace\(\/<\/g,'\\\\u003c'\);\n  if\(WEB_V2\)return <SeoPageV2 page=\{page\} jsonLd=\{jsonLd\}>\{children\}<\/SeoPageV2>;\n  return <main className="seo-public seo-article-page">/);
@@ -79,11 +80,13 @@ test('freeze — legal text, SEO content, prices, quotas, trial, plans, i18n and
   // linked from /prospection-b2b (one sentence, related block).
   // Owner decision (14 nov. 2026, /tarifs): the « Veille dédiée, sur devis » service is stated next to the self-service plans, with its section and two price questions in the FAQ.
   // Owner request (15 nov. 2026, SEO): a /veille-entreprises page for the veille dédiée, linked from /tarifs (one sentence).
-  'src/domain/seo-content.ts':'bd6ff9ecd899702fb3b46b11f315666dac530ffb9b128ba071d9790f25a77bf4',
+  // Owner request (18 nov. 2026, SEO): page /prospection-agences-consultants (frozen real counts with their date, prices from plans.ts), linked from /logiciel-prospection-b2b.
+  'src/domain/seo-content.ts':'3983ac581a274a578322db0753ed64b33209741f9527d56c95265a3bc05e557c',
   // Owner decision (11 nov. 2026, SEO): prospectos.fr as the default site address, robots closing the connected and
   // technical routes, the LinkedIn pages of ProspectOS and of its founder as sameAs.
   // Owner request (13 nov. 2026, demo links, migration 042): robots also closes /d/ (private demo pages) — that one entry only.
-  'src/domain/seo.ts':'90c8b70c6869740bd1ac2417972d9936e256981bd264c24da769aaa0b42b397e',
+  // Owner request (18 nov. 2026, SEO): the « table » block type (métier → signal correspondences).
+  'src/domain/seo.ts':'cbcc121af8e9d32328bfe84e6dc0ed1fed0967b447e2b4f76fc0ba5e8214a880',
   // Owner decision (14 nov. 2026, /tarifs): the « Veille dédiée, sur devis » service is stated next to the self-service plans.
   'src/components/PricingPage.tsx':'aebf6157aefd8a5a24058707932f7b0b6fca909bfd2e06ceb0199c2851b65010',
   'src/components/PricingPlans.tsx':'fc49929e18df6b472f2b70bb36c80bd53dcfb4c85b9f86192b1e142ddb691773',

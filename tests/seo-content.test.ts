@@ -9,7 +9,8 @@ const LINK=/\[([^\]]+)\]\((\/[^)]*)\)/g;
 
 function allText(page:SeoPage):string[]{
   return [page.title,page.description,page.h1,page.intro,page.cta.title,page.cta.text,
-    ...page.sections.flatMap(s=>[s.h2,...s.blocks.flatMap(b=>b.type==='ul'||b.type==='ol'?b.items:b.type==='callout'?[b.title,b.text]:[b.text])]),
+    // 18 nov. 2026 (owner request, /prospection-agences-consultants): table cells are visible text too — counted, link-checked, claim-checked.
+    ...page.sections.flatMap(s=>[s.h2,...s.blocks.flatMap(b=>b.type==='ul'||b.type==='ol'?b.items:b.type==='callout'?[b.title,b.text]:b.type==='table'?[b.caption,...b.head,...b.rows.flat()]:[b.text])]),
     ...page.faq.flatMap(f=>[f.q,f.a])];
 }
 const visibleWords=(page:SeoPage)=>allText(page).filter(t=>t!==page.title&&t!==page.description).join(' ').replace(LINK,'$1').split(/\s+/).filter(Boolean).length;

@@ -95,6 +95,12 @@ export const PUBLIC_CSS=String.raw`
 .pos-ui .pos-public__prose .seo-callout{margin:var(--pos-space-5) 0;padding:var(--pos-space-5);border-radius:var(--pos-radius-xl);background:var(--pos-surface-card);
  border:1px solid var(--pos-border);box-shadow:var(--pos-shadow-card);border-left:4px solid var(--pos-accent)}
 .pos-ui .pos-public__prose .seo-callout p{margin:0}
+.pos-ui .pos-public__prose .seo-table{margin:var(--pos-space-5) 0;overflow-x:auto;border:1px solid var(--pos-border);border-radius:var(--pos-radius-xl);background:var(--pos-surface-card)}
+.pos-ui .pos-public__prose .seo-table table{width:100%;border-collapse:collapse;font-size:var(--pos-text-sm)}
+.pos-ui .pos-public__prose .seo-table caption{padding:var(--pos-space-3) var(--pos-space-4) 0;text-align:left;font-weight:var(--pos-weight-semibold);color:var(--pos-text-2)}
+.pos-ui .pos-public__prose .seo-table :is(th,td){padding:var(--pos-space-3) var(--pos-space-4);text-align:left;vertical-align:top;border-top:1px solid var(--pos-border)}
+.pos-ui .pos-public__prose .seo-table thead th{border-top:0;color:var(--pos-text-2);font-size:var(--pos-text-xs);text-transform:uppercase;letter-spacing:.04em}
+.pos-ui .pos-public__prose .seo-table tbody th{color:var(--pos-text-1);font-weight:var(--pos-weight-semibold);min-width:9rem}
 .pos-ui .pos-public__prose .seo-callout .seo-callout-title{margin-bottom:var(--pos-space-2);font-family:var(--pos-font-display);font-weight:var(--pos-weight-heavy);font-size:var(--pos-text-lg);color:var(--pos-text-1)}
 .pos-ui .pos-public__prose .muted{font-size:var(--pos-text-md);color:var(--pos-text-3)}
 

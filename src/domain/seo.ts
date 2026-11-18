@@ -17,7 +17,9 @@ export type SeoBlock=
   |{type:'p';text:string}
   |{type:'h3';text:string}
   |{type:'ul'|'ol';items:string[]}
-  |{type:'callout';title:string;text:string};
+  |{type:'callout';title:string;text:string}
+  // A small comparison table (header row + rows of cells; cells take inline links like a paragraph).
+  |{type:'table';caption:string;head:string[];rows:string[][]};
 
 export type SeoPage={
   slug:string;

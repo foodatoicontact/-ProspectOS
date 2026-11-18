@@ -186,6 +186,8 @@ export type PublicRecordsRepository={
  saveObservations(id:string,observations:Observation[]):Promise<unknown[]>;
  // Fills the prospect's city only while it is still empty (the repository's own condition): never overwrites one.
  fillProspectCity?(id:string,city:string):Promise<void>;
+ // Keeps the identified SIREN on the record (migration 050), only while it has none.
+ fillProspectSiren?(id:string,siren:string):Promise<void>;
 };
 // The town the card may show from the register: the headquarters' commune, with its department, for a company whose
 // data is public (statut_diffusion 'O') only — a non-diffusible company's address is never shown (GDPR).
@@ -215,6 +217,8 @@ export async function enrichFromPublicRecords(d:{repo:PublicRecordsRepository;pr
  // headquarters commune (the REGISTRY_HEADQUARTERS row just saved is its source). Best effort, empty city only.
  const city=!p.city?.trim()?registryCity(company):null;let cityFilled=0;
  if(city&&d.repo.fillProspectCity){try{await d.repo.fillProspectCity(d.prospectId,city);cityFilled=1}catch{/* The facts are saved; the card keeps "à confirmer". */}}
+ // The record keeps its SIREN: the next search recognises the company and enriches this record instead of a duplicate.
+ if(d.repo.fillProspectSiren){try{await d.repo.fillProspectSiren(d.prospectId,company.siren)}catch{/* Another record of the project has it, or migration 050 is not applied. */}}
  d.log?.({provider:'public_records',duration_ms:Date.now()-start,observations:observations.length,awards:awards.rows.length,procurement,city_filled:cityFilled});
  return {company:candidateOf(company),observations:saved,awards:awards.rows.length,procurement};
 }

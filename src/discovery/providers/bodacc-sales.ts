@@ -58,6 +58,22 @@ export function salesUrl(zone:RegistryZone,now:Date,page:number):URL{
  return u;
 }
 
+// B6: the purchases this company announced (it is the registered buyer), last 24 months, newest first. Same fields as the
+// search, never the trader's name.
+export function salesBySirenUrl(siren:string,now:Date):URL{
+ if(!/^\d{9}$/.test(siren))throw new SalesRequestError('SIREN_INVALID');
+ const u=new URL(BODACC_RECORDS);const from=new Date(now.getTime()-730*86_400_000);
+ u.searchParams.set('select','id,dateparution,url_complete,registre,acte,listeetablissements,listepersonnes');
+ u.searchParams.set('where',`familleavis="vente" and typeavis="annonce" and registre like "${siren}" and dateparution>=date'${day(from)}'`);
+ u.searchParams.set('order_by','dateparution desc');u.searchParams.set('limit','10');
+ return u;
+}
+export async function fetchSalesBySiren(siren:string,request:typeof fetch,now=new Date()):Promise<SalesNotice[]>{
+ const res=await request(salesBySirenUrl(siren,now),{headers:{accept:'application/json'},signal:AbortSignal.timeout(SALES_REQUEST_TIMEOUT_MS),redirect:'error'});
+ if(!res.ok){await res.body?.cancel().catch(()=>{});throw new SalesRequestError(`HTTP_${res.status}`)}
+ const body=await readBounded(res) as {results?:unknown[]};
+ return (Array.isArray(body?.results)?body.results:[]).map(readSalesNotice).flatMap(r=>'notice' in r&&r.notice.siren===siren?[r.notice]:[]);
+}
 const parse=(v:unknown):unknown=>{if(typeof v!=='string')return v;try{return JSON.parse(v)}catch{return null}};
 const str=(v:unknown,max:number)=>typeof v==='string'&&v.trim()?v.replace(/\s+/g,' ').trim().slice(0,max):null;
 const digits=(v:unknown)=>typeof v==='string'?v.replace(/\D/g,''):'';

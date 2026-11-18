@@ -49,7 +49,7 @@ export function nothingAnswered(report:ProviderSearchReport|undefined):boolean{
 // Run metrics describing the search step: counts, codes and the market only — never a query or a URL.
 function searchMetrics(report:ProviderSearchReport|undefined):Record<string,string|number|null>{
  return report?{search_queries_planned:report.queries_planned,search_requests:report.requests_sent,search_requests_failed:report.requests_failed,search_failure_codes:report.failure_codes.join(',')||null,search_country:report.country,search_country_reason:report.country_reason,
-  ...(report.requests_retried?{search_requests_retried:report.requests_retried}:{}),...(report.failed_groups?.length?{search_failed_groups:report.failed_groups.join(',')}:{}),
+  ...(report.requests_retried?{search_requests_retried:report.requests_retried}:{}),...(typeof report.source_total==='number'?{search_source_total:report.source_total}:{}),...(report.failed_groups?.length?{search_failed_groups:report.failed_groups.join(',')}:{}),
   ...(report.registry?registryMetrics(report.registry):{}),
   ...(report.reused_from?{reused_from_run_id:report.reused_from.run_id,reused_from_email:report.reused_from.by_email,reused_from_started_at:report.reused_from.started_at}:{})}:{};
 }

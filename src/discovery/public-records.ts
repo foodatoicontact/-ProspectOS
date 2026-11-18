@@ -14,6 +14,8 @@ import {ObservationSchema,type Observation} from './types.ts';
 import {intentsForLabel,labelRange,normText} from './strategies/icp-intents.ts';
 import {EMPLOYEE_BANDS} from './registry/admission.ts';
 import {DEPARTMENTS} from './geo-fr.ts';
+import {resolveRegistryZone,inZone} from './registry/zone.ts';
+import {fetchSalesBySiren,type SalesNotice} from './providers/bodacc-sales.ts';
 
 export const SIRENE_SEARCH='https://recherche-entreprises.api.gouv.fr/search';
 export const SIRENE_PAGE=(siren:string)=>`https://annuaire-entreprises.data.gouv.fr/entreprise/${siren}`;
@@ -34,7 +36,7 @@ type Fetch=typeof fetch;
 type SireneDirigeant={type_dirigeant?:string|null;nom?:string|null;prenoms?:string|null;qualite?:string|null};
 export type SireneCompany={siren:string;nom_complet?:string|null;nom_raison_sociale?:string|null;sigle?:string|null;statut_diffusion?:string|null;
  etat_administratif?:string|null;activite_principale?:string|null;date_creation?:string|null;tranche_effectif_salarie?:string|null;annee_tranche_effectif_salarie?:string|null;
- dirigeants?:SireneDirigeant[]|null;siege?:{siret?:string|null;adresse?:string|null;libelle_commune?:string|null;departement?:string|null;liste_enseignes?:string[]|null;nom_commercial?:string|null}|null};
+ dirigeants?:SireneDirigeant[]|null;siege?:{siret?:string|null;adresse?:string|null;libelle_commune?:string|null;departement?:string|null;commune?:string|null;region?:string|null;liste_enseignes?:string[]|null;nom_commercial?:string|null}|null};
 export type DecpRow={uid?:string|null;titulaire_id?:string|null;titulaire_typeIdentifiant?:string|null;titulaire_nom?:string|null;acheteur_nom?:string|null;
  objet?:string|null;procedure?:string|null;dateNotification?:string|null;donneesActuelles?:boolean|null};
 
@@ -178,6 +180,53 @@ export function knownSirenOf(observations:Array<{observation_type:string;source_
  return sirens.size===1?[...sirens][0]:null;
 }
 
+// B5 (audit 2026-11-11): a criterion's own locations (its target_fit rule, whatever its key) checked against the register's
+// head office — commune code, department, region — instead of the website's sentences only. Diffusible companies only.
+// Met: the head office is in one of the zones. Not met: every value is a known zone and none contains it. A value that is
+// not a known zone leaves the question open (never guessed). With other dimensions in the rule, only what the location
+// decides is written: « all_defined » is decided by a missing location, « any_defined » by a present one.
+export function locationObservations(company:SireneCompany,criteria:Criterion[],now=new Date()):Observation[]{
+ if(company.statut_diffusion!=='O'||!company.siege)return [];
+ const commune=company.siege.commune??null,region=company.siege.region??null;
+ if(!commune&&!region)return [];
+ const dep=department(company.siege.departement);
+ const where=[company.siege.libelle_commune,dep?`${dep.name} (${dep.code})`:company.siege.departement].filter(Boolean).join(', ');
+ const collected=now.toISOString(),expires=new Date(+now+90*86400000).toISOString();
+ const out:Observation[]=[];
+ for(const c of criteria){
+  const r=c.rules as {type?:string;config?:{locations?:unknown;categories?:unknown;org_types?:unknown;match?:unknown}}|undefined;
+  if(r?.type!=='target_fit'||!Array.isArray(r.config?.locations)||!r.config!.locations.length)continue;
+  const values=(r.config!.locations as unknown[]).filter((v):v is string=>typeof v==='string');
+  const zones=values.map(v=>resolveRegistryZone(v));
+  const inside=zones.some(z=>z&&inZone(z,{region,commune}));
+  const outside=!inside&&zones.every(z=>!!z);
+  if(!inside&&!outside)continue;
+  const others=['categories','org_types'].some(k=>Array.isArray((r.config as Record<string,unknown>)[k])&&((r.config as Record<string,unknown>)[k] as unknown[]).length);
+  const decides=!others||(r.config!.match==='all_defined'?outside:inside);
+  const excerpt=`Siège au registre : ${where}`;
+  out.push(ObservationSchema.parse({criterion:c.key,observation_type:clip(`REGISTRY_LOCATION:${c.key}`,60),
+   claim:inside?`Siège dans la zone du critère (${values.join(', ')})`:`Siège hors de la zone du critère (${values.join(', ')})`,value:decides?inside:null,status:'OBSERVED',
+   source_url:SIRENE_PAGE(company.siren),source_title:SIRENE_TITLE,source_excerpt:clip(excerpt,500),source_type:'public_directory',confidence:.9,
+   collected_at:collected,expires_at:expires,content_hash:hash(`REGISTRY_LOCATION:${c.key}|${excerpt}|${inside}`).slice(0,64)}));
+ }
+ return out;
+}
+
+// B6 (audit 2026-11-11): a criterion about a takeover (« reprise », « rachat », « repreneur », « cession », « changement de
+// propriétaire »…) answered by the official BODACC announcement of a business purchase by this company, when there is one
+// (last 24 months). No announcement: nothing is written (an absence is not a proof).
+export const TAKEOVER_LABEL=/(reprise|repris|rachat|rachete|repreneur|cession|cede|changement de (proprietaire|dirigeant|gerant|direction)|nouveau proprietaire|nouvelle direction)/;
+export const takeoverCriteria=(criteria:Criterion[])=>criteria.filter(c=>TAKEOVER_LABEL.test(normText(c.label)));
+export function takeoverObservations(notices:SalesNotice[],criteria:Criterion[],now=new Date()):Observation[]{
+ const n=notices[0];if(!n)return [];
+ const collected=now.toISOString(),expires=new Date(+now+90*86400000).toISOString();
+ const day=`${n.published.slice(8,10)}/${n.published.slice(5,7)}/${n.published.slice(0,4)}`;
+ const what=[n.activity,n.tradeName?`enseigne ${n.tradeName}`:null,n.city].filter(Boolean).join(', ');
+ const excerpt=`Reprise de fonds publiée au BODACC le ${day}${what?` : ${what}`:''} — acquéreur : ${n.buyer} (SIREN ${n.siren})`;
+ return takeoverCriteria(criteria).map(c=>ObservationSchema.parse({criterion:c.key,observation_type:clip(`BODACC_TAKEOVER:${c.key}`,60),
+  claim:'Reprise de fonds publiée au BODACC (annonce officielle)',value:true,status:'OBSERVED',source_url:n.url,source_title:'BODACC — annonce de vente et cession (DILA)',
+  source_excerpt:clip(excerpt,500),source_type:'public_directory',confidence:.9,collected_at:collected,expires_at:expires,content_hash:hash(`BODACC_TAKEOVER:${c.key}|${n.id}`).slice(0,64)}));
+}
 export type PublicRecordsRepository={
  prospectIdentity(id:string):Promise<{id:string;project_id:string;name:string;city:string|null}>;
  storedObservations(id:string):Promise<Array<{observation_type:string;source_url:string}>>;
@@ -211,7 +260,9 @@ export async function enrichFromPublicRecords(d:{repo:PublicRecordsRepository;pr
  const siret=company.siege?.siret??'';
  if(/^\d{14}$/.test(siret))try{awards=await fetchAwards(company.siren,siret,fetchImpl,now)}catch{procurement='unavailable'}
  else procurement='unavailable';
- const observations=registryObservations(company,awards,criteria,now);
+ let sales:SalesNotice[]=[];
+ if(takeoverCriteria(criteria).length)try{sales=await fetchSalesBySiren(company.siren,fetchImpl,now)}catch{/* The BODACC did not answer: the takeover criterion stays open. */}
+ const observations=[...registryObservations(company,awards,criteria,now),...locationObservations(company,criteria,now),...takeoverObservations(sales,criteria,now)];
  const saved=await d.repo.saveObservations(d.prospectId,observations);
  // "Localisation à confirmer" on a card whose own site publishes no full postal address: the identified company's
  // headquarters commune (the REGISTRY_HEADQUARTERS row just saved is its source). Best effort, empty city only.

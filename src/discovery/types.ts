@@ -42,6 +42,8 @@ export type ProviderSearchReport={queries_planned:number;requests_sent:number;re
  requests_retried?:number;failed_groups?:string[];
  // Requests that got a usable answer, when the provider counts it itself (register: retries make sent ≠ answered + failed).
  requests_answered?:number;
+ // Register only (audit B3): companies the register counts for this zone and these activities, before the admission rules.
+ source_total?:number;
  // A teammate's identical search reused (migration 022): its run, who ran it and when — no request was sent.
  reused_from?:{run_id:string;by_email:string|null;started_at:string};
  // Register only: NAF groups asked / queried (after the most-precise reduction), their scope and the admission counts —

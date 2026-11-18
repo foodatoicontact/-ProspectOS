@@ -3,7 +3,7 @@
 //                                     no enrichment. Temporary: the clients' own profiles will decide (next step).
 import {parisDate,addDays} from '../dedicated/model.ts';
 import type {EventKind} from './bodacc.ts';
-import type {CollectConfig} from './run.ts';
+import type {CollectConfig,EnrichConfig} from './run.ts';
 export type Env=Record<string,string|undefined>;
 const on=(v:string|undefined)=>{const x=(v??'').trim().toLowerCase();return x==='true'||x==='1'};
 export const publicEventsEnabled=(env:Env)=>on(env.PUBLIC_EVENTS_COLLECT_ENABLED);
@@ -16,4 +16,11 @@ export function collectConfigFrom(env:Env,at:Date,rt:Pick<CollectConfig,'deadlin
  const today=parisDate(at);
  const departments=enrichDepartments(env);
  return {days:[addDays(today,-1),addDays(today,-2)],enrich:departments.length?{departments,kinds:ENRICH_KINDS,since:addDays(today,-30),limit:400}:null,...rt};
+}
+// The enrichment job alone (app/api/cron/enrich/[slot]): the same departments, kinds and 30-day horizon, a full minute
+// per run. Null when the collection is off or no department is listed.
+export function enrichConfigFrom(env:Env,at:Date,rt:Pick<CollectConfig,'deadline'|'now'|'sleep'>):EnrichConfig|null{
+ const departments=enrichDepartments(env);
+ if(!publicEventsEnabled(env)||!departments.length)return null;
+ return {enrich:{departments,kinds:ENRICH_KINDS,since:addDays(parisDate(at),-30),limit:400},...rt};
 }

@@ -5,14 +5,16 @@
 //   POST leads/contracts/<id>/reserve                  {sirens[]} — exclusive per trade
 //   POST leads/assignments/<id>/release
 //   GET  leads/companies/<siren>                       one company, its whole history
+//   POST leads/contracts/<id>/deliver                  {client_name} — the reserved leads become the client's next delivery
 import {z} from 'zod';
 import type {SupabaseClient} from '@supabase/supabase-js';
-import {LEAD_KINDS,tradeKey} from './model.ts';
+import {LEAD_KINDS,tradeKey,buildLeadDelivery,type LeadPool} from './model.ts';
 type Json=(value:unknown,status?:number)=>Response;
 const uuid=z.string().uuid();
 const Profile=z.object({trade_label:z.string().trim().min(2).max(80),departments:z.array(z.string().trim().toUpperCase().regex(/^(\d{2,3}|2[AB])$/)).min(1).max(120),
  kinds:z.array(z.enum(LEAD_KINDS)).min(1).max(4),naf_prefixes:z.array(z.string().trim().toUpperCase().regex(/^\d{2}(\.\d{1,2}[A-Z]?)?$/)).max(40).default([])}).strict();
 const Reserve=z.object({sirens:z.array(z.string().regex(/^\d{9}$/)).min(1).max(500)}).strict();
+const Deliver=z.object({client_name:z.string().trim().min(1).max(160)}).strict();
 const KNOWN:Record<string,[string,number,string]>={
  lead_profile_missing:['Ce client n’a pas encore de profil : indiquez son métier, ses départements et les événements qui l’intéressent.',409,'PROFILE_MISSING'],
  lead_trade_locked:['Ce client a déjà des leads réservés pour son métier : libérez-les avant de changer de métier.',409,'TRADE_LOCKED'],
@@ -26,7 +28,7 @@ function refusal(error:{message?:string;code?:string},json:Json):Response{
  if(error.code==='22023'||error.code==='23514')return json({error:'Données invalides.',code:'INVALID'},422);
  throw Error('DATABASE_REQUEST_FAILED');
 }
-export async function handleLeads(request:Request,path:string[],db:SupabaseClient,json:Json,deps:{enabled:boolean}):Promise<Response|null>{
+export async function handleLeads(request:Request,path:string[],db:SupabaseClient,json:Json,deps:{enabled:boolean;now?:()=>Date}):Promise<Response|null>{
  if(path[0]!=='leads')return null;
  if(!deps.enabled)return json({error:'Route ou action non disponible'},404);
  const [,a,b,c]=path;
@@ -42,6 +44,19 @@ export async function handleLeads(request:Request,path:string[],db:SupabaseClien
    const p=Profile.safeParse(body);if(!p.success)return json({error:'Profil invalide : métier, au moins un département et un type d’événement.',code:'INVALID'},422);
    const key=tradeKey(p.data.trade_label);if(key.length<2)return json({error:'Métier invalide.',code:'INVALID'},422);
    return call('admin_set_lead_profile',{p_contract_id:b,p_trade_key:key,p_trade_label:p.data.trade_label,p_departments:p.data.departments,p_kinds:p.data.kinds,p_naf_prefixes:p.data.naf_prefixes});
+  }
+  if(request.method==='POST'&&c==='deliver'){
+   const p=Deliver.safeParse(body);if(!p.success)return json({error:'Client requis.',code:'INVALID'},422);
+   const pool=await db.rpc('admin_lead_pool',{p_contract_id:b,p_days:400,p_limit:500});if(pool.error)return refusal(pool.error,json);
+   const today=new Intl.DateTimeFormat('en-CA',{timeZone:'Europe/Paris'}).format(deps.now?.()??new Date());
+   const doc=buildLeadDelivery({clientName:p.data.client_name,profile:(pool.data as LeadPool).profile,leads:(pool.data as LeadPool).leads,today});
+   if(!doc.items.length)return json({error:'Aucun lead réservé à livrer pour ce client : réservez d’abord des entreprises dans son vivier.',code:'NOTHING_RESERVED'},409);
+   const {data,error}=await db.rpc('create_dedicated_delivery',{p_contract_id:b,p_scope:doc.scope,p_items:doc.items,p_header:doc.header,p_sections:doc.sections});
+   if(error){const m=String(error.message??'');
+    if(m.includes('dedicated_contract_not_active'))return json({error:'Ce contrat n’est pas actif.',code:'CONTRACT_NOT_ACTIVE'},409);
+    if(m.includes('lead_reserved_for_other_client'))return json({error:'Une de ces entreprises est réservée à un autre client du même métier.',code:'LEAD_RESERVED'},409);
+    return refusal(error,json)}
+   return json({...(data as Record<string,unknown>),skipped_leads:doc.skipped},201);
   }
   if(request.method==='POST'&&c==='reserve'){
    const p=Reserve.safeParse(body);if(!p.success)return json({error:'Sélection invalide.',code:'INVALID'},422);

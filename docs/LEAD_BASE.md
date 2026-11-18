@@ -71,3 +71,21 @@ Le vivier d'un client, sur 60 jours, contient les entreprises qui remplissent to
 - **Aucun accès navigateur aux tables :** RLS activée, aucune règle d'accès.
 - **Côté client :** rien de nouveau.
 - **Activation :** tout passe par l'interrupteur `DEDICATED_TRACKING_ENABLED`.
+
+## Livraison générée depuis la base
+
+Ajouté le 18 novembre 2026 : la liste de la semaine est préparée depuis la base, sans document fait à la main. Dans le panneau **Base entreprises**, le bouton **« Aperçu de la livraison »** affiche le document que recevra le client.
+
+**Contenu du document** (`buildLeadDelivery`, `src/leads/model.ts`) :
+- **un en-tête** : client, métier, départements, date ;
+- **des sections par type d'événement**, dans cet ordre : reprises de fonds, déménagements, nouveaux établissements, créations ;
+- **une carte par lead réservé**, qui reprend uniquement l'annonce :
+  - **Le fait** : ce que l'annonce BODACC publie, avec l'activité indiquée ;
+  - **Pourquoi maintenant** : une phrase générale sur ce type d'événement, jamais une affirmation sur l'entreprise ;
+  - **Votre accroche** : « J'ai vu dans le BODACC du … que … » ;
+  - **Puces** : code NAF et effectif ;
+  - **Lien** vers la source officielle.
+
+Un lead réservé qui n'a ni nom ni source https est écarté et compté, jamais complété.
+
+**« Livrer à <client> »** crée la livraison (`create_dedicated_delivery`, sans PDF). Le client la voit dans son espace de veille, avec ses statuts et son journal, et reçoit une notification dans la cloche. Les réservations deviennent des livraisons. **Rien ne part sans le clic de l'administrateur**, ni par e-mail ni automatiquement.

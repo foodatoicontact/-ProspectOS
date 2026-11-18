@@ -54,6 +54,6 @@ export function DedicatedAdmin({api}:{api:Api}){
   onPropose={n=>run(async()=>{const {file,...rest}=n;await api('dedicated/admin/proposals','POST',{...rest,file_name:pdfName(file),pdf_base64:await fileBase64(file)});
    return `Veille proposée : le client la voit dans son espace avec le bouton « J’accepte la proposition ».`})}
   onReplace={(id,file)=>run(async()=>{const r=await api(`dedicated/admin/contracts/${id}/proposal`,'POST',{file_name:pdfName(file),pdf_base64:await fileBase64(file)});return `Version ${r.version} jointe.`})}
-  leads={(contractId,prepare)=><LeadBase api={api} contractId={contractId} onPrepare={prepare}/>}
+  leads={(contractId,prepare,clientName)=><LeadBase api={api} contractId={contractId} clientName={clientName} onPrepare={prepare} onDelivered={load}/>}
   onTerminate={id=>run(async()=>{const r=await api(`dedicated/admin/contracts/${id}/terminate`,'POST',{});return `Veille résiliée. Accès client en lecture et mise à jour des statuts jusqu’au ${new Date(r.access_until).toLocaleDateString('fr-FR')}.`})}/>;
 }

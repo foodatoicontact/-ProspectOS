@@ -4,16 +4,16 @@
 // reservation (exclusive per trade) and « Préparer la livraison », which fills the simple delivery form with the reserved
 // leads. Every refusal is the server's sentence; after each change the pool is read again.
 import {useCallback,useEffect,useState} from 'react';
-import {LEAD_KINDS,KIND_LABEL,deliveryLines,type LeadPool} from '../../../leads/model.ts';
+import {LEAD_KINDS,KIND_LABEL,deliveryLines,buildLeadDelivery,type LeadPool} from '../../../leads/model.ts';
 type Api=(path:string,method?:string,body?:unknown)=>Promise<any>;
 const message=(e:unknown)=>e instanceof Error&&e.message?e.message:'Action impossible pour le moment.';
 const dateFr=(iso:string)=>new Date(`${iso.slice(0,10)}T12:00:00Z`).toLocaleDateString('fr-FR',{day:'numeric',month:'short',timeZone:'UTC'});
 const list=(s:string)=>s.split(/[\s,;]+/).map(x=>x.trim()).filter(Boolean);
 
-export function LeadBase({api,contractId,onPrepare}:{api:Api;contractId:string;onPrepare:(lines:string,scope:string)=>void}){
+export function LeadBase({api,contractId,clientName,onPrepare,onDelivered}:{api:Api;contractId:string;clientName:string;onPrepare:(lines:string,scope:string)=>void;onDelivered?:()=>void}){
  const [pool,setPool]=useState<LeadPool|null>(null);const [missing,setMissing]=useState(false);const [editing,setEditing]=useState(false);
  const [busy,setBusy]=useState(false);const [error,setError]=useState('');const [notice,setNotice]=useState('');
- const [picked,setPicked]=useState<Set<string>>(new Set());
+ const [picked,setPicked]=useState<Set<string>>(new Set());const [preview,setPreview]=useState(false);
  const [form,setForm]=useState({trade_label:'',departments:'',kinds:[...LEAD_KINDS] as string[],naf_prefixes:''});
  const load=useCallback(async()=>{
   try{const p=await api(`leads/contracts/${contractId}/pool?days=60&limit=150`) as LeadPool;setPool(p);setMissing(false);setError('');
@@ -33,6 +33,9 @@ export function LeadBase({api,contractId,onPrepare}:{api:Api;contractId:string;o
   const held=(r.held_by_another_client??[]) as string[];
   return `${r.reserved} lead(s) réservé(s) pour ce client.${held.length?` Non réservés, tenus par un autre client du même métier : ${held.join(', ')}.`:''}`;
  });
+ const deliver=()=>{if(!window.confirm(`Livrer ${reserved.length} entreprise(s) à ${clientName} ? La livraison apparaît dans son espace de veille et une notification lui est affichée.`))return;
+  run(async()=>{const r=await api(`leads/contracts/${contractId}/deliver`,'POST',{client_name:clientName});setPreview(false);onDelivered?.();
+   return `Livraison n° ${r.number} créée : ${r.items} fiche(s), visibles dans l’espace du client.${r.skipped_leads?` ${r.skipped_leads} lead(s) écarté(s) (source ou nom manquant).`:''}`})};
  const showForm=missing||editing;
  const reserved=pool?.leads.filter(l=>l.reserved)??[];
  return <div className="pos-ded__form" style={{marginTop:8}}>
@@ -67,9 +70,23 @@ export function LeadBase({api,contractId,onPrepare}:{api:Api;contractId:string;o
     <a href={l.source_url} target="_blank" rel="noopener noreferrer" className="pos-ded__btn">Source ↗</a></li>)}</ul>}
    <div className="pos-ded__actions">
     <button type="button" className="pos-ded__btn" disabled={busy||!picked.size} onClick={reserve}>Réserver ({picked.size})</button>
-    <button type="button" className="pos-ded__btn pos-ded__btn--primary" disabled={busy||!reserved.length}
-     onClick={()=>onPrepare(deliveryLines(reserved),`${pool.profile.trade_label} — ${reserved.length} entreprise(s), semaine du ${dateFr(new Date().toISOString())}`)}>Préparer la livraison ({reserved.length})</button>
+    <button type="button" className="pos-ded__btn" disabled={busy||!reserved.length}
+     onClick={()=>onPrepare(deliveryLines(reserved),`${pool.profile.trade_label} — ${reserved.length} entreprise(s), semaine du ${dateFr(new Date().toISOString())}`)}>Liste simple</button>
+    <button type="button" className="pos-ded__btn pos-ded__btn--primary" disabled={busy||!reserved.length} aria-expanded={preview} onClick={()=>setPreview(!preview)}>Aperçu de la livraison ({reserved.length})</button>
    </div>
+   {preview&&(()=>{const doc=buildLeadDelivery({clientName,profile:pool.profile,leads:pool.leads,today:new Date().toISOString()});
+    return <div className="pos-ded__card" aria-label="Aperçu de la livraison">
+     <p className="pos-ded__meta"><b>{doc.header.prepared_for}</b> · {doc.header.eyebrow}</p>
+     {doc.sections.map(sec=><section key={sec.key} style={{display:'grid',gap:8}}>
+      <h4 style={{margin:0}}>{sec.title} <span className="pos-ded__pill">{doc.items.filter(i=>i.section_key===sec.key).length}</span></h4>
+      {doc.items.filter(i=>i.section_key===sec.key).map(i=><article key={i.siren} style={{display:'grid',gap:4,paddingTop:8,borderTop:'1px solid var(--pos-border)'}}>
+       <b>{i.name}</b><span className="pos-ded__meta">{i.department} · {i.city} · {i.event_label}{i.chips.length?` · ${i.chips.join(' · ')}`:''}</span>
+       <span><b>Le fait</b> — {i.fact}</span><span><b>Pourquoi maintenant</b> — {i.why_now}</span><span><b>Votre accroche</b> — {i.hook}</span>
+       <a href={i.source_url} target="_blank" rel="noopener noreferrer">Voir la source officielle ↗</a></article>)}
+     </section>)}
+     {doc.skipped>0&&<p className="pos-ded__muted">{doc.skipped} lead(s) réservé(s) écarté(s) : nom ou source officielle manquants.</p>}
+     <div className="pos-ded__actions"><button type="button" className="pos-ded__btn pos-ded__btn--primary" disabled={busy||!doc.items.length} onClick={deliver}>Livrer à {clientName} ({doc.items.length})</button></div>
+    </div>})()}
   </>}
   {!showForm&&!pool&&!error&&<p className="pos-ded__muted">Chargement…</p>}
  </div>;

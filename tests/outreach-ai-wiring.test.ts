@@ -118,7 +118,15 @@ test('AI provider adapter: one JSON call, no tools, thinking off, bounded; usage
  const ai=await src('../src/server/ai.ts');
  const fn=ai.slice(ai.indexOf('export async function composeOutreachMessage'));
  assert.ok(fn.length>100,'composeOutreachMessage exists');
- assert.match(fn,/thinking:\{type:'disabled'\}/);assert.doesNotMatch(fn,/tools|web_search/);
+ // 18 nov. 2026 (reliability lot, owner request): the thinking setting moved to anthropicTuning (src/server/ai.ts), which
+ // keeps thinking:{type:'disabled'} for every model that accepts it and gives the current models (which refuse it) their own
+ // setting — checked by behaviour below, for the model of this test and for each current model.
+ assert.match(fn,/\.\.\.anthropicTuning\(model,OUTREACH_MAX_TOKENS\)/);assert.doesNotMatch(fn,/tools|web_search/);
+ const {anthropicTuning}=await import('../src/server/ai.ts');
+ assert.deepEqual(anthropicTuning('claude-sonnet-5',1024),{max_tokens:1024,thinking:{type:'disabled'}});
+ assert.deepEqual(anthropicTuning('claude-haiku-4-5',1024),{max_tokens:1024,thinking:{type:'disabled'}});
+ assert.deepEqual(anthropicTuning('claude-sonnet-5-5',1024),{max_tokens:1024,thinking:{type:'between_tools'}});
+ for(const m of ['claude-opus-5-5','claude-fable-5-2','claude-mythos-5-2'])assert.deepEqual(anthropicTuning(m,1024),{max_tokens:8000,output_config:{effort:'low'}});
  assert.match(fn,/AbortSignal\.timeout\(/);assert.doesNotMatch(fn,/console\.(log|error)\([^)]*key/i);
 });
 

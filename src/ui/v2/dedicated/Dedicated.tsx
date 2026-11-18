@@ -3,6 +3,7 @@
 // server's sentence; after each change the data is read again (the database is the source of truth).
 import {useCallback,useEffect,useState} from 'react';
 import {parisDate} from '../../../dedicated/model.ts';
+import {LeadBase} from './LeadBase.tsx';
 import {DedicatedClientView,DedicatedAdminView,type ClientData,type HistoryEntry,type StatusChange,type AdminView,type OrgHit} from './DedicatedViews.tsx';
 // A PDF chosen by the administrator → base64 for the JSON body (the server recomputes its SHA-256 from the bytes).
 async function fileBase64(f:File):Promise<string>{const b=new Uint8Array(await f.arrayBuffer());let s='';for(let i=0;i<b.length;i+=0x8000)s+=String.fromCharCode(...b.subarray(i,i+0x8000));return btoa(s)}
@@ -53,5 +54,6 @@ export function DedicatedAdmin({api}:{api:Api}){
   onPropose={n=>run(async()=>{const {file,...rest}=n;await api('dedicated/admin/proposals','POST',{...rest,file_name:pdfName(file),pdf_base64:await fileBase64(file)});
    return `Veille proposée : le client la voit dans son espace avec le bouton « J’accepte la proposition ».`})}
   onReplace={(id,file)=>run(async()=>{const r=await api(`dedicated/admin/contracts/${id}/proposal`,'POST',{file_name:pdfName(file),pdf_base64:await fileBase64(file)});return `Version ${r.version} jointe.`})}
+  leads={(contractId,prepare)=><LeadBase api={api} contractId={contractId} onPrepare={prepare}/>}
   onTerminate={id=>run(async()=>{const r=await api(`dedicated/admin/contracts/${id}/terminate`,'POST',{});return `Veille résiliée. Accès client en lecture et mise à jour des statuts jusqu’au ${new Date(r.access_until).toLocaleDateString('fr-FR')}.`})}/>;
 }

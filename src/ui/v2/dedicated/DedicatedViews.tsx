@@ -4,7 +4,7 @@
 //   DedicatedAdminView  — the administrator's dashboard: per client, counters, alerts, statements, new delivery/contract.
 // The rules are the database's; this screen only shows them (the « déjà client » option is greyed out after the window,
 // « signé » asks for the first invoice date, the statement needs the attestation box) and reports the server's refusal.
-import {useState} from 'react';
+import {useState,type ReactNode} from 'react';
 import {STATUS_LABEL,DEDICATED_STATUSES,PROOF_KINDS,PROOF_LABEL,ATTESTATION,eur,dateFr,monthLabel,knownClientOpen,knownClientDeadline,statementDeadline,
  type DedicatedStatus,type Counters,type Alert,firstStatementIssue,firstStatementDate} from '../../../dedicated/model.ts';
 import './dedicated.css';
@@ -113,8 +113,12 @@ const STATUS_TEXT:Record<ContractStatus,string>={PROPOSED:'Proposée — en atte
 
 export function DedicatedAdminView(p:{rows:AdminView[];busy:boolean;error:string;notice:string;
  onDelivery:(contractId:string,scope:string,lines:string)=>void;onDocDelivery:(contractId:string,scope:string,importFile:File,pdf:File)=>void;onSearch:(q:string)=>Promise<OrgHit[]>;onPropose:(n:NewProposal)=>void;
- onReplace:(contractId:string,file:File)=>void;onTerminate:(contractId:string)=>void}){
+ onReplace:(contractId:string,file:File)=>void;onTerminate:(contractId:string)=>void;
+ // Base entreprises (migration 049): the administrator's lead panel of a client; « Préparer la livraison » fills the simple form.
+ leads?:(contractId:string,prepare:(lines:string,scope:string)=>void)=>ReactNode}){
  const [scope,setScope]=useState<Record<string,string>>({});const [lines,setLines]=useState<Record<string,string>>({});
+ const [deliveryOpen,setDeliveryOpen]=useState<Record<string,boolean>>({});
+ const prepare=(id:string)=>(l:string,sc:string)=>{setLines(x=>({...x,[id]:l}));setScope(x=>({...x,[id]:x[id]?.trim()?x[id]!:sc}));setDeliveryOpen(x=>({...x,[id]:true}))};
  const [docs,setDocs]=useState<Record<string,{imp?:File;pdf?:File}>>({});
  const [q,setQ]=useState('');const [hits,setHits]=useState<OrgHit[]>([]);const [org,setOrg]=useState<OrgHit|null>(null);const [file,setFile]=useState<File|null>(null);
  const [nc,setNc]=useState({label:'',minimum_eur:'99',commission_eur:'179',trial_starts_on:'',first_statement_month:''});
@@ -134,7 +138,8 @@ export function DedicatedAdminView(p:{rows:AdminView[];busy:boolean;error:string
    {r.statements.length>0&&<table className="pos-ded__table"><tbody>{r.statements.slice(0,4).map(s=><tr key={s.id}><td>{monthLabel(s.month)}<br/><span className="pos-ded__meta">{plural(s.signed_count,'signature','signatures')} · {s.validated_at?`validé le ${dateFr(s.validated_at)}`:'non validé'}</span></td><td>{eur(s.amount_ht_cents)} HT</td></tr>)}</tbody></table>}
    {r.contract.status==='PROPOSED'&&<label className="pos-ded__btn">Joindre une nouvelle version (PDF)<input type="file" accept="application/pdf" hidden onChange={e=>{const f=e.target.files?.[0];if(f)p.onReplace(r.contract.id,f);e.target.value=''}}/></label>}
    {r.contract.status==='ACTIVE'&&<div className="pos-ded__actions"><button type="button" className="pos-ded__btn" disabled={p.busy} onClick={()=>{if(window.confirm(`Résilier la veille de ${r.contract.organization} ? Plus aucune livraison ; le client garde la consultation et la mise à jour des statuts pendant 6 mois.`))p.onTerminate(r.contract.id)}}>Résilier</button></div>}
-   {r.contract.status==='ACTIVE'&&<details><summary className="pos-ded__btn">Nouvelle livraison</summary>
+   {r.contract.status==='ACTIVE'&&p.leads&&<details><summary className="pos-ded__btn">Base entreprises — leads de ce client</summary>{p.leads(r.contract.id,prepare(r.contract.id))}</details>}
+   {r.contract.status==='ACTIVE'&&<details open={!!deliveryOpen[r.contract.id]} onToggle={e=>{const o=(e.currentTarget as HTMLDetailsElement).open;setDeliveryOpen(x=>x[r.contract.id]===o?x:{...x,[r.contract.id]:o})}}><summary className="pos-ded__btn">Nouvelle livraison</summary>
     <div className="pos-ded__form" style={{marginTop:8}}>
      <label>Périmètre<input value={scope[r.contract.id]??''} maxLength={500} placeholder="Île-de-France — créations, semaine 47" onChange={e=>setScope({...scope,[r.contract.id]:e.target.value})}/></label>
      <label>Fichier d’import (commercial/sortie/&lt;nom&gt;.import.json, npm run livraison)<input type="file" accept="application/json,.json" onChange={e=>setDocs({...docs,[r.contract.id]:{...docs[r.contract.id],imp:e.target.files?.[0]}})}/></label>

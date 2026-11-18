@@ -1,5 +1,6 @@
 // Self-Outreach — pure parts and orchestration with mocks (docs/SELF_OUTREACH.md). No socket is ever opened: the SMTP
 // library is replaced by a fake, the mailbox by fixtures, the database by a recorded RPC. No real email is sent.
+import {readFileSync} from 'node:fs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
@@ -283,4 +284,17 @@ test('panel display — labelled counters, no endless loader after a refusal, it
  for(const k of ['qualified','needsReview','approved','sent','replied','positive','demo','paid'])for(const d of [fr,en] as Record<string,string>[])assert.ok(d[`so.metric.${k}`],k);
  const page=await readFile(new URL('../app/page.tsx',import.meta.url),'utf8');
  assert.ok(page.includes("view==='outreach'?tr('so.pageTitle'):")&&page.includes("view==='outreach'?tr('so.pageSubtitle'):"),'not the overview title above the panel');
+});
+test('message (audit R3): the recipient is told on which site their address was published — never for a direct exchange',()=>{
+ const m=generateInitial({...MI,emailOrigin:{source:'company_website',url:'https://www.acme.example/equipe'}});assert.ok(m.ok,JSON.stringify(m));if(!m.ok)return;
+ const parts=m.text.split('\n\n');
+ assert.equal(parts.at(-2),'J’ai trouvé votre adresse sur acme.example.');
+ assert.match(parts.at(-1)!,/répondez simplement STOP\.$/,'the opt-out stays the last line');
+ for(const o of [{source:'direct_exchange',url:null},{source:'company_website',url:null},{source:'press',url:'pas une url'},undefined]){
+  const n=generateInitial({...MI,emailOrigin:o as any});assert.ok(n.ok);if(n.ok)assert.doesNotMatch(n.text,/J’ai trouvé votre adresse/);
+ }
+ assert.equal(checkHumanEdit(m.text,{...MI,emailOrigin:{source:'company_website',url:'https://www.acme.example/equipe'}}).ok,true,'the line passes the fact guard on review');
+ const api=readFileSync(new URL('../src/self-outreach/api.ts',import.meta.url),'utf8');
+ assert.match(api,/emailOrigin:\{source:contact\.email_source,url:contact\.email_source_url\}/);
+ assert.match(api,/outreach_contacts\(contact_name,email_source,email_source_url\)/,'a reviewer\'s edit keeps the same sources');
 });

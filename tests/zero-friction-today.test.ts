@@ -195,7 +195,9 @@ test('11 — commercial copy is NOT changed by ZF1 (the trial stays as on main u
  // Option C (owner decision): ZF1 merges without any commercial change; Production copy, flag OFF, stays exactly main's.
  // Owner decision (14 nov. 2026, /tarifs): the « Veille dédiée, sur devis » paragraph (and its comment) is the only addition to
  // the offers block; it is set aside before comparing. Prices, quotas and the trial wording stay main's.
- const withoutWatch=(t:string)=>t.replace(/  \{\/\* Owner decision \(14 nov\. 2026\): the dedicated watch[\s\S]*?Demander un devis<\/a><\/p>\n/,'');
+ const withoutWatch=(t:string)=>t.replace(/  \{\/\* Owner decision \(14 nov\. 2026\): the dedicated watch[\s\S]*?Demander un devis<\/a><\/p>\n/,'')
+  // Owner decision (18 nov. 2026, /prospection-agences-consultants): geo.ts learns the SEO « table » block (llms-full.txt); set aside too.
+  .replace("b.type==='table'?[`**${b.caption}**`,`| ${b.head.join(' | ')} |`,`|${b.head.map(()=>' --- ').join('|')}|`,...b.rows.map(r=>`| ${r.map(abs).join(' | ')} |`)].join('\\n'):",'');
  for(const f of ['src/components/PricingPage.tsx','src/domain/geo.ts','src/components/DemoModeBanner.tsx']){
   const main=execSync(`git show cca808c:${f}`,{cwd:new URL('..',import.meta.url),encoding:'utf8'});
   assert.equal(withoutWatch(await read(f)),main,f);
@@ -221,7 +223,10 @@ test('11 — commercial copy is NOT changed by ZF1 (the trial stays as on main u
   const logiciel=(t:string)=>t.split("  {\n    slug:'logiciel-prospection-b2b'")[0]!
    .replace(/ Le fonctionnement du logiciel, ses sources officielles et son tarif sont détaillés sur la page \[logiciel de prospection B2B\]\(\/logiciel-prospection-b2b\)\./,'')
    .replace(/related:\['(?:logiciel-prospection-b2b','qualifier-un-prospect-b2b','lead-scoring'|qualifier-un-prospect-b2b','prioriser-liste-prospects','lead-scoring'),'prospection-ia'\]/,'RELATED_PROSPECTION_B2B');
-  const outside=(t:string)=>logiciel(tarifsSeo(watch(t.split(ABOUT)[0]!))).replace(/cta:\{title:'Voir la méthode appliquée',text:'[^']*'\}/,'CTA');
+  // Owner decision (18 nov. 2026, /prospection-agences-consultants): the page's frozen real counts (AGENCY_FIGURES, with their
+  // date) and the trial length read from pricing.ts are declared at the top of the file; set aside before comparing.
+  const agencies=(t:string)=>t.replace("import {BETA_OFFER} from './pricing.ts';\n",'').replace(/\/\/ Real counts quoted on \/prospection-agences-consultants[\s\S]*?const TRIAL_DAYS=BETA_OFFER\.trialDays;\n\n/,'');
+  const outside=(t:string)=>logiciel(tarifsSeo(watch(agencies(t).split(ABOUT)[0]!))).replace(/cta:\{title:'Voir la méthode appliquée',text:'[^']*'\}/,'CTA');
   assert.equal(outside(now),outside(main),'seo-content.ts outside /a-propos and the /prospection-b2b call to action');
   const commercial=(t:string)=>t.split(ABOUT)[1]!.split('\n').filter(l=>/essai|€|_EUR|Solo|Pro |Équipe|tarifs|offre/.test(l)&&!/démonstration publique/.test(l));
   assert.deepEqual(commercial(now),commercial(main),'commercial lines of /a-propos');

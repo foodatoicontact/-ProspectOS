@@ -56,7 +56,7 @@ ${seoPages.map(page).join('\n')}
 `;
 }
 
-const block=(b:SeoBlock)=>b.type==='p'?abs(b.text):b.type==='h3'?`### ${b.text}`:b.type==='callout'?`> **${b.title}** — ${abs(b.text)}`:b.items.map((it,i)=>`${b.type==='ol'?`${i+1}.`:'-'} ${abs(it)}`).join('\n');
+const block=(b:SeoBlock)=>b.type==='table'?[`**${b.caption}**`,`| ${b.head.join(' | ')} |`,`|${b.head.map(()=>' --- ').join('|')}|`,...b.rows.map(r=>`| ${r.map(abs).join(' | ')} |`)].join('\n'):b.type==='p'?abs(b.text):b.type==='h3'?`### ${b.text}`:b.type==='callout'?`> **${b.title}** — ${abs(b.text)}`:b.items.map((it,i)=>`${b.type==='ol'?`${i+1}.`:'-'} ${abs(it)}`).join('\n');
 export function llmsFullTxt():string{
  const pages=seoPages.map(p=>[`# ${p.h1}`,`Source : ${SITE_URL}/${p.slug} — mis à jour le ${p.updated}`,abs(p.intro),
   ...p.sections.flatMap(s=>[`## ${s.h2}`,...s.blocks.map(block)]),

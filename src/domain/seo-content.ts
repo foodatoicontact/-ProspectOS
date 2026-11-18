@@ -1,5 +1,6 @@
 import type {SeoPage} from './seo.ts';
 import {PLAN_QUOTAS,CHECKOUT_PRICES,TEAM_PRICING} from './plans.ts';
+import {BETA_OFFER} from './pricing.ts';
 
 // Prices and quotas quoted on the factual pages come from plans.ts, never typed a second time.
 const {TRIAL,BETA:SOLO,PRO}=PLAN_QUOTAS;
@@ -13,6 +14,16 @@ const TEAM_EUR=TEAM_PRICING.baseAmount/100,TEAM_EXTRA_EUR=TEAM_PRICING.extraSeat
 // no client, testimonial, statistic, result or integration may be invented here.
 // `updated` = date of the last real edit of the page content (ISO, YYYY-MM-DD). Change it by hand when
 // the content changes; never derive it from the build date.
+
+// Real counts quoted on /prospection-agences-consultants, computed once from the BODACC open data with ProspectOS's own rules
+// (src/collect/bodacc.ts parseBodacc: legal persons only; src/discovery/providers/bodacc-sales.ts readSalesNotice: purchases by a
+// company), frozen with their date — never recomputed at build time, never rounded up. Window: 20 Aug.–17 Nov. 2026.
+export const AGENCY_FIGURES={computedOn:'2026-11-18',computedOnLabel:'18 novembre 2026',from:'20 août',to:'17 novembre 2026',
+ salesHauteGaronne:{companies:68,tenOrMore:12,tenOrMoreContactable:7},
+ creationsIdf:{companies:13331,soleTradersLeftOut:29203},
+ movesHautsDeSeine:{companies:857}} as const;
+const nf=(n:number)=>n.toLocaleString('fr-FR');
+const TRIAL_DAYS=BETA_OFFER.trialDays;
 
 export const seoPages:SeoPage[]=[
   {
@@ -393,7 +404,7 @@ export const seoPages:SeoPage[]=[
   {
     slug:'logiciel-prospection-b2b',
     navLabel:'Logiciel de prospection B2B',
-    updated:'2026-11-14',
+    updated:'2026-11-18',
     keywords:{primary:'logiciel de prospection B2B',secondary:['outil de prospection commerciale','comparatif des outils de prospection','prospection BODACC','appels d’offres BOAMP']},
     title:'Logiciel de prospection B2B : sources officielles et preuves | ProspectOS',
     description:'Logiciel de prospection B2B : entreprises repérées dans le registre, le BODACC et le BOAMP, chaque fait sourcé et vérifié, aucun envoi automatique. Essai de 7 jours.',
@@ -430,7 +441,7 @@ export const seoPages:SeoPage[]=[
         {type:'p',text:'Le Bulletin officiel des annonces des marchés publics liste les appels d’offres en cours. ProspectOS n’affiche que les avis dont la date limite n’est pas passée et renvoie toujours vers l’avis officiel. Rien n’est enregistré ni répondu à votre place.'},
       ]},
       {h2:'Trois recherches menées avec ProspectOS',blocks:[
-        {type:'p',text:'Ces cas décrivent la démarche, sans résultat commercial annoncé. Les entreprises citées dans les listes livrées ne sont pas nommées ici.'},
+        {type:'p',text:'Ces cas décrivent la démarche, sans résultat annoncé ni entreprise nommée. Agences et consultants : voir [les signaux par métier](/prospection-agences-consultants).'},
         {type:'h3',text:'Garages repris en Île-de-France'},
         {type:'p',text:'Pour un éditeur d’assistant de messagerie destiné aux garages : les ventes de fonds de garages publiées au BODACC dans les huit départements franciliens, chaque acquéreur vérifié au registre, les garages qui vendent des véhicules placés en tête, et une première phrase qui cite la reprise.'},
         {type:'h3',text:'Hôtels et restaurants qui changent de propriétaire'},
@@ -503,6 +514,72 @@ export const seoPages:SeoPage[]=[
     ],
     cta:{title:'Recevoir un échantillon sur votre zone',text:'Écrivez à contact@prospectos.fr avec votre métier et vos départements : vous recevez un échantillon de la liste avant toute décision.',href:'/tarifs',label:'Voir les tarifs'},
     related:['logiciel-prospection-b2b','tarifs','prospection-b2b'],
+  },
+  {
+    slug:'prospection-agences-consultants',
+    navLabel:'Agences, consultants, freelances : trouver des clients',
+    updated:'2026-11-18',
+    keywords:{primary:'trouver des clients agence',secondary:['prospection consultant indépendant','trouver des clients freelance B2B','prospection PME','signaux d’achat BODACC']},
+    title:'Trouver des clients pour votre agence | ProspectOS',
+    description:'Agences, consultants indépendants, freelances tech : repérez les PME au moment où elles achètent (reprise, création, transfert de siège), sources officielles à l’appui.',
+    eyebrow:'AGENCES · CONSULTANTS · FREELANCES',
+    h1:'Trouver des clients pour une agence, un consultant ou un freelance qui vend aux PME',
+    intro:'Une agence, un consultant ou un freelance n’a pas besoin de mille prospects, mais de quelques PME au bon moment : celles qui viennent de changer. ProspectOS les repère dans les annonces officielles, chaque fiche avec sa source.',
+    sections:[
+      {h2:'Vendre cher sans commercial : le problème des indépendants',blocks:[
+        {type:'p',text:'Vos missions valent plusieurs milliers d’euros et chaque client compte. Sans commercial, la prospection passe après la production et le chiffre d’affaires dépend du bouche-à-oreille : des mois pleins, puis des creux.'},
+      ]},
+      {h2:'Le bon moment pour contacter une PME',blocks:[
+        {type:'p',text:'Une PME achète quand quelque chose change chez elle. Voici ce que ProspectOS repère aujourd’hui, et où.'},
+        {type:'ul',items:[
+          'Reprise d’un fonds de commerce (BODACC) : un repreneur revoit ses outils et son organisation dans les premiers mois. Recherche « Reprises de commerces » sur 90 jours, par zone et activité.',
+          'Création de société : tout est à mettre en place, du site au logiciel de gestion. Repérée dans la veille dédiée et dans le suivi des entreprises.',
+          'Transfert du siège social : de nouveaux locaux et une organisation à revoir. Veille dédiée et suivi.',
+          'Augmentation de capital : l’entreprise se donne des moyens et doit les employer vite. Repérée sur les entreprises que vous suivez.',
+          'Changement de dirigeant : un nouveau responsable remet à plat les priorités et les prestataires. Repéré sur les entreprises que vous suivez.',
+          'Appel d’offres public (BOAMP) : un besoin décrit, avec une date limite. Bloc « Appels d’offres ouverts », par mots-clés et départements.',
+        ]},
+        {type:'p',text:'Une procédure collective n’est jamais présentée comme un moment d’achat : ProspectOS l’écarte et le signale.'},
+      ]},
+      {h2:'Quel signal suivre selon votre métier',blocks:[
+        {type:'table',caption:'Correspondances métier → signal',head:['Votre métier','Signaux à suivre en priorité'],rows:[
+          ['Agence web','Création de société, transfert de siège, reprise de fonds : un site à créer ou à refaire.'],
+          ['Agence d’automatisation et d’IA','Reprise de fonds, augmentation de capital : des process à reprendre et des moyens pour les outiller.'],
+          ['Développeur ERP ou CRM','Reprise de fonds, augmentation de capital, transfert de siège : un système d’information à faire évoluer.'],
+          ['Consultant en organisation','Changement de dirigeant, reprise de fonds : une organisation à repenser.'],
+          ['Agence marketing','Création de société, reprise de fonds, appels d’offres publics de communication.'],
+          ['Expert-comptable','Création de société, reprise de fonds : un cabinet à choisir dès le départ.'],
+        ]},
+      ]},
+      {h2:'Trois recherches réelles sur les 90 derniers jours',blocks:[
+        {type:'p',text:`Comptages faits le ${AGENCY_FIGURES.computedOnLabel} sur les annonces publiées du ${AGENCY_FIGURES.from} au ${AGENCY_FIGURES.to}, avec les règles de ProspectOS : seules les sociétés sont retenues, jamais une personne.`},
+        {type:'ul',items:[
+          `Reprises de fonds en Haute-Garonne : ${nf(AGENCY_FIGURES.salesHauteGaronne.companies)} sociétés acquéreuses, dont ${nf(AGENCY_FIGURES.salesHauteGaronne.tenOrMore)} de 10 salariés ou plus au registre, et ${nf(AGENCY_FIGURES.salesHauteGaronne.tenOrMoreContactable)} de celles-ci actives et sans opposition à la prospection.`,
+          `Créations de sociétés en Île-de-France : ${nf(AGENCY_FIGURES.creationsIdf.companies)} sociétés ; ${nf(AGENCY_FIGURES.creationsIdf.soleTradersLeftOut)} annonces d’entrepreneurs individuels écartées.`,
+          `Transferts de siège dans les Hauts-de-Seine : ${nf(AGENCY_FIGURES.movesHautsDeSeine.companies)} sociétés.`,
+        ]},
+        {type:'callout',title:'Ce que ces chiffres ne disent pas',text:'Une partie des sociétés refuse la prospection commerciale au registre : ProspectOS les retire avant toute livraison. Dans nos relevés de novembre, c’est le cas de la plupart des sociétés tout juste créées, et moins souvent des entreprises reprises.'},
+      ]},
+      {h2:'Comment ça marche, en trois étapes',blocks:[
+        {type:'ol',items:[
+          'Choisir votre cible : le métier de vos clients, leur zone, leur taille, et les signaux qui comptent pour vous.',
+          'Recevoir les entreprises : chaque fiche donne le fait, sa date et le lien vers l’annonce officielle. Rien n’est considéré comme vérifié tant que vous ne l’avez pas confirmé.',
+          'Contacter au bon moment : ProspectOS prépare une première phrase à partir du fait. Vous la relisez et l’envoyez vous-même ; aucun message n’est envoyé automatiquement.',
+        ]},
+      ]},
+      {h2:'Deux formules : libre-service ou veille dédiée',blocks:[
+        {type:'p',text:`En libre-service, vous lancez vos recherches vous-même : essai gratuit de ${TRIAL_DAYS} jours, puis ProspectOS Solo à ${SOLO_EUR} € par mois, Pro à ${PRO_EUR} € ou Équipe à ${TEAM_EUR} € pour ${TEAM_INCL} comptes, sans engagement.`},
+        {type:'p',text:'Avec la veille dédiée, nous préparons chaque semaine la liste des entreprises de votre zone et de votre métier ; elle est chiffrée sur devis. Les deux formules sont détaillées sur la page [tarifs](/tarifs), section « Libre-service ou veille dédiée ». La démarche complète est décrite dans [la méthode de prospection B2B](/prospection-b2b).'},
+      ]},
+    ],
+    faq:[
+      {q:'D’où viennent les données ?',a:'Du BODACC (créations, ventes de fonds, modifications), du registre des entreprises (activité, effectif, état) et du BOAMP. Chaque fiche renvoie vers l’annonce d’origine.'},
+      {q:'Est-ce conforme au RGPD ?',a:'Les données viennent de publications officielles et ProspectOS ne retient que des sociétés : jamais un entrepreneur individuel, jamais une société qui refuse la prospection au registre. Au premier contact, citez la source de l’information et proposez de ne plus recontacter la personne si elle le souhaite.'},
+      {q:'Combien d’entreprises par semaine sur ma zone ?',a:'Cela dépend de ce qui est publié : le volume varie selon le département, le métier et la semaine. Les chiffres ci-dessus donnent un ordre de grandeur réel ; aucun volume minimum n’est promis.'},
+      {q:'Puis-je essayer sur mon secteur ?',a:`Oui : l’essai gratuit de ${TRIAL_DAYS} jours donne accès aux recherches sur vos propres zones et activités, sans carte bancaire. Pour une veille dédiée, demandez un devis depuis la page [tarifs](/tarifs).`},
+    ],
+    cta:{title:'Voyez les PME qui bougent sur votre zone',text:`Lancez l’essai gratuit de ${TRIAL_DAYS} jours, ou demandez une veille dédiée.`,href:'/tarifs',label:'Voir les formules'},
+    related:['logiciel-prospection-b2b','veille-entreprises','tarifs'],
   },
   {
     slug:'a-propos',

@@ -5,6 +5,8 @@ import {useEffect,useState} from 'react';
 import {DedicatedClientView,DedicatedAdminView,type ClientData,type AdminView} from './DedicatedViews.tsx';
 import {DedicatedNotice} from './DedicatedNotice.tsx';
 import {NotificationBell} from '../shell/NotificationBell.tsx';
+import {LeadBase} from './LeadBase.tsx';
+import type {LeadPool} from '../../../leads/model.ts';
 // The bell on fictitious notifications (no request): the same component as in the shell.
 const BENCH_BELL=async(path:string)=>path==='notifications'?{unread:2,items:[
  {id:'3',title:'Nouvelle proposition de veille',body:'« Veille Île-de-France — exemple » : lisez-la et acceptez-la pour ouvrir votre espace de suivi.',at:new Date(Date.now()-3600e3).toISOString(),unread:true,pending:true,target:'dedicated'},
@@ -50,12 +52,19 @@ export const BENCH_ADMIN:AdminView[]=[
 // A local review can pass other data (a real delivery kept outside git) through window.__POS_DEDICATED_BENCH__, set by the
 // browser automation before the page loads. Nothing is fetched and nothing is stored: without it, the fictitious data.
 const injected=():ClientData|null=>typeof window!=='undefined'?((window as unknown as {__POS_DEDICATED_BENCH__?:ClientData}).__POS_DEDICATED_BENCH__??null):null;
+// Fictitious companies only (SIREN 9xxxxxxxx): the base entreprises panel as the administrator sees it.
+export const BENCH_POOL:LeadPool={profile:{contract_id:'bench',trade_key:'securite-incendie',trade_label:'Sécurité incendie',departments:['75','92','93','94'],
+ kinds:['VENTE_FONDS','TRANSFERT_SIEGE','CREATION'],naf_prefixes:[],updated_at:'2026-11-18T10:00:00Z'},waiting_enrichment:12,leads:[
+ {siren:'900000001',name:'HÔTEL EXEMPLE',naf:'55.10Z',employee_band:'11',department:'93',commune:'Pantin',kind:'VENTE_FONDS',event_on:'2026-11-17',source_url:'https://www.bodacc.fr/',activity:'Hôtel',events:1,reserved:true,other_trades:1,lists:1},
+ {siren:'900000002',name:'ENTREPÔT DÉMO',naf:'52.10B',employee_band:'12',department:'94',commune:'Rungis',kind:'TRANSFERT_SIEGE',event_on:'2026-11-17',source_url:'https://www.bodacc.fr/',activity:'Entreposage',events:2,reserved:false,other_trades:0,lists:0},
+ {siren:'900000003',name:'RESTAURANT FICTIF',naf:'56.10A',employee_band:'03',department:'75',commune:'Paris 11e',kind:'CREATION',event_on:'2026-11-15',source_url:'https://www.bodacc.fr/',activity:'Restauration',events:1,reserved:false,other_trades:0,lists:0}]};
+const benchApi=async(path:string)=>{if(path.includes('/pool'))return BENCH_POOL;return {reserved:1,held_by_another_client:[]}};
 export function DedicatedBench({view}:{view:'client'|'admin'|'proposal'|'bell'}){
  const [data,setData]=useState<ClientData>(()=>(view==='proposal'?{...BENCH_CLIENT,contracts:BENCH_CLIENT.contracts.map(c=>({...c,status:'PROPOSED',accepted_at:null})),deliveries:[],items:[],statements:[]}:BENCH_CLIENT));
  useEffect(()=>{const i=injected();if(i)setData(i)},[]);const [notice,setNotice]=useState('');
  const [signIn,setSignIn]=useState(view==='proposal');
  return <div className="pos-ui" style={{minHeight:'100vh',background:'var(--pos-bg)'}}>{view==='bell'&&<div style={{display:'flex',justifyContent:'flex-end',padding:12}}><NotificationBell api={BENCH_BELL} onOpen={()=>{}}/></div>}{signIn&&<DedicatedNotice proposals={1} statements={0} onOpen={()=>setSignIn(false)}/>}{view==='admin'
-  ?<DedicatedAdminView rows={BENCH_ADMIN} busy={false} error="" notice={notice} onDelivery={()=>setNotice('Livraison créée (banc de test).')} onDocDelivery={()=>setNotice('Livraison créée (banc de test).')} onSearch={async()=>[]} onPropose={()=>setNotice('Veille proposée (banc de test).')} onReplace={()=>setNotice('Version jointe (banc de test).')} onTerminate={()=>setNotice('Veille résiliée (banc de test).')}/>
+  ?<DedicatedAdminView rows={BENCH_ADMIN} busy={false} error="" notice={notice} onDelivery={()=>setNotice('Livraison créée (banc de test).')} onDocDelivery={()=>setNotice('Livraison créée (banc de test).')} onSearch={async()=>[]} onPropose={()=>setNotice('Veille proposée (banc de test).')} onReplace={()=>setNotice('Version jointe (banc de test).')} leads={(id,prepare)=><LeadBase api={benchApi} contractId={id} onPrepare={prepare}/>} onTerminate={()=>setNotice('Veille résiliée (banc de test).')}/>
   :<DedicatedClientView data={data} today="2027-01-02" busy={false} error="" notice={notice}
     onReadProposal={()=>setNotice('Ouverture du PDF (banc de test).')} onAccept={()=>{setData({...data,contracts:data.contracts.map(c=>({...c,status:'ACTIVE',accepted_at:'2027-01-02T10:00:00Z'}))});setNotice('Proposition acceptée : votre espace de suivi est ouvert.')}}
     onValidate={id=>{setData({...data,statements:data.statements.map(s=>s.id===id?{...s,validated_at:'2027-01-02T10:00:00Z'}:s)});setNotice('Relevé validé. Merci.')}}

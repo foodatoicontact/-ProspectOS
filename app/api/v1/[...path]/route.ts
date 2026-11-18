@@ -14,6 +14,7 @@ import {handleDedicated,memberOrganizations} from '../../../../src/dedicated/api
 import {dedicatedTrackingEnabled} from '../../../../src/dedicated/flag';
 import {notifyAcceptance} from '../../../../src/dedicated/send';
 import {handleNotifications} from '../../../../src/notifications/api';
+import {handleLeads} from '../../../../src/leads/api';
 import {analyzeCompanyGuarded} from '../../../../src/server/ai-guard';
 import {checked as checkedRpc} from '../../../../src/discovery/repository';
 import {CriterionContextSchema,normalizeCriteriaInput,criteriaIssueMessage} from '../../../../src/discovery/types';
@@ -118,6 +119,9 @@ async function handler(request:Request,context:{params:Promise<{path:string[]}>}
  const dedicatedResponse=await handleDedicated(request,path,db,json,{enabled:dedicatedTrackingEnabled(process.env),now:()=>new Date(),userEmail:user.email??null,
   notifyAccepted:notifyAcceptance});
  if(dedicatedResponse)return dedicatedResponse;
+ // Base entreprises de la veille (migration 049, src/leads/api.ts): administrator only, checked by the database.
+ const leadsResponse=await handleLeads(request,path,db,json,{enabled:dedicatedTrackingEnabled(process.env)});
+ if(leadsResponse)return leadsResponse;
  // Notification centre (migration 044): the bell of the v2 shell. The administrator flag is the caller's OWN active INTERNAL
  // entitlement, read under RLS (the database still decides what each one may read).
  if(path[0]==='notifications'){

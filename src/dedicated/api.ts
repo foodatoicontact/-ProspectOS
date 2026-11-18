@@ -45,6 +45,7 @@ const KNOWN:Record<string,[string,number,string]>={
  dedicated_siren_already_delivered:['Une entreprise de ce document a déjà été livrée à ce client : retirez-la du fichier de livraison et régénérez le PDF, pour que les numéros restent ceux du document.',409,'SIREN_ALREADY_DELIVERED'],
  dedicated_delivery_pdf_invalid:['Le PDF de la livraison n’est pas valide (5 Mo au plus).',422,'DELIVERY_PDF_INVALID'],
  dedicated_delivery_empty:['Toutes ces entreprises ont déjà été livrées à ce client : rien de nouveau.',409,'DELIVERY_EMPTY'],
+ lead_reserved_for_other_client:['Une entreprise de cette livraison est réservée à un autre client du même métier (base entreprises) : retirez-la de la livraison.',409,'LEAD_RESERVED'],
  dedicated_contracts_organization_id_label_key:['Ce client a déjà un contrat avec ce libellé.',409,'CONTRACT_EXISTS'],
 };
 function refusal(error:{message?:string;code?:string}|null,json:Json):Response|null{

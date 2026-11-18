@@ -21,7 +21,7 @@ import {verificationOf,scoreText,shortReasons,priorityChip,type VerificationKind
 export const NATIVE_TEXT:Record<Locale,{settings:string;searchSummary:(q:string,l:string)=>string;edit:string;searching:string;results:(n:number)=>string;
  why:string;source:string;verification:string;advanced:string;runDetails:string;noResults:string;noResultsBody:string;startTitle:string;startBody:string;
  targeting:string;thirdParty:string;history:string;filters:string;kind:string;confidence:string;sources:string;
- editCriteria:string;salesOption:string;salesNote:string;salesCompanies:string}>={
+ editCriteria:string;salesOption:string;salesNote:string;salesCompanies:string;sourceTotal:(shown:number,total:number)=>string}>={
  fr:{settings:'Plus de réglages',searchSummary:(q,l)=>`${q} · ${l}`,edit:'Modifier la recherche',searching:'Recherche en cours…',
   results:n=>n===1?'1 entreprise trouvée':`${n} entreprises trouvées`,why:'Pourquoi elle correspond',source:'Source',verification:'Vérification',
   advanced:'Détails avancés',runDetails:'Détails de la recherche',noResults:'Aucune entreprise trouvée.',
@@ -31,7 +31,8 @@ export const NATIVE_TEXT:Record<Locale,{settings:string;searchSummary:(q:string,
   editCriteria:'Modifier les critères',
   salesOption:'Reprises de commerces (BODACC)',
   salesNote:'Entreprises qui ont racheté un fonds de commerce ou un établissement ces 90 derniers jours, d’après les annonces officielles du BODACC. Seuls les acheteurs qui sont des sociétés sont proposés ; chaque résultat renvoie à son annonce, à vérifier avant tout contact. Indiquez une activité (ex. restaurant, boulangerie) ou laissez « reprises » pour toutes.',
-  salesCompanies:'acheteurs identifiés dans les annonces de reprise'},
+  salesCompanies:'acheteurs identifiés dans les annonces de reprise',
+  sourceTotal:(shown,total)=>`Le registre compte environ ${total.toLocaleString('fr-FR')} entreprises pour cette activité et cette zone ; ${shown} sont affichées. Précisez la zone, l’activité ou l’effectif pour voir les autres.`},
  en:{settings:'More settings',searchSummary:(q,l)=>`${q} · ${l}`,edit:'Edit the search',searching:'Searching…',
   results:n=>n===1?'1 company found':`${n} companies found`,why:'Why it matches',source:'Source',verification:'Verification',
   advanced:'Advanced details',runDetails:'Search details',noResults:'No company found.',
@@ -41,7 +42,8 @@ export const NATIVE_TEXT:Record<Locale,{settings:string;searchSummary:(q:string,
   editCriteria:'Edit the criteria',
   salesOption:'Business takeovers (BODACC)',
   salesNote:'Companies that bought a business or an establishment in the last 90 days, from the official BODACC notices. Only buyers that are companies are proposed; each result links to its notice, to be checked before any contact. Enter an activity (e.g. restaurant, bakery) or leave “reprises” for all.',
-  salesCompanies:'buyers identified in takeover notices'},
+  salesCompanies:'buyers identified in takeover notices',
+  sourceTotal:(shown,total)=>`The register counts about ${total.toLocaleString('en-GB')} companies for this activity and area; ${shown} are shown. Narrow the area, the activity or the headcount to see the others.`},
 };
 // "Lecture du résultat": how sure the automatic reading of this search result is, and where it came from — in words, never
 // a provider id ("fixture", "brave"). The legacy line (discoveryFoundNote) stays for the legacy screen.
@@ -187,6 +189,7 @@ function Results({m}:{m:DiscoveryView}){
    <h3 id="pos-sresults-title" className="pos-sresults__title">{t.results(m.candidates.length)}</h3>
    <p className="pos-sres__muted">{resultsSummaryLabel(locale,m.results.length,m.counts.added,m.counts.ignored,m.counts.unresolved)} — {searchDoneNote(locale,m.results.length,m.form.provider==='fixture'?tr('discovery.fixtureIndependent'):m.form.provider==='registry'?tr('discovery.registryCompanies'):m.form.provider==='bodacc_sales'?NATIVE_TEXT[locale].salesCompanies:tr('discovery.candidatePages'))}</p>
   </header>
+  {c?.source_total!=null&&c.source_total>m.results.length&&<p className="pos-snote" data-testid="search-source-total">{t.sourceTotal(m.results.length,c.source_total)}</p>}
   {c?.reused&&<p role="status" className="pos-snote">{tr('discovery.reusedNote').replace('{email}',c.reused.by_email??tr('discovery.reusedTeammate')).replace('{date}',runDateLabel(locale,c.reused.started_at))}</p>}
   {c?.partial&&<p role="status" className="pos-snote pos-snote--warn"><b>{tr('discovery.partialSearch')}</b>{c.partial.failed_groups.length>0&&<> {tr('discovery.partialGroups')} {c.partial.failed_groups.map(k=>nafGroupLabel(k)??k).join(' · ')}.</>}{c.partial.failure_codes.includes('HTTP_429')&&<> {tr('discovery.partialRateLimited')}</>}</p>}
   {m.hasNovelty&&<div className="pos-snovelty">

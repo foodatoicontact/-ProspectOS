@@ -18,6 +18,8 @@ export type RunSummary = {
  partial: RunPartial | null;
  // Results reused from a teammate's identical search (metrics, migration 022): who ran it and when.
  reused: RunReused | null;
+ // Register runs (audit B3): how many companies the register counted for this search — the results shown are the first ones.
+ source_total?: number | null;
 };
 export type RunReused = {by_email: string | null; started_at: string};
 export type RunPartial = {requests_failed: number; requests_sent: number; failure_codes: string[]; failed_groups: string[]};
@@ -27,7 +29,8 @@ export type RunNovelty = {results_total: number; new_results: number; seen_resul
 type RunRow = {id: string; query: string; location: string; categories: unknown; provider: string; filters_json?: unknown; status: string; started_at: string; completed_at: string | null; result_count: number;
  // Present when the row is already a summary (the panel re-reads the API's answer) or a raw run row.
  max_results?: number | null; accepted_count?: number; ignored_count?: number; novelty?: RunNovelty | null; metrics?: unknown;
- search_mode?: SearchMode; desired_new_results?: number | null; search?: RunSearch | null; partial?: RunPartial | null; reused?: RunReused | null; employee_range?: {min: number; max: number} | null};
+ search_mode?: SearchMode; desired_new_results?: number | null; search?: RunSearch | null; partial?: RunPartial | null; reused?: RunReused | null; employee_range?: {min: number; max: number} | null;
+ source_total?: number | null};
 const NOVELTY_KEYS = ['results_total', 'new_results', 'seen_results', 'already_added', 'ignored_results', 'duplicate_results'] as const;
 const nums = (v: unknown): number[] => Array.isArray(v) ? v.filter((x): x is number => typeof x === 'number') : [];
 function runSearch(r: RunRow): RunSearch | null {
@@ -95,6 +98,7 @@ export function summarizeRuns(runs: RunRow[], decided?: DecidedRow[]): RunSummar
    search: runSearch(r),
    partial: runPartial(r),
    reused: runReused(r),
+   source_total: r.source_total !== undefined ? r.source_total : typeof (r.metrics as Record<string, unknown> | null | undefined)?.search_source_total === 'number' ? (r.metrics as Record<string, number>).search_source_total : null,
   };
  }).sort((a, b) => Date.parse(b.started_at) - Date.parse(a.started_at));
 }

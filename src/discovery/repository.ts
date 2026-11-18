@@ -1,3 +1,4 @@
+import {readAllPages} from '../server/paged.ts';
 import type {SupabaseClient} from '@supabase/supabase-js';
 import type {DiscoveryRepository} from './services.ts';
 import type {Candidate,DiscoveryInput,DiscoveryResult,DiscoveryRun,Observation} from './types.ts';
@@ -43,8 +44,8 @@ export class SupabaseDiscoveryRepository implements DiscoveryRepository {
  constructor(db:SupabaseClient,writer?:PrivilegedWriter){this.db=db;this.writer=writer}
  async start(input:DiscoveryInput,provider:string){return checked(this.db.rpc('start_discovery',{p_project_id:input.project_id,p_query:input.query,p_location:input.location,p_categories:input.categories,p_provider:provider,p_max_results:input.max_results,p_filters:input.optional_filters}))}
  // The SIREN column (migration 050) is read when it exists; before the migration the same query without it.
- async existing(projectId:string){let rows:any[];try{rows=await checked(this.db.from('prospects').select('id,name,website,city,siren,channels(kind,value)').eq('project_id',projectId))}
-  catch{rows=await checked(this.db.from('prospects').select('id,name,website,city,channels(kind,value)').eq('project_id',projectId))}
+ async existing(projectId:string){let rows:any[];try{rows=(await readAllPages((from,to)=>this.db.from('prospects').select('id,name,website,city,siren,channels(kind,value)').eq('project_id',projectId).order('id').range(from,to))).rows}
+  catch{rows=(await readAllPages((from,to)=>this.db.from('prospects').select('id,name,website,city,channels(kind,value)').eq('project_id',projectId).order('id').range(from,to))).rows}
   return rows.map((p:any)=>({...p,siren:p.siren??null,phone:p.channels?.find((c:any)=>c.kind==='phone')?.value??null,address:null}))}
  // Project Discovery memory for novelty.ts: this project's earlier results (identity columns and decision
  // only) and its runs' locations. The USER's client, so RLS keeps it to the member's organization; filtered

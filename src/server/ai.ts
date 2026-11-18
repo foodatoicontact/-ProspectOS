@@ -36,6 +36,17 @@ import {parseIcpProfile,ICP_LIMITS as L,type IcpProfile} from '../domain/icp/sch
 import {dropUnsourced,dropUnverified} from '../domain/icp/missing.ts';
 import {normalizeExtraction,describeFixes,countByCategory,type Fix,type Counts} from '../domain/icp/normalize.ts';
 import {randomBytes} from 'node:crypto';
+// Thinking off for these short JSON answers — the same request as before for every model that accepts it
+// (thinking:{type:'disabled'}). The current models refuse that value with a 400 (Claude Opus 5.5, Fable, Mythos: thinking
+// cannot be turned off; Claude Sonnet 5.5: « between_tools » is its off switch), so AI_MODEL could not be moved to them
+// without breaking the analysis, the ICP import and the AI message. For those: Sonnet 5.5 gets its own off switch; the
+// others think at the lowest effort, with room for that thinking in max_tokens (it counts there) so the JSON is not cut.
+export function anthropicTuning(model:string,maxTokens:number):Record<string,unknown>{
+ const m=model.toLowerCase();
+ if(/^claude-sonnet-5-5\b/.test(m))return {max_tokens:maxTokens,thinking:{type:'between_tools'}};
+ if(/^claude-(opus-5-5|fable-5|mythos-5)\b/.test(m))return {max_tokens:Math.max(maxTokens,8000),output_config:{effort:'low'}};
+ return {max_tokens:maxTokens,thinking:{type:'disabled'}};
+}
 const ANTHROPIC_MAX_TOKENS=2048; // Conservative, fixed ceiling for a short structured JSON reply with
 // thinking disabled — not an arbitrary 16k/128k. Worst case under the existing schema (summary ≤1000
 // chars + target ≤1000 chars + up to 5 questions ≤1000 chars each, roughly 4 chars/token) is
@@ -117,7 +128,7 @@ export async function analyzeOffer(text:string,options?:{apiKeyOverride?:string|
  const anthropicSystemPrompt=instruction+' Ta réponse entière doit être un unique objet JSON valide, rien d\'autre : aucun texte avant, aucun texte après, aucun commentaire, aucun balisage markdown, aucun préambule ni conclusion. Elle doit contenir exactement ces propriétés : summary (chaîne), target (chaîne), questions (tableau de chaînes).';
  const response=await fetch(anthropic?'https://api.anthropic.com/v1/messages':'https://api.openai.com/v1/chat/completions',{
  method:'POST',signal:AbortSignal.timeout(25000),headers:anthropic?{'content-type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01'}:{'content-type':'application/json',Authorization:`Bearer ${key}`},
- body:JSON.stringify(anthropic?{model,max_tokens:ANTHROPIC_MAX_TOKENS,system:anthropicSystemPrompt,thinking:{type:'disabled'},messages:[{role:'user',content:JSON.stringify({untrusted_offer:text.slice(0,10000)})}]}:{model,max_completion_tokens:900,response_format:{type:'json_object'},messages:[{role:'system',content:instruction},{role:'user',content:JSON.stringify({untrusted_offer:text.slice(0,10000)})}]})});
+ body:JSON.stringify(anthropic?{model,...anthropicTuning(model,ANTHROPIC_MAX_TOKENS),system:anthropicSystemPrompt,messages:[{role:'user',content:JSON.stringify({untrusted_offer:text.slice(0,10000)})}]}:{model,max_completion_tokens:900,response_format:{type:'json_object'},messages:[{role:'system',content:instruction},{role:'user',content:JSON.stringify({untrusted_offer:text.slice(0,10000)})}]})});
  if(!response.ok)throw Error('AI_UNAVAILABLE');
  const body=await response.json();
  let result:{summary:string;target:string;questions:string[]};
@@ -267,7 +278,7 @@ export async function structureIcp(text:string,options?:{apiKeyOverride?:string|
    method:'POST',signal:AbortSignal.timeout(timeout),
    headers:anthropic?{'content-type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01'}:{'content-type':'application/json',Authorization:`Bearer ${key}`},
    body:JSON.stringify(anthropic
-    ?{model,max_tokens:ICP_MAX_TOKENS,system:ICP_SYSTEM_PROMPT,thinking:{type:'disabled'},messages:[{role:'user',content:user}]}
+    ?{model,...anthropicTuning(model,ICP_MAX_TOKENS),system:ICP_SYSTEM_PROMPT,messages:[{role:'user',content:user}]}
     :{model,max_completion_tokens:ICP_MAX_TOKENS,response_format:{type:'json_object'},messages:[{role:'system',content:ICP_SYSTEM_PROMPT},{role:'user',content:user}]})})}
   catch(e){const f=classifyFetchFailure(e);return fail('AI_UNAVAILABLE','reason' in f?f.reason:'NETWORK_ERROR')}
   if(!response.ok)return fail('AI_UNAVAILABLE','HTTP_ERROR',{status:response.status});
@@ -357,7 +368,7 @@ export async function composeOutreachMessage(req:{system:string;user:string},opt
   method:'POST',signal:AbortSignal.timeout(OUTREACH_AI_TIMEOUT_MS),
   headers:anthropic?{'content-type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01'}:{'content-type':'application/json',Authorization:`Bearer ${key}`},
   body:JSON.stringify(anthropic
-   ?{model,max_tokens:OUTREACH_MAX_TOKENS,system:req.system,thinking:{type:'disabled'},messages:[{role:'user',content:req.user}]}
+   ?{model,...anthropicTuning(model,OUTREACH_MAX_TOKENS),system:req.system,messages:[{role:'user',content:req.user}]}
    :{model,max_completion_tokens:OUTREACH_MAX_TOKENS,response_format:{type:'json_object'},messages:[{role:'system',content:req.system},{role:'user',content:req.user}]})})}
  catch(e){logProviderFailure(providerName,classifyFetchFailure(e));throw e}
  if(!response.ok){logProviderFailure(providerName,{status:response.status,requestId:response.headers.get('request-id')});throw Error('AI_UNAVAILABLE')}

@@ -23,6 +23,7 @@ import {attachEvidenceSources} from '../../../../src/server/evidence-sources';
 import {handleUserDeclared} from '../../../../src/server/user-declared';
 import {buildAccountExportZip,anonymizeAuthUser} from '../../../../src/server/account';
 import {recordApiUsage} from '../../../../src/server/usage';
+import {readAllPages} from '../../../../src/server/paged';
 import {hitForAccount,ruleForPath,tooManyRequests} from '../../../../src/server/rate-limit';
 import {releaseCommercialUse} from '../../../../src/server/commercial-usage';
 import {newInviteToken,inviteTokenHash,isInviteToken,inviteLink,teamError,TEAM_ERRORS} from '../../../../src/server/team';
@@ -193,7 +194,10 @@ async function handler(request:Request,context:{params:Promise<{path:string[]}>}
  return json(await checked(db.from('icps').upsert({project_id:project.id,organization_id:project.organization_id,criteria},{onConflict:'project_id'}).select().single()));
  }
  if(resource==='prospects'){
- if(request.method==='GET'){const pid=new URL(request.url).searchParams.get('project_id');if(!pid)return json({error:'Projet requis'},400);return json(await attachEvidenceSources(db,await checked(db.from('prospects').select('*,evidence(*),channels(*)').eq('project_id',pid).order('created_at',{ascending:false}))))}
+ // Q1 (audit): every prospect of the project, page by page (src/server/paged.ts) — never cut silently at 1 000 rows.
+ if(request.method==='GET'){const pid=new URL(request.url).searchParams.get('project_id');if(!pid)return json({error:'Projet requis'},400);
+  const all=await readAllPages((from,to)=>db.from('prospects').select('*,evidence(*),channels(*)').eq('project_id',pid).order('created_at',{ascending:false}).order('id').range(from,to));
+  return Response.json(await attachEvidenceSources(db,all.rows),{headers:{'Cache-Control':'no-store',...(all.truncated?{'X-ProspectOS-Truncated':String(all.rows.length)}:{})}})}
  if(request.method==='POST'){
  if(typeof body.name!=='string'||!body.name.trim()||body.name.length>160||!safeLink(String(body.website??'')))return json({error:'Nom et URL HTTP(S) requis'},400);
  const project=await checked(db.from('projects').select('*').eq('id',body.project_id).single());
@@ -514,7 +518,7 @@ async function handler(request:Request,context:{params:Promise<{path:string[]}>}
  return json(data);
  }
  if(resource==='export'&&request.method==='GET'){
- const pid=new URL(request.url).searchParams.get('project_id');const project=await checked(db.from('projects').select('*,icps(*)').eq('id',pid??'').single());const rows=await checked(db.from('prospects').select('*,evidence(*)').eq('project_id',project.id));
+ const pid=new URL(request.url).searchParams.get('project_id');const project=await checked(db.from('projects').select('*,icps(*)').eq('id',pid??'').single());const rows=(await readAllPages((from,to)=>db.from('prospects').select('*,evidence(*)').eq('project_id',project.id).order('created_at').order('id').range(from,to))).rows;
  return new Response(csv([['Nom','Ville','Statut','Score','Couverture','URL'],...rows.map((p:any)=>{const s=scoreProspect(projectCriteria(project.icps),p.evidence);return [p.name,p.city,p.status,s.score,s.coverage,p.website]})]),{headers:{'content-type':'text/csv; charset=utf-8','content-disposition':'attachment; filename="prospectos.csv"','Cache-Control':'no-store'}});
  }
  return json({error:'Route ou action non disponible'},404);

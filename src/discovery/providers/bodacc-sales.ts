@@ -43,6 +43,7 @@ const day=(d:Date)=>d.toISOString().slice(0,10);
 // The zone as the BODACC codes it: the department number, or the INSEE region code (an integer field there).
 export function salesZoneClause(zone:RegistryZone):string{
  if(zone.kind==='department'){if(!DEPT.test(zone.code))throw new SalesRequestError('ZONE_INVALID');return `numerodepartement="${zone.code}"`}
+ if(zone.kind==='departments'){if(!zone.codes.length||zone.codes.some(c=>!DEPT.test(c)))throw new SalesRequestError('ZONE_INVALID');return `(${zone.codes.map(c=>`numerodepartement="${c}"`).join(' or ')})`}
  if(!REGION.test(zone.code))throw new SalesRequestError('ZONE_INVALID');
  return `region_code=${Number(zone.code)}`;
 }

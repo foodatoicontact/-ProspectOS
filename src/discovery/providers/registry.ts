@@ -51,7 +51,7 @@ type Options={fetch?:typeof fetch;wait?:(ms:number)=>Promise<void>;maxPagesPerGr
 export function registryUrl(group:NafGroup,zone:RegistryZone,tranches:string[],page:number):URL{
  const url=new URL(REGISTRY_ENDPOINT);
  if(group.section)url.searchParams.set('section_activite_principale',group.section);else url.searchParams.set('activite_principale',group.codes.join(','));
- url.searchParams.set(zone.kind==='region'?'region':'departement',zone.code);
+ url.searchParams.set(zone.kind==='region'?'region':'departement',zone.kind==='departments'?zone.codes.join(','):zone.code);
  if(tranches.length)url.searchParams.set('tranche_effectif_salarie',tranches.join(','));
  url.searchParams.set('etat_administratif','A');url.searchParams.set('per_page',String(PER_PAGE));url.searchParams.set('page',String(page));
  return url;

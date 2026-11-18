@@ -68,9 +68,9 @@ function deepSearchMetrics(deep:SearchUntilNewResult<Candidate>,desired:number,u
  return {provider_calls:deep.providerCalls,search_passes:deep.passes.length,provider_results_total:deep.passes.reduce((n,p)=>n+p.results,0),unique_candidates_total:unique,desired_new_results:desired,new_results_found:finalNew,stop_reason:deep.stopReason,
   pass_durations_ms:deep.passes.map(p=>p.duration_ms),pass_results:deep.passes.map(p=>p.results),pass_new_results:deep.passes.map((p,i)=>p.new_after-(i?deep.passes[i-1]!.new_after:0)),pass_kinds:deep.passes.map(p=>p.query_kind)};
 }
-// A register result carries its SIREN (providers/registry.ts, raw_metadata.registry.siren): the strongest identity.
+// A register or BODACC result carries its SIREN (raw_metadata.registry.siren, raw_metadata.siren): the strongest identity.
 function withRegistrySiren<T extends {raw_metadata:Record<string,any>}>(c:T):T&{siren:string|null}{
- const s=c.raw_metadata?.registry?.siren;return {...c,siren:typeof s==='string'&&/^\d{9}$/.test(s)?s:null};
+ const s=c.raw_metadata?.registry?.siren??c.raw_metadata?.siren;return {...c,siren:typeof s==='string'&&/^\d{9}$/.test(s)?s:null};
 }
 export class DiscoveryService {
  repo:DiscoveryRepository;provider:DiscoveryProvider;dedupe:DeduplicationService;log:SafeLogger;meter?:SearchMeter;

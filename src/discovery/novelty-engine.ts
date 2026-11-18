@@ -20,13 +20,13 @@ function subjectIdentity(s:NoveltySubject,runLocation:string|null):Identity{
  const company=cls===undefined||cls===null||cls==='COMPANY_CANDIDATE';
  const nameOk=company&&(m.company_name_status===undefined||m.company_name_status==='RESOLVED');
  const domainOk=company&&(m.company_domain_status===undefined||m.company_domain_status==='RESOLVED');
- return {siren:company?sirenOf((m.registry as {siren?:unknown}|undefined)?.siren):null,domain:domainOk?normalizeDomain(s.website):null,phone:normalizePhone(s.phone),name:nameOk?s.name:null,location:s.city??runLocation,url:canonicalUrl(s.source_url)};
+ return {siren:company?sirenOf((m.registry as {siren?:unknown}|undefined)?.siren)??sirenOf(m.siren):null,domain:domainOk?normalizeDomain(s.website):null,phone:normalizePhone(s.phone),name:nameOk?s.name:null,location:s.city??runLocation,url:canonicalUrl(s.source_url)};
 }
 function resultIdentity(r:ResultMemory,runLocation:string|null):Identity{
  const company=r.source_class===undefined||r.source_class===null||r.source_class==='COMPANY_CANDIDATE';
  const nameOk=company&&(r.name_status==null||r.name_status==='RESOLVED');
  const domainOk=company&&(r.domain_status==null||r.domain_status==='RESOLVED');
- return {siren:company?sirenOf(r.siren):null,domain:domainOk?normalizeDomain(r.website):null,phone:normalizePhone(r.phone),name:nameOk?r.company_name:null,location:r.city??runLocation,url:canonicalUrl(r.source_url)};
+ return {siren:company?sirenOf(r.siren)??sirenOf(r.sale_siren):null,domain:domainOk?normalizeDomain(r.website):null,phone:normalizePhone(r.phone),name:nameOk?r.company_name:null,location:r.city??runLocation,url:canonicalUrl(r.source_url)};
 }
 const prospectIdentity=(p:ProspectMemory):Identity=>({siren:sirenOf(p.siren)??sirenOfKey(p.discovery_dedupe_key),domain:normalizeDomain(p.website),phone:normalizePhone(p.phone),name:p.name,location:p.city??null,url:null});
 

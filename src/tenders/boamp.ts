@@ -25,6 +25,7 @@ const DEPT=/^(?:0[1-9]|[1-8]\d|9[0-5]|2[AB]|97[1-6])$/;
 // Letters (accents included), digits, spaces, apostrophes and hyphens; 2 to 60 characters.
 const KEYWORD=/^[\p{L}\p{N}][\p{L}\p{N} '’-]{1,59}$/u;
 import {meaningfulWords,matchingKeywords} from './match.ts';
+import {zoneDepartments} from '../discovery/registry/zone.ts';
 const NOTICE_URL=/^https:\/\/www\.boamp\.fr\/pages\/avis\/\?q=idweb:\d{2}-\d{1,8}$/;
 const IDWEB=/^\d{2}-\d{1,8}$/;
 
@@ -48,7 +49,10 @@ export function parseTenderQuery(rawKeywords:string,rawDepartments:string):Tende
  if(keywords.some(k=>!KEYWORD.test(k)))throw new TendersError('KEYWORD_INVALID');
  // « de », « la et le »…: linking words alone would match almost every notice.
  if(keywords.some(k=>!meaningfulWords(k).length))throw new TendersError('KEYWORD_TOO_GENERIC');
- const departments=[...new Set(rawDepartments.split(',').map(d=>d.trim().toUpperCase()).filter(Boolean))];
+ // Department numbers as given; a region, a department's name or a prefecture is converted with the same zone reading as
+ // the company search (« Île-de-France » → its 8 departments; audit 2026-11-11, B4). An unknown place stays refused.
+ const tokens=[...new Set(rawDepartments.split(',').map(d=>d.trim().toUpperCase()).filter(Boolean))];
+ const departments=tokens.every(d=>DEPT.test(d))?tokens:(zoneDepartments(rawDepartments)??tokens);
  if(!departments.length)throw new TendersError('DEPARTMENTS_REQUIRED');
  if(departments.length>MAX_DEPARTMENTS)throw new TendersError('TOO_MANY_DEPARTMENTS');
  if(departments.some(d=>!DEPT.test(d)))throw new TendersError('DEPARTMENT_INVALID');

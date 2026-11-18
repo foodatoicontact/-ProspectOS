@@ -28,6 +28,14 @@ Pour chaque SIREN, un seul appel à l'API Recherche d'entreprises récupère la 
 
 L'enrichissement ne concerne que les départements utiles. Pour l'instant, ils sont listés dans `PUBLIC_EVENTS_ENRICH_DEPARTMENTS` ; ensuite, ce sera les profils des clients. Les appels sont limités à 6 par seconde, dans un budget de 55 secondes par passage.
 
+L'enrichissement tourne à deux moments :
+- **Après la collecte**, dans le temps qui reste à `/api/cron/collect`.
+- **Dans trois passages dédiés**, `/api/cron/enrich/1`, `/2` et `/3`, vers 04:07, 05:07 et 06:07 UTC. Chaque passage dispose d'une minute entière, soit environ 250 fiches.
+
+Il y a trois tâches distinctes parce que l'offre Vercel n'autorise qu'une exécution par jour pour chaque tâche. La séparation est nécessaire depuis le 17 novembre 2026 : ce jour-là, le BODACC a publié plus de 500 annonces pour la seule Île-de-France.
+
+**Ordre de traitement** : ventes de fonds, puis transferts de siège, puis nouveaux établissements, puis créations. Une entreprise reprise ou qui déménage est déjà en activité et ne s'oppose presque jamais à la prospection. Au contraire, la plupart des sociétés nouvellement créées s'y opposent : environ 87 % en Île-de-France, constaté entre le 16 et le 18 novembre 2026. Si une nuit ne suffit pas, ce sont les créations qui attendent la nuit suivante.
+
 ## Protection des données
 
 - **Personnes physiques** : seules les personnes morales sont enregistrées. Une annonce qui concerne une personne physique n'est jamais écrite ; elle est seulement comptée (`skipped_persons`).

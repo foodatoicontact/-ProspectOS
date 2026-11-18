@@ -5,8 +5,8 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {exportUrl,parseBodacc} from '../src/collect/bodacc.ts';
 import {parseCompany} from '../src/collect/enrich.ts';
-import {runCollection} from '../src/collect/run.ts';
-import {collectConfigFrom,enrichDepartments,publicEventsEnabled} from '../src/collect/config.ts';
+import {runCollection,enrichCompanies,ENRICH_PRIORITY} from '../src/collect/run.ts';
+import {collectConfigFrom,enrichConfigFrom,enrichDepartments,publicEventsEnabled} from '../src/collect/config.ts';
 const read=(p:string)=>readFileSync(new URL(`../${p}`,import.meta.url),'utf8');
 // Fictitious announcements, shaped like the BODACC open-data export.
 const pm=(denomination:string,siren:string)=>JSON.stringify({personne:{typePersonne:'pm',denomination,numeroImmatriculation:{numeroIdentification:siren.replace(/(\d{3})(\d{3})(\d{3})/,'$1 $2 $3')}}});
@@ -89,4 +89,31 @@ test('configuration and wiring: off by default; the two previous Paris days; enr
  assert.match(route,/cronAuthorized\(request\.headers\.get\('authorization'\),process\.env\.CRON_SECRET\)/);
  assert.match(route,/redirect:'error'/);
  assert.equal(JSON.parse(read('vercel.json')).crons.filter((x:{path:string})=>x.path==='/api/cron/collect').length,1);
+});
+
+test('enrichment order: business sales, then head-office moves, then establishments, then creations — the limit applies to the whole',async()=>{
+ const asked:unknown[][]=[];const fetched:string[]=[];
+ const byKind:Record<string,string[]>={VENTE_FONDS:['900000001','900000002'],TRANSFERT_SIEGE:['900000002','900000003'],ETABLISSEMENT:[],CREATION:['900000004','900000005','900000006']};
+ const rpc=async(name:string,args:Record<string,unknown>)=>{if(name==='sirens_to_enrich'){asked.push([args.p_kinds,args.p_limit]);return byKind[(args.p_kinds as string[])[0]!]!.slice(0,args.p_limit as number)}return 0};
+ const fetchJson=async(url:string)=>{const q=new URL(url).searchParams.get('q')!;fetched.push(q);return {results:[{siren:q,etat_administratif:'A',nature_juridique:'5710'}]}};
+ const report={enriched:0,enrichFailed:0};
+ await enrichCompanies(rpc,fetchJson,{enrich:{departments:['75'],kinds:['CREATION','ETABLISSEMENT','TRANSFERT_SIEGE','VENTE_FONDS'],since:'2026-10-18',limit:4},deadline:1e12,now:()=>0,sleep:async()=>{}},report);
+ assert.deepEqual(ENRICH_PRIORITY,['VENTE_FONDS','TRANSFERT_SIEGE','ETABLISSEMENT','CREATION']);
+ assert.deepEqual(asked,[[['VENTE_FONDS'],4],[['TRANSFERT_SIEGE'],2],[['ETABLISSEMENT'],1],[['CREATION'],1]]);
+ assert.deepEqual(fetched.sort(),['900000001','900000002','900000003','900000004'],'a SIREN seen twice is fetched once; the limit is shared');
+ assert.equal(report.enriched,4);
+});
+test('enrichment job: off unless the collection is on and departments are listed; three daily runs after the collection',()=>{
+ const rt={deadline:0,now:()=>0,sleep:async()=>{}};
+ assert.equal(enrichConfigFrom({PUBLIC_EVENTS_ENRICH_DEPARTMENTS:'75'},new Date('2026-11-18T04:07:00Z'),rt),null);
+ assert.equal(enrichConfigFrom({PUBLIC_EVENTS_COLLECT_ENABLED:'true'},new Date('2026-11-18T04:07:00Z'),rt),null);
+ const c=enrichConfigFrom({PUBLIC_EVENTS_COLLECT_ENABLED:'true',PUBLIC_EVENTS_ENRICH_DEPARTMENTS:'75,93'},new Date('2026-11-18T04:07:00Z'),rt)!;
+ assert.deepEqual([c.enrich.departments,c.enrich.since,c.enrich.limit],[['75','93'],'2026-10-19',400]);
+ const crons=JSON.parse(read('vercel.json')).crons.filter((x:{path:string})=>x.path.startsWith('/api/cron/enrich/'));
+ assert.deepEqual(crons,[{path:'/api/cron/enrich/1',schedule:'7 4 * * *'},{path:'/api/cron/enrich/2',schedule:'7 5 * * *'},{path:'/api/cron/enrich/3',schedule:'7 6 * * *'}]);
+ const route=read('app/api/cron/enrich/[slot]/route.ts');
+ assert.match(route,/cronAuthorized\(request\.headers\.get\('authorization'\),process\.env\.CRON_SECRET\)/);
+ assert.match(route,/new Set\(\['1','2','3'\]\)/);
+ assert.match(route,/deadline:started\+55000/);
+ assert.doesNotMatch(route,/export async function (POST|PUT|PATCH|DELETE)|request\.(json|text)\(/);
 });

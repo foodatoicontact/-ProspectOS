@@ -100,7 +100,9 @@ test('route and schedule: GET only, only the Authorization header is read; daily
  // PUBLIC_EVENTS_COLLECT_ENABLED (tests/public-events.test.ts).
  // 15 nov. 2026 (owner request): the veille dédiée statements job (migration 043) — generates the previous month's
  // statements and announces the unvalidated ones; it does nothing unless DEDICATED_TRACKING_ENABLED (tests/dedicated-tracking.test.ts).
- assert.deepEqual(vercel.crons.map((c:any)=>c.path).sort(),['/api/cron/collect','/api/cron/dedicated-statements','/api/cron/morning-digest','/api/cron/self-outreach','/api/cron/signals']);
+ // 18 nov. 2026 (owner request): enrichment of the collected companies split into three nightly runs (/api/cron/enrich/1–3)
+ // — the BODACC of 17 nov. left 300 Île-de-France companies unenriched; nothing runs unless PUBLIC_EVENTS_COLLECT_ENABLED.
+ assert.deepEqual(vercel.crons.map((c:any)=>c.path).sort(),['/api/cron/collect','/api/cron/dedicated-statements','/api/cron/enrich/1','/api/cron/enrich/2','/api/cron/enrich/3','/api/cron/morning-digest','/api/cron/self-outreach','/api/cron/signals']);
  const src=await readFile(new URL('../src/signals/monitor.ts',import.meta.url),'utf8');
  assert.doesNotMatch(src,/linkedin|anthropic|openai/i);
 });

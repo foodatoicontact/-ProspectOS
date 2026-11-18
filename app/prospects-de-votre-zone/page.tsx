@@ -13,7 +13,7 @@ const page:SeoPage={
  description:'Recevez 3 entreprises de votre département qui ont une raison concrète d’être contactées maintenant, chacune avec sa source officielle. Sous 24 h ouvrées.',
  eyebrow:'Sans compte · Sous 24 h ouvrées',
  h1:'Recevez 3 entreprises de votre zone à contacter maintenant',
- intro:'Dites-moi ce que vous vendez et où. Je vous envoie 3 entreprises de votre département qui ont une raison concrète d’être contactées en ce moment (création récente, nouvel établissement…), chacune avec le lien vers sa source officielle.',
+ intro:'Dites-moi ce que vous vendez et où. Je vous envoie 3 entreprises de votre département qui ont une raison concrète d’être contactées en ce moment (reprise d’un fonds, création récente, transfert de siège…), chacune avec le lien vers sa source officielle.',
  sections:[
   {h2:'Ce que vous recevez',blocks:[
    {type:'ul',items:[

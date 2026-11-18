@@ -60,14 +60,14 @@ async function draftBooking(db:SupabaseClient,env:Env,candidateId:string):Promis
 // One candidate: its company's source (signal, evidence, offer), the explained score, the generated message, then the
 // database function (which re-checks the signal, the evidence, the suppression list and the campaign).
 async function createCandidate(db:SupabaseClient,deps:SelfOutreachDeps,json:Json,id:string,x:{campaign_id:string;contact_id:string;signal_id:string}):Promise<Response>{
- const contact=await checked(db.from('outreach_contacts').select('id,prospect_id,project_id,contact_name,contact_role,email').eq('id',x.contact_id).single());
+ const contact=await checked(db.from('outreach_contacts').select('id,prospect_id,project_id,contact_name,contact_role,email,email_source,email_source_url').eq('id',x.contact_id).single());
  if(contact.project_id!==id)return json({error:'Contact hors projet.'},409);
  const src=await loadCandidateSource(db,contact.prospect_id,x.signal_id,deps.now());
  if(!src)return json({error:'Signal introuvable pour cette entreprise.',code:'OUTREACH_SIGNAL_NOT_OF_COMPANY'},409);
  const score=outreachScore(src.opportunity,src.signal,src.classified,outreachScoreThreshold(deps.env));
  const evidence=src.evidence.filter((e:any)=>e.status==='VERIFIED'&&e.verified_by&&src.opportunity.evidence_ids.includes(e.id));
  const msg=generateInitial({company:src.prospect.name,contactName:contact.contact_name,offer:src.project.offer,senderName:(deps.env.OUTREACH_FROM_NAME??'').trim(),
-  signal:src.signal as any,commercialType:src.classified?.commercial_type??'OTHER',evidence});
+  signal:src.signal as any,commercialType:src.classified?.commercial_type??'OTHER',evidence,emailOrigin:{source:contact.email_source,url:contact.email_source_url}});
  if(!msg.ok)return json({error:'Aucun message sûr ne peut être généré pour ce signal.',code:msg.reason,score},422);
  const created=await rpc(db,'create_outreach_candidate',{p_campaign_id:x.campaign_id,p_contact_id:x.contact_id,p_signal_id:x.signal_id,p_evidence_ids:evidence.map((e:any)=>e.id),
   p_scores:scoresPayload(score,src.classified?.commercial_type??'OTHER'),p_message:{subject:msg.subject,generated_content:msg.text,evidence_refs:msg.evidence_refs,generation_meta:msg.generation_meta}});
@@ -174,10 +174,11 @@ export async function handleSelfOutreach(request:Request,path:string[],body:unkn
    }else if(x.decision==='EDIT'){
     if(!x.content)return json({error:'Texte requis.'},400);
     // The same rules as the generator: an edit may not add an unsourced fact or a forbidden offer.
-    const k=await checked(db.from('outreach_candidates').select('prospect_id,signal_id,evidence_ids,outreach_contacts(contact_name)').eq('id',m.candidate_id).single());
+    const k=await checked(db.from('outreach_candidates').select('prospect_id,signal_id,evidence_ids,outreach_contacts(contact_name,email_source,email_source_url)').eq('id',m.candidate_id).single());
     const src=await loadCandidateSource(db,k.prospect_id,k.signal_id,deps.now());if(!src)return json({error:'Signal introuvable.'},409);
     const check=checkHumanEdit(x.content,{company:src.prospect.name,contactName:(k as any).outreach_contacts?.contact_name??'',offer:src.project.offer,senderName:(deps.env.OUTREACH_FROM_NAME??'').trim(),
-     signal:src.signal as any,evidence:src.evidence.filter((e:any)=>(k.evidence_ids??[]).includes(e.id))});
+     signal:src.signal as any,evidence:src.evidence.filter((e:any)=>(k.evidence_ids??[]).includes(e.id)),
+     emailOrigin:{source:(k as any).outreach_contacts?.email_source??'',url:(k as any).outreach_contacts?.email_source_url??null}});
     if(!check.ok)return json({error:'Le texte modifié affirme un fait non sourcé ou contient une formule interdite.',code:check.reason},422);
    }
    return json(await rpc(db,'review_outreach_message',{p_message_id:id,p_decision:x.decision,p_subject:x.subject??null,p_content:x.content??null,p_message_domain:messageDomain(deps.env)}));

@@ -110,6 +110,9 @@ export default function Page(){
    <h2>8. Durées de conservation</h2>
    <ul>
     <li><b>Compte et données d’organisation</b> : conservées tant que le compte est actif, puis selon les modalités décrites en section 9 en cas de suppression.</li>
+    <li><b>Coordonnées de personnes enregistrées sur une fiche prospect</b> (contacts et canaux : nom, fonction, adresse e-mail, téléphone, profils) : supprimées automatiquement lorsque la fiche n’a connu aucune activité pendant 3 ans. La fiche de l’entreprise, son site web et ses preuves sont conservés.</li>
+    <li><b>Signaux détectés</b> : un signal non examiné est supprimé après 60 jours, un signal écarté 30 jours après son rejet ; un signal confirmé est conservé avec la fiche.</li>
+    <li><b>Annonces officielles collectées</b> (BODACC, personnes morales uniquement) : supprimées au bout de 13 mois, sauf celles citées par une liste livrée, conservées avec cette liste pendant 3 ans.</li>
     <li><b>Accès (essai et abonnement)</b> : les dates de début et de fin d’accès sont conservées comme historique de compte. Les données d’abonnement sont conservées, y compris après suppression du compte, pour rattacher les factures émises par le prestataire de paiement.</li>
     <li><b>Journal d’usage et de facturation (api_usage_events)</b> : conservé de façon permanente et immuable par construction technique (aucune mise à jour ni suppression n’est possible sur cette table), à des fins de facturation, d’audit et de preuve de coût. Ce journal ne contient pas de contenu de conversation IA ni de donnée de prospect.</li>
     <li><b>Demandes « 3 prospects de votre zone »</b> : conservées dans la messagerie le temps de vous répondre et d’échanger avec vous, puis supprimées au plus tard 12 mois après le dernier échange.</li>

@@ -34,7 +34,10 @@ const firstName=(name:string)=>name.trim().split(/\s+/)[0]!.replace(/[^\p{L}'’
 
 export type MessageInput={company:string;contactName:string;offer:string;senderName:string;
  signal:{id:string;title:string;excerpt:string;source_url:string;source_domain:string|null;event_date:string|null;published_at:string|null;status:string};
- commercialType:CommercialSignalType;evidence:{id:string;excerpt:string;status:string}[]};
+ commercialType:CommercialSignalType;evidence:{id:string;excerpt:string;status:string}[];
+ // Where the recipient's address was read (outreach_contacts.email_source / email_source_url), told to the recipient
+ // (audit 2026-11-11, R3). An address given directly (direct_exchange) has no page: nothing is added.
+ emailOrigin?:{source:string;url:string|null}};
 export type GeneratedMessage={ok:true;subject:string;text:string;evidence_refs:{signal_ids:string[];evidence_ids:string[];source_urls:string[]};generation_meta:Record<string,unknown>}
  |{ok:false;reason:string};
 
@@ -46,11 +49,17 @@ export function refusedText(text:string,offer:string,names:string[]):string|null
  return null;
 }
 // The verified material a message may quote (and the dates it may write).
-export function sourcesOf(i:Pick<MessageInput,'signal'|'evidence'>):string[]{
+export function sourcesOf(i:Pick<MessageInput,'signal'|'evidence'|'emailOrigin'>):string[]{
  const s=i.signal,dates=[s.event_date,s.published_at].filter((d):d is string=>!!d);
- return [`${s.title} ${s.excerpt} ${dates.join(' ')} ${dates.map(day).join(' ')} ${s.source_domain??''}`,...i.evidence.filter(e=>e.status==='VERIFIED').map(e=>e.excerpt)];
+ return [`${s.title} ${s.excerpt} ${dates.join(' ')} ${dates.map(day).join(' ')} ${s.source_domain??''} ${emailOriginHost(i.emailOrigin)??''}`,...i.evidence.filter(e=>e.status==='VERIFIED').map(e=>e.excerpt)];
 }
 const OPT_OUT='Si vous ne souhaitez plus recevoir de message de ma part, répondez simplement STOP.';
+// The site where the address was published, as a bare host (« exemple.fr »), or null.
+export function emailOriginHost(o:MessageInput['emailOrigin']):string|null{
+ if(!o||o.source==='direct_exchange'||!o.url)return null;
+ try{const h=new URL(o.url).hostname.toLowerCase().replace(/^www\./,'');return /^[a-z0-9.-]+\.[a-z]{2,}$/.test(h)?h:null}catch{return null}
+}
+const originLine=(o:MessageInput['emailOrigin'])=>{const h=emailOriginHost(o);return h?`J’ai trouvé votre adresse sur ${h}.`:''};
 
 export function generateInitial(i:MessageInput):GeneratedMessage{
  if(i.signal.status!=='VERIFIED')return {ok:false,reason:'SIGNAL_NOT_VERIFIED'};
@@ -63,6 +72,7 @@ export function generateInitial(i:MessageInput):GeneratedMessage{
   offer.endsWith('.')?offer:`${offer}.`,
   'Si le sujet est d’actualité chez vous, je peux vous montrer comment nous l’abordons, au moment qui vous convient.',
   i.senderName?`${i.senderName}`:'',
+  originLine(i.emailOrigin),
   OPT_OUT].filter(Boolean).join('\n\n');
  return finish(i,text,`${i.company} : une question sur votre prospection`,'INITIAL');
 }
@@ -84,7 +94,7 @@ function finish(i:MessageInput,text:string,subject:string,kind:string):Generated
   generation_meta:{generator:OUTREACH_GENERATOR,kind,commercial_type:i.commercialType,signal_label:entryOf(i.commercialType).label.fr,guard:'fact-guard+nba-forbidden'}};
 }
 // A person's edit is checked with the same rules before it can be approved: no new unsourced fact, no forbidden offer.
-export function checkHumanEdit(text:string,i:Pick<MessageInput,'company'|'contactName'|'offer'|'senderName'|'signal'|'evidence'>):{ok:true}|{ok:false;reason:string}{
+export function checkHumanEdit(text:string,i:Pick<MessageInput,'company'|'contactName'|'offer'|'senderName'|'signal'|'evidence'|'emailOrigin'>):{ok:true}|{ok:false;reason:string}{
  const why=refusedText(text,i.offer,[i.company,i.contactName,i.senderName]);if(why)return {ok:false,reason:why};
  const g=checkComposedMessage(text,{name:i.company,offer:`${i.offer} ${i.senderName} ${i.contactName}`,sources:sourcesOf(i),allowedUrls:[],forbiddenNames:[],bannedPhrases:[],maxChars:2000,angleType:'signal'});
  return g.ok?{ok:true}:{ok:false,reason:`FACT_GUARD_${g.reason}`};

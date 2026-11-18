@@ -32,6 +32,10 @@
     {
       "path": "/api/cron/enrich/3",
       "schedule": "7 6 * * *"
+    },
+    {
+      "path": "/api/cron/retention",
+      "schedule": "29 2 * * *"
     }
   ]
 }

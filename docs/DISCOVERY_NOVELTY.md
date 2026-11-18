@@ -19,6 +19,7 @@ organisation (le même acteur est `NEW` pour chacune).
 ## Identité (du plus fort au plus faible)
 
 1. même `prospect_id` (lien de dédoublonnage vers un prospect existant, ou résultat antérieur accepté) ;
+1 bis. même **SIREN**, depuis la migration 050 du 18 novembre 2026. Le SIREN vient d'un résultat du registre, de l'identification par les registres publics, ou de la fiche prospect où il est conservé. Deux SIREN différents désignent deux acteurs différents, même s'ils partagent un site (une chaîne) ou un nom (un homonyme). Une entreprise déjà dans le projet est reconnue : sa fiche est enrichie au lieu d'être recréée en doublon ;
 2. même **domaine** de l’organisation (uniquement un site propre résolu — jamais un annuaire, une
    marketplace ou un article), sauf deux villes connues et différentes (chaîne) ;
 3. même **téléphone** normalisé ;

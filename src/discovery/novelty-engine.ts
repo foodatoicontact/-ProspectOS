@@ -1,12 +1,15 @@
 // V2 P0-C — Novelty matching (see novelty.ts for the statuses, counters and display order).
-// Identity, strongest first: the prospect link, the organization's own domain, a phone, then the canonical
+// Identity, strongest first: the prospect link, the SIREN (migration 050), the organization's own domain, a phone, then the canonical
 // name WITH a compatible location. Never a weak name similarity alone, never a name when both sides have
 // different websites, never a directory's domain (only a resolved organization's own site counts).
 import {normalize,normalizeDomain,normalizePhone} from './deduplication.ts';
 import {canonicalOrganizationName,entityCore,sameCanonicalOrganization} from './admissibility.ts';
 import type {Novelty,NoveltyBasis,NoveltySubject,ProjectMemory,ProspectMemory,ResultMemory} from './novelty.ts';
 
-type Identity={domain:string|null;phone:string|null;name:string|null;location:string|null;url:string|null};
+type Identity={siren:string|null;domain:string|null;phone:string|null;name:string|null;location:string|null;url:string|null};
+const sirenOf=(v:unknown)=>typeof v==='string'&&/^\d{9}$/.test(v)?v:null;
+// A prospect created from a register result keeps « siren:<n> » as its dedupe key: its SIREN even before migration 050.
+const sirenOfKey=(k:string|null|undefined)=>k&&/^siren:\d{9}$/.test(k)?k.slice(6):null;
 // Canonical page URL: scheme and host lowercased, no fragment, no trailing slash.
 function canonicalUrl(u:string|null|undefined){if(!u)return null;try{const x=new URL(u);x.hash='';return `${x.protocol}//${x.host.toLowerCase()}${x.pathname.replace(/\/+$/,'')}${x.search}`}catch{return null}}
 // The name and the domain count as the organization's own only when resolution said so (Brave: the gate
@@ -17,15 +20,15 @@ function subjectIdentity(s:NoveltySubject,runLocation:string|null):Identity{
  const company=cls===undefined||cls===null||cls==='COMPANY_CANDIDATE';
  const nameOk=company&&(m.company_name_status===undefined||m.company_name_status==='RESOLVED');
  const domainOk=company&&(m.company_domain_status===undefined||m.company_domain_status==='RESOLVED');
- return {domain:domainOk?normalizeDomain(s.website):null,phone:normalizePhone(s.phone),name:nameOk?s.name:null,location:s.city??runLocation,url:canonicalUrl(s.source_url)};
+ return {siren:company?sirenOf((m.registry as {siren?:unknown}|undefined)?.siren):null,domain:domainOk?normalizeDomain(s.website):null,phone:normalizePhone(s.phone),name:nameOk?s.name:null,location:s.city??runLocation,url:canonicalUrl(s.source_url)};
 }
 function resultIdentity(r:ResultMemory,runLocation:string|null):Identity{
  const company=r.source_class===undefined||r.source_class===null||r.source_class==='COMPANY_CANDIDATE';
  const nameOk=company&&(r.name_status==null||r.name_status==='RESOLVED');
  const domainOk=company&&(r.domain_status==null||r.domain_status==='RESOLVED');
- return {domain:domainOk?normalizeDomain(r.website):null,phone:normalizePhone(r.phone),name:nameOk?r.company_name:null,location:r.city??runLocation,url:canonicalUrl(r.source_url)};
+ return {siren:company?sirenOf(r.siren):null,domain:domainOk?normalizeDomain(r.website):null,phone:normalizePhone(r.phone),name:nameOk?r.company_name:null,location:r.city??runLocation,url:canonicalUrl(r.source_url)};
 }
-const prospectIdentity=(p:ProspectMemory):Identity=>({domain:normalizeDomain(p.website),phone:normalizePhone(p.phone),name:p.name,location:p.city??null,url:null});
+const prospectIdentity=(p:ProspectMemory):Identity=>({siren:sirenOf(p.siren)??sirenOfKey(p.discovery_dedupe_key),domain:normalizeDomain(p.website),phone:normalizePhone(p.phone),name:p.name,location:p.city??null,url:null});
 
 // "Ville" and "Ville et communes limitrophes" are compatible; two different towns are not; an unknown
 // location is never compatible (a name alone never identifies an actor).
@@ -35,6 +38,9 @@ export function compatibleLocation(a:string|null|undefined,b:string|null|undefin
 }
 // Two identities are the same actor, and on which basis (strongest first).
 function sameActor(a:Identity,b:Identity):NoveltyBasis|null{
+ // Two SIRENs settle it: the same one is the same company, two different ones are two companies (a chain's shared site,
+ // a homonym), whatever the other identifiers say.
+ if(a.siren&&b.siren)return a.siren===b.siren?'siren':null;
  if(a.domain&&b.domain&&a.domain===b.domain){
   // A domain shared by two different places is not proof (a chain's site): only when locations agree or one is unknown.
   if(!a.location||!b.location||compatibleLocation(a.location,b.location))return 'domain';
@@ -55,7 +61,7 @@ export function entityKey(s:NoveltySubject,runLocation:string|null=null):string{
 export class ProjectNovelty {
  private prospects:Array<{p:ProspectMemory;id:Identity}>;
  private results:Array<{r:ResultMemory;id:Identity}>;
- private byDomain=new Map<string,number[]>();private byPhone=new Map<string,number[]>();private byUrl=new Map<string,number[]>();private byName=new Map<string,number[]>();
+ private bySiren=new Map<string,number[]>();private byDomain=new Map<string,number[]>();private byPhone=new Map<string,number[]>();private byUrl=new Map<string,number[]>();private byName=new Map<string,number[]>();
  private current:Array<Identity>=[];
  private runLocation:string|null;
  constructor(memory:ProjectMemory,runLocation:string|null=null){
@@ -65,7 +71,7 @@ export class ProjectNovelty {
   // Indexes for the exact keys; names are compared only within the (small) set of candidates they return
   // or by a linear pass bounded by the memory size — in memory, never a query.
   // Names are indexed by the same canonical core sameCanonicalOrganization compares (admissibility.ts).
-  this.results.forEach(({id},i)=>{for(const [map,key] of [[this.byDomain,id.domain],[this.byPhone,id.phone],[this.byUrl,id.url],[this.byName,id.name?entityCore(id.name):null]] as const)if(key)map.set(key,[...(map.get(key)??[]),i])});
+  this.results.forEach(({id},i)=>{for(const [map,key] of [[this.bySiren,id.siren],[this.byDomain,id.domain],[this.byPhone,id.phone],[this.byUrl,id.url],[this.byName,id.name?entityCore(id.name):null]] as const)if(key)map.set(key,[...(map.get(key)??[]),i])});
  }
  // Classifies one result of the current run; call in the run's order (a later occurrence of the same
  // actor in the same run is a CURRENT_RUN_DUPLICATE).
@@ -79,7 +85,7 @@ export class ProjectNovelty {
   for(const {p,id:pid} of this.prospects){const basis=sameActor(id,pid);if(basis&&basis!=='source_url')return {status:'ADDED',basis,prospect_id:p.id,run_id:null,result_id:null}}
   const hits=new Map<number,NoveltyBasis>();
   const add=(list:number[]|undefined)=>{for(const i of list??[]){const b=sameActor(id,this.results[i]!.id);if(b&&!hits.has(i))hits.set(i,b)}};
-  add(id.domain?this.byDomain.get(id.domain):undefined);add(id.phone?this.byPhone.get(id.phone):undefined);add(id.url?this.byUrl.get(id.url):undefined);
+  add(id.siren?this.bySiren.get(id.siren):undefined);add(id.domain?this.byDomain.get(id.domain):undefined);add(id.phone?this.byPhone.get(id.phone):undefined);add(id.url?this.byUrl.get(id.url):undefined);
   if(id.name)add(this.byName.get(entityCore(id.name)));
   const matched=[...hits].sort((a,b)=>a[0]-b[0]).map(([i,basis])=>({r:this.results[i]!.r,basis}));
   // An earlier result added as a prospect that still exists: same prospect_id, already added.
@@ -96,10 +102,10 @@ export class ProjectNovelty {
 
 
 // Duplicate protection at "Ajouter" (B14): the project's prospect this result already is, on the strong
-// bases only (own domain, phone) — a name alone never blocks an addition.
+// bases only (SIREN, own domain, phone) — a name alone never blocks an addition.
 export function strongProspectMatch(subject:NoveltySubject,prospects:ProspectMemory[]):string|null{
  const id=subjectIdentity(subject,null);
- for(const p of prospects){const basis=sameActor(id,prospectIdentity(p));if(basis==='domain'||basis==='phone')return p.id}
+ for(const p of prospects){const basis=sameActor(id,prospectIdentity(p));if(basis==='siren'||basis==='domain'||basis==='phone')return p.id}
  return null;
 }
 

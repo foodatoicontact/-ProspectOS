@@ -1,5 +1,5 @@
 import {safeLink} from '../domain/core.ts';
-export type Identity={id?:string;name:string;website?:string|null;phone?:string|null;address?:string|null;city?:string|null};
+export type Identity={id?:string;name:string;website?:string|null;phone?:string|null;address?:string|null;city?:string|null;siren?:string|null};
 // Exported so other modules needing the exact same normalization (e.g. candidate-diversity.ts's title
 // containment check) never reimplement a subtly different variant.
 export const normalize=(s:string|null|undefined)=>(s??'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,' ').trim();
@@ -12,6 +12,9 @@ export class DeduplicationService {
  key(c:Identity){const d=normalizeDomain(c.website),p=normalizePhone(c.phone);return d?`domain:${d}|${normalize(c.address)||normalize(c.city)}`:p?`phone:${p}`:c.address?`address:${normalize(c.name)}|${normalize(c.address)}`:`name:${normalize(c.name)}|${normalize(c.city)}`}
  match(c:Identity,existing:Identity[]):{status:'unique'|'duplicate_candidate'|'merge_review_required';duplicate_of:string|null;reason:string}{
  const d=normalizeDomain(c.website),p=normalizePhone(c.phone);
+ // The SIREN first (migration 050): the same SIREN is the same company — the record is enriched, not duplicated.
+ const sir=c.siren&&/^\d{9}$/.test(c.siren)?c.siren:null;
+ if(sir)for(const other of existing)if(other.siren===sir)return {status:'duplicate_candidate',duplicate_of:other.id??null,reason:'Même SIREN : entreprise déjà dans ce projet'};
  // Strong identifiers considered first across all rows, not just first matching row.
  for(const other of existing){const sameDomain=d&&d===normalizeDomain(other.website),samePhone=p&&p===normalizePhone(other.phone);if(sameDomain||samePhone){const conflict=(c.address&&other.address&&normalize(c.address)!==normalize(other.address))||(c.city&&other.city&&normalize(c.city)!==normalize(other.city));const weakDomain=sameDomain&&!samePhone&&(normalize(c.name)!==normalize(other.name)||!c.address||!other.address);return {status:conflict||weakDomain?'merge_review_required':'duplicate_candidate',duplicate_of:other.id??null,reason:conflict?'Identifiant partagé, localisations différentes':weakDomain?'Domaine partagé : établissement à vérifier':sameDomain?'Domaine et établissement identiques':'Téléphone public identique'}}}
  for(const other of existing){if(normalize(c.name)===normalize(other.name)&&c.address&&other.address&&normalize(c.address)===normalize(other.address))return {status:'duplicate_candidate',duplicate_of:other.id??null,reason:'Nom et adresse identiques'}}

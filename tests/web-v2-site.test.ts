@@ -81,7 +81,8 @@ test('freeze — legal text, SEO content, prices, quotas, trial, plans, i18n and
   // Owner decision (14 nov. 2026, /tarifs): the « Veille dédiée, sur devis » service is stated next to the self-service plans, with its section and two price questions in the FAQ.
   // Owner request (15 nov. 2026, SEO): a /veille-entreprises page for the veille dédiée, linked from /tarifs (one sentence).
   // Owner request (18 nov. 2026, SEO): page /prospection-agences-consultants (frozen real counts with their date, prices from plans.ts), linked from /logiciel-prospection-b2b.
-  'src/domain/seo-content.ts':'3983ac581a274a578322db0753ed64b33209741f9527d56c95265a3bc05e557c',
+  // Owner request (19 nov. 2026): /veille-entreprises no longer lists « nouveaux établissements » (the BODACC publishes almost none).
+  'src/domain/seo-content.ts':'cc1a66f83f479808fd0b19131ff58cf680b696f2a83020bcec86e328caa1a7a2',
   // Owner decision (11 nov. 2026, SEO): prospectos.fr as the default site address, robots closing the connected and
   // technical routes, the LinkedIn pages of ProspectOS and of its founder as sameAs.
   // Owner request (13 nov. 2026, demo links, migration 042): robots also closes /d/ (private demo pages) — that one entry only.

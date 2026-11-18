@@ -468,7 +468,7 @@ export const seoPages:SeoPage[]=[
   {
     slug:'veille-entreprises',
     navLabel:'Veille entreprises : chaque lundi',
-    updated:'2026-11-15',
+    updated:'2026-11-19',
     keywords:{primary:'veille entreprises',secondary:['liste des entreprises nouvellement créées','veille BODACC','entreprises qui déménagent','fichier de prospection B2B']},
     title:'Veille entreprises : nouvelles sociétés et reprises | ProspectOS',
     description:'Veille entreprises dédiée : chaque lundi, les sociétés qui viennent de s’installer, de déménager ou d’être reprises dans vos zones, vérifiées et sourcées au BODACC.',
@@ -485,8 +485,8 @@ export const seoPages:SeoPage[]=[
         {type:'p',text:'Le nombre d’entreprises dépend de ce qui est publié pendant la semaine : aucun volume minimum n’est promis. Une liste courte et juste vaut mieux qu’un long fichier à trier.'},
       ]},
       {h2:'Les événements qui déclenchent un appel',blocks:[
-        {type:'h3',text:'Créations et nouveaux établissements'},
-        {type:'p',text:'Une société qui s’immatricule ou ouvre un établissement doit équiper ses locaux et choisir ses premiers fournisseurs. L’annonce indique l’activité déclarée et la commune.'},
+        {type:'h3',text:'Créations de sociétés'},
+        {type:'p',text:'Une société qui s’immatricule doit équiper ses locaux et choisir ses premiers fournisseurs. L’annonce indique l’activité déclarée et la commune.'},
         {type:'h3',text:'Transferts de siège'},
         {type:'p',text:'Une nouvelle adresse signifie souvent de nouveaux locaux : aménagement, sécurité, maintenance, télécoms. C’est le signal le plus utile pour les métiers qui interviennent sur place.'},
         {type:'h3',text:'Reprises de fonds de commerce'},

@@ -22,7 +22,7 @@ export const NOVELTY_STATUSES:readonly NoveltyStatus[]=['NEW','SEEN','ADDED','IG
 
 export type NoveltySubject={name:string;website?:string|null;phone?:string|null;city?:string|null;source_url:string;raw_metadata?:Record<string,unknown>};
 export type ProspectMemory={id:string;name:string;website?:string|null;phone?:string|null;city?:string|null;siren?:string|null;discovery_dedupe_key?:string|null};
-export type ResultMemory={id:string;discovery_run_id:string;status:string;prospect_id:string|null;company_name:string;website:string|null;phone?:string|null;city:string|null;source_url:string;source_class?:string|null;name_status?:string|null;domain_status?:string|null;siren?:string|null};
+export type ResultMemory={id:string;discovery_run_id:string;status:string;prospect_id:string|null;company_name:string;website:string|null;phone?:string|null;city:string|null;source_url:string;source_class?:string|null;name_status?:string|null;domain_status?:string|null;siren?:string|null;sale_siren?:string|null};
 export type RunLocation={id:string;location:string};
 export type ProjectMemory={prospects:ProspectMemory[];results:ResultMemory[];runs:RunLocation[];truncated?:boolean};
 // The matching itself (identity, ProjectNovelty) lives in novelty-engine.ts: it needs the entity

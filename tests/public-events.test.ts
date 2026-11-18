@@ -16,7 +16,7 @@ const row=(o:Record<string,unknown>)=>({id:'A1',dateparution:'2026-11-06',regist
 test('BODACC export: one request per family and day, transfers filtered at the source',()=>{
  const u=new URL(exportUrl('2026-11-06','modification'));
  assert.equal(u.origin+u.pathname,'https://bodacc-datadila.opendatasoft.com/api/explore/v2.1/catalog/datasets/annonces-commerciales/exports/json');
- assert.equal(u.searchParams.get('where'),`familleavis="modification" and dateparution=date'2026-11-06' and search("transfert du siège")`);
+ assert.equal(u.searchParams.get('where'),`familleavis="modification" and dateparution=date'2026-11-06' and (search("transfert du siège") or search("nouveau siège") or search("adresse du siège"))`);
  assert.doesNotMatch(new URL(exportUrl('2026-11-06','creation')).searchParams.get('where')!,/search/);
  assert.throws(()=>exportUrl('06/11/2026','creation'));
 });
@@ -116,4 +116,19 @@ test('enrichment job: off unless the collection is on and departments are listed
  assert.match(route,/new Set\(\['1','2','3'\]\)/);
  assert.match(route,/deadline:started\+55000/);
  assert.doesNotMatch(route,/export async function (POST|PUT|PATCH|DELETE)|request\.(json|text)\(/);
+});
+
+test('head-office moves: the three wordings of the registries are read; other changes are not moves',async()=>{
+ const {parseBodacc}=await import('../src/collect/bodacc.ts');
+ const mk=(d:string,id:string)=>({id,dateparution:'2026-11-17',registre:['910928480'],url_complete:`https://www.bodacc.fr/x/${id}`,numerodepartement:'69',ville:'Limas',cp:'69400',
+  listepersonnes:JSON.stringify({personne:{typePersonne:'pm',denomination:'EXEMPLE SAS'}}),modificationsgenerales:JSON.stringify({descriptif:d})});
+ const r=parseBodacc([mk('Nouveau siège.','a'),mk('modification survenue sur l\'adresse du siège et l\'adresse de l\'établissement','b'),mk('Modification survenue sur l\'activité, transfert du siège social.','c'),
+  mk('Modification de l\'activité.','d'),mk('modification survenue sur l\'adresse de l\'établissement','e')] as any,'modification');
+ assert.deepEqual(r.events.map(e=>[e.source_id,e.kind]),[['a','TRANSFERT_SIEGE'],['b','TRANSFERT_SIEGE'],['c','TRANSFERT_SIEGE']]);
+});
+
+test('signals of a followed company: « Nouveau siège » and a head-office address change are moves too',async()=>{
+ const {classifyAnnouncement}=await import('../src/signals/providers/bodacc.ts');
+ for(const d of ['Nouveau siège.','modification survenue sur l\'adresse du siège','Modification survenue sur l\'activité, transfert du siège social.'])
+  assert.equal((classifyAnnouncement({familleavis:'modification',familleavis_lib:'Modifications diverses',modificationsgenerales:JSON.stringify({descriptif:d})} as any) as any).type,'new_site',d);
 });

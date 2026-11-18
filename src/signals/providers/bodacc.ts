@@ -56,7 +56,7 @@ export function classifyAnnouncement(rec:Rec):{type:SignalType;detail:string}|{r
  if(/creation|immatriculation/.test(family))return {type:'new_site',detail};
  if(/modification/.test(family)){
   if(/\b(dirigeant|gerant|gerance|president|directeur general|administrateur|nomination|representant legal)/.test(d))return {type:'leadership_change',detail};
-  if(/transfert (du|de) siege|nouvelle adresse du siege|siege social transfere/.test(d))return {type:'new_site',detail};
+  if(/transfert (du|de) siege|nouvelle adresse du siege|siege social transfere|nouveau siege|adresse du siege/.test(d))return {type:'new_site',detail};
   if(/augmentation (du|de) capital/.test(d))return {type:'funding',detail};
  }
  return {reject:'NOT_A_SIGNAL'};

@@ -10,7 +10,7 @@ Chaque nuit, la tâche `/api/cron/collect` (03:13 UTC) enregistre les annonces B
 
 | Famille BODACC | Événement enregistré |
 |---|---|
-| Créations | `CREATION`, ou `ETABLISSEMENT` pour un établissement secondaire |
+| Créations | `CREATION`, ou `ETABLISSEMENT` pour un établissement secondaire (rare : le BODACC n'en publie qu'environ deux par mois pour des sociétés, dans toute la France) |
 | Modifications annonçant un transfert du siège | `TRANSFERT_SIEGE` |
 | Ventes et cessions (côté acheteur) | `VENTE_FONDS` |
 
@@ -55,3 +55,16 @@ Il y a trois tâches distinctes parce que l'offre Vercel n'autorise qu'une exéc
 - Profils de veille par client : départements, événements, activités, effectif minimal.
 - Écran « Préparer la livraison », qui remplit la livraison directement depuis le cache.
 - Inspections Géorisques (installations classées).
+
+## Transferts de siège : les trois formulations (19 novembre 2026)
+
+Les greffes rédigent un transfert de siège de trois façons :
+- « transfert du siège social » ;
+- « Nouveau siège. », par exemple au greffe de Lyon ;
+- « modification survenue sur l'adresse du siège ».
+
+Jusqu'au 19 novembre, seule la première était lue. Pour le Rhône, cela donnait 3 transferts en 90 jours au lieu de 854. La collecte (`HEAD_OFFICE_SEARCH`, `HEAD_OFFICE_MOVE` dans `src/collect/bodacc.ts`) et le moteur de signaux lisent désormais les trois formulations. Sur la journée du 17 novembre, cela représente 741 annonces au lieu de 343.
+
+## Nouveaux établissements : une source presque vide
+
+Le type `ETABLISSEMENT` est bien classé, mais le BODACC ne publie presque jamais l'ouverture d'un établissement secondaire : environ deux annonces par mois pour des sociétés dans toute la France (relevé du 18 octobre au 17 novembre 2026). Les annonces « création d'un établissement » de la famille modification concernent en réalité le déplacement d'un établissement principal, le plus souvent celui d'un entrepreneur individuel. Aucune page ne présente donc les nouveaux établissements comme un signal disponible.

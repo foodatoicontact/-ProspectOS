@@ -91,7 +91,20 @@ test('route and schedule: GET only, only the Authorization header is read; daily
  assert.doesNotMatch(route,/export async function (POST|PATCH|PUT|DELETE)|request\.(json|text)\(|searchParams/);
  assert.match(route,/cronAuthorized\(request\.headers\.get\('authorization'\),process\.env\.CRON_SECRET\)/);
  const vercel=JSON.parse(await readFile(new URL('../vercel.json',import.meta.url),'utf8'));
- assert.deepEqual(vercel.crons,[{path:'/api/cron/signals',schedule:'17 5 * * *'}]);
+ // The signals job keeps its single daily schedule. The other entry is the Self-Outreach daily job (approved 2026-10-26,
+ // pinned in tests/self-outreach.test.ts); no other job may appear.
+ assert.deepEqual(vercel.crons.filter((c:any)=>c.path==='/api/cron/signals'),[{path:'/api/cron/signals',schedule:'17 5 * * *'}]);
+ // 1 nov. 2026: the morning recap job (migration 040, approved by Kevin) runs after the monitoring; it sends nothing
+ // unless MORNING_DIGEST_ENABLED, its secret and the SMTP configuration are set (tests/morning-digest.test.ts).
+ // 15 nov. 2026 (owner request): the national collection of public events (migration 045) — nothing runs unless
+ // PUBLIC_EVENTS_COLLECT_ENABLED (tests/public-events.test.ts).
+ // 15 nov. 2026 (owner request): the veille dédiée statements job (migration 043) — generates the previous month's
+ // statements and announces the unvalidated ones; it does nothing unless DEDICATED_TRACKING_ENABLED (tests/dedicated-tracking.test.ts).
+ // 18 nov. 2026 (owner request): enrichment of the collected companies split into three nightly runs (/api/cron/enrich/1–3)
+ // — the BODACC of 17 nov. left 300 Île-de-France companies unenriched; nothing runs unless PUBLIC_EVENTS_COLLECT_ENABLED.
+ // 18 nov. 2026 (owner decision, RGPD): the nightly retention job (migration 048) — 3 years without activity for contact
+ // details, and the purges already written (signals, BODACC announcements, référentiel lists) finally scheduled.
+ assert.deepEqual(vercel.crons.map((c:any)=>c.path).sort(),['/api/cron/collect','/api/cron/dedicated-statements','/api/cron/enrich/1','/api/cron/enrich/2','/api/cron/enrich/3','/api/cron/morning-digest','/api/cron/retention','/api/cron/self-outreach','/api/cron/signals']);
  const src=await readFile(new URL('../src/signals/monitor.ts',import.meta.url),'utf8');
  assert.doesNotMatch(src,/linkedin|anthropic|openai/i);
 });

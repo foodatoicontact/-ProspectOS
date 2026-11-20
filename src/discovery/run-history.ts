@@ -5,7 +5,7 @@ import {SEARCH_MODES,STOP_REASONS,type SearchMode,type StopReason} from './searc
 export type RunStatus = 'running' | 'completed' | 'failed';
 export type RunState = RunStatus | 'interrupted';
 export type RunSummary = {
- id: string; query: string; location: string; categories: string[]; provider: 'fixture' | 'brave' | 'registry'; employee_range?: {min: number; max: number} | null;
+ id: string; query: string; location: string; categories: string[]; provider: 'fixture' | 'brave' | 'registry' | 'bodacc_sales'; employee_range?: {min: number; max: number} | null;
  status: RunStatus; started_at: string; completed_at: string | null; result_count: number; max_results: number | null;
  accepted_count: number; ignored_count: number;
  // Novelty counters of the run (metrics jsonb, novelty.ts) — null for runs made before the novelty engine.
@@ -18,6 +18,8 @@ export type RunSummary = {
  partial: RunPartial | null;
  // Results reused from a teammate's identical search (metrics, migration 022): who ran it and when.
  reused: RunReused | null;
+ // Register runs (audit B3): how many companies the register counted for this search — the results shown are the first ones.
+ source_total?: number | null;
 };
 export type RunReused = {by_email: string | null; started_at: string};
 export type RunPartial = {requests_failed: number; requests_sent: number; failure_codes: string[]; failed_groups: string[]};
@@ -27,7 +29,8 @@ export type RunNovelty = {results_total: number; new_results: number; seen_resul
 type RunRow = {id: string; query: string; location: string; categories: unknown; provider: string; filters_json?: unknown; status: string; started_at: string; completed_at: string | null; result_count: number;
  // Present when the row is already a summary (the panel re-reads the API's answer) or a raw run row.
  max_results?: number | null; accepted_count?: number; ignored_count?: number; novelty?: RunNovelty | null; metrics?: unknown;
- search_mode?: SearchMode; desired_new_results?: number | null; search?: RunSearch | null; partial?: RunPartial | null; reused?: RunReused | null; employee_range?: {min: number; max: number} | null};
+ search_mode?: SearchMode; desired_new_results?: number | null; search?: RunSearch | null; partial?: RunPartial | null; reused?: RunReused | null; employee_range?: {min: number; max: number} | null;
+ source_total?: number | null};
 const NOVELTY_KEYS = ['results_total', 'new_results', 'seen_results', 'already_added', 'ignored_results', 'duplicate_results'] as const;
 const nums = (v: unknown): number[] => Array.isArray(v) ? v.filter((x): x is number => typeof x === 'number') : [];
 function runSearch(r: RunRow): RunSearch | null {
@@ -81,7 +84,7 @@ export function summarizeRuns(runs: RunRow[], decided?: DecidedRow[]): RunSummar
   return {
    id: r.id, query: r.query, location: r.location,
    categories: Array.isArray(r.categories) ? r.categories.filter((c): c is string => typeof c === 'string') : [],
-   provider: r.provider === 'brave' ? 'brave' : r.provider === 'registry' ? 'registry' : 'fixture',
+   provider: r.provider === 'brave' ? 'brave' : r.provider === 'registry' ? 'registry' : r.provider === 'bodacc_sales' ? 'bodacc_sales' : 'fixture',
    // The register's structured headcount filter, when the run had one (replayed as is; never a criterion).
    ...(range && typeof range.min === 'number' && typeof range.max === 'number' ? {employee_range: {min: range.min, max: range.max}} : {}),
    status: r.status === 'completed' ? 'completed' : r.status === 'failed' ? 'failed' : 'running',
@@ -95,18 +98,19 @@ export function summarizeRuns(runs: RunRow[], decided?: DecidedRow[]): RunSummar
    search: runSearch(r),
    partial: runPartial(r),
    reused: runReused(r),
+   source_total: r.source_total !== undefined ? r.source_total : typeof (r.metrics as Record<string, unknown> | null | undefined)?.search_source_total === 'number' ? (r.metrics as Record<string, number>).search_source_total : null,
   };
  }).sort((a, b) => Date.parse(b.started_at) - Date.parse(a.started_at));
 }
 
 // "Rejouer la recherche": the form's values only. Nothing is launched — the user still clicks the button.
-export type ReplayFields = {query: string; location: string; categories: string; max: number; provider: 'fixture' | 'brave' | 'registry'; searchMode: SearchMode; desiredNew: number | null; employeeRange?: {min: number; max: number} | null};
+export type ReplayFields = {query: string; location: string; categories: string; max: number; provider: 'fixture' | 'brave' | 'registry' | 'bodacc_sales'; searchMode: SearchMode; desiredNew: number | null; employeeRange?: {min: number; max: number} | null};
 // registryAvailable: live mode only (the register needs no key) — a demo replay never preselects a real source.
 export function replayFields(run: RunSummary, braveAvailable: boolean, registryAvailable = false): ReplayFields {
  return {
   query: run.query, location: run.location, categories: run.categories.join(', '),
   max: Math.min(20, Math.max(1, run.max_results ?? 20)),
-  provider: run.provider === 'brave' && braveAvailable ? 'brave' : run.provider === 'registry' && registryAvailable ? 'registry' : 'fixture',
+  provider: run.provider === 'brave' && braveAvailable ? 'brave' : run.provider === 'registry' && registryAvailable ? 'registry' : run.provider === 'bodacc_sales' && registryAvailable ? 'bodacc_sales' : 'fixture',
   // The search mode and new-actors target are prefilled too — nothing is launched.
   searchMode: run.search_mode, desiredNew: run.search_mode === 'search_new' ? run.desired_new_results : null,
   ...(run.employee_range ? {employeeRange: run.employee_range} : {}),

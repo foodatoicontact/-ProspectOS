@@ -219,7 +219,7 @@ test('14 — no migration was added by this bloc: the RPCs, RLS and evidence_gua
  // evidence RLS change (tests/outreach-intelligence-db.mjs checks evidence rows stay untouched). 028 (AI outreach units
  // and cost operation) touches neither. 029 (provenance at the moment of use) only adds a trigger refusing APPROVED/USED
  // while a cited public content or signal is no longer verified: no evidence, observation or policy change (checked below).
- assert.deepEqual(files.slice(files.indexOf('015_dynamic_safe_analysis.sql')),['015_dynamic_safe_analysis.sql','016_beta_commercial_quotas.sql','017_stripe_billing.sql','018_deleted_accounts_release_beta_capacity.sql','019_discovery_registry_provider.sql','020_public_trial_availability.sql','021_discovery_failed_run_not_billed.sql','022_team_pro.sql','023_team_offer.sql','024_signals.sql','025_pipeline_feedback.sql','026_signal_monitoring.sql','027_outreach_intelligence.sql','028_outreach_ai_generation.sql','029_outreach_provenance_revalidation.sql','030_signal_discovery.sql','031_next_best_action.sql','032_signal_legacy_geo.sql','033_user_declared_evidence.sql','034_release_legacy_test_billing.sql','036_outreach_evidence_revalidation.sql']);
+ assert.deepEqual(files.slice(files.indexOf('015_dynamic_safe_analysis.sql')),['015_dynamic_safe_analysis.sql','016_beta_commercial_quotas.sql','017_stripe_billing.sql','018_deleted_accounts_release_beta_capacity.sql','019_discovery_registry_provider.sql','020_public_trial_availability.sql','021_discovery_failed_run_not_billed.sql','022_team_pro.sql','023_team_offer.sql','024_signals.sql','025_pipeline_feedback.sql','026_signal_monitoring.sql','027_outreach_intelligence.sql','028_outreach_ai_generation.sql','029_outreach_provenance_revalidation.sql','030_signal_discovery.sql','031_next_best_action.sql','032_signal_legacy_geo.sql','033_user_declared_evidence.sql','034_release_legacy_test_billing.sql','035_self_outreach.sql','036_outreach_evidence_revalidation.sql','037_outreach_booking_meetings.sql', '039_discovery_bodacc_sales_provider.sql', '040_morning_digest.sql', '041_icp_import.sql','042_demo_shares.sql','043_dedicated_tracking.sql','044_notification_state.sql','045_public_events.sql','046_prospect_lists.sql', '047_rate_limits.sql', '048_retention.sql', '049_lead_base.sql', '050_prospect_siren.sql', '051_bodacc_sale_signal.sql']);
  // 019 (register provider) only widens the provider checks and start_discovery's provider list.
  // 020 (public trial availability) only adds a boolean read of the beta seats; 021 ties a Discovery unit to its run.
  for(const f of ['016_beta_commercial_quotas.sql','017_stripe_billing.sql','018_deleted_accounts_release_beta_capacity.sql','019_discovery_registry_provider.sql','020_public_trial_availability.sql','021_discovery_failed_run_not_billed.sql','022_team_pro.sql','023_team_offer.sql','029_outreach_provenance_revalidation.sql']){
@@ -259,10 +259,60 @@ test('14 — no migration was added by this bloc: the RPCs, RLS and evidence_gua
  const m033=(await readFile(new URL('../db/migrations/033_user_declared_evidence.sql',import.meta.url),'utf8')).split('\n').filter(l=>!l.trim().startsWith('--')).join('\n');
  assert.doesNotMatch(m033,/(insert into|update|delete from) public\.|prospect_observations|policy|grant |row level security/i);
  assert.deepEqual(m033.match(/alter table public\.\w+/g),Array(10).fill('alter table public.evidence'));
+ // 035 (Self-Outreach) READS evidence only (an outreach cites VERIFIED evidence of its company); it never writes evidence,
+ // observations or their policies.
+ const m035=(await readFile(new URL('../db/migrations/035_self_outreach.sql',import.meta.url),'utf8')).split('\n').filter(l=>!l.trim().startsWith('--')).join('\n');
+ assert.doesNotMatch(m035,/(insert into|update|delete from) public\.(evidence|prospect_observations)|on public\.(evidence|prospect_observations)/i);
  // 036 (evidence provenance at the moment of use) only redefines the outreach provenance guard: it READS evidence to
  // refuse APPROVED/USED while a cited proof is no longer VERIFIED; it writes no row and changes no policy nor grant.
  const m036=(await readFile(new URL('../db/migrations/036_outreach_evidence_revalidation.sql',import.meta.url),'utf8')).split('\n').filter(l=>!l.trim().startsWith('--')).join('\n');
  assert.doesNotMatch(m036,/(insert into|update|delete from) public\.|prospect_observations|policy|grant |row level security/i);
+ // 037 (Self-Outreach booking link and meetings) touches its own tables and functions only: never evidence, observations
+ // nor their policies.
+ const m037=(await readFile(new URL('../db/migrations/037_outreach_booking_meetings.sql',import.meta.url),'utf8')).split('\n').filter(l=>!l.trim().startsWith('--')).join('\n');
+ assert.doesNotMatch(m037,/(insert into|update|delete from) public\.(evidence|prospect_observations)|on public\.(evidence|prospect_observations)/i);
+ // 039 (Discovery provider bodacc_sales: provider constraints, start_discovery, run_reusable) never touches evidence,
+ // observations, their policies, nor the quota line (a launch is still one billable Discovery).
+ const m039=(await readFile(new URL('../db/migrations/039_discovery_bodacc_sales_provider.sql',import.meta.url),'utf8')).split('\n').filter(l=>!l.trim().startsWith('--')).join('\n');
+ assert.doesNotMatch(m039,/(insert into|update|delete from) public\.(evidence|prospect_observations)|on public\.(evidence|prospect_observations)|policy|grant execute/i);
+ assert.match(m039,/perform prospectos_private\.consume_discovery_quota\(tenant,'discovery',p_provider<>'fixture'\);/);
+ // 040 (morning recap: its own table, reads PENDING_REVIEW signals) never writes evidence, observations or signals.
+ const m040=(await readFile(new URL('../db/migrations/040_morning_digest.sql',import.meta.url),'utf8')).split('\n').filter(l=>!l.trim().startsWith('--')).join('\n');
+ assert.doesNotMatch(m040,/(insert into|update|delete from) public\.(evidence|prospect_observations|signals)|on public\.(evidence|prospect_observations|signals)/i);
+ // 041 (ICP import: its own table + ICP profile columns written by validate_icp_import) never writes evidence,
+ // observations or signals; the criteria it writes follow the existing rules (1–30, unique keys, weights summing to 100).
+ const m041=(await readFile(new URL('../db/migrations/041_icp_import.sql',import.meta.url),'utf8')).split('\n').filter(l=>!l.trim().startsWith('--')).join('\n');
+ assert.doesNotMatch(m041,/(insert into|update|delete from) public\.(evidence|prospect_observations|signals)|on public\.(evidence|prospect_observations|signals)/i);
+ assert.match(m041,/abs\(total-100\)>0\.001/);
+ // 042 (demo links: its own two tables and five functions) never writes evidence or observations and never marks
+ // anything VERIFIED. Its single write to signals is the copy made by claim_demo_share into the new owner's project —
+ // without a status, so the copies arrive as PENDING_REVIEW (the column default) and are reviewed again.
+ const m042=(await readFile(new URL('../db/migrations/042_demo_shares.sql',import.meta.url),'utf8')).split('\n').filter(l=>!l.trim().startsWith('--')).join('\n');
+ assert.doesNotMatch(m042,/(insert into|update|delete from) public\.(evidence|prospect_observations)|on public\.(evidence|prospect_observations|signals)|VERIFIED|reviewed_by/i);
+ assert.equal((m042.match(/(insert into|update|delete from) public\.signals/gi)??[]).length,1);
+ assert.match(m042,/insert into public\.signals\(organization_id,project_id,prospect_id,provider,signal_type,title,excerpt,source_url,source_type,event_date,published_at,observed_at,\s*confidence,matched_terms,content_hash,event_key,raw_metadata,purge_after\)/);
+ // 043 (veille dédiée, suivi au résultat): its own tables only — no evidence, observation or signal, nothing VERIFIED.
+ const m043=(await readFile(new URL('../db/migrations/043_dedicated_tracking.sql',import.meta.url),'utf8')).split('\n').filter(l=>!l.trim().startsWith('--')).join('\n');
+ assert.doesNotMatch(m043,/(insert into|update|delete from) public\.(evidence|prospect_observations|signals)|on public\.(evidence|prospect_observations|signals)|VERIFIED|reviewed_by/i);
+ // 044 (notification read state): its own table only.
+ const m044=(await readFile(new URL('../db/migrations/044_notification_state.sql',import.meta.url),'utf8')).split('\n').filter(l=>!l.trim().startsWith('--')).join('\n');
+ assert.doesNotMatch(m044,/(insert into|update|delete from) public\.(evidence|prospect_observations|signals)|on public\.(evidence|prospect_observations|signals)|VERIFIED|reviewed_by/i);
+ // 045 (national collection of public events): its own tables only.
+ const m045=(await readFile(new URL('../db/migrations/045_public_events.sql',import.meta.url),'utf8')).split('\n').filter(l=>!l.trim().startsWith('--')).join('\n');
+ assert.doesNotMatch(m045,/(insert into|update|delete from) public\.(evidence|prospect_observations|signals)|on public\.(evidence|prospect_observations|signals)|VERIFIED|reviewed_by/i);
+ // 046 (référentiel des listes): its own tables only.
+ const m046=(await readFile(new URL('../db/migrations/046_prospect_lists.sql',import.meta.url),'utf8')).split('\n').filter(l=>!l.trim().startsWith('--')).join('\n');
+ assert.doesNotMatch(m046,/(insert into|update|delete from) public\.(evidence|prospect_observations|signals)|on public\.(evidence|prospect_observations|signals)|VERIFIED|reviewed_by/i);
+ const m047=(await readFile(new URL('../db/migrations/047_rate_limits.sql',import.meta.url),'utf8')).split('\n').filter(l=>!l.trim().startsWith('--')).join('\n');
+ assert.doesNotMatch(m047,/(insert into|update|delete from) public\.(evidence|prospect_observations|signals)|on public\.(evidence|prospect_observations|signals)|VERIFIED|reviewed_by/i);
+ const m048=(await readFile(new URL('../db/migrations/048_retention.sql',import.meta.url),'utf8')).split('\n').filter(l=>!l.trim().startsWith('--')).join('\n');
+ assert.doesNotMatch(m048,/(insert into|update|delete from) public\.(evidence|prospect_observations|signals)|on public\.(evidence|prospect_observations|signals)|VERIFIED|reviewed_by/i);
+ const m049=(await readFile(new URL('../db/migrations/049_lead_base.sql',import.meta.url),'utf8')).split('\n').filter(l=>!l.trim().startsWith('--')).join('\n');
+ assert.doesNotMatch(m049,/(insert into|update|delete from) public\.(evidence|prospect_observations|signals)|on public\.(evidence|prospect_observations|signals)|VERIFIED|reviewed_by/i);
+ const m050=(await readFile(new URL('../db/migrations/050_prospect_siren.sql',import.meta.url),'utf8')).split('\n').filter(l=>!l.trim().startsWith('--')).join('\n');
+ assert.doesNotMatch(m050,/(insert into|update|delete from) public\.(evidence|prospect_observations|signals)|on public\.(evidence|prospect_observations|signals)|VERIFIED|reviewed_by/i);
+ const m051=(await readFile(new URL('../db/migrations/051_bodacc_sale_signal.sql',import.meta.url),'utf8')).split('\n').filter(l=>!l.trim().startsWith('--')).join('\n');
+ assert.doesNotMatch(m051,/(insert into|update|delete from) public\.(evidence|prospect_observations|signals)|on public\.(evidence|prospect_observations|signals)|VERIFIED|reviewed_by/i);
  const client=await readFile(new URL('../src/components/evidence-presentation.ts',import.meta.url),'utf8');
  assert.doesNotMatch(client,/service_role|SUPABASE_SERVICE|process\.env/);
 });

@@ -50,7 +50,14 @@ test('demo — invented companies only, labelled as such; no real brand, logo or
  assert.equal(demoCompanies('fr').find(c=>c.id===HERO_DEMO_ID)!.name,'Maison Alba');
  const REAL=/\b(Quick|Mojo|O.?Crousti|McDonald|Burger King|KFC|Starbucks|Subway|Domino|Five Guys|Paul|Brioche Dorée|Pizza Hut|Buffalo Grill|Hippopotamus|Courtepaille|Flunch|Del Arte|Big Fernand|Pret A Manger|Carrefour|Leclerc|Auchan|Decathlon|Fnac|Darty)\b/i;
  assert.doesNotMatch(allCopy+home,REAL);
- assert.doesNotMatch(home+css,/<img|<Image|\.png|\.jpe?g|\.webp|\.svg['"]/i,'no logo or photo');
+ // The one image (31 oct. 2026): the video's poster, a frame of the same video (the "why this recommendation" panel with its
+ // "Exemple fictif · entreprises inventées" label), so Safari shows something before playback. Still no logo and no photo.
+ const POSTER="const HOME_VIDEO_POSTER='/videos/prospectos-presentation-poster.jpg';";
+ assert.ok(home.includes(POSTER),'the poster is the named frame of the presentation video');
+ assert.match(home,/aria-label=\{v\.label\} poster=\{HOME_VIDEO_POSTER\}/,'used only as the video poster');
+ const poster=statSync(new URL('../public/videos/prospectos-presentation-poster.jpg',import.meta.url)).size;
+ assert.ok(poster>0&&poster<200*1024,`the poster stays light (${poster} bytes)`);
+ assert.doesNotMatch(home.replace(POSTER,'')+css,/<img|<Image|\.png|\.jpe?g|\.webp|\.svg['"]/i,'no logo or photo');
  assert.doesNotMatch(css,/\burl\(/,'no background image either');
  assert.match(HOME_COPY.fr.demo.label,/fictif/i);assert.match(HOME_COPY.en.demo.label,/fictitious/i);
  assert.match(HOME_COPY.fr.demo.caption,/inventée/);
@@ -59,9 +66,11 @@ test('demo — invented companies only, labelled as such; no real brand, logo or
 });
 test('copy — the hero, positioning and workflow asked for; no generic SaaS claims',()=>{
  const fr=HOME_COPY.fr;
- assert.equal(fr.hero.title,'Arrêtez de prospecter toute votre liste.');
+ // Owner decision (1 nov. 2026, after Lucas Iannone's feedback): the title says what the visitor gets, not what to stop.
+ assert.equal(fr.hero.title,'Chaque matin, les entreprises à contacter, et pourquoi maintenant.');
+ assert.match(home,/<h1 id="pos-home-title" className="pos-home__title">\{copy\.hero\.title\}<\/h1>\n     <p className="pos-home__lead pos-home__subtitle">\{copy\.hero\.subtitle\}<\/p>/,'the subtitle under the title');
  assert.deepEqual(fr.hero.lines,['Qui contacter.','Pourquoi maintenant.','Avec quelles preuves.']);
- assert.equal(fr.hero.subtitle,'ProspectOS détecte les entreprises qui correspondent à votre cible et les signaux qui rendent le timing pertinent.');
+ assert.equal(fr.hero.subtitle,'Créations, ouvertures, recrutements : ProspectOS repère les bons moments dans des sources publiques, avec la source de chaque fait. Vous n’appelez plus au hasard.');
  assert.equal(fr.hero.how,'Voir comment ça fonctionne');
  assert.equal(fr.positioning.line1,'Une liste vous dit qui existe.');
  assert.equal(fr.positioning.line2,'ProspectOS vous dit qui mérite votre attention maintenant.');

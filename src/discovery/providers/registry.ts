@@ -51,7 +51,7 @@ type Options={fetch?:typeof fetch;wait?:(ms:number)=>Promise<void>;maxPagesPerGr
 export function registryUrl(group:NafGroup,zone:RegistryZone,tranches:string[],page:number):URL{
  const url=new URL(REGISTRY_ENDPOINT);
  if(group.section)url.searchParams.set('section_activite_principale',group.section);else url.searchParams.set('activite_principale',group.codes.join(','));
- url.searchParams.set(zone.kind==='region'?'region':'departement',zone.code);
+ url.searchParams.set(zone.kind==='region'?'region':'departement',zone.kind==='departments'?zone.codes.join(','):zone.code);
  if(tranches.length)url.searchParams.set('tranche_effectif_salarie',tranches.join(','));
  url.searchParams.set('etat_administratif','A');url.searchParams.set('per_page',String(PER_PAGE));url.searchParams.set('page',String(page));
  return url;
@@ -80,7 +80,7 @@ export class RegistryProvider implements DiscoveryProvider {
    for(let page=1;page<=this.maxPages&&!outOfTime;page++){
     if(this.now()-started>=this.budgetMs){outOfTime=true;report.failure_codes.push('TIME_BUDGET_REACHED');break}
     if(report.requests_sent)await this.wait(MIN_REQUEST_INTERVAL_MS);
-    let body:{results?:RegistryCompany[];total_pages?:number};
+    let body:{results?:RegistryCompany[];total_pages?:number;total_results?:number};
     try{let res:Response;
      for(let attempt=0;;attempt++){report.requests_sent++;
       res=await this.request(registryUrl(group,zone,tranches,page),{headers:{accept:'application/json'},signal:AbortSignal.timeout(this.timeoutMs),redirect:'error'});
@@ -93,6 +93,7 @@ export class RegistryProvider implements DiscoveryProvider {
     catch(error){const name=(error as {name?:unknown})?.name;
      report.requests_failed++;report.failure_codes.push(error instanceof RegistryRequestError?error.message:name==='TimeoutError'||name==='AbortError'?'TIMEOUT':'NETWORK_ERROR');admission.failed_groups.push(group.key);break}
     const results=Array.isArray(body?.results)?body.results:[];
+    if(page===1&&typeof body?.total_results==='number'&&body.total_results>=0)report.source_total=(report.source_total??0)+body.total_results;
     for(const company of results){
      if(!company||typeof company.siren!=='string')continue;
      admission.examined++;const verdict=admitRegistryCompany(company,zone);

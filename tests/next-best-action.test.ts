@@ -234,6 +234,19 @@ test('content: CONTACT draft quotes the verified signal verbatim; ENGAGE propose
  assert.equal(prep(buildOpportunity(input(95))).kind,'none');
 });
 
+test('content: a source dated between the 1st and the 9th of a month is still drafted (the message writes "6 octobre", the source stores "2026-10-06")',()=>{
+ for(const day of ['2026-10-01','2026-10-06','2026-10-09']){
+  // "now" is the day after the source: the opportunity stays fresh, only the date's spelling is under test.
+  const at=`${day}T08:00:00Z`,now=new Date(`${day}T20:00:00Z`);now.setUTCDate(now.getUTCDate()+1);
+  const evidence=[{...verifiedEvidence(),observed_at:at}];
+  const s=signal({published_at:at,observed_at:at});const B=buildOpportunity(input(82,{signals:[s],evidence,now}));
+  const d=prep(B,{signals:[s],evidence,now});assert.equal(d.kind,'contact_draft',`${day}: ${JSON.stringify(d)}`);
+  const c=post({published_at:at,observed_at:at});const C=buildOpportunity(input(85,{publicContent:[c],evidence,now}));
+  const e=prep(C,{publicContent:[c],evidence,now}) as any;assert.equal(e.kind,'engage',`${day}: ${JSON.stringify(e)}`);
+  assert.match(e.suggested_dm_after_engagement,new RegExp(`du ${Number(day.slice(8))} octobre`),day);
+ }
+});
+
 // ------------------------------------------------------------
 // Flag, routes, no external execution
 // ------------------------------------------------------------

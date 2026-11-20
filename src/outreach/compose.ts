@@ -9,7 +9,7 @@ import {selectAngle,type Angle,type PublicContentItem} from './angle.ts';
 import {DEFAULT_STYLE_PROFILE,bannedPhrasesIn,type StyleProfile} from './style.ts';
 
 export type Composed={text:string;evidence_ids:string[];signal_ids:string[];public_content_ids:string[];angle:Angle;provider:'rule_based_v1'|'ai_composer_v1';why_now:string|null};
-export type ComposeInput={name:string;offer:string;criteria:Criterion[];evidence:Evidence[];signals:IntentSignal[];profile:IntentProfileInput;publicContent:PublicContentItem[];now:Date;locale:'fr'|'en';style?:StyleProfile};
+export type ComposeInput={optOut?:boolean;name:string;offer:string;criteria:Criterion[];evidence:Evidence[];signals:IntentSignal[];profile:IntentProfileInput;publicContent:PublicContentItem[];now:Date;locale:'fr'|'en';style?:StyleProfile};
 
 const MAX_QUOTE=220;
 const clip=(s:string)=>{const t=s.replace(/\s+/g,' ').trim().replace(/[.!?]+$/,'');if(t.length<=MAX_QUOTE)return t;const cut=t.slice(0,MAX_QUOTE);return `${cut.slice(0,Math.max(cut.lastIndexOf(' '),80)).replace(/[\s,;:.]+$/,'')}…`};
@@ -65,6 +65,15 @@ export function fitToMaxChars(text:string,o:{offer:string;locale:'fr'|'en';addre
  for(let n=words.length-1;n>=1;n--){const part=`${words.slice(0,n).join(' ').replace(/[\s,;:.!?…]+$/,'')}…`;if(part.length<MIN_SHORTENED_OFFER)break;if(part.length<=budget)return withOffer(part)}
  return `${head} ${shortClosing}`;
 }
+// The right to object, on its own last line — the same sentence as the automated messages (src/self-outreach/message.ts,
+// OPT_OUT), with its « tu » and English forms. Added to the manual draft only when asked (optOut): the person still edits
+// the draft before using it. Never added twice.
+export const OPT_OUT_LINE={fr:{vous:'Si vous ne souhaitez plus recevoir de message de ma part, répondez simplement STOP.',tu:'Si tu ne souhaites plus recevoir de message de ma part, réponds simplement STOP.'},
+ en:{vous:'If you would rather not hear from me again, just reply STOP.',tu:'If you would rather not hear from me again, just reply STOP.'}} as const;
+export function withOptOut(text:string,locale:'fr'|'en',address:Address='vous'):string{
+ const line=OPT_OUT_LINE[locale][address];
+ return text.includes(line)?text:`${text.trimEnd()}\n\n${line}`;
+}
 export function composeRuleBased(input:ComposeInput):Composed{
  // O1: the user's address_mode — 'tu' tutoies the template and the angle sentence (French); 'auto' and 'vous' keep 'vous'.
  const address:Address=input.locale==='fr'&&input.style?.address_mode==='tu'?'tu':'vous';
@@ -77,6 +86,9 @@ export function composeRuleBased(input:ComposeInput):Composed{
   text=withWhyNow(text,input.name,{sentence,signal_ids:[]},input.locale,address);public_content_ids=[c.id];why_now=sentence;
  }
  // max_chars only when a style profile is given (the live route always passes one); legacy / demo calls are unchanged.
- if(input.style)text=fitToMaxChars(text,{offer:input.offer,locale:input.locale,address,maxChars:input.style.max_chars});
+ // The opt-out line is part of the length the person asked for: the message is fitted to what is left, then the line is added.
+ const optOut=input.optOut?OPT_OUT_LINE[input.locale][address]:null;
+ if(input.style)text=fitToMaxChars(text,{offer:input.offer,locale:input.locale,address,maxChars:input.style.max_chars-(optOut?optOut.length+2:0)});
+ if(optOut)text=withOptOut(text,input.locale,address);
  return {text,evidence_ids:base.evidence_ids,signal_ids,public_content_ids,angle,provider:'rule_based_v1',why_now};
 }

@@ -9,11 +9,15 @@ export type DemoCompany={id:string;name:string;signal:string;meta:string;status:
 export type HomeCopy={
  nav:{nav:string;pricing:string;home:string;menu:string};
  footer:{discover:string;legal:string};
- hero:{eyebrow:string;title:string;lines:[string,string,string];subtitle:string;how:string;human:string};
+ hero:{eyebrow:string;title:string;lines:[string,string,string];subtitle:string;how:string;human:string;
+  // Who it is for, and the public proof a visitor can check before any account: the company-creation barometer.
+  audience:string;barometer:string};
  demo:{label:string;why:string;whyTitle:string;now:string;nowText:string;source:string;sourceText:string;matching:string;
   matchingItems:string[];missing:string;missingItems:string[];completeTitle:string;completeText:string;caption:string;
   signalPrefix:string;verified:string;todo:string;close:string};
- positioning:{line1:string;line2:string;pillars:{key:string;question:string;body:string}[]};
+ positioning:{line1:string;line2:string;pillars:{key:string;question:string;body:string}[];
+  // The text link under the guarantee, to the « logiciel de prospection B2B » page (owner request, 14 nov. 2026).
+  software:string};
  workflow:{title:string;steps:{name:string;body:string}[];motto:[string,string,string];guarantee:string};
  product:{title:string;body:string;darkTitle:string;darkBody:string;mockAria:string;mockDarkAria:string;today:string;project:string;
   filters:string;counts:{contact:string;verify:string;watch:string};none:string};
@@ -25,10 +29,12 @@ export const HOME_COPY:Record<Locale,HomeCopy>={
  fr:{
   nav:{nav:'Navigation principale',pricing:'Tarifs',home:'ProspectOS — accueil',menu:'Menu'},
   footer:{discover:'Découvrir ProspectOS',legal:'Informations légales'},
-  hero:{eyebrow:'Logiciel de prospection B2B',title:'Arrêtez de prospecter toute votre liste.',
+  hero:{eyebrow:'Logiciel de prospection B2B',title:'Chaque matin, les entreprises à contacter, et pourquoi maintenant.',
    lines:['Qui contacter.','Pourquoi maintenant.','Avec quelles preuves.'],
-   subtitle:'ProspectOS détecte les entreprises qui correspondent à votre cible et les signaux qui rendent le timing pertinent.',
-   how:'Voir comment ça fonctionne',human:'Aucun envoi automatique : vous gardez la main.'},
+   subtitle:'Créations, ouvertures, recrutements : ProspectOS repère les bons moments dans des sources publiques, avec la source de chaque fait. Vous n’appelez plus au hasard.',
+   how:'Voir comment ça fonctionne',human:'Aucun envoi automatique : vous gardez la main.',
+   audience:'Pour les indépendants, les agences et les PME qui prospectent eux‑mêmes.',
+   barometer:'Combien d’entreprises se créent dans votre département ? Les chiffres du mois, sans compte'},
   demo:{label:'Exemple fictif',why:'Voir pourquoi',whyTitle:'Pourquoi cette recommandation ?',now:'Pourquoi maintenant',
    nowText:'Ouverture d’un nouvel établissement annoncée il y a 4 jours.',source:'Source',sourceText:'Article de presse locale, avec lien et extrait.',
    matching:'Ce qui correspond déjà',matchingItems:['Restauration avec point de vente physique','Implantée dans votre zone'],
@@ -38,6 +44,7 @@ export const HOME_COPY:Record<Locale,HomeCopy>={
    caption:'Entreprise inventée pour la démonstration. Dans ProspectOS, chaque élément renvoie à sa source.',
    signalPrefix:'Signal : ',verified:'Vérifié',todo:'À documenter',close:'Fermer le détail'},
   positioning:{line1:'Une liste vous dit qui existe.',line2:'ProspectOS vous dit qui mérite votre attention maintenant.',
+   software:'Le logiciel en détail : sources officielles, preuves et tarif',
    pillars:[
     {key:'Fit',question:'Est-ce la bonne entreprise ?',body:'Chaque critère de votre cible est vérifié, ou signalé comme manquant.'},
     {key:'Timing',question:'Pourquoi maintenant ?',body:'Un signal public récent rend le contact pertinent : ouverture, recrutement, levée de fonds, lancement.'},
@@ -77,10 +84,12 @@ export const HOME_COPY:Record<Locale,HomeCopy>={
  en:{
   nav:{nav:'Main navigation',pricing:'Pricing',home:'ProspectOS — home',menu:'Menu'},
   footer:{discover:'Discover ProspectOS',legal:'Legal information'},
-  hero:{eyebrow:'B2B prospecting software',title:'Stop prospecting your whole list.',
+  hero:{eyebrow:'B2B prospecting software',title:'Every morning, the companies to contact, and why now.',
    lines:['Who to contact.','Why now.','With what evidence.'],
-   subtitle:'ProspectOS detects the companies that match your target and the signals that make the timing right.',
-   how:'See how it works',human:'Nothing is sent automatically: you stay in control.'},
+   subtitle:'New businesses, openings, hiring: ProspectOS spots the right moments in public sources, with the source of every fact. No more calling at random.',
+   how:'See how it works',human:'Nothing is sent automatically: you stay in control.',
+   audience:'For self-employed professionals, agencies and small businesses who do their own prospecting.',
+   barometer:'How many businesses open in each French department? This month’s figures, no account needed (in French)'},
   demo:{label:'Fictitious example',why:'See why',whyTitle:'Why this recommendation?',now:'Why now',
    nowText:'Opening of a new location announced 4 days ago.',source:'Source',sourceText:'Local press article, with link and excerpt.',
    matching:'Already matching',matchingItems:['Restaurant with a physical point of sale','Located in your area'],
@@ -90,6 +99,7 @@ export const HOME_COPY:Record<Locale,HomeCopy>={
    caption:'Company invented for the demo. In ProspectOS, every item links to its source.',
    signalPrefix:'Signal: ',verified:'Verified',todo:'To document',close:'Close the detail'},
   positioning:{line1:'A list tells you who exists.',line2:'ProspectOS tells you who deserves your attention now.',
+   software:'The software in detail: official sources, evidence and pricing (in French)',
    pillars:[
     {key:'Fit',question:'Is it the right company?',body:'Every criterion of your target is verified, or flagged as missing.'},
     {key:'Timing',question:'Why now?',body:'A recent public signal makes the contact relevant: opening, hiring, funding, launch.'},

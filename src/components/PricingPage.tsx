@@ -49,6 +49,9 @@ export function PricingPage(){
    </article>
   </div>
   <p className="pricing-team"><b>Vous prospectez à plusieurs ?</b> ProspectOS Équipe : {eur(TEAM_PRICING.baseAmount)} par mois pour {TEAM_PRICING.includedSeats} comptes, puis {eur(TEAM_PRICING.extraSeatAmount)} par compte supplémentaire, jusqu’à {TEAM_PRICING.maxSeats} comptes — les volumes de Pro par compte, en commun.</p>
+  {/* Owner decision (14 nov. 2026): the dedicated watch is a service prepared for one customer, quoted case by case — said
+      here so that the self-service plans above and a quoted service never look like two prices for the same thing. */}
+  <p className="pricing-team pricing-service"><b>Vous préférez qu’on prépare la liste pour vous ?</b> Veille dédiée, sur devis : ProspectOS constitue pour votre cible et vos zones une liste d’entreprises à partir du registre, du BODACC et du BOAMP, la met à jour à la fréquence convenue et vous la livre en PDF et en CSV. Les offres ci-dessus sont en libre-service : vous lancez vos recherches vous-même. La veille dédiée est un service préparé pour vous. <a href={CONTACT_MAILTO}>Demander un devis</a></p>
   <p className="pricing-note muted">Prix par mois — {VAT_PRICE_NOTE}. Vous choisissez votre offre depuis votre compte, quand vous le souhaitez ; l’accès payant n’est ouvert qu’après confirmation du paiement. Une question ? <a href={CONTACT_MAILTO}>Écrivez-nous</a>.</p>
  </section>;
 }

@@ -8,12 +8,14 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {execSync} from 'node:child_process';
+import {withoutSelfOutreach} from './self-outreach-strip.ts';
 import {verificationOf,scoreText} from '../src/ui/v2/search/model.ts';
 
 const ROOT=new URL('..',import.meta.url);
 const read=(p:string)=>readFileSync(new URL(p,import.meta.url),'utf8');
 const git=(c:string)=>execSync(c,{cwd:ROOT,encoding:'utf8'});
-const page=read('../app/page.tsx'),panel=read('../src/components/DiscoveryPanel.tsx'),nat=read('../src/ui/v2/search/SearchNative.tsx'),css=read('../src/ui/v2/search/search.css');
+const page=withoutSelfOutreach(read('../app/page.tsx')),// Self-Outreach (035) fragments aside
+ panel=read('../src/components/DiscoveryPanel.tsx'),nat=read('../src/ui/v2/search/SearchNative.tsx'),css=read('../src/ui/v2/search/search.css');
 const MAIN='836d8e9';
 const legacy=page.slice(0,page.indexOf(' if(v2){')),v2=page.slice(page.indexOf(' if(v2){'),page.indexOf(' return <div className="shell">'));
 const el=(src:string)=>{const i=src.indexOf('<DiscoveryPanel ');return src.slice(i,src.indexOf("}}",src.indexOf('onAdded=',i))+2)};
@@ -34,7 +36,19 @@ test('legacy untouched — DiscoveryPanel only gains factsOf (expressions moved 
  const cardNow=card(panel);assert.ok(cardNow.length>2000);
  assert.equal(cardNow.replace(/ \/\/ Recherche 2\.0 \(UI-5B\)[^]*?<\/>;\n/,''),card(before),'the legacy result card, byte for byte');
  const logic=(s:string)=>s.slice(s.indexOf(' const tr=(key:TKey)=>'),s.indexOf(' const resultCard=')).replace(/ \/\/ Everything a result card says[^]*$/,'');
- assert.equal(logic(panel),logic(before),'state, effects, search, accept, ignore, history, novelty: unchanged');
+ // 1 nov. 2026 (migration 039): the run summary written after a search also names the BODACC purchases source —
+ // the only change to the panel's logic, removed here before the byte comparison.
+ const withoutSales=(s:string)=>s.replace("provider==='bodacc_sales'?'bodacc_sales':",'');
+ // 11 nov. 2026 (audit B2): the TEST source is offered in live mode only where the server offers it (never in production).
+ // Exactly four additions — the state, the config answer, the replay fallback and the view field — removed here before the
+ // byte comparison. The legacy markup above is untouched: only the v2 screen hides the option.
+ const withoutFixtureGate=(s:string)=>s
+  .replace(/\n \/\/ The TEST source: always there in the demo mode[^\n]*\n[^\n]*\n const \[fixtureOffered,setFixtureOffered\]=useState\(false\);const fixtureAvailable=mode==='demo'\|\|fixtureOffered;\n/,'')
+  .replace("const registry=c.providers.some((p:any)=>p.id==='registry'&&p.available),fixture=c.providers.some((p:any)=>p.id==='fixture'&&p.available);setRegistryAvailable(registry);setFixtureOffered(fixture);if(brave&&prefillApplied.current)setProvider('brave');else if(!fixture&&registry)setProvider(p=>p==='fixture'?'registry':p)",
+   "setRegistryAvailable(c.providers.some((p:any)=>p.id==='registry'&&p.available));if(brave&&prefillApplied.current)setProvider('brave')")
+  .replace("setProvider(f.provider==='fixture'&&!fixtureAvailable&&registryAvailable?'registry':f.provider);","setProvider(f.provider);")
+  .replace("available,registryAvailable,fixtureAvailable,","available,registryAvailable,");
+ assert.equal(withoutFixtureGate(withoutSales(logic(panel))),logic(before),'state, effects, search, accept, ignore, history, novelty: unchanged');
  const factsBody=panel.slice(panel.indexOf(' const factsOf='),panel.indexOf('  return {meta,cls,canAdd'));
  for(const expr of factsBody.split(/;\n?|\n/).map(x=>x.trim()).filter(x=>x.startsWith('const ')&&!x.startsWith('const factsOf')))
   assert.ok(before.includes(expr),`moved verbatim: ${expr}`);
@@ -48,8 +62,10 @@ test('flag OFF — app/page.tsx before the v2 branch and the legacy return are b
 test('flag ON — the same DiscoveryPanel element, plus view={SearchNative}',()=>{
  assert.equal((v2.match(/<DiscoveryPanel /g)??[]).length,1);
  assert.equal(el(v2),el(legacy),'same props');
- assert.match(v2,/onAdded=\{p=>\{[^}]*\}\} view=\{m=><v2\.SearchNative m=\{m\}\/>\}\/>\}\/>\n/); // UI-5C: Activité follows in the same chain
+ // 1 nov. 2026: « Modifier les critères » in the targeting summary opens « Offre et cible » (the settings entry of the account menu).
+ assert.match(v2,/onAdded=\{p=>\{[^}]*\}\} view=\{m=><v2\.SearchNative m=\{m\} onEditTargeting=\{\(\)=>v2Navigate\('settings'\)\}\/>\}\/>\}\/>\n/); // UI-5C: Activité follows in the same chain
  assert.match(read('../src/ui/v2/shell/AppShell.tsx'),/export \{SearchNative\} from '\.\.\/search\/SearchNative\.tsx';/);
+ assert.match(nat,/\{onEditTargeting&&<button type="button" className="pos-slink" onClick=\{onEditTargeting\}>\{t\.editCriteria\}<\/button>\}/,'the targeting summary leads to the ICP editor');
 });
 test('actions parity — the v2 card offers exactly the legacy actions, same conditions, same handlers',()=>{
  for(const [legacyRe,v2Re] of [

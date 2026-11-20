@@ -37,7 +37,10 @@ test('API — the register is a provider of its own: explicit id, never a fallba
 
 test('API — discovery-config lists the register as available, live, keyless, with a non-evidence label',()=>{
  const providers=discoveryProviderConfig({}).providers;
- assert.deepEqual(providers.map(p=>p.id),['fixture','brave','registry']);
+ // 1 nov. 2026: 'bodacc_sales' (migration 039) follows the register — public data, keyless, live.
+ assert.deepEqual(providers.map(p=>p.id),['fixture','brave','registry','bodacc_sales']);
+ const sales=providers.find(p=>p.id==='bodacc_sales')!;
+ assert.equal(sales.available,true);assert.equal(sales.mode,'live');assert.equal(sales.label,'Reprises de commerces — annonces BODACC');
  const registry=providers.find(p=>p.id==='registry')!;
  assert.equal(registry.available,true);assert.equal(registry.mode,'live');assert.equal(registry.label,'Registre des entreprises — données publiques');
  assert.equal(providers.find(p=>p.id==='brave')!.available,false,'Brave still depends on its own key');

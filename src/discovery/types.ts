@@ -27,7 +27,7 @@ type _CriterionRulesSchemaStaysInSync=AssertExtends<CriterionRules,z.infer<typeo
 // user-authored rule is accepted here exactly as it is when saving the ICP itself (see the `icps`
 // route handler, which reuses this exact schema) — any other unknown field is still rejected.
 export const CriterionContextSchema=z.object({key:z.string().min(1).max(60),label:z.string().min(1).max(120),weight:z.number(),rules:CriterionRulesSchema.optional()}).strict();
-export const DiscoveryInputSchema=z.object({project_id:z.string().min(1).max(100),query:z.string().trim().min(2).max(250),location:z.string().trim().min(2).max(120),categories:z.array(z.string().trim().min(1).max(60)).max(12),max_results:z.number().int().min(1).max(100).default(20),optional_filters:z.object({provider:z.enum(['fixture','brave','registry']).optional(),country:z.string().regex(/^[A-Z]{2}$/).optional(),offer:z.string().max(4000).optional(),criteria:z.array(CriterionContextSchema).max(30).optional(),
+export const DiscoveryInputSchema=z.object({project_id:z.string().min(1).max(100),query:z.string().trim().min(2).max(250),location:z.string().trim().min(2).max(120),categories:z.array(z.string().trim().min(1).max(60)).max(12),max_results:z.number().int().min(1).max(100).default(20),optional_filters:z.object({provider:z.enum(['fixture','brave','registry','bodacc_sales']).optional(),country:z.string().regex(/^[A-Z]{2}$/).optional(),offer:z.string().max(4000).optional(),criteria:z.array(CriterionContextSchema).max(30).optional(),
  // Search-Until-New (search-until-new.ts): the user's explicit choice, stored with the run (filters_json) for replay.
  search_mode:z.enum(['all','new_first','search_new']).optional(),
  // The headcount range the user wrote (onboarding parseEmployeeRange) — a structured filter of the company register, never search words.
@@ -42,6 +42,8 @@ export type ProviderSearchReport={queries_planned:number;requests_sent:number;re
  requests_retried?:number;failed_groups?:string[];
  // Requests that got a usable answer, when the provider counts it itself (register: retries make sent ≠ answered + failed).
  requests_answered?:number;
+ // Register only (audit B3): companies the register counts for this zone and these activities, before the admission rules.
+ source_total?:number;
  // A teammate's identical search reused (migration 022): its run, who ran it and when — no request was sent.
  reused_from?:{run_id:string;by_email:string|null;started_at:string};
  // Register only: NAF groups asked / queried (after the most-precise reduction), their scope and the admission counts —
@@ -64,3 +66,44 @@ export type DiscoveryResult={id:string;normalized_payload:Candidate;dedupe_statu
  current_project_status?:CurrentProjectStatus|null};
 export type CurrentProjectStatus={status:'ADDED';prospect_id:string};
 export type DiscoveryRun={id:string;status:string;provider:string;result_count:number;error_message:string|null;results?:DiscoveryResult[]};
+
+// ── Saving an ICP: what a person meant, then a refusal that says where (audit B7, 11 nov. 2026) ───────────────────────────
+// A rule left half-empty on the screen (one dimension cleared while another is filled, `rules:null`, a need without any
+// signal) is "no value there", not a malformed criterion: those empty parts are dropped before validation. Nothing else is
+// repaired — a value too short, too many values or an unknown field is still refused, with the criterion and the field named.
+export function normalizeCriteriaInput(raw:unknown):unknown{
+ if(!Array.isArray(raw))return raw;
+ return raw.map(item=>{
+  if(!item||typeof item!=='object'||Array.isArray(item))return item;
+  const c={...(item as Record<string,unknown>)};
+  const rules=c.rules as {type?:unknown;config?:unknown}|null|undefined;
+  if(rules===null||rules===undefined){delete c.rules;return c}
+  if(typeof rules!=='object'||!rules.config||typeof rules.config!=='object'||Array.isArray(rules.config))return c;
+  const config={...(rules.config as Record<string,unknown>)};
+  const empty=(v:unknown)=>v===null||v===undefined||(Array.isArray(v)&&v.every(x=>typeof x==='string'&&!x.trim()));
+  if(rules.type==='target_fit'){
+   for(const k of ['categories','locations','org_types'])if(k in config&&empty(config[k]))delete config[k];
+   if(!['categories','locations','org_types'].some(k=>k in config)){delete c.rules;return c}
+  }else if(rules.type==='need_fit'){
+   if(empty(config.signals)){delete c.rules;return c}
+  }
+  c.rules={...rules,config};return c;
+ });
+}
+const FIELD_LABELS:Record<string,string>={categories:'catégories',locations:'localisation',org_types:'types d’organisation',signals:'signaux',match:'mode de correspondance',label:'libellé',key:'identifiant',weight:'poids',rules:'règle'};
+// « Critère 3 (« Zone ») — localisation : 2 caractères minimum par valeur. » — from the first validation issue.
+export function criteriaIssueMessage(error:z.ZodError,raw:unknown):string{
+ const issue=error.issues[0];if(!issue)return 'structure incorrecte';
+ const [index,...rest]=issue.path;
+ if(typeof index!=='number')return issue.code==='too_big'?'30 critères au maximum':'une liste de critères est attendue';
+ const label=Array.isArray(raw)&&raw[index]&&typeof (raw[index] as {label?:unknown}).label==='string'?String((raw[index] as {label:string}).label).slice(0,60):null;
+ const field=[...rest].reverse().find((p):p is string=>typeof p==='string'&&p in FIELD_LABELS);
+ const inValue=typeof rest[rest.length-1]==='number';
+ const i=issue as {code:string;minimum?:number;maximum?:number;origin?:string;keys?:string[]};
+ const why=i.code==='too_small'?(i.origin==='array'?'au moins une valeur':`${i.minimum} caractères minimum${inValue?' par valeur':''}`)
+  :i.code==='too_big'?(i.origin==='array'?`${i.maximum} valeurs au maximum`:`${i.maximum} caractères au maximum${inValue?' par valeur':''}`)
+  :i.code==='unrecognized_keys'?`champ inconnu (${(i.keys??[]).join(', ').slice(0,60)})`
+  :i.code==='custom'?'au moins une catégorie, une localisation ou un type d’organisation'
+  :'valeur invalide';
+ return `critère ${index+1}${label?` (« ${label} »)`:''}${field?` — ${FIELD_LABELS[field]}`:''} : ${why}`;
+}

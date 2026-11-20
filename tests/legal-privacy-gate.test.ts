@@ -45,7 +45,7 @@ test('B — the owner-provided identity fields are recorded exactly as given, ne
  assert.equal(EDITOR.address,'1 rue Edmond Haraucourt, 31100 Toulouse, France');
  assert.equal(EDITOR.publicationDirector,'Kevin Cardia');
  assert.equal(EDITOR.phone,'06 35 15 10 66');
- assert.equal(EDITOR.legalEmail,'prospectos.contact@gmail.com');
+ assert.equal(EDITOR.legalEmail,'contact@prospectos.fr');
 });
 test('B — capital social is explicitly stated as not applicable (EI has no share capital), never a fabricated figure',()=>{
  assert.match(EDITOR.capital,/[Nn]on applicable/);
@@ -71,7 +71,8 @@ test('B — the legal/RGPD contact email is a dedicated channel, never silently 
 test('B — the ProspectOS activity formality is described as filed and pending, never as already validated/registered — kept to the minimal factual statement, no unnecessary commercial description',()=>{
  assert.match(ACTIVITY_FORMALITY.status,/en cours/);
  assert.doesNotMatch(ACTIVITY_FORMALITY.status,/validée définitivement|définitivement enregistrée/);
- assert.equal(ACTIVITY_FORMALITY.filedAt,'21/09/2026');
+ // Owner decision (14 nov. 2026): the formality was signed and filed on 13/11/2026 (INPI filing summary), not 21/09.
+ assert.equal(ACTIVITY_FORMALITY.filedAt,'13/11/2026');
  assert.equal(ACTIVITY_FORMALITY.declaredStartDate,'18/09/2026');
  assert.equal(('description' in ACTIVITY_FORMALITY),false,'the activity description was deliberately dropped — the owner asked for the minimal factual statement only');
 });

@@ -12,6 +12,7 @@ import {isContactChannelCriterion} from '../discovery/strategies/contact-channel
 import {isCommercialSignalCriterion,COMMERCIAL_SIGNAL_TYPES} from '../discovery/strategies/commercial-signal.ts';
 import {TARGET_FIT_KEYS} from '../discovery/strategies/target-fit.ts';
 import {NEED_FIT_KEYS} from '../discovery/strategies/need-fit.ts';
+import {isWebPresenceType,webPresenceTitle,WEB_PRESENCE_NOTE_EN} from '../discovery/strategies/web-presence-labels.ts';
 
 type Key=keyof typeof fr;
 const t=(locale:Locale,key:Key)=>(locale==='fr'?fr:en)[key];
@@ -47,7 +48,7 @@ export type ReviewSummary={criteria:Record<string,CriterionReviewSummary>;linked
 // reviewSummaryReady in evidence-verification.ts). presentObservations itself never sets them.
 // contextEvidenceIds: evidences linked to rows shown as context only — the ICP section must not list them
 // under a criterion either (unless a human already verified them).
-export type EvidencePresentation={proposals:EvidenceCard[];groups:CriterionGroup[];others:EvidenceCard[];missing:string[];contextEvidenceIds:string[];summary:ReviewSummary};
+export type EvidencePresentation={proposals:EvidenceCard[];groups:CriterionGroup[];others:EvidenceCard[];site:EvidenceCard[];missing:string[];contextEvidenceIds:string[];summary:ReviewSummary};
 
 const normalizeExcerpt=(s:string)=>s.normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase().replace(/\s+/g,' ').trim();
 const SOURCE_TYPE_KEYS:Record<string,Key>={official_website:'evidence.sourceOfficial',search_result:'evidence.sourceSearch',public_directory:'evidence.sourceDirectory',test_fixture:'evidence.sourceFixture'};
@@ -110,6 +111,9 @@ export function presentObservation(o:StoredObservation,criteria:Criterion[],loca
  // A match refused for its context (match-context.ts): the reason is the note, so the reviewer sees why the
  // criterion stays to confirm. The stored reason is French; the English interface shows its own sentence.
  else if(/_OUT_OF_CONTEXT$/.test(o.observation_type)){title=t(locale,'evidence.titleOutOfContext');subtitle=criterion?`${t(locale,'evidence.possibleCriterion')} ${criterion.label}`:null;note=locale==='fr'?o.claim:t(locale,'evidence.outOfContextNote')}
+ // Website diagnostic (strategies/web-presence.ts): always context — its own title, and its claim as the note
+ // (it says what was read and how far it goes). The stored claim is French; English shows its own sentence.
+ else if(isWebPresenceType(o.observation_type)){title=webPresenceTitle(o.observation_type,locale);note=locale==='fr'?o.claim:WEB_PRESENCE_NOTE_EN}
  else if(o.status==='UNKNOWN'){title=t(locale,'evidence.titleUnknown')}
  else {title=t(locale,'evidence.titleGeneric');if(!o.evidence_id)note=t(locale,'evidence.contextNote')}
  const source=sourceOf(o,locale);
@@ -153,7 +157,11 @@ export function presentObservations(rows:StoredObservation[],criteria:Criterion[
  const toneRank:Record<StatusTone,number>={pending:0,verified:1,contradicted:2,neutral:3};
  const cards=[...byKey.values()].map(o=>presentObservation(o,criteria,locale));
  const proposals=cards.filter(c=>c.kind==='proposal').sort((a,b)=>order(a.criterion)-order(b.criterion)||toneRank[a.tone]-toneRank[b.tone]);
- const others=bestFirst(cards.filter(c=>c.kind==='context'));
+ // The website diagnostic (strategies/web-presence.ts) has its own folded section: ProspectOS serves every trade,
+ // and these facts only matter to whoever sells something about websites — they never mix with the rest.
+ const isSite=(c:EvidenceCard)=>isWebPresenceType(c.row.observation_type);
+ const others=bestFirst(cards.filter(c=>c.kind==='context'&&!isSite(c)));
+ const site=cards.filter(c=>c.kind==='context'&&isSite(c));
  // Once something was analyzed, a criterion is listed as "not found" when no row informs it. Derived from
  // the ICP rather than from the UNKNOWN rows, which share one storage key per page (only the last one
  // of a page is kept) and so cannot list every missing criterion.
@@ -177,5 +185,5 @@ export function presentObservations(rows:StoredObservation[],criteria:Criterion[
  const linkedEvidenceIds=rows.filter(o=>o.evidence_id&&isReviewable(o,criteria)).map(o=>o.evidence_id!);
  const summary:ReviewSummary={criteria:Object.fromEntries(groups.map(g=>[g.criterion.key,{anchorId:g.anchorId,pending:g.pending,total:g.cards.length,tone:g.tone,statusLabel:g.statusLabel,
   excerpts:g.cards.map(c=>({text:c.row.source_excerpt,statusLabel:c.statusLabel}))}])),linkedEvidenceIds,contextEvidenceIds};
- return {proposals,groups,others,missing,contextEvidenceIds,summary};
+ return {proposals,groups,others,site,missing,contextEvidenceIds,summary};
 }

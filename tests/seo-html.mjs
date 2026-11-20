@@ -3,7 +3,9 @@
 import {strict as assert} from 'node:assert';
 import {readFile} from 'node:fs/promises';
 
-const SLUGS=['prospection-b2b','prospection-ia','lead-scoring','prospection-restaurants','qualifier-un-prospect-b2b','prioriser-liste-prospects','tarifs','logiciel-prospection-b2b','a-propos'];
+const SLUGS=['prospection-b2b','prospection-ia','lead-scoring','prospection-restaurants','qualifier-un-prospect-b2b','prioriser-liste-prospects','tarifs','logiciel-prospection-b2b','a-propos',
+  // 18 nov. 2026: /veille-entreprises (15 nov.) and /prospection-agences-consultants (owner request) checked like the others.
+  'veille-entreprises','prospection-agences-consultants'];
 const results=[];
 const meta=(html,attr,name)=>[...html.matchAll(new RegExp(`<meta ${attr}="${name}" content="([^"]*)"`,'g'))].map(m=>m[1]);
 const text=s=>s.replace(/<[^>]+>/g,'').replace(/&#x27;|&#39;/g,'’').trim();
@@ -36,7 +38,10 @@ for(const slug of SLUGS){
     assert.doesNotMatch(related,new RegExp(`href="/${slug}"`),'related links to the current page');
     const relCount=(related.match(/<a /g)??[]).length;
     assert.ok(relCount>=2&&relCount<=4,`related count ${relCount}`);
-    const article=/<article[\s\S]*?<\/article>/.exec(body)?.[0]??'';
+    // The page's own article (v1: class "seo-article", v2: the first bare <article>), up to its LAST closing tag: the offers
+    // block of /tarifs nests <article class="plan-card"> cards, and a lazy match used to stop at the first card (170 words).
+    const open=body.search(/<article(?: class="seo-article")?>/);
+    const article=open<0?'':body.slice(open,body.lastIndexOf('</article>')+'</article>'.length);
     const contextual=[...article.matchAll(/<a [^>]*href="(\/[^"]*)"/g)].map(m=>m[1]).filter(h=>h!=='/');
     assert.ok(contextual.length>=2,'contextual links in the article');
     assert.ok(!contextual.includes(`/${slug}`),'article links to itself');

@@ -1,3 +1,4 @@
+import {readAllPages} from '../server/paged.ts';
 import type {SupabaseClient} from '@supabase/supabase-js';
 import type {DiscoveryRepository} from './services.ts';
 import type {Candidate,DiscoveryInput,DiscoveryResult,DiscoveryRun,Observation} from './types.ts';
@@ -42,14 +43,17 @@ export class SupabaseDiscoveryRepository implements DiscoveryRepository {
  db:SupabaseClient;writer?:PrivilegedWriter;
  constructor(db:SupabaseClient,writer?:PrivilegedWriter){this.db=db;this.writer=writer}
  async start(input:DiscoveryInput,provider:string){return checked(this.db.rpc('start_discovery',{p_project_id:input.project_id,p_query:input.query,p_location:input.location,p_categories:input.categories,p_provider:provider,p_max_results:input.max_results,p_filters:input.optional_filters}))}
- async existing(projectId:string){const rows=await checked(this.db.from('prospects').select('id,name,website,city,channels(kind,value)').eq('project_id',projectId));return rows.map((p:any)=>({...p,phone:p.channels?.find((c:any)=>c.kind==='phone')?.value??null,address:null}))}
+ // The SIREN column (migration 050) is read when it exists; before the migration the same query without it.
+ async existing(projectId:string){let rows:any[];try{rows=(await readAllPages((from,to)=>this.db.from('prospects').select('id,name,website,city,siren,channels(kind,value)').eq('project_id',projectId).order('id').range(from,to))).rows}
+  catch{rows=(await readAllPages((from,to)=>this.db.from('prospects').select('id,name,website,city,channels(kind,value)').eq('project_id',projectId).order('id').range(from,to))).rows}
+  return rows.map((p:any)=>({...p,siren:p.siren??null,phone:p.channels?.find((c:any)=>c.kind==='phone')?.value??null,address:null}))}
  // Project Discovery memory for novelty.ts: this project's earlier results (identity columns and decision
  // only) and its runs' locations. The USER's client, so RLS keeps it to the member's organization; filtered
  // to this project — another project or organization never influences NEW/SEEN. Read in pages of 1000
  // (PostgREST's row cap) up to MEMORY_MAX_ROWS, newest first; beyond that the memory is flagged truncated.
  async memory(projectId:string,excludeRunId:string){
   const PAGE=1000;const pages=async(query:(from:number,to:number)=>PromiseLike<{data:any;error:any}>)=>{const rows:any[]=[];for(let from=0;from<MEMORY_MAX_ROWS;from+=PAGE){const page=await checked(query(from,from+PAGE-1));rows.push(...page);if(page.length<PAGE)return {rows,truncated:false}}return {rows,truncated:true}};
-  const results=await pages((from,to)=>this.db.from('discovery_results').select('id,discovery_run_id,status,prospect_id,company_name,website,phone,city,source_url,source_class,name_status:normalized_payload->raw_metadata->>company_name_status,domain_status:normalized_payload->raw_metadata->>company_domain_status').eq('project_id',projectId).neq('discovery_run_id',excludeRunId).order('created_at',{ascending:false}).order('id').range(from,to));
+  const results=await pages((from,to)=>this.db.from('discovery_results').select('id,discovery_run_id,status,prospect_id,company_name,website,phone,city,source_url,source_class,name_status:normalized_payload->raw_metadata->>company_name_status,siren:normalized_payload->raw_metadata->registry->>siren,sale_siren:normalized_payload->raw_metadata->>siren,domain_status:normalized_payload->raw_metadata->>company_domain_status').eq('project_id',projectId).neq('discovery_run_id',excludeRunId).order('created_at',{ascending:false}).order('id').range(from,to));
   const runs=await pages((from,to)=>this.db.from('discovery_runs').select('id,location').eq('project_id',projectId).order('started_at',{ascending:false}).order('id').range(from,to));
   return {results:results.rows,runs:runs.rows,truncated:results.truncated};
  }
@@ -69,6 +73,9 @@ export class SupabaseDiscoveryRepository implements DiscoveryRepository {
  async projectCriteria(projectId:string){const project=await checked(this.db.from('projects').select('*,icps(*)').eq('id',projectId).single());return resolveProjectCriteria(project.icps)}
  async consumeAnalysis(id:string){await checked(this.db.rpc('consume_analysis_quota',{p_prospect_id:id}))}
  // The member's own client (RLS): only a prospect of their organization, and only while its city is empty.
+ // Migration 050: the SIREN the public registers identified, only while the record has none (never moved, never
+ // overwritten); another record of the project with this SIREN makes the unique index refuse it — the caller ignores that.
+ async fillProspectSiren(id:string,siren:string){if(!/^\d{9}$/.test(siren))return;await checked(this.db.from('prospects').update({siren}).eq('id',id).is('siren',null))}
  async fillProspectCity(id:string,city:string){await checked(this.db.from('prospects').update({city:city.slice(0,120)}).eq('id',id).or('city.is.null,city.eq.'))}
  async saveObservations(id:string,observations:Observation[]){return checked(this.db.rpc('save_discovery_observations',{p_prospect_id:id,p_observations:observations.map(toStorageSafeObservation)}))}
 }

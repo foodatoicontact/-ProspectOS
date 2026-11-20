@@ -1,6 +1,41 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "crons": [
-    {"path": "/api/cron/signals", "schedule": "17 5 * * *"}
+    {
+      "path": "/api/cron/signals",
+      "schedule": "17 5 * * *"
+    },
+    {
+      "path": "/api/cron/self-outreach",
+      "schedule": "40 7 * * *"
+    },
+    {
+      "path": "/api/cron/morning-digest",
+      "schedule": "41 6 * * *"
+    },
+    {
+      "path": "/api/cron/dedicated-statements",
+      "schedule": "23 6 * * *"
+    },
+    {
+      "path": "/api/cron/collect",
+      "schedule": "13 3 * * *"
+    },
+    {
+      "path": "/api/cron/enrich/1",
+      "schedule": "7 4 * * *"
+    },
+    {
+      "path": "/api/cron/enrich/2",
+      "schedule": "7 5 * * *"
+    },
+    {
+      "path": "/api/cron/enrich/3",
+      "schedule": "7 6 * * *"
+    },
+    {
+      "path": "/api/cron/retention",
+      "schedule": "29 2 * * *"
+    }
   ]
 }

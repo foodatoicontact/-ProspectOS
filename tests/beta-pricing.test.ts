@@ -123,8 +123,8 @@ test('M — trial ended: data kept, clear message, upgrade offer, no deletion pa
  assert.match(fr['account.trialEndedNote'],/Vos données restent disponibles/);
  // Where self-service checkout is not available, the account says so and gives the contact address.
  assert.match(page,/\{entitlementPlan==='BETA'&&betaActive===false&&!\(billingOffers\?\.BETA\|\|billingOffers\?\.PRO\|\|billingOffers\?\.TEAM\)&&<div className="account-field upgrade"><p><b>\{tr\('account\.upgrade'\)\}<\/b><\/p><p className="muted">\{tr\('account\.upgradeNote'\)\}<\/p><\/div>\}/);
- assert.equal(fr['account.upgradeNote'],'Le paiement en ligne n’est pas encore ouvert : écrivez-nous à prospectos.contact@gmail.com pour activer une offre.');
- assert.equal(en['account.upgradeNote'],'Online payment is not open yet: email us at prospectos.contact@gmail.com to activate a plan.');
+ assert.equal(fr['account.upgradeNote'],'Le paiement en ligne n’est pas encore ouvert : écrivez-nous à contact@prospectos.fr pour activer une offre.');
+ assert.equal(en['account.upgradeNote'],'Online payment is not open yet: email us at contact@prospectos.fr to activate a plan.');
  // The public pricing no longer claims a manual activation unconditionally (false wherever online payment is
  // open): it says the paid plan is taken from the account and granted only after the server's confirmation.
  assert.equal('pricing.manualActivation' in fr,false);
@@ -264,14 +264,15 @@ test('J — a real Discovery is charged at launch whatever it finds; a fixture r
  // is the one recorded by start_discovery — 'registry' is billed like 'brave' by the unchanged line above.
  assert.match(services,/const provider=createDiscoveryProvider\(name,process\.env\);/);
  const factory=readFileSync(new URL('../src/discovery/providers/index.ts',import.meta.url),'utf8');
- assert.match(factory,/if\(id==='brave'\)return new BraveProvider\(env\.BRAVE_SEARCH_API_KEY\?\?''\);\n if\(id==='registry'\)return new RegistryProvider\(\);\n return new FixtureProvider\(\);/,'brave→Brave, registry→register, anything else→TEST fixture');
+ assert.match(factory,/if\(id==='brave'\)return new BraveProvider\(env\.BRAVE_SEARCH_API_KEY\?\?''\);\n if\(id==='registry'\)return new RegistryProvider\(\);\n if\(id==='bodacc_sales'\)return new BodaccSalesProvider\(\);\n if\(!fixtureProviderAvailable\(env\)\)throw Error\(FIXTURE_PROVIDER_DISABLED\);\n return new FixtureProvider\(\);/,'brave→Brave, registry→register, bodacc_sales→BODACC purchases, anything else→TEST fixture — refused on the production deployment (audit B2, 11 nov. 2026), never replaced by another source');
+ // Migration 039 (1 nov. 2026) added the BODACC purchases source: billed by the same unchanged line (p_provider<>'fixture').
 });
 
 // ---------------------------------------------------------------- K: beta capacity message
 test('K — trial seats full: a clean FR/EN sentence with the contact address, the internal code is never shown to the user',()=>{
- const SERVER='Les places d’essai gratuit sont momentanément complètes. Choisissez une offre pour continuer, ou écrivez-nous à prospectos.contact@gmail.com.';
+ const SERVER='Les places d’essai gratuit sont momentanément complètes. Choisissez une offre pour continuer, ou écrivez-nous à contact@prospectos.fr.';
  assert.equal(fr['error.betaCapacityReached'],SERVER);
- assert.equal(en['error.betaCapacityReached'],'Free trial seats are temporarily full. Choose a plan to continue, or email us at prospectos.contact@gmail.com.');
+ assert.equal(en['error.betaCapacityReached'],'Free trial seats are temporarily full. Choose a plan to continue, or email us at contact@prospectos.fr.');
  for(const locale of ['fr','en'] as const){const shown=localizeApiErrorMessage(SERVER,'BETA_CAPACITY_REACHED',locale);assert.doesNotMatch(shown,/BETA_CAPACITY_REACHED|CAPACITY|bêta|beta/i)}
  assert.ok(route.includes(`return json({error:'${SERVER}',code:'BETA_CAPACITY_REACHED'},409);`));
  assert.match(page,/code==='BETA_CAPACITY_REACHED'\)\{setNotice\(e\.message\);/,'the page shows the localized message, never the code');

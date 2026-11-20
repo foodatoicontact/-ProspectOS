@@ -39,3 +39,21 @@ jobs:
       - run: npm run test:commercial-quotas-db
       - run: npm run test:stripe-billing-db
       - run: npm run test:public-records-db
+      - run: npm run test:self-outreach-db
+      - run: npm run test:outreach-booking-db
+      - run: npm run test:bodacc-sales-db
+      - run: npm run test:morning-digest-db
+      - run: npm run test:demo-shares-db
+      - run: npm run test:dedicated-tracking-db
+      - run: npm run test:notification-state-db
+      - run: npm run test:public-events-db
+      - run: npm run test:prospect-lists-db
+      - run: npm run test:rate-limits-db
+      - run: npm run test:definer-guard-db
+      - run: npm run test:retention-db
+      - run: npm run test:lead-base-db
+      - run: npm run test:prospect-siren-db
+      - run: npm run test:bodacc-sale-signal-db
+      - run: npm run test:db
+      - run: npm run test:icp-import-db
+      - run: npm run test:icp-rollback-db

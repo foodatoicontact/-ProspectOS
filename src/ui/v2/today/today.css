@@ -108,3 +108,5 @@
 .pos-ui fieldset.pos-field{display:flex;flex-direction:column;gap:0}
 /* The legacy global label margin (app/globals.css) must not reach the v2 form. */
 .pos-ui .pos-declare label{margin:0}
+/* Link to the public company-creation barometer under the empty state (opens beside the app). */
+.pos-ui .pos-empty__link{display:inline-flex;align-items:center;gap:6px;min-height:var(--pos-size-target);color:var(--pos-accent);font-size:var(--pos-text-sm);font-weight:var(--pos-weight-semibold);text-decoration:underline;text-underline-offset:3px}

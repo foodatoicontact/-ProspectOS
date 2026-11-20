@@ -96,7 +96,8 @@ test('flag ON — same screens, banners and dialogs; no sidebar, topbar, marketi
  const v2=page.slice(page.indexOf(' if(v2){'),page.indexOf(' return <div className="shell">'));
  assert.ok(v2.length>0);
  assert.doesNotMatch(v2,/sidebar|topbar|page-heading|page\.eyebrow|page\.title|nav\.liveTopbar|nav\.demoTopbar|humanTitle/);
- assert.match(v2,/<div className=\{contentClass\}>\{banners\}\{workspace\}<\/div><\/Shell>\{overlays\}/);
+ // The ICP import (docs/ICP_IMPORT.md) is the only element the v2 shell adds to the shared workspace, on « Offre et cible ».
+ assert.match(v2,/<div className=\{contentClass\}>\{banners\}(?:\{view==='icp'&&mode==='live'&&project&&<v2\.IcpImport [\s\S]*?\/>\})?\{workspace\}<\/div><\/Shell>\{overlays\}/);
  assert.match(v2,/internal:entitlementPlan==='INTERNAL'/);
  assert.match(v2,/onSignOut:\(\)=>work\(logout\)/);
  assert.match(v2,/onSelect:selectProject/);

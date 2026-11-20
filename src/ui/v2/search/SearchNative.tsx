@@ -20,24 +20,35 @@ import {verificationOf,scoreText,shortReasons,priorityChip,type VerificationKind
 
 export const NATIVE_TEXT:Record<Locale,{settings:string;searchSummary:(q:string,l:string)=>string;edit:string;searching:string;results:(n:number)=>string;
  why:string;source:string;verification:string;advanced:string;runDetails:string;noResults:string;noResultsBody:string;startTitle:string;startBody:string;
- targeting:string;thirdParty:string;history:string;filters:string;kind:string;confidence:string;sources:string}>={
+ targeting:string;thirdParty:string;history:string;filters:string;kind:string;confidence:string;sources:string;
+ editCriteria:string;salesOption:string;salesNote:string;salesCompanies:string;sourceTotal:(shown:number,total:number)=>string}>={
  fr:{settings:'Plus de réglages',searchSummary:(q,l)=>`${q} · ${l}`,edit:'Modifier la recherche',searching:'Recherche en cours…',
   results:n=>n===1?'1 entreprise trouvée':`${n} entreprises trouvées`,why:'Pourquoi elle correspond',source:'Source',verification:'Vérification',
   advanced:'Détails avancés',runDetails:'Détails de la recherche',noResults:'Aucune entreprise trouvée.',
   noResultsBody:'Élargissez la zone, retirez une catégorie ou reformulez la requête.',startTitle:'Lancez une recherche',
   startBody:'Décrivez l’activité recherchée et la zone. Les résultats s’affichent ici, chacun à vérifier à la source.',
-  targeting:'Ciblage utilisé',thirdParty:'trouvée via une source tierce',history:'Historique des recherches',filters:'Filtrer les résultats',kind:'Type de résultat',confidence:'Lecture du résultat',sources:'Sources'},
+  targeting:'Ciblage utilisé',thirdParty:'trouvée via une source tierce',history:'Historique des recherches',filters:'Filtrer les résultats',kind:'Type de résultat',confidence:'Lecture du résultat',sources:'Sources',
+  editCriteria:'Modifier les critères',
+  salesOption:'Reprises de commerces (BODACC)',
+  salesNote:'Entreprises qui ont racheté un fonds de commerce ou un établissement ces 90 derniers jours, d’après les annonces officielles du BODACC. Seuls les acheteurs qui sont des sociétés sont proposés ; chaque résultat renvoie à son annonce, à vérifier avant tout contact. Indiquez une activité (ex. restaurant, boulangerie) ou laissez « reprises » pour toutes.',
+  salesCompanies:'acheteurs identifiés dans les annonces de reprise',
+  sourceTotal:(shown,total)=>`Le registre compte environ ${total.toLocaleString('fr-FR')} entreprises pour cette activité et cette zone ; ${shown} sont affichées. Précisez la zone, l’activité ou l’effectif pour voir les autres.`},
  en:{settings:'More settings',searchSummary:(q,l)=>`${q} · ${l}`,edit:'Edit the search',searching:'Searching…',
   results:n=>n===1?'1 company found':`${n} companies found`,why:'Why it matches',source:'Source',verification:'Verification',
   advanced:'Advanced details',runDetails:'Search details',noResults:'No company found.',
   noResultsBody:'Widen the area, remove a category or rephrase the query.',startTitle:'Run a search',
   startBody:'Describe the activity and the area. Results show here, each to be checked at its source.',
-  targeting:'Targeting used',thirdParty:'found via a third-party source',history:'Search history',filters:'Filter results',kind:'Result type',confidence:'Result reading',sources:'Sources'},
+  targeting:'Targeting used',thirdParty:'found via a third-party source',history:'Search history',filters:'Filter results',kind:'Result type',confidence:'Result reading',sources:'Sources',
+  editCriteria:'Edit the criteria',
+  salesOption:'Business takeovers (BODACC)',
+  salesNote:'Companies that bought a business or an establishment in the last 90 days, from the official BODACC notices. Only buyers that are companies are proposed; each result links to its notice, to be checked before any contact. Enter an activity (e.g. restaurant, bakery) or leave “reprises” for all.',
+  salesCompanies:'buyers identified in takeover notices',
+  sourceTotal:(shown,total)=>`The register counts about ${total.toLocaleString('en-GB')} companies for this activity and area; ${shown} are shown. Narrow the area, the activity or the headcount to see the others.`},
 };
 // "Lecture du résultat": how sure the automatic reading of this search result is, and where it came from — in words, never
 // a provider id ("fixture", "brave"). The legacy line (discoveryFoundNote) stays for the legacy screen.
-const SOURCE_NAME:Record<Locale,Record<string,string>>={fr:{brave:'recherche web',registry:'registre des entreprises',fixture:'données de test'},
- en:{brave:'web search',registry:'company register',fixture:'test data'}};
+const SOURCE_NAME:Record<Locale,Record<string,string>>={fr:{brave:'recherche web',registry:'registre des entreprises',bodacc_sales:'annonces de reprise du BODACC',fixture:'données de test'},
+ en:{brave:'web search',registry:'company register',bodacc_sales:'BODACC takeover notices',fixture:'test data'}};
 export function foundLine(locale:Locale,pct:number,source:string):string{
  const from=SOURCE_NAME[locale][source]??(locale==='fr'?'autre source':'other source');
  return locale==='fr'?`Fiabilité ${pct} % · via ${from}`:`Reliability ${pct}% · via ${from}`;
@@ -49,7 +60,7 @@ const TABS=['ALL','NEW','SEEN','ADDED','IGNORED','CURRENT_RUN_DUPLICATE'] as con
 
 function Form({m}:{m:DiscoveryView}){
  const {tr,form:f,mode}=m;const t=NATIVE_TEXT[m.locale];const id=useId();
- const sourceNote=f.provider==='fixture'?FIXTURE_LABEL:f.provider==='registry'?tr('discovery.registryNote'):tr('discovery.braveNote');
+ const sourceNote=f.provider==='fixture'?FIXTURE_LABEL:f.provider==='registry'?tr('discovery.registryNote'):f.provider==='bodacc_sales'?t.salesNote:tr('discovery.braveNote');
  // After a search, the form folds into one line; "Modifier la recherche" opens it again (same state as the legacy details).
  if(m.current&&!f.formOpen)return <div className="pos-sform pos-sform--folded" data-testid="search-folded">
   <p className="pos-sform__summary"><Icon name="search" size={18}/><span><b>{t.searchSummary(m.current.query,m.current.location)}</b></span></p>
@@ -83,9 +94,10 @@ function Form({m}:{m:DiscoveryView}){
      <small>{tr('deep.hint')}</small></label>}
     <label className="pos-sfield"><span>{tr('discovery.sourceLabel')}</span>
      <select value={f.provider} onChange={e=>f.setProvider(e.target.value)}>
-      <option value="fixture">{tr('discovery.fixtureOption')}</option>
+      {f.fixtureAvailable&&<option value="fixture">{tr('discovery.fixtureOption')}</option>}
       <option value="brave" disabled={mode==='demo'||!f.available}>Brave Search {f.available&&mode==='live'?tr('discovery.braveConfigured'):tr('discovery.braveNotConfigured')}</option>
-      <option value="registry" disabled={mode==='demo'||!f.registryAvailable}>{tr('discovery.providerRegistry')}</option></select></label>
+      <option value="registry" disabled={mode==='demo'||!f.registryAvailable}>{tr('discovery.providerRegistry')}</option>
+      <option value="bodacc_sales" disabled={mode==='demo'||!f.registryAvailable}>{t.salesOption}</option></select></label>
     {f.provider==='registry'&&<fieldset className="pos-sfield pos-sfield--range"><legend>{tr('discovery.headcountLabel')}</legend>
      <label><span>{tr('discovery.headcountMin')}</span><input name="employee_min" type="number" min={0} max={1000000} step={1} inputMode="numeric" value={f.headcount.min} onChange={e=>f.typeHeadcount({...f.headcount,min:e.target.value})}/></label>
      <label><span>{tr('discovery.headcountMax')}</span><input name="employee_max" type="number" min={1} max={1000000} step={1} inputMode="numeric" value={f.headcount.max} onChange={e=>f.typeHeadcount({...f.headcount,max:e.target.value})}/></label>
@@ -157,7 +169,7 @@ function RunDetails({m,c}:{m:DiscoveryView;c:RunSummary}){
  const {tr,locale}=m;const t=NATIVE_TEXT[locale];
  return <details className="pos-sdetails pos-sdetails--run">
   <summary><span>{t.runDetails}</span><Icon name="chevron-down" size={16}/></summary>
-  <p className="pos-sres__muted">{tr('discovery.viewingRun')} {runDateLabel(locale,c.started_at)} · {tr(`discovery.runStatus.${runState(c)}` as TKey)} · {c.provider==='brave'?tr('discovery.providerBrave'):c.provider==='registry'?tr('discovery.providerRegistry'):tr('discovery.providerFixture')}</p>
+  <p className="pos-sres__muted">{tr('discovery.viewingRun')} {runDateLabel(locale,c.started_at)} · {tr(`discovery.runStatus.${runState(c)}` as TKey)} · {c.provider==='brave'?tr('discovery.providerBrave'):c.provider==='registry'?tr('discovery.providerRegistry'):c.provider==='bodacc_sales'?NATIVE_TEXT[locale].salesOption:tr('discovery.providerFixture')}</p>
   {c.categories.length>0&&<p className="pos-sres__muted">{c.categories.join(', ')}</p>}
   {c.search&&<><p>{passesLabel(locale,c.search.passes)} · {c.search.stop_reason==='TARGET_REACHED'?deepStopLabel(locale,'TARGET_REACHED',c.search.new_results_found):<>{newActorsFoundLabel(locale,c.search.new_results_found)} · {deepStopLabel(locale,c.search.stop_reason,c.search.new_results_found)}</>}</p>
    <ul>{c.search.pass_results.map((n,i)=><li key={i}>{deepPassLine(locale,i+1,n,c.search!.pass_new_results[i]??0,c.search!.pass_durations_ms[i]??0)}</li>)}</ul>
@@ -175,8 +187,9 @@ function Results({m}:{m:DiscoveryView}){
  return <section className="pos-sresults" aria-labelledby="pos-sresults-title" data-testid="search-results">
   <header className="pos-sresults__head">
    <h3 id="pos-sresults-title" className="pos-sresults__title">{t.results(m.candidates.length)}</h3>
-   <p className="pos-sres__muted">{resultsSummaryLabel(locale,m.results.length,m.counts.added,m.counts.ignored,m.counts.unresolved)} — {searchDoneNote(locale,m.results.length,m.form.provider==='fixture'?tr('discovery.fixtureIndependent'):m.form.provider==='registry'?tr('discovery.registryCompanies'):tr('discovery.candidatePages'))}</p>
+   <p className="pos-sres__muted">{resultsSummaryLabel(locale,m.results.length,m.counts.added,m.counts.ignored,m.counts.unresolved)} — {searchDoneNote(locale,m.results.length,m.form.provider==='fixture'?tr('discovery.fixtureIndependent'):m.form.provider==='registry'?tr('discovery.registryCompanies'):m.form.provider==='bodacc_sales'?NATIVE_TEXT[locale].salesCompanies:tr('discovery.candidatePages'))}</p>
   </header>
+  {c?.source_total!=null&&c.source_total>m.results.length&&<p className="pos-snote" data-testid="search-source-total">{t.sourceTotal(m.results.length,c.source_total)}</p>}
   {c?.reused&&<p role="status" className="pos-snote">{tr('discovery.reusedNote').replace('{email}',c.reused.by_email??tr('discovery.reusedTeammate')).replace('{date}',runDateLabel(locale,c.reused.started_at))}</p>}
   {c?.partial&&<p role="status" className="pos-snote pos-snote--warn"><b>{tr('discovery.partialSearch')}</b>{c.partial.failed_groups.length>0&&<> {tr('discovery.partialGroups')} {c.partial.failed_groups.map(k=>nafGroupLabel(k)??k).join(' · ')}.</>}{c.partial.failure_codes.includes('HTTP_429')&&<> {tr('discovery.partialRateLimited')}</>}</p>}
   {m.hasNovelty&&<div className="pos-snovelty">
@@ -220,7 +233,8 @@ function History({m}:{m:DiscoveryView}){
  </section>;
 }
 
-export function SearchNative({m}:{m:DiscoveryView}){
+// onEditTargeting: opens « Offre et cible » (the ICP editor), where every criterion and its rule can be changed.
+export function SearchNative({m,onEditTargeting}:{m:DiscoveryView;onEditTargeting?:()=>void}){
  const {tr}=m;const t=NATIVE_TEXT[m.locale];
  return <div className="pos-snative" data-testid="search-native">
   {m.mode==='demo'&&<p className="pos-snote">{tr('discovery.demoNote')}</p>}
@@ -229,6 +243,7 @@ export function SearchNative({m}:{m:DiscoveryView}){
    <summary><span>{t.targeting} · {m.projectName}</span><Icon name="chevron-down" size={16}/></summary>
    <p><b>{tr('discovery.offerUsed')}</b> {m.offer.trim()||tr('discovery.noOffer')}</p>
    <p><b>{tr('discovery.icpUsed')}</b> {m.criteria.map(c=>c.label).join(' · ')||tr('discovery.noCriteria')}</p>
+   {onEditTargeting&&<button type="button" className="pos-slink" onClick={onEditTargeting}>{t.editCriteria}</button>}
   </details>
   {m.replayed&&<p className="pos-snote" role="status">{tr('discovery.replayNote')}</p>}
   {m.busy&&m.deepPending&&<p className="pos-snote" role="status">{tr('deep.running')}</p>}

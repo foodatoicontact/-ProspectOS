@@ -20,6 +20,9 @@ export async function buildAccountExportZip(db:SupabaseClient,user:{id:string;em
  // O1/O2 (migration 027): your own writing style profile (RLS: only yours) and the public content of your organizations.
  const styleProfiles=await selectOptional(db,'outreach_style_profiles','*');
  const publicContent=await selectOptional(db,'prospect_public_content','*');
+ // ICP import (migration 041): the imports of your organizations and their extracted drafts. The imported files themselves
+ // are never stored, so there is nothing more to export.
+ const icpImports=await selectOptional(db,'icp_imports','id,project_id,source_type,source_ref,status,extracted,missing_questions,warnings,token_usage,error,created_by,created_at,updated_at,validated_at,validated_by');
  const entitlement=await db.from('account_entitlements').select('plan,status,starts_at,expires_at').eq('user_id',user.id).maybeSingle();
 
  const zip=new JSZip();
@@ -41,6 +44,7 @@ export async function buildAccountExportZip(db:SupabaseClient,user:{id:string;em
  zip.file('intent_profiles.json',JSON.stringify(intentProfiles,null,1));
  zip.file('outreach_style_profiles.json',JSON.stringify(styleProfiles,null,1));
  zip.file('public_content.json',JSON.stringify(publicContent,null,1));
+ zip.file('icp_imports.json',JSON.stringify(icpImports,null,1));
  // Explicit, honest scope statement — never silently decide that shared organizational data is
  // "yours" or hide that it's included. No secret (password hash, JWT, service key) is ever queried
  // here in the first place, so none can leak into the archive.
@@ -50,7 +54,7 @@ Généré le : ${new Date().toISOString()}
 
 account.json : votre email, vos memberships (organisation + rôle) et votre accès (essai gratuit, offre payante ou accès interne).
 organizations.json, projects.json, icps.json, prospects.json, evidence.json, channels.json,
-outreach.json, history.json, signals.json, intent_profiles.json, public_content.json : les données de la ou des organisations dont vous êtes membre,
+outreach.json, history.json, signals.json, intent_profiles.json, public_content.json, icp_imports.json : les données de la ou des organisations dont vous êtes membre,
 telles que votre compte peut légitimement les consulter aujourd'hui (limité par les mêmes règles
 d'accès que l'application elle-même — jamais les données d'une autre organisation).
 

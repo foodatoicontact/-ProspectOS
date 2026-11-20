@@ -100,5 +100,8 @@ test('API: each evidence carries the source type of the observation that propose
  const failing={from:()=>({select:()=>({in:async()=>({data:null,error:{message:'x'}})})})} as any;
  const same=[{id:'p',evidence:[{id:'e1'}]}];assert.equal(await attachEvidenceSources(failing,same as any),same,'unchanged on error');
  const route=await readFile(new URL('../app/api/v1/[...path]/route.ts',import.meta.url),'utf8');
- assert.match(route,/return json\(await attachEvidenceSources\(db,await checked\(db\.from\('prospects'\)\.select\('\*,evidence\(\*\),channels\(\*\)'\)/);
+ // 18 nov. 2026 (audit Q1, reliability lot): the list is read page by page (src/server/paged.ts) — the evidence sources are
+ // still attached to the whole list it returns.
+ assert.match(route,/readAllPages\(\(from,to\)=>db\.from\('prospects'\)\.select\('\*,evidence\(\*\),channels\(\*\)'\)\.eq\('project_id',pid\)/);
+ assert.match(route,/Response\.json\(await attachEvidenceSources\(db,all\.rows\)/);
 });

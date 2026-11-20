@@ -128,3 +128,13 @@ export function advancedOf(scored:{score:number;coverage:number},fit:FitDisplay,
   {label:fr?'Score vérifié (scoreProspect)':'Verified score (scoreProspect)',value:`${scored.score}/100`},
  ];
 }
+
+// "Tous les statuts" is the working list: an ignored prospect leaves it (it stays in the project's memory, so Discovery
+// never brings it back as new, and its history is kept). Choosing the "Ignoré" status shows them. Display only: the
+// same `visible` array, never a write, never a status change.
+export const IGNORED_STATUS='Ignoré';
+export function workingList<T extends {status:string}>(visible:readonly T[],filter:string):{shown:T[];hiddenIgnored:number}{
+ if(filter!=='Tous')return {shown:[...visible],hiddenIgnored:0};
+ const shown=visible.filter(p=>p.status!==IGNORED_STATUS);
+ return {shown,hiddenIgnored:visible.length-shown.length};
+}

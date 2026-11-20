@@ -79,3 +79,19 @@ test('H — not too permissive: counterparts, clients, idioms, adverbs, negation
  assert.deepEqual(parseTarget('entreprises opérant en Occitanie').locations,['Occitanie']);
  assert.deepEqual(cats('cabinets spécialisés en cybersécurité'),['cabinet','cybersécurité']);
 });
+
+// Field report (1 nov. 2026): a real target sentence cut at every comma turned places into needs and "en construction"
+// into the bare word "construction", which then matched « Droit de la construction » on a law firm's page.
+test('a real sentence — places in parentheses are the zone, a state keeps its subject, an absence is a note',()=>{
+ const t="Cabinets d'avocats indépendants à Grenoble et alentours (Meylan, Échirolles, Saint-Martin-d'Hères), dont le site est absent, en construction ou à refaire, ou qui viennent d'ouvrir ou de s'agrandir (nouvel associé, nouveau bureau).";
+ const r=parseTarget(t);
+ assert.deepEqual(r.categories,["cabinet d'avocats"],'the elided complement is part of the trade, never « cabinet » alone');
+ assert.deepEqual(r.locations,['Grenoble','Meylan','Échirolles',"Saint-Martin-d'Hères"]);
+ assert.ok(r.signals.includes('site en construction')&&r.signals.includes('site à refaire'),JSON.stringify(r.signals));
+ assert.ok(!r.signals.some(s=>/^construction$|Échirolles|Hères|absent/i.test(s)),`no bare word, no place, no absence: ${JSON.stringify(r.signals)}`);
+ assert.ok(r.signals.includes('nouvel associé'),'a lower-case list after the first clause is what to observe');
+ assert.deepEqual(r.notes,['site absent (non vérifiable automatiquement)'],'an absence cannot be read on a page');
+ // A list inside the first clause describes who, never a need.
+ assert.deepEqual(parseTarget('Restaurants (pizzerias, brasseries) à Lyon avec commande à emporter').signals,['commande à emporter']);
+ assert.deepEqual(parseTarget('Détaillants de vélos en Bretagne').categories,['détaillant'],'« de » is not elided: unchanged');
+});

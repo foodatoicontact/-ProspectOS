@@ -1,5 +1,6 @@
 import type {SeoPage} from './seo.ts';
 import {PLAN_QUOTAS,CHECKOUT_PRICES,TEAM_PRICING} from './plans.ts';
+import {BETA_OFFER} from './pricing.ts';
 
 // Prices and quotas quoted on the factual pages come from plans.ts, never typed a second time.
 const {TRIAL,BETA:SOLO,PRO}=PLAN_QUOTAS;
@@ -13,6 +14,16 @@ const TEAM_EUR=TEAM_PRICING.baseAmount/100,TEAM_EXTRA_EUR=TEAM_PRICING.extraSeat
 // no client, testimonial, statistic, result or integration may be invented here.
 // `updated` = date of the last real edit of the page content (ISO, YYYY-MM-DD). Change it by hand when
 // the content changes; never derive it from the build date.
+
+// Real counts quoted on /prospection-agences-consultants, computed once from the BODACC open data with ProspectOS's own rules
+// (src/collect/bodacc.ts parseBodacc: legal persons only; src/discovery/providers/bodacc-sales.ts readSalesNotice: purchases by a
+// company), frozen with their date — never recomputed at build time, never rounded up. Window: 20 Aug.–17 Nov. 2026.
+export const AGENCY_FIGURES={computedOn:'2026-11-18',computedOnLabel:'18 novembre 2026',from:'20 août',to:'17 novembre 2026',
+ salesHauteGaronne:{companies:68,tenOrMore:12,tenOrMoreContactable:7},
+ creationsIdf:{companies:13331,soleTradersLeftOut:29203},
+ movesHautsDeSeine:{companies:857}} as const;
+const nf=(n:number)=>n.toLocaleString('fr-FR');
+const TRIAL_DAYS=BETA_OFFER.trialDays;
 
 export const seoPages:SeoPage[]=[
   {
@@ -55,7 +66,7 @@ export const seoPages:SeoPage[]=[
         ]},
       ]},
       {h2:'Où intervient ProspectOS',blocks:[
-        {type:'callout',title:'Prospection autonome, action humaine',text:'ProspectOS aide à découvrir des candidats, à rattacher chaque observation à sa source et à calculer automatiquement un score estimé, pondéré par la fiabilité de chaque source, puis un score vérifié à partir des seules preuves confirmées. La vérification des preuves, la décision de contacter et l’envoi restent des actions humaines. Pour la place exacte de l’IA dans ce processus, voir la page [prospection B2B assistée par IA](/prospection-ia).'},
+        {type:'callout',title:'Prospection autonome, action humaine',text:'ProspectOS aide à découvrir des candidats, à rattacher chaque observation à sa source et à calculer automatiquement un score estimé, pondéré par la fiabilité de chaque source, puis un score vérifié à partir des seules preuves confirmées. La vérification des preuves, la décision de contacter et l’envoi restent des actions humaines. Pour la place exacte de l’IA dans ce processus, voir la page [prospection B2B assistée par IA](/prospection-ia). Le fonctionnement du logiciel, ses sources officielles et son tarif sont détaillés sur la page [logiciel de prospection B2B](/logiciel-prospection-b2b).'},
       ]},
     ],
     faq:[
@@ -63,7 +74,7 @@ export const seoPages:SeoPage[]=[
       {q:'Peut-on prospecter sans preuve ?',a:'On peut contacter sans preuve, mais on ne peut alors pas expliquer pourquoi ce prospect plutôt qu’un autre. La méthode décrite ici vise justement à pouvoir répondre à cette question.'},
     ],
     cta:{title:'Voir la méthode appliquée',text:'La démonstration publique montre, sans créer de compte, des recommandations expliquées : pourquoi maintenant, sur quelles preuves, avec leurs sources visibles, et toujours sous votre validation.'},
-    related:['qualifier-un-prospect-b2b','prioriser-liste-prospects','lead-scoring','prospection-ia'],
+    related:['logiciel-prospection-b2b','qualifier-un-prospect-b2b','lead-scoring','prospection-ia'],
   },
   {
     slug:'prospection-ia',
@@ -335,10 +346,10 @@ export const seoPages:SeoPage[]=[
   {
     slug:'tarifs',
     navLabel:'Tarifs et offres',
-    updated:'2026-10-11',
+    updated:'2026-11-14',
     keywords:{primary:'tarif logiciel de prospection B2B',secondary:['prix ProspectOS','abonnement prospection','essai gratuit prospection']},
-    title:'Tarifs ProspectOS : essai gratuit de 7 jours, Solo et Pro',
-    description:`Solo à ${SOLO_EUR} € ou Pro à ${PRO_EUR} € par mois, sans engagement, après un essai gratuit de 7 jours sans carte bancaire. Équipe dès ${TEAM_EUR} € par mois. Quotas et décompte.`,
+    title:`Tarifs ProspectOS : ${SOLO_EUR} €/mois, vos prospects repérés au bon moment`,
+    description:`Dès ${SOLO_EUR} € par mois, sans engagement, après un essai gratuit de 7 jours : repérez les entreprises qui viennent de bouger, sources officielles à l’appui.`,
     eyebrow:'TARIFS · OFFRES',
     h1:'Tarifs ProspectOS : essayez 7 jours gratuitement, puis choisissez Solo ou Pro',
     intro:'ProspectOS vous aide à décider quelles entreprises contacter, pourquoi maintenant, et sur la base de quelles preuves. Commencez par 7 jours d’essai gratuit, sans carte bancaire, puis choisissez un abonnement mensuel sans engagement. Les principes sont identiques dans chaque offre : sources visibles, vérification humaine des preuves, aucun envoi automatique de message. Seuls les volumes changent.',
@@ -369,6 +380,10 @@ export const seoPages:SeoPage[]=[
           'Les quotas sont appliqués par notre serveur, jamais par le navigateur : le compteur affiché dans votre compte est celui qui fait foi.',
         ]},
       ]},
+      {h2:'Libre-service ou veille dédiée : deux façons d’utiliser ProspectOS',blocks:[
+        {type:'p',text:'Les offres Solo, Pro et Équipe sont en libre-service : vous lancez vos recherches et vérifiez vous-même les preuves, au prix affiché. La veille dédiée est un service : ProspectOS prépare une liste sur votre cible et vos zones (registre, BODACC, BOAMP), la met à jour à la fréquence convenue et vous la livre en PDF et en CSV. Son fonctionnement est détaillé sur la page [veille entreprises](/veille-entreprises).'},
+        {type:'p',text:'Son prix dépend des zones, des sources et de la fréquence : il est fixé sur devis, avant tout engagement. La méthode suivie est décrite sur la page [prospection B2B](/prospection-b2b).'},
+      ]},
       {h2:'Choisir entre Solo, Pro et Équipe',blocks:[
         {type:'p',text:'Les offres Solo et Pro concernent une seule personne qui prospecte : dirigeant, indépendant ou commercial unique ; Pro triple les volumes de Solo. L’offre Équipe sert aux équipes de 2 à 5 comptes qui prospectent les mêmes marchés ; le nombre de comptes se choisit sur la page de paiement : chacun voit les recherches des autres, les prospects sont partagés, et une même requête n’est pas payée deux fois.'},
         {type:'callout',title:'Comment fonctionne l’offre Équipe',text:'Le titulaire de l’abonnement Équipe invite ses coéquipiers par un lien personnel, valable 7 jours et utilisable une seule fois. L’invitation n’est acceptée que par le compte dont l’adresse e-mail confirmée correspond à celle invitée. Si l’abonnement Équipe prend fin, les membres gardent l’accès en lecture aux données de l’équipe.'},
@@ -378,6 +393,8 @@ export const seoPages:SeoPage[]=[
     faq:[
       {q:'Combien coûte ProspectOS ?',a:`ProspectOS Solo coûte ${SOLO_EUR} € par mois et ProspectOS Pro ${PRO_EUR} € par mois, pour 1 compte. ProspectOS Équipe coûte ${TEAM_EUR} € par mois pour ${TEAM_INCL} comptes, + ${TEAM_EXTRA_EUR} € par compte supplémentaire, jusqu’à ${TEAM_MAX} comptes. Chaque compte commence par un essai gratuit de 7 jours, sans carte bancaire.`},
       {q:'Que se passe-t-il à la fin de l’essai gratuit ?',a:'Aucun abonnement n’est souscrit automatiquement et rien ne vous est facturé. Vos données restent consultables et exportables ; pour relancer des recherches et des analyses, vous choisissez une offre depuis votre compte.'},
+      {q:'Quelle différence entre un abonnement et la veille dédiée ?',a:'Avec un abonnement, vous utilisez le logiciel vous-même, au prix affiché. Avec la veille dédiée, ProspectOS prépare et met à jour la liste pour vous, sur devis.'},
+      {q:'Comment est fixé le prix de la veille dédiée ?',a:'Sur devis, après un échange sur votre cible. Le devis indique le prix, la durée, la fréquence de mise à jour et les conditions d’arrêt avant tout engagement. Écrivez à contact@prospectos.fr.'},
       {q:'Que se passe-t-il quand un quota est atteint ?',a:'L’action concernée est refusée jusqu’au renouvellement mensuel ou jusqu’au passage à une offre supérieure. Vos prospects, vos preuves et vos exports restent accessibles.'},
       {q:'Puis-je exporter mes données ?',a:'Oui, dans toutes les offres : export CSV des prospects et export complet des données du compte. La suppression du compte se fait aussi en libre-service.'},
     ],
@@ -387,65 +404,197 @@ export const seoPages:SeoPage[]=[
   {
     slug:'logiciel-prospection-b2b',
     navLabel:'Logiciel de prospection B2B',
-    updated:'2026-10-06',
-    keywords:{primary:'logiciel de prospection B2B',secondary:['outil de prospection commerciale','logiciel prospection IA','trouver des prospects B2B']},
-    title:'ProspectOS, logiciel de prospection B2B fondé sur des preuves',
-    description:'ProspectOS, logiciel français de prospection B2B : découverte dans le registre public des entreprises, preuves sourcées, score explicable et approche préparée.',
+    updated:'2026-11-18',
+    keywords:{primary:'logiciel de prospection B2B',secondary:['outil de prospection commerciale','comparatif des outils de prospection','prospection BODACC','appels d’offres BOAMP']},
+    title:'Logiciel de prospection B2B : sources officielles et preuves | ProspectOS',
+    description:'Logiciel de prospection B2B : entreprises repérées dans le registre, le BODACC et le BOAMP, chaque fait sourcé et vérifié, aucun envoi automatique. Essai de 7 jours.',
     eyebrow:'LOGICIEL · PROSPECTION B2B',
-    h1:'ProspectOS, un logiciel de prospection B2B fondé sur des preuves',
-    intro:'ProspectOS est un logiciel de prospection B2B assisté par IA, conçu en France. Il trouve des entreprises qui pourraient correspondre à votre offre, rattache chaque information à sa source, estime automatiquement un score selon la fiabilité de chaque source, le confirme avec les preuves que vous avez vérifiées, puis prépare une approche personnalisée. Il n’envoie jamais de message à votre place. Cette page décrit ce que fait le logiciel, pour qui il est conçu et ce qu’il ne fait pas.',
+    h1:'Logiciel de prospection B2B : qui contacter, pourquoi maintenant, sur quelle source',
+    intro:'Un logiciel de prospection B2B doit répondre à trois questions avant tout envoi : quelle entreprise contacter, pourquoi maintenant, et sur quelle source repose cette réponse. ProspectOS y répond à partir de sources officielles françaises : le registre des entreprises, les annonces légales du BODACC et les appels d’offres du BOAMP. Chaque fait garde son lien vers la source, une personne le vérifie, et aucun message ne part automatiquement. Cette page compare les grandes approches de prospection, décrit ce que fait le logiciel et dit aussi ce qu’il ne fait pas.',
     sections:[
-      {h2:'Ce que fait ProspectOS, étape par étape',blocks:[
+      {h2:'Quatre façons de trouver des prospects B2B, et leurs limites',blocks:[
+        {type:'p',text:'Aucune approche n’est parfaite. Le bon choix dépend de ce que vous vendez, du volume visé et du temps que vous pouvez consacrer à chaque contact.'},
+        {type:'ul',items:[
+          'Fichiers de contacts achetés : rapides à obtenir, mais leur fraîcheur varie et l’origine de chaque coordonnée doit pouvoir être justifiée au regard du RGPD. Ils disent qui existe, rarement pourquoi contacter maintenant.',
+          'Extraction de profils sur les réseaux sociaux : riche en noms et en fonctions, mais les conditions d’utilisation de LinkedIn interdisent l’extraction automatisée, et le compte utilisé peut être restreint.',
+          'Outils d’envoi automatique : utiles pour le volume, mais des messages génériques envoyés en masse exposent la réputation de votre domaine d’envoi et obtiennent peu de réponses qualifiées.',
+          'Sources officielles, l’approche de ProspectOS : des faits publics, datés et vérifiables (création, reprise, appel d’offres). En contrepartie, ces sources ne donnent ni e-mail ni téléphone, et un événement non publié reste invisible.',
+        ]},
+      ]},
+      {h2:'Ce que fait ProspectOS au quotidien',blocks:[
         {type:'ol',items:[
-          'Vous décrivez votre offre ; l’analyse d’offre IA propose un profil client idéal (ICP) en critères pondérés, que vous corrigez et validez.',
-          'Vous lancez une recherche : secteur, zone, tranche d’effectif. Les entreprises françaises sont trouvées dans le registre public des entreprises ; le web complète pour les autres cas.',
-          'Pour chaque entreprise retenue, l’analyse de prospect lit son site officiel et propose des observations : une affirmation, l’URL, l’extrait exact et la date.',
-          'Le score est estimé automatiquement, chaque source pondérée par sa fiabilité. Vous vérifiez les observations : seules celles que vous confirmez deviennent des preuves et comptent dans le score vérifié.',
-          'Le score de 0 à 100 s’explique critère par critère et sert à ordonner votre liste.',
+          'Vous décrivez votre offre ; l’analyse d’offre propose un profil client idéal (ICP) en critères pondérés, que vous corrigez et validez.',
+          'Vous lancez une recherche par secteur, zone et tranche d’effectif dans le registre, ou une recherche de reprises récentes dans le BODACC.',
+          'Dans l’écran Recherche, le bloc « Appels d’offres ouverts » liste les marchés publics du BOAMP auxquels vous pouvez encore répondre, avec le mot-clé qui a fait ressortir chaque avis.',
+          'Pour chaque entreprise retenue, les observations sont rattachées à leur source : l’URL, l’extrait exact et la date. Seules celles que vous confirmez deviennent des preuves.',
+          'Le score de 0 à 100 s’explique critère par critère ; il ordonne votre liste, il ne prédit pas une vente.',
           'ProspectOS prépare une approche à partir du fait vérifié le plus important ; vous la relisez et l’envoyez depuis votre propre messagerie.',
         ]},
+        {type:'p',text:'Les étapes de la méthode elle-même, indépendamment du logiciel, sont décrites dans [la méthode de prospection B2B](/prospection-b2b). Le calcul du score est détaillé sur la page [lead scoring explicable](/lead-scoring).'},
       ]},
-      {h2:'Des sources publiques, citées à chaque fois',blocks:[
-        {type:'p',text:'Pour la France, la découverte s’appuie sur l’API Recherche d’entreprises, qui publie les données du registre public des entreprises sous Licence Ouverte. Vos mots métier sont traduits en activités de la nomenclature NAF, avec une explication que vous confirmez avant l’envoi ; un mot qui ne correspond à aucune activité connue est signalé, jamais deviné.'},
-        {type:'p',text:'Les données du registre aident à trouver des candidats, mais elles ne sont jamais traitées comme une preuve et ne modifient jamais le score. Une preuve vient toujours d’une observation vérifiée par une personne. La lecture des sites respecte leur fichier robots.txt.'},
+      {h2:'Les sources : registre, BODACC et BOAMP',blocks:[
+        {type:'h3',text:'Le registre des entreprises'},
+        {type:'p',text:'L’API Recherche d’entreprises publie les données du registre national sous Licence Ouverte : activité (code NAF), adresse de l’établissement, tranche d’effectif, état administratif. Vos mots métier sont traduits en activités NAF, avec une explication que vous confirmez ; un mot sans correspondance est signalé, jamais deviné.'},
+        {type:'h3',text:'Le BODACC'},
+        {type:'p',text:'Le Bulletin officiel des annonces civiles et commerciales publie les créations, les ventes de fonds de commerce et les changements de dirigeant. Une reprise ou un nouveau dirigeant est souvent le moment où une entreprise revoit ses outils et ses prestataires. Chaque annonce est datée et accessible par son lien officiel.'},
+        {type:'h3',text:'Le BOAMP'},
+        {type:'p',text:'Le Bulletin officiel des annonces des marchés publics liste les appels d’offres en cours. ProspectOS n’affiche que les avis dont la date limite n’est pas passée et renvoie toujours vers l’avis officiel. Rien n’est enregistré ni répondu à votre place.'},
       ]},
-      {h2:'Un score explicable plutôt qu’une prédiction',blocks:[
-        {type:'p',text:'Beaucoup d’outils affichent une note sans dire d’où elle vient. Dans ProspectOS, chaque point du score vérifié correspond à un critère de votre ICP et à une preuve que vous avez confirmée ; le score estimé montre en plus ce que les sources restant à vérifier pourraient confirmer. Un critère non documenté reste « à confirmer » au lieu d’être supposé. Le score est un ordre de priorité, pas une probabilité de vente : la page sur le [lead scoring explicable](/lead-scoring) détaille ce choix, et celle sur la façon de [qualifier un prospect B2B](/qualifier-un-prospect-b2b) décrit la lecture des statuts.'},
+      {h2:'Trois recherches menées avec ProspectOS',blocks:[
+        {type:'p',text:'Ces cas décrivent la démarche, sans résultat annoncé ni entreprise nommée. Agences et consultants : voir [les signaux par métier](/prospection-agences-consultants).'},
+        {type:'h3',text:'Garages repris en Île-de-France'},
+        {type:'p',text:'Pour un éditeur d’assistant de messagerie destiné aux garages : les ventes de fonds de garages publiées au BODACC dans les huit départements franciliens, chaque acquéreur vérifié au registre, les garages qui vendent des véhicules placés en tête, et une première phrase qui cite la reprise.'},
+        {type:'h3',text:'Hôtels et restaurants qui changent de propriétaire'},
+        {type:'p',text:'Pour un fournisseur de l’hôtellerie : les reprises d’hôtels et de restaurants sur 90 jours dans plusieurs régions, avec le prix de cession quand l’annonce l’indique. La liste signale aussi sa limite : un rachat des parts de la société n’apparaît pas dans les ventes de fonds.'},
+        {type:'h3',text:'Appels d’offres en sécurité incendie'},
+        {type:'p',text:'Pour une entreprise de sécurité incendie : les marchés publics ouverts du BOAMP dans ses départements d’intervention, triés par date limite de réponse, chacun avec son acheteur public et le lien vers l’avis.'},
       ]},
-      {h2:'Pour qui ProspectOS est conçu',blocks:[
-        {type:'ul',items:[
-          'Les dirigeants et indépendants qui prospectent eux-mêmes et veulent savoir pourquoi contacter une entreprise plutôt qu’une autre.',
-          'Les équipes commerciales de 2 à 5 personnes qui partagent un marché et ne veulent pas payer deux fois la même recherche (offre Équipe).',
-          'Les entreprises qui vendent à d’autres entreprises en France et ont besoin de cibler par secteur d’activité, zone et effectif.',
-        ]},
-        {type:'callout',title:'Ce que ProspectOS ne fait pas',text:'Il n’envoie aucun message automatiquement, ne vend pas de fichier de contacts, ne déduit pas d’information personnelle à partir de connaissances externes et ne transforme pas une supposition en preuve. Les décisions de contact restent humaines.'},
+      {h2:'Ce que ProspectOS ne fait pas',blocks:[
+        {type:'callout',title:'Des limites assumées',text:'ProspectOS n’envoie aucun message automatiquement, ne vend pas de fichier de contacts, n’extrait pas de données de LinkedIn ni des pages de résultats des moteurs de recherche, ne fournit ni e-mail ni téléphone personnels et ne transforme jamais une supposition en preuve. La décision de contacter reste humaine.'},
       ]},
-      {h2:'Offres et premiers pas',blocks:[
-        {type:'p',text:`L’essai gratuit dure 7 jours, sans carte bancaire. Ensuite, ProspectOS Solo coûte ${SOLO_EUR} € par mois et ProspectOS Pro ${PRO_EUR} € par mois pour 1 compte ; ProspectOS Équipe coûte ${TEAM_EUR} € par mois pour ${TEAM_INCL} comptes, + ${TEAM_EXTRA_EUR} € par compte supplémentaire, jusqu’à ${TEAM_MAX} comptes. Les quotas et les règles de décompte sont détaillés sur la page des [tarifs](/tarifs). Une démonstration publique avec des données de test est accessible sans compte.`},
+      {h2:'Tarif et premiers pas',blocks:[
+        {type:'p',text:`L’essai gratuit dure 7 jours, sans carte bancaire. Ensuite, ProspectOS Solo coûte ${SOLO_EUR} € par mois et ProspectOS Pro ${PRO_EUR} € par mois pour un compte ; ProspectOS Équipe coûte ${TEAM_EUR} € par mois pour ${TEAM_INCL} comptes, + ${TEAM_EXTRA_EUR} € par compte supplémentaire, jusqu’à ${TEAM_MAX} comptes. Les quotas et les règles de décompte sont détaillés sur la page des [tarifs de ProspectOS](/tarifs). Une démonstration publique avec des données de test est accessible sans compte.`},
       ]},
     ],
     faq:[
-      {q:'ProspectOS est-il un fichier de prospects ?',a:'Non. ProspectOS ne vend pas de base de contacts : il trouve des entreprises dans des sources publiques au moment de votre recherche et vous aide à documenter pourquoi chacune correspond, ou non, à votre offre.'},
-      {q:'ProspectOS envoie-t-il des e-mails de prospection ?',a:'Non. Il prépare une approche personnalisée à partir des faits vérifiés ; l’envoi reste une action humaine, depuis votre propre outil.'},
-      {q:'Quelles entreprises peut-on trouver ?',a:'Les entreprises françaises inscrites au registre public, filtrables par activité NAF, zone et tranche d’effectif, ainsi que des entreprises trouvées par recherche web.'},
+      {q:'Quelle différence entre un logiciel de prospection et un fichier de prospects ?',a:'Un fichier donne une liste figée de contacts. ProspectOS cherche les entreprises au moment de votre recherche, dans des sources publiques, et documente pourquoi chacune correspond ou non à votre offre, avec la source de chaque fait.'},
+      {q:'ProspectOS fournit-il des e-mails ou des numéros de téléphone ?',a:'Non. Les sources officielles n’en publient pas pour les personnes, et ProspectOS n’en invente pas. Un canal de contact professionnel peut être rattaché à une fiche s’il est trouvé sur le site officiel de l’entreprise, avec sa source.'},
+      {q:'ProspectOS envoie-t-il des messages à ma place ?',a:'Non. Il prépare une approche à partir des faits vérifiés ; vous la relisez, la modifiez si besoin et l’envoyez depuis votre propre outil.'},
+      {q:'Quelles entreprises peut-on trouver ?',a:'Les entreprises françaises inscrites au registre, filtrables par activité, zone et effectif, celles qui apparaissent dans les annonces du BODACC (créations, reprises, changements de dirigeant), et les acheteurs publics qui publient des appels d’offres au BOAMP.'},
     ],
-    cta:{title:'Explorer ProspectOS sans compte',text:'La démonstration publique montre des prospects de test, leurs sources et un score expliqué.'},
-    related:['tarifs','prospection-b2b','lead-scoring','a-propos'],
+    cta:{title:'Essayer le logiciel sur votre cible',text:'La démonstration publique montre, sans compte, des prospects de test avec leurs sources ; l’essai de 7 jours lance de vraies recherches sur vos critères.'},
+    related:['prospection-b2b','tarifs','qualifier-un-prospect-b2b','a-propos'],
+  },
+  {
+    slug:'veille-entreprises',
+    navLabel:'Veille entreprises : chaque lundi',
+    updated:'2026-11-19',
+    keywords:{primary:'veille entreprises',secondary:['liste des entreprises nouvellement créées','veille BODACC','entreprises qui déménagent','fichier de prospection B2B']},
+    title:'Veille entreprises : nouvelles sociétés et reprises | ProspectOS',
+    description:'Veille entreprises dédiée : chaque lundi, les sociétés qui viennent de s’installer, de déménager ou d’être reprises dans vos zones, vérifiées et sourcées au BODACC.',
+    eyebrow:'SERVICE · VEILLE DÉDIÉE',
+    h1:'Veille entreprises : les sociétés à appeler cette semaine, livrées chaque lundi',
+    intro:'Une entreprise qui vient de s’installer, d’ouvrir un établissement, de déménager son siège ou d’être reprise revoit ses prestataires : locaux à équiper, contrats à renégocier, vérifications à programmer. Ces événements sont publics, datés et publiés chaque jour. La veille dédiée de ProspectOS les repère pour vous, les vérifie et vous livre chaque lundi la liste des entreprises à appeler dans vos zones, avec la raison de l’appel et le lien vers la source officielle.',
+    sections:[
+      {h2:'Ce que vous recevez chaque lundi',blocks:[
+        {type:'ul',items:[
+          'Une liste numérotée et datée, en PDF et en CSV, des entreprises qui correspondent à votre métier et à vos départements.',
+          'Pour chaque entreprise : le fait publié et sa date, pourquoi c’est le bon moment, une première phrase d’accroche qui cite ce fait, et le lien vers la publication officielle.',
+          'Un espace de suivi dans ProspectOS : le statut de chaque entreprise (à contacter, contacté, devis envoyé, signé, perdu), un journal horodaté et, si vous êtes rémunéré au résultat, le relevé du mois.',
+        ]},
+        {type:'p',text:'Le nombre d’entreprises dépend de ce qui est publié pendant la semaine : aucun volume minimum n’est promis. Une liste courte et juste vaut mieux qu’un long fichier à trier.'},
+      ]},
+      {h2:'Les événements qui déclenchent un appel',blocks:[
+        {type:'h3',text:'Créations de sociétés'},
+        {type:'p',text:'Une société qui s’immatricule doit équiper ses locaux et choisir ses premiers fournisseurs. L’annonce indique l’activité déclarée et la commune.'},
+        {type:'h3',text:'Transferts de siège'},
+        {type:'p',text:'Une nouvelle adresse signifie souvent de nouveaux locaux : aménagement, sécurité, maintenance, télécoms. C’est le signal le plus utile pour les métiers qui interviennent sur place.'},
+        {type:'h3',text:'Reprises de fonds de commerce'},
+        {type:'p',text:'Un nouveau propriétaire remet les contrats à plat. La veille signale les ventes de fonds publiées au BODACC, côté acquéreur, avec le prix quand l’annonce l’indique.'},
+        {type:'h3',text:'Installations classées inspectées'},
+        {type:'p',text:'Pour la sécurité incendie et la maintenance industrielle, la base officielle des installations classées indique les entrepôts et sites inspectés récemment.'},
+      ]},
+      {h2:'Pourquoi une veille plutôt qu’un fichier acheté',blocks:[
+        {type:'p',text:'Le BODACC publie plusieurs milliers d’annonces chaque semaine : environ 5 500 en Île-de-France sur la semaine du 2 au 8 novembre 2026. Les lire, écarter le hors-cible, vérifier chaque entreprise au registre et préparer une raison d’appeler représente plusieurs heures par semaine. Un fichier acheté dit qui existe ; la veille dit qui vient de changer, et pourquoi l’appeler maintenant.'},
+        {type:'p',text:'Le même travail peut être fait en libre-service avec le [logiciel de prospection B2B](/logiciel-prospection-b2b), si vous préférez mener vos recherches vous-même. La méthode de fond est décrite dans [la méthode de prospection B2B](/prospection-b2b).'},
+      ]},
+      {h2:'Sources officielles et données personnelles',blocks:[
+        {type:'p',text:'Les faits viennent du BODACC (DILA), de la base des installations classées (Géorisques) et du registre des entreprises (API Recherche d’entreprises), publiés sous Licence Ouverte. Chaque entreprise est vérifiée au registre avant livraison : active, avec un SIREN, et sans opposition à la prospection commerciale.'},
+        {type:'callout',title:'Des entreprises, pas des personnes',text:'Les entrepreneurs individuels et les entreprises inscrites comme opposées à la prospection commerciale sont retirés de chaque liste. Aucune adresse ni coordonnée personnelle n’est fournie, et ProspectOS ne contacte jamais les entreprises à votre place.'},
+      ]},
+      {h2:'Tarif : au forfait ou au résultat',blocks:[
+        {type:'p',text:'La veille dédiée est proposée sur devis, au forfait par région ou au résultat : un minimum mensuel et une commission par client signé, le plus élevé des deux étant facturé. Le premier mois peut être offert, sans engagement. Les abonnements en libre-service sont détaillés sur la page [tarifs](/tarifs).'},
+      ]},
+    ],
+    faq:[
+      {q:'Quelles zones peut couvrir la veille ?',a:'Toute la France métropolitaine et les départements d’outre-mer publiés au BODACC. Vous choisissez vos départements ; la liste ne contient que ceux-là.'},
+      {q:'Combien d’entreprises par semaine ?',a:'Cela dépend de votre métier, de vos zones et de ce qui est publié : aucun volume minimum n’est promis. Chaque entreprise livrée est vérifiée et sourcée.'},
+      {q:'Puis-je arrêter quand je veux ?',a:'Oui. Au mois, la veille est résiliable avec un préavis de 30 jours ; le premier mois peut être offert et renonçable sans frais.'},
+      {q:'Est-ce conforme au RGPD ?',a:'La veille ne livre que des entreprises, à partir de données publiques officielles. Les entrepreneurs individuels et les entreprises opposées à la prospection commerciale sont retirés avant livraison.'},
+    ],
+    cta:{title:'Recevoir un échantillon sur votre zone',text:'Écrivez à contact@prospectos.fr avec votre métier et vos départements : vous recevez un échantillon de la liste avant toute décision.',href:'/tarifs',label:'Voir les tarifs'},
+    related:['logiciel-prospection-b2b','tarifs','prospection-b2b'],
+  },
+  {
+    slug:'prospection-agences-consultants',
+    navLabel:'Agences, consultants, freelances : trouver des clients',
+    updated:'2026-11-18',
+    keywords:{primary:'trouver des clients agence',secondary:['prospection consultant indépendant','trouver des clients freelance B2B','prospection PME','signaux d’achat BODACC']},
+    title:'Trouver des clients pour votre agence | ProspectOS',
+    description:'Agences, consultants indépendants, freelances tech : repérez les PME au moment où elles achètent (reprise, création, transfert de siège), sources officielles à l’appui.',
+    eyebrow:'AGENCES · CONSULTANTS · FREELANCES',
+    h1:'Trouver des clients pour une agence, un consultant ou un freelance qui vend aux PME',
+    intro:'Une agence, un consultant ou un freelance n’a pas besoin de mille prospects, mais de quelques PME au bon moment : celles qui viennent de changer. ProspectOS les repère dans les annonces officielles, chaque fiche avec sa source.',
+    sections:[
+      {h2:'Vendre cher sans commercial : le problème des indépendants',blocks:[
+        {type:'p',text:'Vos missions valent plusieurs milliers d’euros et chaque client compte. Sans commercial, la prospection passe après la production et le chiffre d’affaires dépend du bouche-à-oreille : des mois pleins, puis des creux.'},
+      ]},
+      {h2:'Le bon moment pour contacter une PME',blocks:[
+        {type:'p',text:'Une PME achète quand quelque chose change chez elle. Voici ce que ProspectOS repère aujourd’hui, et où.'},
+        {type:'ul',items:[
+          'Reprise d’un fonds de commerce (BODACC) : un repreneur revoit ses outils et son organisation dans les premiers mois. Recherche « Reprises de commerces » sur 90 jours, par zone et activité.',
+          'Création de société : tout est à mettre en place, du site au logiciel de gestion. Repérée dans la veille dédiée et dans le suivi des entreprises.',
+          'Transfert du siège social : de nouveaux locaux et une organisation à revoir. Veille dédiée et suivi.',
+          'Augmentation de capital : l’entreprise se donne des moyens et doit les employer vite. Repérée sur les entreprises que vous suivez.',
+          'Changement de dirigeant : un nouveau responsable remet à plat les priorités et les prestataires. Repéré sur les entreprises que vous suivez.',
+          'Appel d’offres public (BOAMP) : un besoin décrit, avec une date limite. Bloc « Appels d’offres ouverts », par mots-clés et départements.',
+        ]},
+        {type:'p',text:'Une procédure collective n’est jamais présentée comme un moment d’achat : ProspectOS l’écarte et le signale.'},
+      ]},
+      {h2:'Quel signal suivre selon votre métier',blocks:[
+        {type:'table',caption:'Correspondances métier → signal',head:['Votre métier','Signaux à suivre en priorité'],rows:[
+          ['Agence web','Création de société, transfert de siège, reprise de fonds : un site à créer ou à refaire.'],
+          ['Agence d’automatisation et d’IA','Reprise de fonds, augmentation de capital : des process à reprendre et des moyens pour les outiller.'],
+          ['Développeur ERP ou CRM','Reprise de fonds, augmentation de capital, transfert de siège : un système d’information à faire évoluer.'],
+          ['Consultant en organisation','Changement de dirigeant, reprise de fonds : une organisation à repenser.'],
+          ['Agence marketing','Création de société, reprise de fonds, appels d’offres publics de communication.'],
+          ['Expert-comptable','Création de société, reprise de fonds : un cabinet à choisir dès le départ.'],
+        ]},
+      ]},
+      {h2:'Trois recherches réelles sur les 90 derniers jours',blocks:[
+        {type:'p',text:`Comptages faits le ${AGENCY_FIGURES.computedOnLabel} sur les annonces publiées du ${AGENCY_FIGURES.from} au ${AGENCY_FIGURES.to}, avec les règles de ProspectOS : seules les sociétés sont retenues, jamais une personne.`},
+        {type:'ul',items:[
+          `Reprises de fonds en Haute-Garonne : ${nf(AGENCY_FIGURES.salesHauteGaronne.companies)} sociétés acquéreuses, dont ${nf(AGENCY_FIGURES.salesHauteGaronne.tenOrMore)} de 10 salariés ou plus au registre, et ${nf(AGENCY_FIGURES.salesHauteGaronne.tenOrMoreContactable)} de celles-ci actives et sans opposition à la prospection.`,
+          `Créations de sociétés en Île-de-France : ${nf(AGENCY_FIGURES.creationsIdf.companies)} sociétés ; ${nf(AGENCY_FIGURES.creationsIdf.soleTradersLeftOut)} annonces d’entrepreneurs individuels écartées.`,
+          `Transferts de siège dans les Hauts-de-Seine : ${nf(AGENCY_FIGURES.movesHautsDeSeine.companies)} sociétés.`,
+        ]},
+        {type:'callout',title:'Ce que ces chiffres ne disent pas',text:'Une partie des sociétés refuse la prospection commerciale au registre : ProspectOS les retire avant toute livraison. Dans nos relevés de novembre, c’est le cas de la plupart des sociétés tout juste créées, et moins souvent des entreprises reprises.'},
+      ]},
+      {h2:'Comment ça marche, en trois étapes',blocks:[
+        {type:'ol',items:[
+          'Choisir votre cible : le métier de vos clients, leur zone, leur taille, et les signaux qui comptent pour vous.',
+          'Recevoir les entreprises : chaque fiche donne le fait, sa date et le lien vers l’annonce officielle. Rien n’est considéré comme vérifié tant que vous ne l’avez pas confirmé.',
+          'Contacter au bon moment : ProspectOS prépare une première phrase à partir du fait. Vous la relisez et l’envoyez vous-même ; aucun message n’est envoyé automatiquement.',
+        ]},
+      ]},
+      {h2:'Deux formules : libre-service ou veille dédiée',blocks:[
+        {type:'p',text:`En libre-service, vous lancez vos recherches vous-même : essai gratuit de ${TRIAL_DAYS} jours, puis ProspectOS Solo à ${SOLO_EUR} € par mois, Pro à ${PRO_EUR} € ou Équipe à ${TEAM_EUR} € pour ${TEAM_INCL} comptes, sans engagement.`},
+        {type:'p',text:'Avec la veille dédiée, nous préparons chaque semaine la liste des entreprises de votre zone et de votre métier ; elle est chiffrée sur devis. Les deux formules sont détaillées sur la page [tarifs](/tarifs), section « Libre-service ou veille dédiée ». La démarche complète est décrite dans [la méthode de prospection B2B](/prospection-b2b).'},
+      ]},
+    ],
+    faq:[
+      {q:'D’où viennent les données ?',a:'Du BODACC (créations, ventes de fonds, modifications), du registre des entreprises (activité, effectif, état) et du BOAMP. Chaque fiche renvoie vers l’annonce d’origine.'},
+      {q:'Est-ce conforme au RGPD ?',a:'Les données viennent de publications officielles et ProspectOS ne retient que des sociétés : jamais un entrepreneur individuel, jamais une société qui refuse la prospection au registre. Au premier contact, citez la source de l’information et proposez de ne plus recontacter la personne si elle le souhaite.'},
+      {q:'Combien d’entreprises par semaine sur ma zone ?',a:'Cela dépend de ce qui est publié : le volume varie selon le département, le métier et la semaine. Les chiffres ci-dessus donnent un ordre de grandeur réel ; aucun volume minimum n’est promis.'},
+      {q:'Puis-je essayer sur mon secteur ?',a:`Oui : l’essai gratuit de ${TRIAL_DAYS} jours donne accès aux recherches sur vos propres zones et activités, sans carte bancaire. Pour une veille dédiée, demandez un devis depuis la page [tarifs](/tarifs).`},
+    ],
+    cta:{title:'Voyez les PME qui bougent sur votre zone',text:`Lancez l’essai gratuit de ${TRIAL_DAYS} jours, ou demandez une veille dédiée.`,href:'/tarifs',label:'Voir les formules'},
+    related:['logiciel-prospection-b2b','veille-entreprises','tarifs'],
   },
   {
     slug:'a-propos',
     navLabel:'À propos de ProspectOS',
-    updated:'2026-10-18',
+    updated:'2026-11-11',
     keywords:{primary:'ProspectOS',secondary:['éditeur ProspectOS','logiciel de prospection français','ProspectOS avis']},
-    title:'À propos de ProspectOS : éditeur, principes et sources',
-    description:'Qui édite ProspectOS, logiciel français de prospection B2B : un entrepreneur individuel basé à Toulouse, des principes clairs et des sources publiques citées.',
+    title:'À propos de ProspectOS : prospection B2B fondée sur les sources officielles',
+    description:'ProspectOS, logiciel français édité à Toulouse : des prospects B2B trouvés dans les registres officiels, chaque fait sourcé et vérifié avant contact.',
     eyebrow:'À PROPOS',
     h1:'À propos de ProspectOS : qui l’édite et comment il fonctionne',
     intro:'ProspectOS est un logiciel de prospection B2B assisté par IA, édité en France par Kevin Cardia, entrepreneur individuel basé à Toulouse. Il est né d’un constat simple : une liste de prospects vaut ce que valent les raisons de contacter chaque entreprise. Le produit est donc construit autour d’une règle unique, appliquée partout : l’IA propose, l’utilisateur vérifie et décide.',
     sections:[
       {h2:'L’éditeur de ProspectOS',blocks:[
         {type:'p',text:'ProspectOS est édité par Kevin Cardia, entrepreneur individuel (régime de la micro-entreprise) établi à Toulouse, en France. Les informations légales complètes figurent dans les [mentions légales](/mentions-legales), et le traitement des données personnelles est décrit dans la [politique de confidentialité](/confidentialite).'},
-        {type:'p',text:'Le contact se fait par e-mail à prospectos.contact@gmail.com. ProspectOS est une application web, utilisable en français et en anglais, sans installation.'},
+        {type:'p',text:'Le contact se fait par e-mail à contact@prospectos.fr. ProspectOS est une application web, utilisable en français et en anglais, sans installation.'},
       ]},
       {h2:'Les principes qui guident le produit',blocks:[
         {type:'ol',items:[
@@ -476,7 +625,7 @@ export const seoPages:SeoPage[]=[
     ],
     faq:[
       {q:'Qui édite ProspectOS ?',a:'Kevin Cardia, entrepreneur individuel basé à Toulouse. Les informations légales complètes sont dans les [mentions légales](/mentions-legales).'},
-      {q:'Comment contacter ProspectOS ?',a:'Par e-mail à prospectos.contact@gmail.com, y compris pour l’offre Entreprise / White Label.'},
+      {q:'Comment contacter ProspectOS ?',a:'Par e-mail à contact@prospectos.fr, y compris pour l’offre Entreprise / White Label.'},
       {q:'Où sont décrits les prix ?',a:'Sur la page des [tarifs](/tarifs) : essai gratuit de 7 jours, offres Solo, Pro et Équipe, offre Entreprise sur devis.'},
     ],
     cta:{title:'Découvrir ProspectOS',text:'La démonstration publique est accessible sans compte, sur des exemples issus de données publiques.'},

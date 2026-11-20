@@ -14,15 +14,15 @@
 // never a name when both sides have a website and the websites differ, never a directory's domain.
 
 export type NoveltyStatus='NEW'|'SEEN'|'ADDED'|'IGNORED'|'CURRENT_RUN_DUPLICATE';
-export type NoveltyBasis='prospect_id'|'domain'|'phone'|'name_location'|'source_url';
+export type NoveltyBasis='prospect_id'|'siren'|'domain'|'phone'|'name_location'|'source_url';
 // Stored with the result (normalized_payload.raw_metadata.novelty): what the project knew when the run
 // was made. The earlier run stays unchanged; a later run gets its own snapshot.
 export type Novelty={status:NoveltyStatus;basis:NoveltyBasis|null;prospect_id:string|null;run_id:string|null;result_id:string|null};
 export const NOVELTY_STATUSES:readonly NoveltyStatus[]=['NEW','SEEN','ADDED','IGNORED','CURRENT_RUN_DUPLICATE'];
 
 export type NoveltySubject={name:string;website?:string|null;phone?:string|null;city?:string|null;source_url:string;raw_metadata?:Record<string,unknown>};
-export type ProspectMemory={id:string;name:string;website?:string|null;phone?:string|null;city?:string|null};
-export type ResultMemory={id:string;discovery_run_id:string;status:string;prospect_id:string|null;company_name:string;website:string|null;phone?:string|null;city:string|null;source_url:string;source_class?:string|null;name_status?:string|null;domain_status?:string|null};
+export type ProspectMemory={id:string;name:string;website?:string|null;phone?:string|null;city?:string|null;siren?:string|null;discovery_dedupe_key?:string|null};
+export type ResultMemory={id:string;discovery_run_id:string;status:string;prospect_id:string|null;company_name:string;website:string|null;phone?:string|null;city:string|null;source_url:string;source_class?:string|null;name_status?:string|null;domain_status?:string|null;siren?:string|null;sale_siren?:string|null};
 export type RunLocation={id:string;location:string};
 export type ProjectMemory={prospects:ProspectMemory[];results:ResultMemory[];runs:RunLocation[];truncated?:boolean};
 // The matching itself (identity, ProjectNovelty) lives in novelty-engine.ts: it needs the entity

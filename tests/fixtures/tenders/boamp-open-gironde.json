@@ -1,0 +1,133 @@
+{
+ "_source": "BOAMP (DILA) open data, records API, fetched 2026-11-09; public notice fields only",
+ "total_count": 6,
+ "results": [
+  {
+   "idweb": "26-100405",
+   "objet": "Restructuration et extension de l'EHPAD \"Ancien couvent des Minimes\" à Aubeterre-sur-Dronne-Relance des lots n°8 Charpente bois et bardage bois, n°26 Espaces verts et n°27 Nettoyage.",
+   "code_departement": [
+    "16",
+    "87",
+    "24",
+    "17",
+    "33"
+   ],
+   "dateparution": "2026-10-17",
+   "datelimitereponse": "2026-11-09T11:00:00+00:00",
+   "nomacheteur": "EHPAD Les Minimes",
+   "nature": "APPEL_OFFRE",
+   "type_marche": [
+    "TRAVAUX"
+   ],
+   "descripteur_libelle": [
+    "Charpente",
+    "Nettoyage de locaux",
+    "Espaces verts"
+   ],
+   "procedure_libelle": "Procédure NC",
+   "url_avis": "https://www.boamp.fr/pages/avis/?q=idweb:26-100405"
+  },
+  {
+   "idweb": "26-99009",
+   "objet": "Prestation de sous traitance de maintenance biomédicale pour le site de Saint Pierre du Mont - CHI Mont de Marsan",
+   "code_departement": [
+    "40",
+    "33",
+    "64"
+   ],
+   "dateparution": "2026-10-14",
+   "datelimitereponse": "2026-11-13T11:00:00+00:00",
+   "nomacheteur": "Centre Hospitalier Intercommunal de Mont de Marsan",
+   "nature": "APPEL_OFFRE",
+   "type_marche": [
+    "SERVICES"
+   ],
+   "descripteur_libelle": [
+    "Maintenance",
+    "Prestations de services"
+   ],
+   "procedure_libelle": "Procédure Ouverte",
+   "url_avis": "https://www.boamp.fr/pages/avis/?q=idweb:26-99009"
+  },
+  {
+   "idweb": "26-102913",
+   "objet": "Fourniture de produits et matériels spécifiques pour enlèvement des graffitis et protection des supports - Bordeaux Métropole",
+   "code_departement": [
+    "33"
+   ],
+   "dateparution": "2026-10-24",
+   "datelimitereponse": "2026-11-24T15:00:00+00:00",
+   "nomacheteur": "Bordeaux Métropole",
+   "nature": "APPEL_OFFRE",
+   "type_marche": [
+    "FOURNITURES"
+   ],
+   "descripteur_libelle": [
+    "Produits chimiques",
+    "Produits d'entretien"
+   ],
+   "procedure_libelle": "Procédure Ouverte",
+   "url_avis": "https://www.boamp.fr/pages/avis/?q=idweb:26-102913"
+  },
+  {
+   "idweb": "26-105502",
+   "objet": "Nettoyage des locaux et engins nautiques du GPMB",
+   "code_departement": [
+    "33"
+   ],
+   "dateparution": "2026-10-31",
+   "datelimitereponse": "2026-12-02T12:00:00+00:00",
+   "nomacheteur": "Grand Port Maritime de Bordeaux",
+   "nature": "APPEL_OFFRE",
+   "type_marche": [
+    "SERVICES"
+   ],
+   "descripteur_libelle": [
+    "Nettoyage de locaux"
+   ],
+   "procedure_libelle": "Procédure Ouverte",
+   "url_avis": "https://www.boamp.fr/pages/avis/?q=idweb:26-105502"
+  },
+  {
+   "idweb": "26-107522",
+   "objet": "Fourniture de produits chimiques pour le nettoyage de réservoirs et du matériel associé",
+   "code_departement": [
+    "33"
+   ],
+   "dateparution": "2026-11-06",
+   "datelimitereponse": "2026-12-04T11:00:00+00:00",
+   "nomacheteur": "Régie de l'Eau Bordeaux Métropole",
+   "nature": "APPEL_OFFRE",
+   "type_marche": [
+    "FOURNITURES"
+   ],
+   "descripteur_libelle": [
+    "Produits chimiques"
+   ],
+   "procedure_libelle": "Procédure Ouverte",
+   "url_avis": "https://www.boamp.fr/pages/avis/?q=idweb:26-107522"
+  },
+  {
+   "idweb": "26-104594",
+   "objet": "HYDROCURAGE RESEAU ASSAINISSEMENT ET NETTOYAGE DES OUVRAGES\r\nAPPARTENANT AU SYNDICAT",
+   "code_departement": [
+    "33"
+   ],
+   "dateparution": "2026-10-27",
+   "datelimitereponse": "2026-12-04T12:00:00+00:00",
+   "nomacheteur": "SIAEPA DES COTEAUX DE L'ESTUAIRE",
+   "nature": "APPEL_OFFRE",
+   "type_marche": [
+    "SERVICES"
+   ],
+   "descripteur_libelle": [
+    "Curage",
+    "Assainissement",
+    "Station de relevage",
+    "Station d'épuration (exploitation)"
+   ],
+   "procedure_libelle": "Procédure Ouverte",
+   "url_avis": "https://www.boamp.fr/pages/avis/?q=idweb:26-104594"
+  }
+ ]
+}

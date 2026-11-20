@@ -37,6 +37,12 @@ export function reviewPriority(meta: Meta | null | undefined, website?: string |
   reasons.push('public_registry', 'registry_activity_code');
   return {level: 'MEDIUM', reasons};
  }
+ // A buyer named in a BODACC purchase notice (providers/bodacc-sales.ts): identified by its RCS number in an official
+ // publication, without a declared activity code. MEDIUM too, until a person checks it.
+ if (m.source_type === 'legal_announcement') {
+  reasons.push('public_registry');
+  return {level: 'MEDIUM', reasons};
+ }
  if (ownSite) { points += 2; reasons.push('official_site'); } else reasons.push('named_by_third_party');
  if (website) { points += 1; reasons.push('website_identified'); }
  const terms = specificTerms(m.relevance_terms);

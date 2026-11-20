@@ -1,0 +1,37 @@
+{
+ "version": 1,
+ "company": {
+  "name": {"value": "Atlantique Sécurité Incendie", "source": "Atlantique Sécurité Incendie", "confidence": 0.95},
+  "activity": {"value": "Vente, installation et maintenance de matériel de protection incendie", "source": "installation et maintenance de matériel", "confidence": 0.9},
+  "sites": [
+   {"value": {"city": "Nantes", "department": "44", "role": "HQ"}, "source": "12 rue des Forges, 44000 Nantes", "confidence": 0.95},
+   {"value": {"city": "Angers", "department": "49", "role": "PARTNER"}, "source": "Nos agences partenaires : Angers", "confidence": 0.85},
+   {"value": {"city": "Rennes", "department": "35", "role": "PARTNER"}, "source": "Nos agences partenaires : Angers, Rennes", "confidence": 0.85},
+   {"value": {"city": "La Roche-sur-Yon", "department": "85", "role": "PARTNER"}, "source": "Rennes, La Roche-sur-Yon", "confidence": 0.85},
+   {"value": {"city": "Le Mans", "department": "72", "role": "PARTNER"}, "source": "La Roche-sur-Yon, Le Mans", "confidence": 0.85},
+   {"value": {"city": "Vannes", "department": "56", "role": "PARTNER"}, "source": "Le Mans et Vannes", "confidence": 0.85}
+  ],
+  "interventionZones": [
+   {"value": "44", "source": "12 rue des Forges, 44000 Nantes", "confidence": 0.9},
+   {"value": "49", "source": "Nos agences partenaires : Angers", "confidence": 0.8}
+  ]
+ },
+ "offer": {
+  "services": [
+   {"value": "Extincteurs", "source": "extincteurs : vente, pose", "confidence": 0.95},
+   {"value": "Éclairage de sécurité (BAES)", "source": "éclairage de sécurité (BAES)", "confidence": 0.95},
+   {"value": "Désenfumage", "source": "désenfumage naturel et mécanique", "confidence": 0.9},
+   {"value": "Robinets d'incendie armés (RIA)", "source": "robinets d'incendie armés (RIA)", "confidence": 0.9}
+  ],
+  "promises": [
+   {"value": {"text": "Devis sous 24 h", "value": 24, "unit": "heures"}, "source": "Devis gratuit sous 24 h", "confidence": 0.95},
+   {"value": {"text": "Intervention sous 48 h", "value": 48, "unit": "heures"}, "source": "intervention sous 48 h", "confidence": 0.95}
+  ],
+  "differentiators": [],
+  "proofs": []
+ },
+ "segments": [],
+ "personas": [],
+ "signals": [],
+ "exclusions": []
+}

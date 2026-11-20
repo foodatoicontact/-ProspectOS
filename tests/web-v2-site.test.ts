@@ -7,6 +7,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createHash} from 'node:crypto';
+import {withoutSelfOutreach} from './self-outreach-strip.ts';
 import {readFileSync,readdirSync,existsSync} from 'node:fs';
 import {webV2Enabled} from '../src/ui/v2/public/flag.ts';
 import {seoPages,sitemapEntries} from '../src/domain/seo.ts';
@@ -50,7 +51,8 @@ test('flag OFF parity — the legacy envelopes are byte-for-byte main’s once t
   const s=read(p).split('\n// WEB-2 (docs/UI_V2.md)')[0]!.replace(/\n+$/,'\n');
   return s.split('\n').filter(l=>!/^import .*(ui\/v2\/public\/|Children,cloneElement)|if\(WEB_V2\)return </.test(l)).join('\n');
  };
- assert.equal(sha(legacy('src/components/PublicSeoPage.tsx')),'a8bb7fa6afcbc6cb6b653ff2787097413962be554f1bd0a14f902cc929affa32');
+ // Owner request (18 nov. 2026, SEO): the shared block renderer learns the « table » block (one case added), legacy and v2 alike.
+ assert.equal(sha(legacy('src/components/PublicSeoPage.tsx')),'d4d4e3018903f1fda1fe09bacd525e1a8f75e9587fa487d96ae760aab28bde5f');
  assert.equal(sha(legacy('src/components/LegalPage.tsx')),'da4b65ef59aa51e03aa5994ada8ff714c510bb4d42211a7ab05dd38a87e470db');
  // The v2 branch is the first statement after the JSON-LD (SEO) or the very first one (legal): nothing else moved.
  assert.match(read('src/components/PublicSeoPage.tsx'),/\.replace\(\/<\/g,'\\\\u003c'\);\n  if\(WEB_V2\)return <SeoPageV2 page=\{page\} jsonLd=\{jsonLd\}>\{children\}<\/SeoPageV2>;\n  return <main className="seo-public seo-article-page">/);
@@ -58,24 +60,44 @@ test('flag OFF parity — the legacy envelopes are byte-for-byte main’s once t
 });
 
 test('freeze — legal text, SEO content, prices, quotas, trial, plans, i18n and demo data are main’s (119bb30)',()=>{
+ // Owner decision (1 nov. 2026): the contact address becomes contact@prospectos.fr everywhere (legal.ts, the FR/EN texts, the
+ // SEO content), and the privacy policy describes the "3 prospects de votre zone" form (sections 3.6, 5, 6, 8; PRIVACY_VERSION).
+ // Nothing else in these files changed: their hashes below are those of that change.
  const FROZEN:Record<string,string>={
   'app/cgu/page.tsx':'7287810445b66f0b67763eb06e8713b3fe42127521502eefe3cf15d6a485121c',
   'app/cgv/page.tsx':'49c80e19478f219668144f1c4039fca7464a15d5003584193db990bfb0269208',
-  'app/confidentialite/page.tsx':'67c9da27841bf6b5d676d2cdc5143fec596f1c9f73a35a31bb679a70c1150882',
+  // 1 nov. 2026 (migration 040): the privacy policy also describes the opt-in morning recap (sections 3.7, 5, 6, 8).
+  // Owner decision (18 nov. 2026, RGPD): section 8 states the retention applied by migration 048 — contact details 3 years without activity, signals, BODACC announcements.
+  'app/confidentialite/page.tsx':'951ee66dfeacfe1311305be13e0b6a97381d193bf50774ac0d5f237ae16b709a',
   'app/mentions-legales/page.tsx':'2efbad023e459aa36de624415f119b61f8372d80cecd1c60722f1a9f23b0f65e',
-  'src/domain/legal.ts':'5459dff4cf999b21c4b969d0a8d1479e3a3ece3e5b5e57bec2352b3f893bf937',
+  // Owner decision (14 nov. 2026): ACTIVITY_FORMALITY.filedAt corrected to 13/11/2026, the date the INPI formality was signed.
+  // Owner decision (18 nov. 2026, RGPD): PRIVACY_VERSION 2026-11-18 for the retention lines above; terms unchanged.
+  'src/domain/legal.ts':'bd2bc49498a2c6c2a9f2fd837835b11b3908a604fead4ba0d0ebe420c192c2a8',
   // WEB-2.1 / 2.2: the /a-propos entry (demo wording, recommendation instead of score, its date) and the /prospection-b2b
   // closing call to action only; every other page is main's text.
-  'src/domain/seo-content.ts':'b73ef4b2e5f236eb1d0b8584b21697702e56708ae9e2e97efcf3c4ac7923d9b9',
-  'src/domain/seo.ts':'0dbabc3c3959c1bf11e814fbdd0ba89dca12c9e99c7b825fccf6c28fbabc7a01',
-  'src/components/PricingPage.tsx':'ae1fc88997a3974738d90d9fd0097108dc1fbf246e9d2025656a59def966cc02',
+  // Owner decision (11 nov. 2026, SEO): the /tarifs and /a-propos titles, descriptions and dates rewritten.
+  // Owner decision (14 nov. 2026, SEO, option B): /logiciel-prospection-b2b rewritten for « logiciel de prospection B2B » and
+  // linked from /prospection-b2b (one sentence, related block).
+  // Owner decision (14 nov. 2026, /tarifs): the « Veille dédiée, sur devis » service is stated next to the self-service plans, with its section and two price questions in the FAQ.
+  // Owner request (15 nov. 2026, SEO): a /veille-entreprises page for the veille dédiée, linked from /tarifs (one sentence).
+  // Owner request (18 nov. 2026, SEO): page /prospection-agences-consultants (frozen real counts with their date, prices from plans.ts), linked from /logiciel-prospection-b2b.
+  // Owner request (19 nov. 2026): /veille-entreprises no longer lists « nouveaux établissements » (the BODACC publishes almost none).
+  'src/domain/seo-content.ts':'cc1a66f83f479808fd0b19131ff58cf680b696f2a83020bcec86e328caa1a7a2',
+  // Owner decision (11 nov. 2026, SEO): prospectos.fr as the default site address, robots closing the connected and
+  // technical routes, the LinkedIn pages of ProspectOS and of its founder as sameAs.
+  // Owner request (13 nov. 2026, demo links, migration 042): robots also closes /d/ (private demo pages) — that one entry only.
+  // Owner request (18 nov. 2026, SEO): the « table » block type (métier → signal correspondences).
+  'src/domain/seo.ts':'cbcc121af8e9d32328bfe84e6dc0ed1fed0967b447e2b4f76fc0ba5e8214a880',
+  // Owner decision (14 nov. 2026, /tarifs): the « Veille dédiée, sur devis » service is stated next to the self-service plans.
+  'src/components/PricingPage.tsx':'aebf6157aefd8a5a24058707932f7b0b6fca909bfd2e06ceb0199c2851b65010',
   'src/components/PricingPlans.tsx':'fc49929e18df6b472f2b70bb36c80bd53dcfb4c85b9f86192b1e142ddb691773',
   'src/domain/plans.ts':'cf5e701c415bb9cfbadf4caf1d60e3e9b6d80822de5d30ed3648b7d1c2e60a02',
-  'src/i18n/fr.ts':'affbccca0d1b93f397cdc348909a07707b5ea7faba44cee580c187026e81d150',
-  'src/i18n/en.ts':'5a1bb3c567731cd1e47d8ccef3ffee29f79f5ed2c21cf5c8f222fb163b38700c',
+  'src/i18n/fr.ts':'812d1fd6093bbe5050efcf4baad844087903aea58a69773e78f8a0dee1264441',
+  'src/i18n/en.ts':'9566a8fb876434760291cf4bf4d41e5f2dda6f844b523d1d10684fd18546d801',
   'src/domain/demo.ts':'70a67774e17b28d664f696846572febeac3c64ecaa320e7a85d8ecc9235e84ee',
  };
- for(const [f,h] of Object.entries(FROZEN))assert.equal(sha(read(f)),h,`${f} changed — WEB-2 must not touch it`);
+ // Self-Outreach (035) adds its own i18n keys: the frozen texts are compared without them (tests/self-outreach-strip.ts).
+ for(const [f,h] of Object.entries(FROZEN))assert.equal(sha(f.startsWith('src/i18n/')?withoutSelfOutreach(read(f)):read(f)),h,`${f} changed — WEB-2 must not touch it`);
 });
 
 test('SEO v2 render — same H1, sections, blocks, FAQ, call to action, related links and structured data',()=>{

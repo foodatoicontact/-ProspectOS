@@ -56,7 +56,7 @@ export function classifyAnnouncement(rec:Rec):{type:SignalType;detail:string}|{r
  if(/creation|immatriculation/.test(family))return {type:'new_site',detail};
  if(/modification/.test(family)){
   if(/\b(dirigeant|gerant|gerance|president|directeur general|administrateur|nomination|representant legal)/.test(d))return {type:'leadership_change',detail};
-  if(/transfert (du|de) siege|nouvelle adresse du siege|siege social transfere/.test(d))return {type:'new_site',detail};
+  if(/transfert (du|de) siege|nouvelle adresse du siege|siege social transfere|nouveau siege|adresse du siege/.test(d))return {type:'new_site',detail};
   if(/augmentation (du|de) capital/.test(d))return {type:'funding',detail};
  }
  return {reject:'NOT_A_SIGNAL'};
@@ -103,11 +103,11 @@ export class BodaccSignalProvider implements SignalProvider{
  }
 }
 
-// The SIREN ProspectOS itself read in the public register when the prospect was accepted (server-written discovery
-// results, migration 014): never a number typed by a member.
+// The SIREN ProspectOS itself read in the public register — or in the BODACC purchase notice (bodacc_sales) — when the
+// prospect was accepted (server-written discovery results, migration 014): never a number typed by a member.
 export function sirenOf(accepted:Array<{provider:string;raw_payload:unknown}>):string|null{
  for(const r of accepted){
-  if(r.provider!=='registry')continue;
+  if(r.provider!=='registry'&&r.provider!=='bodacc_sales')continue;
   const p=r.raw_payload as {siren?:unknown;registry?:{siren?:unknown}}|null;
   const s=typeof p?.siren==='string'?p.siren:typeof p?.registry?.siren==='string'?p.registry.siren:null;
   if(s&&/^\d{9}$/.test(s))return s;

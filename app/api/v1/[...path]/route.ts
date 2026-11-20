@@ -1,18 +1,30 @@
 import {z} from 'zod';
 import {handleDiscovery} from '../../../../src/discovery/api';
 import {handlePublicRecords} from '../../../../src/discovery/public-records-api';
+import {handleMorningDigest} from '../../../../src/digest/api';
 import {projectCriteria} from '../../../../src/domain/relations';
 import {authenticatedDb} from '../../../../src/server/db';
 import {analyzeOffer,AnalyzeOfferError} from '../../../../src/server/ai';
-import {composeOutreachMessage} from '../../../../src/server/ai';
+import {composeOutreachMessage,structureIcp} from '../../../../src/server/ai';
+import {handleIcpImport} from '../../../../src/icp-import/api';
+import {icpImportEnabled} from '../../../../src/icp-import/flag';
+import {handleTenders,tendersEnabled} from '../../../../src/tenders/api';
+import {handleDemoShares} from '../../../../src/demo-share/api';
+import {handleDedicated,memberOrganizations} from '../../../../src/dedicated/api';
+import {dedicatedTrackingEnabled} from '../../../../src/dedicated/flag';
+import {notifyAcceptance} from '../../../../src/dedicated/send';
+import {handleNotifications} from '../../../../src/notifications/api';
+import {handleLeads} from '../../../../src/leads/api';
 import {analyzeCompanyGuarded} from '../../../../src/server/ai-guard';
 import {checked as checkedRpc} from '../../../../src/discovery/repository';
-import {CriterionContextSchema} from '../../../../src/discovery/types';
+import {CriterionContextSchema,normalizeCriteriaInput,criteriaIssueMessage} from '../../../../src/discovery/types';
 import {requireActiveEntitlement,effectiveEntitlement} from '../../../../src/server/entitlement';
 import {attachEvidenceSources} from '../../../../src/server/evidence-sources';
 import {handleUserDeclared} from '../../../../src/server/user-declared';
 import {buildAccountExportZip,anonymizeAuthUser} from '../../../../src/server/account';
 import {recordApiUsage} from '../../../../src/server/usage';
+import {readAllPages} from '../../../../src/server/paged';
+import {hitForAccount,ruleForPath,tooManyRequests} from '../../../../src/server/rate-limit';
 import {releaseCommercialUse} from '../../../../src/server/commercial-usage';
 import {newInviteToken,inviteTokenHash,isInviteToken,inviteLink,teamError,TEAM_ERRORS} from '../../../../src/server/team';
 import {createAdminClient} from '../../../../src/server/admin-client';
@@ -37,7 +49,9 @@ import {DEFAULT_CRITERIA,OUTREACH_STATUSES,validateCriteria,generateOutreach,sco
 import {STATUSES} from '../../../../src/domain/statuses';
 import {handleOutreachIntelligence,PUBLIC_CONTENT_COLUMNS} from '../../../../src/outreach/api';
 import {handleNextBestActions,nextBestActionEnabled} from '../../../../src/nba/api';
-import {composeRuleBased} from '../../../../src/outreach/compose';
+import {handleSelfOutreach} from '../../../../src/self-outreach/api';
+import {selfOutreachEnabledForAny} from '../../../../src/self-outreach/config';
+import {composeRuleBased,withOptOut} from '../../../../src/outreach/compose';
 import {generateOutreachWithAi,type AiGenerateResult} from '../../../../src/outreach/ai-generate';
 import {aiOutreachEnabled,withAiOutreachUsage} from '../../../../src/outreach/ai-switch';
 import {styleOf} from '../../../../src/outreach/style';
@@ -68,12 +82,55 @@ async function callProviderMeteringFailure(call:()=>ReturnType<typeof analyzeOff
   throw err instanceof AnalyzeOfferError?Error(err.message):err;
  }
 }
+async function dedicatedTrackingFor(db:Awaited<ReturnType<typeof authenticatedDb>>['db']){
+ if(!dedicatedTrackingEnabled(process.env))return {enabled:false,client:false,proposals:0,statements:0};
+ // A contract of one of the account's OWN organizations (the administrator reads every contract, but is not their client).
+ try{
+  const orgs=await memberOrganizations(db);if(!orgs.length)return {enabled:true,client:false,proposals:0,statements:0};
+  const {count,error}=await db.from('dedicated_contracts').select('id',{count:'exact',head:true}).in('organization_id',orgs);
+  // What waits for the client (the sign-in notice): proposals to accept, statements to validate.
+  const [p,s]=await Promise.all([db.from('dedicated_contracts').select('id',{count:'exact',head:true}).in('organization_id',orgs).eq('status','PROPOSED'),
+   db.from('dedicated_statements').select('id',{count:'exact',head:true}).in('organization_id',orgs).is('validated_at',null)]);
+  return {enabled:true,client:!error&&(count??0)>0,proposals:p.error?0:p.count??0,statements:s.error?0:s.count??0};
+ }catch{return {enabled:true,client:false,proposals:0,statements:0}}
+}
 async function handler(request:Request,context:{params:Promise<{path:string[]}>}){
  try {
  const {db,user}=await authenticatedDb(request);const {path}=await context.params;const [resource,id]=path;
+ // Shared rate limit per account (migration 047, src/server/rate-limit.ts): fail-open if the counter is unavailable.
+ const rate=await hitForAccount((fn,args)=>db.rpc(fn,args),ruleForPath(path),e=>console.warn(JSON.stringify(e)));
+ if(!rate.allowed)return tooManyRequests(rate.retryAfter,{error:'Trop de requêtes. Réessayez dans un instant.',code:'RATE_LIMITED'});
  // UX A/B (src/ux/variant.ts): a presentation label for analytics only, never read by any check below.
  const ux=parseUxHeader(request.headers.get(UX_HEADER));
  const uxAdmin=()=>{try{return createAdminClient()}catch{return null}};
+ // ICP import (src/icp-import/api.ts, docs/ICP_IMPORT.md): a file arrives as the raw body (≤ 4 MiB) and pasted text up to
+ // 50 000 characters — both read there with their own limits, BEFORE the generic JSON read below (20 000 characters).
+ const icpImportResponse=await handleIcpImport(request,path,db,json,{enabled:icpImportEnabled(process.env),userId:user.id,now:Date.now,
+  requireEntitlement:()=>requireActiveEntitlement(db,user.id),admin:createAdminClient,aiProvider:process.env.AI_PROVIDER,
+  resolveCredential:organizationId=>resolveProviderCredential(organizationId,'anthropic'),structure:structureIcp,
+  meter:({organizationId,projectId,usage,attempt})=>recordApiUsage({organizationId,projectId,userId:user.id,provider:usage.provider,operation:'offer_analysis',model:usage.model,inputTokens:attempt.input_tokens,outputTokens:attempt.output_tokens,billingSource:usage.credential_source}),
+  release:()=>releaseCommercialUse(createAdminClient(),user.id,'ai_offer'),log:line=>console.info(JSON.stringify(line))});
+ if(icpImportResponse)return icpImportResponse;
+ // Open public tenders from the BOAMP (src/tenders/api.ts, docs/TENDERS.md): read-only, behind TENDERS_ENABLED.
+ const tendersResponse=await handleTenders(request,path,json,{enabled:tendersEnabled(process.env),requireEntitlement:()=>requireActiveEntitlement(db,user.id),
+  log:event=>console.info(JSON.stringify(event))});
+ if(tendersResponse)return tendersResponse;
+ // Veille dédiée (migration 043, src/dedicated/api.ts): reads its own body (a delivery or a proposal PDF exceeds the 20 kB
+ // limit below), behind DEDICATED_TRACKING_ENABLED; independent of the subscription (no entitlement check).
+ const dedicatedResponse=await handleDedicated(request,path,db,json,{enabled:dedicatedTrackingEnabled(process.env),now:()=>new Date(),userEmail:user.email??null,
+  notifyAccepted:notifyAcceptance});
+ if(dedicatedResponse)return dedicatedResponse;
+ // Base entreprises de la veille (migration 049, src/leads/api.ts): administrator only, checked by the database.
+ const leadsResponse=await handleLeads(request,path,db,json,{enabled:dedicatedTrackingEnabled(process.env)});
+ if(leadsResponse)return leadsResponse;
+ // Notification centre (migration 044): the bell of the v2 shell. The administrator flag is the caller's OWN active INTERNAL
+ // entitlement, read under RLS (the database still decides what each one may read).
+ if(path[0]==='notifications'){
+  const {data:ent}=await db.from('account_entitlements').select('plan,status').eq('user_id',user.id).maybeSingle();
+  const notificationsResponse=await handleNotifications(request,path,db,json,{dedicatedEnabled:dedicatedTrackingEnabled(process.env),now:()=>new Date(),
+   admin:(ent as {plan?:string;status?:string}|null)?.plan==='INTERNAL'&&(ent as {status?:string}).status==='ACTIVE'});
+  if(notificationsResponse)return notificationsResponse;
+ }
  let body:Record<string,any>={};
  if(!['GET','HEAD'].includes(request.method)){const raw=await request.text();if(raw.length>20000)return json({error:'Corps trop volumineux'},413);try{body=JSON.parse(raw||'{}')}catch{return json({error:'JSON invalide'},400)}if(!body||Array.isArray(body))return json({error:'Objet requis'},400)}
  const discoveryResponse=await handleDiscovery(request,path,body,db,user);if(discoveryResponse)return discoveryResponse;
@@ -106,6 +163,11 @@ async function handler(request:Request,context:{params:Promise<{path:string[]}>}
  const outreachResponse=await handleOutreachIntelligence(request,path,body,db,json,{requireEntitlement:()=>requireActiveEntitlement(db,user.id)});if(outreachResponse)return outreachResponse;
  // Next Best Action (src/nba/api.ts, migration 031): decisions and drafts only — nothing is sent. Flag off = 404.
  const nbaResponse=await handleNextBestActions(request,path,body,db,json,{enabled:nextBestActionEnabled(process.env)||zeroFrictionTodayGate(process.env),now:()=>new Date(),requireEntitlement:()=>requireActiveEntitlement(db,user.id)});if(nbaResponse)return nbaResponse;
+ // Morning recap (src/digest/api.ts, migration 040): the member's own choice — nothing is enabled without it.
+ const morningDigestResponse=await handleMorningDigest(request,path,body,db,json,{env:process.env,userId:user.id});if(morningDigestResponse)return morningDigestResponse;
+ // Demo links (src/demo-share/api.ts, migration 042): owner-only create / list / revoke, and the copy after sign-up.
+ const demoShareResponse=await handleDemoShares(request,path,body,db,json);if(demoShareResponse)return demoShareResponse;
+ const selfOutreachResponse=await handleSelfOutreach(request,path,body,db,json,{env:process.env,now:()=>new Date(),requireEntitlement:()=>requireActiveEntitlement(db,user.id)});if(selfOutreachResponse)return selfOutreachResponse;
  const checked=async(query:PromiseLike<any>)=>{const {data,error}=await query;if(error)throw Error('DATABASE_REQUEST_FAILED');return data};
  if(resource==='organizations'){
  if(request.method==='GET')return json(await checked(db.from('organizations').select('*')));
@@ -123,13 +185,19 @@ async function handler(request:Request,context:{params:Promise<{path:string[]}>}
  // The same schema Discovery search uses for its own criteria context — a single source of truth for
  // "what is a valid Criterion", including a user-authored `rules` (bounds, dedup, discriminant all
  // enforced here). A malformed direct API payload is rejected here, not silently accepted.
- let criteria;try{criteria=z.array(CriterionContextSchema).max(30).parse(body.criteria??DEFAULT_CRITERIA)}catch{return json({error:'Critères invalides : structure incorrecte'},400)}
+ // Half-empty rules are dropped first, and a refusal names the criterion and the field (src/discovery/types.ts).
+ const rawCriteria=normalizeCriteriaInput(body.criteria??DEFAULT_CRITERIA);const parsedCriteria=z.array(CriterionContextSchema).max(30).safeParse(rawCriteria);
+ if(!parsedCriteria.success)return json({error:`Critères invalides : ${criteriaIssueMessage(parsedCriteria.error,rawCriteria)}`,code:'INVALID_CRITERIA'},400);
+ const criteria=parsedCriteria.data;
  try{validateCriteria(criteria)}catch{return json({error:'Critères invalides : poids total 100 requis'},400)}
  const project=await checked(db.from('projects').select('*').eq('id',body.project_id).single());
  return json(await checked(db.from('icps').upsert({project_id:project.id,organization_id:project.organization_id,criteria},{onConflict:'project_id'}).select().single()));
  }
  if(resource==='prospects'){
- if(request.method==='GET'){const pid=new URL(request.url).searchParams.get('project_id');if(!pid)return json({error:'Projet requis'},400);return json(await attachEvidenceSources(db,await checked(db.from('prospects').select('*,evidence(*),channels(*)').eq('project_id',pid).order('created_at',{ascending:false}))))}
+ // Q1 (audit): every prospect of the project, page by page (src/server/paged.ts) — never cut silently at 1 000 rows.
+ if(request.method==='GET'){const pid=new URL(request.url).searchParams.get('project_id');if(!pid)return json({error:'Projet requis'},400);
+  const all=await readAllPages((from,to)=>db.from('prospects').select('*,evidence(*),channels(*)').eq('project_id',pid).order('created_at',{ascending:false}).order('id').range(from,to));
+  return Response.json(await attachEvidenceSources(db,all.rows),{headers:{'Cache-Control':'no-store',...(all.truncated?{'X-ProspectOS-Truncated':String(all.rows.length)}:{})}})}
  if(request.method==='POST'){
  if(typeof body.name!=='string'||!body.name.trim()||body.name.length>160||!safeLink(String(body.website??'')))return json({error:'Nom et URL HTTP(S) requis'},400);
  const project=await checked(db.from('projects').select('*').eq('id',body.project_id).single());
@@ -172,7 +240,7 @@ async function handler(request:Request,context:{params:Promise<{path:string[]}>}
  const publicContent=await db.from('prospect_public_content').select(PUBLIC_CONTENT_COLUMNS).eq('prospect_id',p.id).eq('status','VERIFIED').limit(50).then(r=>r.error?[]:r.data??[],()=>[]);
  const styleRow=await db.from('outreach_style_profiles').select('*').eq('organization_id',p.organization_id).limit(1).then(r=>r.error?null:(r.data??[])[0]??null,()=>null);
  const styleProfileId:string|null=styleRow?.id??null;
- const composed=composeRuleBased({name:p.name,offer:project.offer,criteria:projectCriteria(project.icps),evidence:p.evidence,signals,profile:intentProfile,publicContent,now:new Date(),locale:draftLocale,style:styleOf(styleRow)});
+ const composed=composeRuleBased({name:p.name,offer:project.offer,criteria:projectCriteria(project.icps),evidence:p.evidence,signals,profile:intentProfile,publicContent,now:new Date(),locale:draftLocale,style:styleOf(styleRow),optOut:true});
  // O1/O2 — AI only when the user asks for it (body.ai === true): one attempt = one "AI outreach" unit, reserved before the
  // provider call (reserve_ai_outreach, migration 028); its rule-based fallback is the same attempt. Nothing possible before
  // the reservation (AI not configured, BYOK broken, no unit) → the rule-based message, 0 unit. The model gets only the
@@ -202,7 +270,8 @@ async function handler(request:Request,context:{params:Promise<{path:string[]}>}
    meter:(usage,billingSource)=>recordApiUsage({organizationId:p.organization_id,projectId:p.project_id,userId:user.id,provider:usage.provider,operation:'outreach_generation',model:usage.model,inputTokens:usage.input_tokens,outputTokens:usage.output_tokens,billingSource}),
   });
  }
- const text=ai?ai.text:composed.text;
+ // The manual draft always ends with the right-to-object line (audit R2): the rule-based text carries it, an AI text gets it here.
+ const text=ai?withOptOut(ai.text,draftLocale,draftLocale==='fr'&&styleOf(styleRow).address_mode==='tu'?'tu':'vous'):composed.text;
  // At most one live DRAFT per prospect: a regeneration supersedes the previous one instead of
  // leaving an ambiguous pile of undecided drafts. Already-decided rows (APPROVED/USED/DISCARDED)
  // are historical record and are never touched here. The invariant itself is enforced by a partial
@@ -385,6 +454,12 @@ async function handler(request:Request,context:{params:Promise<{path:string[]}>}
   next_best_action_enabled:nextBestActionEnabled(process.env),
   // ZF org canary: the organization of the account's own membership (resolved above), never one the client sends.
   zero_friction_today_enabled:zeroFrictionTodayEnabledFor(process.env,membership?.organization_id??null),
+  // Self-Outreach: the flag AND one of the account's own organizations in SELF_OUTREACH_ORG_IDS. Not only the workspace
+  // chosen above (a team membership wins there): the routes and the database then check each project's organization.
+  self_outreach_enabled:selfOutreachEnabledForAny(process.env,memberships.map((m:any)=>m.organization_id)),
+  // Veille dédiée (migration 043): the flag, and whether this account has a contract to follow (RLS: its own) — the
+  // administrator's dashboard is shown from the INTERNAL entitlement above.
+  dedicated_tracking:await dedicatedTrackingFor(db),
   billing:billingAnswer.error?null:billingAnswer.data??null,
   billing_offers:checkoutAvailability(billingConfig()),
  });
@@ -411,7 +486,7 @@ async function handler(request:Request,context:{params:Promise<{path:string[]}>}
  // construction (see migration 012) — safe to call on every login, never re-extends an existing row.
  const {data,error:rpcError}=await db.rpc('activate_trial');
  if(rpcError){
-  if(rpcError.message?.includes('BETA_CAPACITY_REACHED'))return json({error:'Les places d’essai gratuit sont momentanément complètes. Choisissez une offre pour continuer, ou écrivez-nous à prospectos.contact@gmail.com.',code:'BETA_CAPACITY_REACHED'},409);
+  if(rpcError.message?.includes('BETA_CAPACITY_REACHED'))return json({error:'Les places d’essai gratuit sont momentanément complètes. Choisissez une offre pour continuer, ou écrivez-nous à contact@prospectos.fr.',code:'BETA_CAPACITY_REACHED'},409);
   throw Error('DATABASE_REQUEST_FAILED');
  }
  return json(data,201);
@@ -443,7 +518,7 @@ async function handler(request:Request,context:{params:Promise<{path:string[]}>}
  return json(data);
  }
  if(resource==='export'&&request.method==='GET'){
- const pid=new URL(request.url).searchParams.get('project_id');const project=await checked(db.from('projects').select('*,icps(*)').eq('id',pid??'').single());const rows=await checked(db.from('prospects').select('*,evidence(*)').eq('project_id',project.id));
+ const pid=new URL(request.url).searchParams.get('project_id');const project=await checked(db.from('projects').select('*,icps(*)').eq('id',pid??'').single());const rows=(await readAllPages((from,to)=>db.from('prospects').select('*,evidence(*)').eq('project_id',project.id).order('created_at').order('id').range(from,to))).rows;
  return new Response(csv([['Nom','Ville','Statut','Score','Couverture','URL'],...rows.map((p:any)=>{const s=scoreProspect(projectCriteria(project.icps),p.evidence);return [p.name,p.city,p.status,s.score,s.coverage,p.website]})]),{headers:{'content-type':'text/csv; charset=utf-8','content-disposition':'attachment; filename="prospectos.csv"','Cache-Control':'no-store'}});
  }
  return json({error:'Route ou action non disponible'},404);

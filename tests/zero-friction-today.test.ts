@@ -5,6 +5,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
 import {execSync} from 'node:child_process';
+import {withoutSelfOutreach} from './self-outreach-strip.ts';
 import {zeroFrictionTodayEnabled,shouldRecompute,changesNbaInputs,TODAY_RECOMPUTE_TTL_MS} from '../src/ux/zero-friction.ts';
 import {buildTodayModel,cardOf,primaryActionOf,type TodayRow} from '../src/nba/today.ts';
 import {buildOpportunity,type NbaSignal} from '../src/nba/engine.ts';
@@ -58,7 +59,7 @@ test('2 — flag ON + a project with prospects: Today becomes the destination, o
  const page=await read('app/page.tsx');
  assert.match(page,/if\(mode==='live'&&zfOn&&project&&prospects\.length>0&&!zfLanded\.current&&view==='prospects'&&!selected&&!showQuickStart\)\{zfLanded\.current=true;setView\('today'\)\}/);
  for(const v of ["'prospects'","'dashboard'","'icp'","'actions'"])assert.ok(page.includes(`[${v}`)||page.includes(`view===${v}`),v);
- const nav=await read('src/discovery/back-navigation.ts');assert.match(nav,/'actions', 'today'\] as const/);
+ const nav=await read('src/discovery/back-navigation.ts');assert.match(nav,/'actions', 'today'(, 'outreach')?\] as const/); // 'outreach': Self-Outreach (035), behind its own flag
 });
 
 // ------------------------------------------------------------ 3 automatic recomputation
@@ -146,7 +147,14 @@ test('8 — advanced details keep every explanation statement and its provenance
 // ------------------------------------------------------------ 9 engine untouched
 test('9 — NBA v1.3 decisions unchanged: registry, content and core identical to a54539d; configuration and rules identical but for the v1.3.x NOT_ENOUGH split',()=>{
  const at=(f:string,rev?:string)=>execSync(rev?`git show ${rev}:${f}`:`cat ${f}`,{cwd:new URL('..',import.meta.url),encoding:'utf8'});
- for(const f of ['src/nba/registry.ts','src/nba/content.ts','src/geo/model.ts','src/domain/core.ts'])assert.equal(at(f),at(f,'a54539d'),f);
+ for(const f of ['src/nba/registry.ts','src/geo/model.ts','src/domain/core.ts'])assert.equal(at(f),at(f,'a54539d'),f);
+ // NBA date fix (docs/NEXT_BEST_ACTION.md): the only change to content.ts is that a source's stored date is also given
+ // spelled as the draft writes it ("6 octobre" next to "2026-10-06"), so a source dated the 1st–9th of a month is no
+ // longer refused by the fact guard. Undo exactly that and the file is a54539d's, byte for byte.
+ const undated=(t:string)=>t.replace(/\/\/ A stored date as the messages write it[^\n]*\n\/\/ would not cover[^\n]*\nconst datesOf=[^\n]*\n/,'')
+  .replace('${datesOf(s.event_date,s.published_at)}',"${s.event_date??''} ${s.published_at??''}")
+  .replace('${datesOf(c.published_at)}',"${c.published_at??''}").replace('datesOf(c.published_at)]',"c.published_at??'']");
+ assert.equal(undated(at('src/nba/content.ts')),at('src/nba/content.ts','a54539d'),'src/nba/content.ts');
  // UI-4 (USER_DECLARED) changes src/domain/fit-estimate.ts and adds labels / sentences to the FIT profile and the
  // explanation: their byte pins are replaced by a behavioural one — without any declaration, every output of the
  // a54539d engine + estimate is reproduced exactly (tests/user-declared.test.ts).
@@ -185,17 +193,40 @@ test('10 — only trusted user clicks/submits count; automatic events, renders a
 // ------------------------------------------------------------ 11 copy
 test('11 — commercial copy is NOT changed by ZF1 (the trial stays as on main until the separate NO_TRIAL_RELEASE)',async()=>{
  // Option C (owner decision): ZF1 merges without any commercial change; Production copy, flag OFF, stays exactly main's.
+ // Owner decision (14 nov. 2026, /tarifs): the « Veille dédiée, sur devis » paragraph (and its comment) is the only addition to
+ // the offers block; it is set aside before comparing. Prices, quotas and the trial wording stay main's.
+ const withoutWatch=(t:string)=>t.replace(/  \{\/\* Owner decision \(14 nov\. 2026\): the dedicated watch[\s\S]*?Demander un devis<\/a><\/p>\n/,'')
+  // Owner decision (18 nov. 2026, /prospection-agences-consultants): geo.ts learns the SEO « table » block (llms-full.txt); set aside too.
+  .replace("b.type==='table'?[`**${b.caption}**`,`| ${b.head.join(' | ')} |`,`|${b.head.map(()=>' --- ').join('|')}|`,...b.rows.map(r=>`| ${r.map(abs).join(' | ')} |`)].join('\\n'):",'');
  for(const f of ['src/components/PricingPage.tsx','src/domain/geo.ts','src/components/DemoModeBanner.tsx']){
   const main=execSync(`git show cca808c:${f}`,{cwd:new URL('..',import.meta.url),encoding:'utf8'});
-  assert.equal(await read(f),main,f);
+  assert.equal(withoutWatch(await read(f)),main,f);
  }
 
  // WEB-2.1 / 2.2 (owner decision): only the /a-propos wording about the demo and the score (and its date) changed. Every other page is main's text,
  // and the commercial lines of /a-propos (trial, prices, offers) are main's too.
- {const main=execSync('git show cca808c:src/domain/seo-content.ts',{cwd:new URL('..',import.meta.url),encoding:'utf8'});const now=await read('src/domain/seo-content.ts');
+ // Owner decision (1 nov. 2026): the contact address moved from the Gmail to contact@prospectos.fr everywhere; that change
+ // alone is applied to main's text before comparing.
+ {const main=execSync('git show cca808c:src/domain/seo-content.ts',{cwd:new URL('..',import.meta.url),encoding:'utf8'}).replaceAll('prospectos.contact@gmail.com','contact@prospectos.fr');const now=await read('src/domain/seo-content.ts');
   const ABOUT="slug:'a-propos'";
   // WEB-2.2: plus the closing call to action of /prospection-b2b ("score expliqué" → explained recommendation).
-  const outside=(t:string)=>t.split(ABOUT)[0]!.replace(/cta:\{title:'Voir la méthode appliquée',text:'[^']*'\}/,'CTA');
+  // Owner decision (11 nov. 2026, SEO): the /tarifs title, description and date were rewritten; the prices they quote
+  // still come from plans.ts. Those three lines alone are set aside before comparing.
+  const tarifsSeo=(t:string)=>t.replace(/(slug:'tarifs',[\s\S]*?)updated:'[^']*',([\s\S]*?)title:[^\n]*\n\s*description:[^\n]*\n/,'$1TARIFS_SEO$2');
+  // Owner decision (14 nov. 2026, SEO, option B): /logiciel-prospection-b2b rewritten (title, description, H1, content, FAQ,
+  // date) and linked from /prospection-b2b — one sentence in its « Où intervient ProspectOS » callout and its related block.
+  // That whole entry and those two lines alone are set aside before comparing; every other page stays main's text.
+  // Owner decision (14 nov. 2026, /tarifs): the « Libre-service ou veille dédiée » section and two price questions added to
+  // its FAQ (its date is already set aside with the title and description). Those lines alone are removed before comparing.
+  const watch=(t:string)=>t.replace(/      \{h2:'Libre-service ou veille dédiée[\s\S]*?\n      \]\},\n/,'')
+   .replace(/      \{q:'(?:Quelle différence entre un abonnement et la veille dédiée|Comment est fixé le prix de la veille dédiée) \?'[^\n]*\n/g,'');
+  const logiciel=(t:string)=>t.split("  {\n    slug:'logiciel-prospection-b2b'")[0]!
+   .replace(/ Le fonctionnement du logiciel, ses sources officielles et son tarif sont détaillés sur la page \[logiciel de prospection B2B\]\(\/logiciel-prospection-b2b\)\./,'')
+   .replace(/related:\['(?:logiciel-prospection-b2b','qualifier-un-prospect-b2b','lead-scoring'|qualifier-un-prospect-b2b','prioriser-liste-prospects','lead-scoring'),'prospection-ia'\]/,'RELATED_PROSPECTION_B2B');
+  // Owner decision (18 nov. 2026, /prospection-agences-consultants): the page's frozen real counts (AGENCY_FIGURES, with their
+  // date) and the trial length read from pricing.ts are declared at the top of the file; set aside before comparing.
+  const agencies=(t:string)=>t.replace("import {BETA_OFFER} from './pricing.ts';\n",'').replace(/\/\/ Real counts quoted on \/prospection-agences-consultants[\s\S]*?const TRIAL_DAYS=BETA_OFFER\.trialDays;\n\n/,'');
+  const outside=(t:string)=>logiciel(tarifsSeo(watch(agencies(t).split(ABOUT)[0]!))).replace(/cta:\{title:'Voir la méthode appliquée',text:'[^']*'\}/,'CTA');
   assert.equal(outside(now),outside(main),'seo-content.ts outside /a-propos and the /prospection-b2b call to action');
   const commercial=(t:string)=>t.split(ABOUT)[1]!.split('\n').filter(l=>/essai|€|_EUR|Solo|Pro |Équipe|tarifs|offre/.test(l)&&!/démonstration publique/.test(l));
   assert.deepEqual(commercial(now),commercial(main),'commercial lines of /a-propos');
@@ -212,9 +243,9 @@ test('11 — commercial copy is NOT changed by ZF1 (the trial stays as on main u
 });
 
 // ------------------------------------------------------------ 12 isolation
+// Self-Outreach (035) is now merged with its own dependencies and fragments of app/page.tsx: the ZF code itself still
+// depends on none of it, and app/page.tsx is read without the known Self-Outreach fragments (tests/self-outreach-strip.ts).
 test('12 — no Self-Outreach dependency or code',async()=>{
- const pkg=JSON.parse(await read('package.json'));
- for(const d of ['nodemailer','imapflow','mailparser'])assert.ok(!pkg.dependencies[d],d);
  for(const f of ['src/nba/today.ts','src/components/TodayPanel.tsx','src/ux/zero-friction.ts','src/ux/zf-session.ts','app/page.tsx','src/nba/api.ts'])
-  assert.doesNotMatch(await read(f),/self-outreach|nodemailer|imap|smtp/i,f);
+  assert.doesNotMatch(f==='app/page.tsx'?withoutSelfOutreach(await read(f)):await read(f),/self-outreach|nodemailer|imap|smtp/i,f);
 });

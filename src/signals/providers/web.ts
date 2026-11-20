@@ -53,7 +53,7 @@ export class WebSearchSignalProvider implements SignalProvider{
     const title=strip(r.title).slice(0,300);const snippet=strip(r.description??'').slice(0,500);
     const text=`${title} ${snippet}`;
     const risk=homonymRisk(target,text,r.url);if(risk){this.reject(risk);continue}
-    const type=classifySignal(text);if(!type){this.reject('NO_SIGNAL_TYPE');continue}
+    const type=classifySignal(text,target.name);if(!type){this.reject('NO_SIGNAL_TYPE');continue}
     const day=parseDay(r.page_age??null,now)??parseDay(r.age??null,now);
     out.push({signal_type:type,title,excerpt:snippet||title,source_url:r.url,source_type:'search_snippet',
      published_at:day?`${day}T00:00:00.000Z`:null,event_date:null,metadata:{search:'brave'}});

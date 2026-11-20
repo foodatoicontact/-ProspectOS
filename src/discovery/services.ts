@@ -7,6 +7,7 @@ import {diagnoseDiscoveryFailure,type DiscoveryStage} from './failure-diagnostic
 import {mergeSameEntityCandidates,sameCanonicalOrganization} from './admissibility.ts';
 import {pageIntentsFor,internalLinkScore} from './strategies/icp-intents.ts';
 import {officialAddressIn,addressCity} from './strategies/address.ts';
+import {webPresenceObservations} from './strategies/web-presence.ts';
 import {eligibleNoveltyCounts,isEligibleCandidate,noveltyRates,type ProjectMemory,type Novelty} from './novelty.ts';
 import {ProjectNovelty} from './novelty-engine.ts';
 import {reviewPriority} from './review-priority.ts';
@@ -48,7 +49,7 @@ export function nothingAnswered(report:ProviderSearchReport|undefined):boolean{
 // Run metrics describing the search step: counts, codes and the market only — never a query or a URL.
 function searchMetrics(report:ProviderSearchReport|undefined):Record<string,string|number|null>{
  return report?{search_queries_planned:report.queries_planned,search_requests:report.requests_sent,search_requests_failed:report.requests_failed,search_failure_codes:report.failure_codes.join(',')||null,search_country:report.country,search_country_reason:report.country_reason,
-  ...(report.requests_retried?{search_requests_retried:report.requests_retried}:{}),...(report.failed_groups?.length?{search_failed_groups:report.failed_groups.join(',')}:{}),
+  ...(report.requests_retried?{search_requests_retried:report.requests_retried}:{}),...(typeof report.source_total==='number'?{search_source_total:report.source_total}:{}),...(report.failed_groups?.length?{search_failed_groups:report.failed_groups.join(',')}:{}),
   ...(report.registry?registryMetrics(report.registry):{}),
   ...(report.reused_from?{reused_from_run_id:report.reused_from.run_id,reused_from_email:report.reused_from.by_email,reused_from_started_at:report.reused_from.started_at}:{})}:{};
 }
@@ -67,6 +68,10 @@ function deepSearchMetrics(deep:SearchUntilNewResult<Candidate>,desired:number,u
  return {provider_calls:deep.providerCalls,search_passes:deep.passes.length,provider_results_total:deep.passes.reduce((n,p)=>n+p.results,0),unique_candidates_total:unique,desired_new_results:desired,new_results_found:finalNew,stop_reason:deep.stopReason,
   pass_durations_ms:deep.passes.map(p=>p.duration_ms),pass_results:deep.passes.map(p=>p.results),pass_new_results:deep.passes.map((p,i)=>p.new_after-(i?deep.passes[i-1]!.new_after:0)),pass_kinds:deep.passes.map(p=>p.query_kind)};
 }
+// A register or BODACC result carries its SIREN (raw_metadata.registry.siren, raw_metadata.siren): the strongest identity.
+function withRegistrySiren<T extends {raw_metadata:Record<string,any>}>(c:T):T&{siren:string|null}{
+ const s=c.raw_metadata?.registry?.siren??c.raw_metadata?.siren;return {...c,siren:typeof s==='string'&&/^\d{9}$/.test(s)?s:null};
+}
 export class DiscoveryService {
  repo:DiscoveryRepository;provider:DiscoveryProvider;dedupe:DeduplicationService;log:SafeLogger;meter?:SearchMeter;
  constructor(repo:DiscoveryRepository,provider:DiscoveryProvider,log:SafeLogger=noop,meter?:SearchMeter){this.repo=repo;this.provider=provider;this.dedupe=new DeduplicationService();this.log=log;this.meter=meter}
@@ -82,7 +87,7 @@ export class DiscoveryService {
  // What this project already saw (its prospects, its earlier runs): read once, matched in memory. A memory
  // read failure never fails the search — the results are simply not labelled.
  let novelty:ProjectNovelty|null=null,memoryTruncated=false,memory:ProjectMemory|null=null;
- if(this.repo.memory){try{const m=await this.repo.memory(input.project_id,run.id);memoryTruncated=!!m.truncated;memory={...m,prospects:known.filter((k):k is typeof k&{id:string}=>!!k.id).map(k=>({id:k.id,name:k.name,website:k.website,phone:k.phone,city:k.city}))};novelty=new ProjectNovelty(memory,input.location)}catch{novelty=null;memory=null}}
+ if(this.repo.memory){try{const m=await this.repo.memory(input.project_id,run.id);memoryTruncated=!!m.truncated;memory={...m,prospects:known.filter((k):k is typeof k&{id:string}=>!!k.id).map(k=>({id:k.id,name:k.name,website:k.website,phone:k.phone,city:k.city,siren:k.siren??null}))};novelty=new ProjectNovelty(memory,input.location)}catch{novelty=null;memory=null}}
  const mode=input.optional_filters.search_mode??'all';
  stage='provider_search';let normalizationRejected=0;
  const normalizeAll=(raws:unknown[])=>{const out:Candidate[]=[];for(const raw of raws.slice(0,input.max_results)){stage='normalize';
@@ -121,13 +126,13 @@ export class DiscoveryService {
  // several sources (admissibility.ts) — never one prospect per page.
  const {kept,merged:entitiesMerged}=mergeSameEntityCandidates(normalized);
  for(const candidate of kept){
- stage='dedupe';const dedupe=this.dedupe.match(candidate,known);
+ stage='dedupe';const dedupe=this.dedupe.match(withRegistrySiren(candidate),known);
  // Resolution first, project dedup second: a resolved organization already in the project by name is
  // flagged for review (never silently merged, never dropped) even without a shared website/phone.
- if(dedupe.status==='unique'&&candidate.raw_metadata.source_class==='COMPANY_CANDIDATE'){const same=known.find(k=>sameCanonicalOrganization(k.name,candidate.name));if(same){dedupe.status='merge_review_required';dedupe.duplicate_of=same.id??null;dedupe.reason='Organisation déjà présente dans ce projet (même nom canonique) : revue nécessaire'}}const within=this.dedupe.match(candidate,seen);if(dedupe.status==='unique'&&within.status!=='unique'){dedupe.status='merge_review_required';dedupe.reason='Résultat similaire dans cette recherche : revue nécessaire'}const labelled=novelty?{...candidate,raw_metadata:{...candidate.raw_metadata,novelty:novelty.classify(candidate,{duplicateOf:dedupe.status==='duplicate_candidate'?dedupe.duplicate_of:null})}}:candidate;
+ if(dedupe.status==='unique'&&candidate.raw_metadata.source_class==='COMPANY_CANDIDATE'){const same=known.find(k=>sameCanonicalOrganization(k.name,candidate.name));if(same){dedupe.status='merge_review_required';dedupe.duplicate_of=same.id??null;dedupe.reason='Organisation déjà présente dans ce projet (même nom canonique) : revue nécessaire'}}const within=this.dedupe.match(withRegistrySiren(candidate),seen);if(dedupe.status==='unique'&&within.status!=='unique'){dedupe.status='merge_review_required';dedupe.reason='Résultat similaire dans cette recherche : revue nécessaire'}const labelled=novelty?{...candidate,raw_metadata:{...candidate.raw_metadata,novelty:novelty.classify(candidate,{duplicateOf:dedupe.status==='duplicate_candidate'?dedupe.duplicate_of:null})}}:candidate;
  // Review priority (review-priority.ts): which candidate to look at first, computed after the in-run merge
  // (several concordant sources count). Stored for traceability only — never an evidence status, never a score.
- const prioritized={...labelled,raw_metadata:{...labelled.raw_metadata,review_priority:reviewPriority(labelled.raw_metadata,labelled.website)}};candidates.push({candidate:prioritized,dedupe});seen.push(candidate)}
+ const prioritized={...labelled,raw_metadata:{...labelled.raw_metadata,review_priority:reviewPriority(labelled.raw_metadata,labelled.website)}};candidates.push({candidate:prioritized,dedupe});seen.push(withRegistrySiren(candidate))}
  stage='save';const results=await this.repo.saveResults(run,candidates);const counts=novelty?eligibleNoveltyCounts(candidates,c=>c.candidate.raw_metadata.source_class,c=>c.candidate.raw_metadata.novelty as Novelty,entitiesMerged+deepMerged):null;const metrics={provider:this.provider.id,duration_ms:Date.now()-start,...searchMetrics(search),results:results.length,normalization_rejected:normalizationRejected,entities_merged:entitiesMerged+deepMerged,ai_tokens:0,ai_cost_estimate:0,search_mode:mode,...(fallback?{search_mode_fallback:fallback}:{}),...(deep?{...deepSearchMetrics(deep,desired,uniqueTotal,counts?.new_results??0),
   // Every request sent, split by purpose: PRIMARY_SEARCH passes and the SECONDARY_RESOLUTION request (≤ 3 in all).
   provider_calls:deep.providerCalls+(secondary.secondary_requests??0),primary_calls:deep.providerCalls,secondary_resolution_calls:secondary.secondary_requests??0,...(deep.lastCallReserved?{secondary_call_reserved:1}:{})}:{}),...secondary,...(counts?{...counts,...noveltyRates(counts)}:{novelty_unavailable:1}),...(memoryTruncated?{novelty_memory_truncated:1}:{})};stage='finish';await this.repo.finish(run.id,results.length,metrics);this.log(Object.fromEntries(Object.entries(metrics).map(([k,v])=>[k,Array.isArray(v)?v.join(','):v])) as Record<string,string|number|null>);return {...run,status:'completed',provider_mode:this.provider.mode,results,result_count:results.length};
@@ -214,10 +219,13 @@ export class CompanyAnalysisService {
  // A weak proposal (a menu heading such as "Tarifs & planning") does not make the page behind it useless.
  const covered=new Set(firstObservations.filter(o=>o.criterion&&o.value===true&&o.confidence>=COVERED_CONFIDENCE).map(o=>o.criterion!));
  let failedPages=0;for(const url of selectInternalPages([...links].map(([url,text])=>({url,text})),criteria,covered)){try{pages.push(await this.fetchPage(url))}catch{failedPages++}}
- const observations=prioritizeObservations([...firstObservations,...pages.slice(1).flatMap(item=>extractor.extract(item.html,item.url,criteria,sourceType))].map(o=>ObservationSchema.parse(o)));const proposed=new EvidenceProposalService().propose(observations,criteria);const saved=await this.repo.saveObservations(prospectId,observations);
+ // The web presence diagnostic (strategies/web-presence.ts) reads the pages already fetched — no extra request —
+ // and only on the organization's own site: context notes after the ICP's own observations, never a proposal.
+ const presence=sourceType==='official_website'?webPresenceObservations(pages,sourceType):[];
+ const observations=prioritizeObservations([...firstObservations,...pages.slice(1).flatMap(item=>extractor.extract(item.html,item.url,criteria,sourceType)),...presence].map(o=>ObservationSchema.parse(o)));const proposed=new EvidenceProposalService().propose(observations,criteria);const saved=await this.repo.saveObservations(prospectId,observations);
  // The official address, read on the authorized site itself: reported to the prospect card while its city is empty.
  const address=sourceType==='official_website'?observations.map(o=>o.observation_type==='OFFICIAL_ADDRESS'?officialAddressIn([o.source_excerpt]):null).find(Boolean):null;
- let cityFilled=0;if(address&&this.repo.fillProspectCity){try{await this.repo.fillProspectCity(prospectId,addressCity(address));cityFilled=1}catch{/* The observation is saved; the card keeps "à confirmer". */}}this.log({provider:'http_html',duration_ms:Date.now()-start,pages:pages.length,failed_pages:failedPages,proposed_evidence:proposed.length,official_address:address?1:0,city_filled:cityFilled,ai_tokens:0,ai_cost_estimate:0});return {observations:saved,pages_analyzed:pages.length,failed_pages:failedPages,proposals:proposed.length,ai_tokens:0,ai_cost_estimate:0};
+ let cityFilled=0;if(address&&this.repo.fillProspectCity){try{await this.repo.fillProspectCity(prospectId,addressCity(address));cityFilled=1}catch{/* The observation is saved; the card keeps "à confirmer". */}}this.log({provider:'http_html',duration_ms:Date.now()-start,pages:pages.length,failed_pages:failedPages,proposed_evidence:proposed.length,official_address:address?1:0,city_filled:cityFilled,web_presence:presence.length,ai_tokens:0,ai_cost_estimate:0});return {observations:saved,pages_analyzed:pages.length,failed_pages:failedPages,proposals:proposed.length,ai_tokens:0,ai_cost_estimate:0};
  // The original cause (never sent to the client — the route always returns the generic mapped
  // message) is logged here so a real failure stays diagnosable from server logs alone.
  // Each failure gets a precise code (analysisFailureCode) so the user knows WHY — never an address, a host or

@@ -74,3 +74,24 @@ test('SIREN only from the register’s own accepted result; BODACC on unless exp
  assert.equal(sirenOf([{provider:'registry',raw_payload:{siren:'89319601'}}]),null);
  assert.equal(bodaccEnabled({}),true);assert.equal(bodaccEnabled({SIGNALS_BODACC_ENABLED:'false'}),false);
 });
+
+// Owner request (2026-11-20): changes of executive are read where the BODACC writes them — listepersonnes.personne.administration —
+// since the descriptif only says « modification survenue sur l'administration » (40 of 40 real notices of the 31 were missed).
+const lp=(administration:string,typePersonne='pm')=>JSON.stringify({personne:{typePersonne,denomination:'KERLAN',administration,adresseSiegeSocial:{ville:'Rennes'}}});
+const adminMod=JSON.stringify({descriptif:"modification survenue sur l'administration"});
+test('executive change: read in listepersonnes.administration, role and name only, auditors and addresses dropped',()=>{
+ const c=classifyAnnouncement(rec({modificationsgenerales:adminMod,listepersonnes:lp('Gérant partant : DURAND Marc ; nomination du Gérant : LEROY Anne ; nomination du Commissaire aux comptes titulaire : AUDIT OUEST')})) as any;
+ assert.equal(c.type,'leadership_change');
+ assert.equal(c.detail,"modification survenue sur l'administration — Gérant partant : DURAND Marc ; nomination du Gérant : LEROY Anne");
+ const rep=classifyAnnouncement(rec({modificationsgenerales:adminMod,listepersonnes:lp('nomination du Président : HOLDING KER représenté par LEROY Anne : 12 rue des Lices 35000 Rennes')})) as any;
+ assert.equal(rep.detail,"modification survenue sur l'administration — nomination du Président : HOLDING KER",'no address after « représenté par »');
+ assert.doesNotMatch(rep.detail,/Lices|35000/);
+});
+test('executive change: not for auditors only, a natural person, a dissolution or a move to another registry',()=>{
+ assert.deepEqual(classifyAnnouncement(rec({modificationsgenerales:adminMod,listepersonnes:lp('nomination du Commissaire aux comptes titulaire : AUDIT OUEST')})),{reject:'NOT_A_SIGNAL'});
+ assert.deepEqual(classifyAnnouncement(rec({modificationsgenerales:adminMod,listepersonnes:lp('nomination du Gérant : LEROY Anne','pp')})),{reject:'NOT_A_SIGNAL'});
+ assert.deepEqual(classifyAnnouncement(rec({modificationsgenerales:JSON.stringify({descriptif:"Cessation d'activité et dissolution de la société"}),listepersonnes:lp('nomination du Liquidateur : LEROY Anne')})),{reject:'NOT_A_SIGNAL'});
+ const moved="Transfert du siège hors ressort d'une personne morale par voie modificative, modification survenue sur l'adresse du siège et l'administration";
+ assert.equal((classifyAnnouncement(rec({modificationsgenerales:JSON.stringify({descriptif:moved}),listepersonnes:lp('nomination du Gérant : LEROY Anne')})) as any).type,'new_site','the new registry lists every executive again');
+ assert.equal((classifyAnnouncement(rec({modificationsgenerales:JSON.stringify({descriptif:moved}),listepersonnes:lp('Gérant partant : DURAND Marc ; nomination du Gérant : LEROY Anne')})) as any).type,'leadership_change','a departure is a change wherever the company goes');
+});

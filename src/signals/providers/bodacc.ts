@@ -24,6 +24,7 @@ const Record_=z.object({
  commercant:z.string().optional(),ville:z.string().optional(),
  registre:z.union([z.array(z.string()),z.string()]).optional(),
  modificationsgenerales:z.unknown().optional(),listeetablissements:z.unknown().optional(),acte:z.unknown().optional(),
+ listepersonnes:z.unknown().optional(),
  url_complete:z.string().optional(),
 }).passthrough();
 type Rec=z.infer<typeof Record_>;
@@ -42,6 +43,19 @@ export function sirenMatches(rec:Rec,siren:string):boolean{
  const list=Array.isArray(rec.registre)?rec.registre:rec.registre?[rec.registre]:[];
  return list.some(r=>digits(r)===siren);
 }
+// Who runs the company, as the registry wrote it in listepersonnes.personne.administration — « Gérant partant : X ;
+// nomination du Gérant : Y » — for a legal person only (a natural person's entry also carries a home address, never read).
+// Kept: each executive's role and name. Dropped: the statutory auditors (not executives) and, after « représenté par », the
+// representative's address. The descriptif only says « modification survenue sur l'administration »: until 20 nov. 2026 this
+// field was never read, so no change of executive was ever found (40 of 40 real notices of the Haute-Garonne missed).
+export function executiveChanges(v:unknown):string{
+ const x=json(v) as {personne?:unknown}|null;const list=x&&typeof x==='object'?[x.personne].flat():[];
+ const out:string[]=[];
+ for(const raw of list){const p=json(raw) as Record<string,unknown>|null;if(!p||typeof p!=='object'||p.typePersonne!=='pm'||typeof p.administration!=='string')continue;
+  for(const e of p.administration.split(';')){const t=e.replace(/\s+/g,' ').replace(/\s+repr[ée]sent[ée]e? par\b.*$/i,'').trim();
+   if(t&&!/commissaire aux comptes/i.test(t))out.push(t)}}
+ return out.join(' ; ');
+}
 const COLLECTIVE=/proc[eé]dures? collectives?|redressement|liquidation|sauvegarde|conciliation|r[eé]tablissement professionnel/i;
 // The family of the announcement → a signal type, or why it is not one.
 export function classifyAnnouncement(rec:Rec):{type:SignalType;detail:string}|{reject:'COLLECTIVE_PROCEDURE'|'NOT_A_SIGNAL'|'CORRECTION'}{
@@ -55,6 +69,9 @@ export function classifyAnnouncement(rec:Rec):{type:SignalType;detail:string}|{r
  if(/vente|cession/.test(family))return {type:'acquisition',detail};
  if(/creation|immatriculation/.test(family))return {type:'new_site',detail};
  if(/modification/.test(family)){
+  const people=executiveChanges(rec.listepersonnes),moved=/transfert du siege hors ressort/.test(d);
+  // A move to another registry lists every executive again as « nomination »: only a departure (« partant ») is a change there.
+  if(people&&((/\badministration\b/.test(d)&&!moved)||/\bpartant/.test(fold(people))))return {type:'leadership_change',detail:[detail,people].filter(Boolean).join(' — ')};
   if(/\b(dirigeant|gerant|gerance|president|directeur general|administrateur|nomination|representant legal)/.test(d))return {type:'leadership_change',detail};
   if(/transfert (du|de) siege|nouvelle adresse du siege|siege social transfere|nouveau siege|adresse du siege/.test(d))return {type:'new_site',detail};
   if(/augmentation (du|de) capital/.test(d))return {type:'funding',detail};

@@ -43,10 +43,10 @@ export const EDITOR = {
  // activity formality itself is still pending INSEE/TCO processing — never invent a number, a greffe
  // city, or a new registration here.
  rcs: TO_CONFIRM,
- // The intracommunity VAT NUMBER (not the regime — see VAT_REGIME: franchise en base, confirmed). No number has
- // been provided or verified, so this stays an explicit "to confirm": never a fabricated number, and never
- // "non attribué" until the owner confirms that none has been assigned.
- vatStatus: TO_CONFIRM,
+ // The VAT line of the mentions légales (regime: VAT_REGIME, franchise en base, confirmed). Owner decision (25 nov. 2026,
+ // external audit): the statutory wording of the franchise, article 293 B of the CGI. No intracommunity VAT number is
+ // asserted — never a fabricated one.
+ vatStatus: 'TVA non applicable, article 293 B du CGI',
  address: '1 rue Edmond Haraucourt, 31100 Toulouse, France',
  phone: '06 35 15 10 66',
  // A dedicated public/legal/RGPD contact channel — deliberately distinct from the registered business
@@ -84,13 +84,19 @@ export const HOSTING = {
 // exists for Brave Ads but has not been verified to apply to the Brave Search API ProspectOS actually
 // uses), and never overstated into "no transfer is possible" merely because primary storage is in the EU
 // (see `supabase`).
+// Stripe — international transfers (external audit, 25 nov. 2026). Nothing is asserted until the owner has read Stripe's
+// DPA himself: STRIPE_SCC_CONFIRMED stays false, and the privacy policy keeps the « [À CONFIRMER] » line below. Set it to
+// true (and bump PRIVACY_VERSION) once checked: the policy then states STRIPE_TRANSFER_SCC, word for word.
+export const STRIPE_SCC_CONFIRMED: boolean = false;
+export const STRIPE_TRANSFER_SCC = 'Le contrat de traitement des données (DPA) de Stripe intègre les clauses contractuelles types adoptées par la Commission européenne, qui encadrent les transferts de données personnelles hors de l’Union européenne liés au paiement et à la gestion des abonnements.';
+
 export const TRANSFERS = {
  vercel: 'Le contrat de traitement des données (DPA) de Vercel prévoit des Clauses Contractuelles Types (CCT/SCC) européennes pour les transferts internationaux concernés par l’hébergement applicatif.',
  supabase: 'Le projet ProspectOS est configuré dans la région eu-west-1 (Irlande), qui détermine la localisation primaire des données selon la documentation Supabase. Ceci ne signifie pas qu’aucun traitement ou transfert hors UE ne peut jamais avoir lieu dans le cadre de l’exploitation du service ; le DPA Supabase intègre des Clauses Contractuelles Types pour les transferts internationaux applicables.',
  anthropic: 'Le contrat de traitement des données (DPA) d’Anthropic, incluant des Clauses Contractuelles Types, est intégré à ses Commercial Terms applicables à l’usage commercial de son API — utilisé uniquement pour les données décrites à la section 3 (texte d’offre que vous soumettez volontairement à l’analyse, et votre clé BYOK le cas échéant), jamais pour l’ensemble des données ProspectOS.',
  // Payment processing for paid subscriptions (Stripe Checkout, Customer Portal, invoices). Its own transfer mechanism
  // has not been verified for this bloc: stated as to confirm, never presumed.
- stripe: `${TO_CONFIRM} — le mécanisme contractuel de Stripe applicable aux transferts internationaux liés au paiement des abonnements reste à vérifier et n’est pas présumé.`,
+ stripe: STRIPE_SCC_CONFIRMED ? STRIPE_TRANSFER_SCC : `${TO_CONFIRM} — le mécanisme contractuel de Stripe applicable aux transferts internationaux liés au paiement des abonnements reste à vérifier et n’est pas présumé.`,
  braveSearch: `${TO_CONFIRM} — un mécanisme de transfert contractuel a été identifié pour Brave Ads, mais son applicabilité à l’API Brave Search effectivement utilisée par ProspectOS n’a pas été vérifiée et n’est pas présumée.`,
 };
 

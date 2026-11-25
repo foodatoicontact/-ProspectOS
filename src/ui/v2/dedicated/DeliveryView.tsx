@@ -51,7 +51,6 @@ const at=(iso:string)=>new Intl.DateTimeFormat('fr-FR',{day:'numeric',month:'sho
 
 export function LivraisonStyle(){
  return <>
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400&display=swap" precedence="default"/>
   <style href="pos-livraison" precedence="default">{scopedLivraisonCss('.pos-ui .pos-livraison')+EXTRA.replace(/\.pos-livraison/g,'.pos-ui .pos-livraison')}</style>
  </>;
 }

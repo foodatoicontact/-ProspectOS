@@ -75,7 +75,9 @@ test('freeze — legal text, SEO content, prices, quotas, trial, plans, i18n and
   // Owner decision (14 nov. 2026): ACTIVITY_FORMALITY.filedAt corrected to 13/11/2026, the date the INPI formality was signed.
   // Owner decision (18 nov. 2026, RGPD): PRIVACY_VERSION 2026-11-18 for the retention lines above; terms unchanged.
   // Owner decision (25 nov. 2026, RGPD): PRIVACY_VERSION 2026-11-25 for section 13 above; terms unchanged.
-  'src/domain/legal.ts':'da9e79a4dbc7ecd4313c4d3cd46fb607642854c66c633dc4c94d0b519ce03212',
+  // Owner decision (25 nov. 2026, external audit): EDITOR.vatStatus « TVA non applicable, article 293 B du CGI »; the Stripe
+  // transfer text prepared behind STRIPE_SCC_CONFIRMED (false: the policy is unchanged); RCS untouched.
+  'src/domain/legal.ts':'3a8ed60e43990a51d5e164320b2b29732cd7778cf7eebb6eca243cd89046b630',
   // WEB-2.1 / 2.2: the /a-propos entry (demo wording, recommendation instead of score, its date) and the /prospection-b2b
   // closing call to action only; every other page is main's text.
   // Owner decision (11 nov. 2026, SEO): the /tarifs and /a-propos titles, descriptions and dates rewritten.

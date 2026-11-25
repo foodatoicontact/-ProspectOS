@@ -1,15 +1,15 @@
 // Company-creation barometer: monthly counts of the creation notices published in the BODACC (Bulletin officiel des
 // annonces civiles et commerciales, DILA — Licence Ouverte 2.0) for every French department, region and the whole country.
 //  - Only TOTALS are ever published: never a name, an address or a registration number. The export asks for neither the
-//    trader's name nor the register number — except the reprises export, whose register number and postal code are read
-//    in memory to count a purchase announced twice once, then dropped; the activity text and the address are read in
+//    trader's name nor the register number — except the reprises export, whose register number, date, establishment and
+//    act are read in memory to tell a purchase and count a purchase announced twice once, then dropped; the activity text and the address are read in
 //    memory to count, then dropped.
 //  - A commune is shown only when it gathers at least MIN_COMMUNE_NOTICES notices, so no row points at one person.
 //  - The activity split is a deterministic keyword classification of the declared activity (first establishment), a
 //    closed table published on the page itself: it is labelled "indicative", never presented as an official NAF code.
 //  - One fixed host, bounded time and size, redirects refused. An unanswered or malformed answer is an error, never "0".
 import {DEPARTMENTS} from '../discovery/geo-fr.ts';
-import {purchaseOf,buyerSiren,postalCodeOf,purchaseKey} from './bodacc-purchase.ts';
+import {purchaseOf,buyerSiren,dedupePurchases} from './bodacc-purchase.ts';
 
 export const BODACC_DATASET='https://bodacc-datadila.opendatasoft.com/api/explore/v2.1/catalog/datasets/annonces-commerciales';
 export const BODACC_PUBLIC_PAGE='https://www.bodacc.fr/';
@@ -249,8 +249,8 @@ export function monthlySeries(rows:Record<string,unknown>[],from:string,to:strin
 // (src/domain/bodacc-purchase.ts, 25 nov. 2026): the category of the sale and the origin of the business. The category is
 // not a field the register can group on, so the month is exported and classified here. A purchase announced twice (the
 // « Achat… » notice, then the « Mise en activité… » of the company created for it) is counted once: same register number
-// and same postal code. Read in memory and dropped: the category, the origin, the register number and the postal code;
-// never the act's text, never a name — only totals are kept. Initial notices only: corrections and cancellations repeat a
+// within 30 days. Read in memory and dropped: the category, the origin, the act's text (fixed patterns only), the register
+// number and the date; never a name — only totals are kept. Initial notices only: corrections and cancellations repeat a
 // notice already counted.
 export {PURCHASE_CATEGORY} from './bodacc-purchase.ts';
 // The export of one month for all of France with the establishments' origin is ~9 MB (4 893 notices, 26 Oct.–24 Nov. 2026).
@@ -259,7 +259,7 @@ const MAX_PURCHASES_EXPORT_BYTES=24_000_000;
 export type Purchases={month:string;count:number;notices:number;byDepartment:Record<string,number>;query:string};
 export function purchasesExportUrl(codes:readonly string[]|null,month:string):string{
  const u=new URL(`${BODACC_DATASET}/exports/json`);
- u.searchParams.set('select','numerodepartement,registre,acte,listeetablissements');
+ u.searchParams.set('select','dateparution,numerodepartement,registre,acte,listeetablissements');
  u.searchParams.set('where',`${noticeWhere('vente',codes?`(${codes.map(deptScope).join(' or ')})`:'numerodepartement is not null',month,addMonths(month,1))} and typeavis="annonce"`);
  return u.href;
 }
@@ -270,11 +270,10 @@ export async function fetchPurchases(codes:readonly string[]|null,month:string,{
  const query=purchasesExportUrl(codes,month);
  const rows=await getBodaccJson(query,fetchImpl,{timeoutMs:EXPORT_TIMEOUT_MS,maxBytes:MAX_PURCHASES_EXPORT_BYTES});
  if(!Array.isArray(rows))throw new CreationsUnavailableError('MALFORMED');
- let count=0;const byDepartment:Record<string,number>={};const seen=new Set<string>();
- for(const r of rows as {acte?:unknown;listeetablissements?:unknown;registre?:unknown;numerodepartement?:unknown}[]){
-  if(!isPurchase(r?.acte,r?.listeetablissements))continue;
-  const key=purchaseKey(buyerSiren(r.registre),postalCodeOf(r.listeetablissements));
-  if(key){if(seen.has(key))continue;seen.add(key)}
+ let count=0;const byDepartment:Record<string,number>={};
+ type Row={dateparution?:unknown;acte?:unknown;listeetablissements?:unknown;registre?:unknown;numerodepartement?:unknown};
+ const bought=(rows as Row[]).filter(r=>isPurchase(r?.acte,r?.listeetablissements));
+ for(const r of dedupePurchases(bought,x=>buyerSiren(x.registre),x=>typeof x.dateparution==='string'?x.dateparution.slice(0,10):null)){
   count++;
   if(typeof r.numerodepartement==='string'&&DEPT.test(r.numerodepartement))byDepartment[r.numerodepartement]=(byDepartment[r.numerodepartement]??0)+1;
  }

@@ -40,6 +40,10 @@
     {
       "path": "/api/cron/partner-statements",
       "schedule": "47 6 * * *"
+    },
+    {
+      "path": "/api/cron/bodacc-quality",
+      "schedule": "53 7 * * 1"
     }
   ]
 }

@@ -106,7 +106,9 @@ test('route and schedule: GET only, only the Authorization header is read; daily
  // details, and the purges already written (signals, BODACC announcements, référentiel lists) finally scheduled.
  // 25 nov. 2026 (owner request): the partner statements job (migration 052) — the previous month's statement of every
  // partner, on the 1st; nothing runs unless NEXT_PUBLIC_PARTNERS_ENABLED (tests/partner-program.test.ts).
- assert.deepEqual(vercel.crons.map((c:any)=>c.path).sort(),['/api/cron/collect','/api/cron/dedicated-statements','/api/cron/enrich/1','/api/cron/enrich/2','/api/cron/enrich/3','/api/cron/morning-digest','/api/cron/partner-statements','/api/cron/retention','/api/cron/self-outreach','/api/cron/signals']);
+ // 25 nov. 2026 (owner decision): the weekly check of the BODACC sale sort (migration 054, src/collect/sale-quality.ts) —
+ // Mondays; counts per rule only, an alert when the register's wording seems to have changed.
+ assert.deepEqual(vercel.crons.map((c:any)=>c.path).sort(),['/api/cron/bodacc-quality','/api/cron/collect','/api/cron/dedicated-statements','/api/cron/enrich/1','/api/cron/enrich/2','/api/cron/enrich/3','/api/cron/morning-digest','/api/cron/partner-statements','/api/cron/retention','/api/cron/self-outreach','/api/cron/signals']);
  const src=await readFile(new URL('../src/signals/monitor.ts',import.meta.url),'utf8');
  assert.doesNotMatch(src,/linkedin|anthropic|openai/i);
 });

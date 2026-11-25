@@ -102,3 +102,15 @@ test('executive change: not for auditors only, a natural person, a dissolution o
  assert.equal((classifyAnnouncement(rec({modificationsgenerales:JSON.stringify({descriptif:moved}),listepersonnes:lp('nomination du Gérant : LEROY Anne')})) as any).type,'new_site','the new registry lists every executive again');
  assert.equal((classifyAnnouncement(rec({modificationsgenerales:JSON.stringify({descriptif:moved}),listepersonnes:lp('Gérant partant : DURAND Marc ; nomination du Gérant : LEROY Anne')})) as any).type,'leadership_change','a departure is a change wherever the company goes');
 });
+
+test('one buyer, one « rachat » signal within 30 days: the newest notice (owner decision, 25 nov. 2026)',async()=>{
+ const sale=(id:string,date:string,category:string)=>rec({id,dateparution:date,familleavis:'vente',familleavis_lib:'Ventes et cessions',modificationsgenerales:undefined,
+  url_complete:`https://www.bodacc.fr/pages/annonces-commerciales-detail/?q.id=id:${id}`,acte:JSON.stringify({vente:{categorieVente:category}}),
+  listeetablissements:JSON.stringify({etablissement:{origineFonds:'Achat au prix stipulé de 60000,00 euros.',adresse:{codePostal:'35000'}}})});
+ const {request}=api([sale('B3','2026-09-28',"Mise en activité d'une société suite à achat"),sale('B2','2026-09-10',"Achat d'un fonds par une personne morale (insertion provisoire)"),
+  sale('B1','2026-06-02',"Achat d'un fonds par une personne morale (insertion provisoire)")]);
+ const p=new BodaccSignalProvider(request);
+ const out=await p.searchSignals({target:T,types:[],now:NOW});
+ assert.deepEqual(out.map(s=>s.metadata?.bodacc_id),['B3','B1'],'B2 (18 days before B3) is the same purchase; B1, months earlier, is another one');
+ assert.equal(p.takeRejections().DUPLICATE_PURCHASE,1);
+});

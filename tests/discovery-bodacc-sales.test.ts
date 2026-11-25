@@ -16,12 +16,12 @@ const read=(p:string)=>readFileSync(new URL(`../${p}`,import.meta.url),'utf8');
 const NOW=new Date('2026-11-01T08:00:00Z');
 const PURCHASE="Achat d'un fonds par une personne morale (insertion provisoire)";
 // A notice as the BODACC API returns it (shape read on the live API, 1 nov. 2026); the act's text names the seller.
-function notice(o:{id?:string;category?:string;type?:string;siren?:string;registre?:string[];name?:string;activity?:string;enseigne?:string;url?:string;date?:string;people?:unknown}={}){
+function notice(o:{origin?:string;id?:string;category?:string;type?:string;siren?:string;registre?:string[];name?:string;activity?:string;enseigne?:string;url?:string;date?:string;people?:unknown}={}){
  const siren=o.siren??'106463037';
  return {id:o.id??'A20260208360',dateparution:o.date??'2026-10-29',url_complete:o.url??`https://www.bodacc.fr/pages/annonces-commerciales-detail/?q.id=id:${o.id??'A20260208360'}`,
   registre:o.registre??[siren,siren.replace(/(\d{3})(\d{3})(\d{3})/,'$1 $2 $3'),'832478069'],
   acte:JSON.stringify({descriptif:'Suivant acte… Monsieur Jean VENDEUR, demeurant 1 rue X, a cédé à NB2M…',vente:{categorieVente:o.category??PURCHASE}}),
-  listeetablissements:JSON.stringify({etablissement:{origineFonds:'Achat au prix stipulé de 70000,00 euros.',qualiteEtablissement:'Etablissement principal',activite:o.activity??"Exploitation d'un commerce de détail d'alimentation générale.",enseigne:o.enseigne??'VIVAL',adresse:{codePostal:'31230',ville:"L'Isle-en-Dodon"}}}),
+  listeetablissements:JSON.stringify({etablissement:{origineFonds:o.origin??'Achat au prix stipulé de 70000,00 euros.',qualiteEtablissement:'Etablissement principal',activite:o.activity??"Exploitation d'un commerce de détail d'alimentation générale.",enseigne:o.enseigne??'VIVAL',adresse:{codePostal:'31230',ville:"L'Isle-en-Dodon"}}}),
   listepersonnes:o.people!==undefined?o.people:JSON.stringify({personne:{typePersonne:o.type??'pm',numeroImmatriculation:{numeroIdentification:siren.replace(/(\d{3})(\d{3})(\d{3})/,'$1 $2 $3')},denomination:o.name??'NB2M'}})};
 }
 const input=(o:Partial<{query:string;location:string;categories:string[];max:number}>={})=>DiscoveryInputSchema.parse({project_id:'p',query:o.query??'reprises',location:o.location??'Haute-Garonne (31)',categories:o.categories??[],max_results:o.max??20,optional_filters:{provider:'bodacc_sales'}});
@@ -35,8 +35,15 @@ test('notice reading — a purchase by a legal entity is kept with its official 
 });
 
 test('notice reading — what is not a purchase, a sole trader, or an unproven identity is rejected with its reason',()=>{
- for(const c of ["Autre achat, apport, attribution (immatriculation d'une personne morale, uniquement)","Mise en activité d'une société suite à achat","Apport d'un établissement principal (immatriculation d'une personne morale, uniquement)"])
+ // Owner decision (25 nov. 2026): the shared rule (src/domain/bodacc-purchase.ts) — « Mise en activité suite à achat » is a
+ // purchase; the catch-all only when the origin of the business says « achat » (the fixture's origin does); an origin
+ // « acquis par apport » is a contribution whatever the category.
+ assert.ok('notice' in readSalesNotice(notice({category:"Mise en activité d'une société suite à achat"})));
+ assert.ok('notice' in readSalesNotice(notice({category:"Autre achat, apport, attribution (immatriculation d'une personne morale, uniquement)"})));
+ for(const c of ["Apport d'un établissement principal (immatriculation d'une personne morale, uniquement)","Attribution d'un fonds suite à donation avec délai d'oppositions (Immatriculation d'une personne physique)"])
   assert.deepEqual(readSalesNotice(notice({category:c})),{reject:'NOT_A_PURCHASE'},c);
+ assert.deepEqual(readSalesNotice(notice({origin:'Etablissement principal acquis par apport au montant évalué à 125417,00 euros.'})),{reject:'NOT_A_PURCHASE'});
+ assert.deepEqual(readSalesNotice(notice({origin:'Fonds acquis par achat dans le cadre de la liquidation judiciaire, ordonnance du juge-commissaire.'})),{reject:'FORCED_SALE'});
  assert.deepEqual(readSalesNotice(notice({type:'pp',category:"Achat d'un fonds par une personne physique (insertion provisoire)"})),{reject:'NOT_A_LEGAL_ENTITY'},'a person is never a candidate');
  assert.deepEqual(readSalesNotice(notice({registre:['999999999']})),{reject:'NO_BUYER_IDENTITY'},'the buyer RCS number must be one of the notice');
  assert.deepEqual(readSalesNotice(notice({people:null})),{reject:'NO_BUYER_IDENTITY'});
@@ -85,12 +92,15 @@ function bodacc(pages:unknown[][]|'down'|number){
 
 test('search — keeps purchases of the zone, one candidate per company (its latest notice), reports what it rejected',async()=>{
  const page=[notice({id:'A1',siren:'106463037'}),notice({id:'A2',siren:'106463037',date:'2026-10-01'}),notice({id:'A3',siren:'529417271',name:'AUDITIA GESTION',activity:"co-courtage d'assurance",enseigne:''}),
-  notice({id:'A4',category:'Mise en activité d\'une société suite à achat'}),notice({id:'A5',type:'pp'})];
+  // Owner decision (25 nov. 2026): « Mise en activité suite à achat » is a purchase — here the same company again, so a
+  // duplicate; a contribution (A6) is what is rejected as not a purchase.
+  notice({id:'A4',category:'Mise en activité d\'une société suite à achat'}),notice({id:'A5',type:'pp'}),
+  notice({id:'A6',category:'Apport d\'un établissement principal (immatriculation d\'une personne morale, uniquement)'})];
  const {fetchImpl,calls}=bodacc([page]);
  const p=new BodaccSalesProvider({fetch:fetchImpl,now:()=>NOW});
  const out=await p.searchCompanies(input());
  assert.deepEqual(out.map(n=>[n.id,n.siren]),[['A1','106463037'],['A3','529417271']]);
- assert.equal(p.lastSales!.duplicates,1);
+ assert.equal(p.lastSales!.duplicates,2);
  assert.deepEqual(p.lastSales!.rejected,{NOT_A_PURCHASE:1,NOT_A_LEGAL_ENTITY:1});
  assert.equal(p.lastSearch!.requests_answered,1);
  assert.equal(calls.length,1,'a short page is the last one');

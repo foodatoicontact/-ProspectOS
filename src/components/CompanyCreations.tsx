@@ -42,7 +42,7 @@ const METHOD_BLOCKS:SeoPage['sections'][number]['blocks']=[
  {type:'p',text:'Le BODACC ne couvre que le RCS : les sociétés et les commerçants, y compris les micro-entrepreneurs commerçants. Les artisans qui ne sont pas inscrits au RCS, les professions libérales et les associations n’y figurent pas. Ces chiffres ne sont donc pas le total officiel des créations d’entreprises publié par l’INSEE : ils mesurent les nouvelles entreprises commerciales, mois après mois.'},
  {type:'p',text:'La répartition par activité est indicative. Chaque annonce est classée automatiquement d’après les mots de l’activité déclarée de son premier établissement, dans la première catégorie qui correspond, ou dans « Autres activités ». Ce n’est pas le code NAF officiel, attribué plus tard par l’INSEE.'},
  {type:'ul',items:ACTIVITY_RULES.map(r=>`${r.label} : ${r.words}.`)},
- {type:'p',text:'Les reprises comptent les annonces initiales de la famille « Ventes et cessions » du BODACC dont la catégorie est l’achat d’un fonds ou d’un établissement (fonds de commerce, établissement principal ou secondaire, achat par le locataire-gérant). Les apports, fusions et attributions de la même famille ne sont pas comptés, ni la « mise en activité suite à achat », qui annonce une seconde fois le même achat. Une reprise peut toutefois donner lieu à plus d’une annonce : ce total mesure l’activité des cessions, ce n’est pas un nombre exact d’entreprises reprises.'},
+ {type:'p',text:'Les reprises comptent les rachats annoncés dans les annonces initiales de la famille « Ventes et cessions » du BODACC : l’achat d’un fonds ou d’un établissement (fonds de commerce, établissement principal ou secondaire, achat par le locataire-gérant), la mise en activité d’une société créée pour racheter un fonds, et les autres annonces dont l’origine du fonds est un achat. Les apports, fusions, donations et attributions ne sont pas comptés, ni les cessions ordonnées dans une procédure collective. Un rachat annoncé deux fois par la même société dans le même code postal n’est compté qu’une fois. Une annonce incomplète peut manquer : ce total mesure l’activité des cessions, ce n’est pas un nombre exact d’entreprises reprises.'},
  {type:'p',text:`Aucune entreprise n’est nommée ici : la page ne publie que des totaux. Une commune n’apparaît que si elle compte au moins ${MIN_COMMUNE_NOTICES} annonces dans le mois ; Paris, Lyon et Marseille sont détaillées par arrondissement d’après le code postal de l’annonce. Une société est comptée à l’adresse de son siège : les quartiers où se trouvent des sociétés de domiciliation (à Paris, le 2e et le 8e par exemple) en concentrent donc beaucoup. Les pages se mettent à jour seules chaque jour, et le mois affiché est le dernier mois complet.`},
 ];
 
@@ -72,7 +72,7 @@ function purchasesFaq(p:Purchases|null,where:string):SeoPage['faq']{
  if(!p)return [];
  const month=monthLabel(p.month);
  return [{q:`Combien de commerces ont été repris ${where} en ${month} ?`,
-  a:`${n(p.count)} annonces d’achat de fonds de commerce ou d’établissement ont été publiées au BODACC ${where} en ${month} (famille « Ventes et cessions », hors apports et fusions). Un repreneur reprend le plus souvent un commerce existant avec ses clients, mais doit revoir ses contrats, ses fournisseurs et ses outils : c’est un moment où il choisit de nouveaux prestataires.`}];
+  a:`${n(p.count)} rachats de fonds de commerce ou d’établissement ont été annoncés au BODACC ${where} en ${month} (famille « Ventes et cessions », hors apports, fusions et cessions judiciaires). Un repreneur reprend le plus souvent un commerce existant avec ses clients, mais doit revoir ses contrats, ses fournisseurs et ses outils : c’est un moment où il choisit de nouveaux prestataires.`}];
 }
 
 export function departmentSeoPage(d:DepartmentCreations):SeoPage{
@@ -311,7 +311,7 @@ function Kpis({total,month,previous,lastYear,trend}:{total:number;month:string;p
 // Absent (null) when the register did not answer: the tile is left out, never shown as zero.
 function PurchasesTile({p}:{p:Purchases|null}){
  if(!p)return null;
- return <div className="pos-creations__kpi"><dt>Reprises de fonds, {monthLabel(p.month)}</dt><dd>{n(p.count)}<small>achats de fonds ou d’établissement publiés</small></dd></div>;
+ return <div className="pos-creations__kpi"><dt>Reprises de fonds, {monthLabel(p.month)}</dt><dd>{n(p.count)}<small>rachats de fonds ou d’établissement annoncés</small></dd></div>;
 }
 
 const Source=({month,sales}:{month?:string;sales?:boolean})=><p className="pos-creations__source">Source : <a href={BODACC_PUBLIC_PAGE} rel="noopener">BODACC</a>, DILA, données ouvertes sous <a href={BODACC_LICENSE} rel="noopener">Licence Ouverte 2.0</a>.{month&&<> Annonces de{sales?<>s familles « Créations » et « Ventes et cessions »</>:<> la famille « Créations »</>} publiées en {monthLabel(month)}.</>} Totaux calculés par ProspectOS.</p>;

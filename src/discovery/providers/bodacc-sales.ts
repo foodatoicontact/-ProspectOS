@@ -4,9 +4,11 @@
 // public reason to be contacted — still a CANDIDATE that a person reviews, never evidence, never scored.
 //
 // What is kept, and only this:
-//  - initial notices (typeavis "annonce") whose sale category is the purchase of a business (« Achat d'un fonds… »,
-//    « Achat d'un établissement… ») — contributions, mergers, attributions and the second notice « mise en activité
-//    suite à achat » are not purchases, or not new ones;
+//  - initial notices (typeavis "annonce") that announce a purchase of a business by the shared rule
+//    (src/domain/bodacc-purchase.ts): « Achat d'un fonds / d'un établissement… », « Mise en activité d'une société suite
+//    à achat » (the company created to take a business over — added 25 nov. 2026) and the catch-all « Autre achat, apport,
+//    attribution » when the origin of the business says « achat »; contributions, mergers, attributions and sales ordered
+//    in a collective proceeding are not purchases. The same buyer twice is one candidate (its newest notice);
 //  - the BUYER only, and only a legal entity (typePersonne "pm") whose RCS number is one of the notice's registered
 //    numbers: a sole trader's notice names a person and is never kept. The seller is never read: the trader field
 //    (commercant) and the act's free text can name a private person, they are not even requested (commercant) or read
@@ -15,7 +17,7 @@
 // Fixed host, bounded size and time, redirects refused, the zone and the period are built here from validated codes.
 import {CandidateSchema,type Candidate,type DiscoveryInput,type DiscoveryProvider,type ProviderSearchReport} from '../types.ts';
 import {resolveRegistryZone,type RegistryZone} from '../registry/zone.ts';
-import {PURCHASE_CATEGORY} from '../../domain/company-creations.ts';
+import {purchaseOf,saleCategory} from '../../domain/bodacc-purchase.ts';
 
 export const BODACC_RECORDS='https://bodacc-datadila.opendatasoft.com/api/explore/v2.1/catalog/datasets/annonces-commerciales/records';
 export const BODACC_SALES_PROVENANCE={source:'BODACC — annonces commerciales, Ventes et cessions (DILA)',licence:'Licence Ouverte 2.0 (Etalab)'};
@@ -81,14 +83,16 @@ const list=(v:unknown):unknown[]=>Array.isArray(v)?v:v==null?[]:[v];
 
 export type SalesNotice={id:string;published:string;url:string;category:string;siren:string;buyer:string;activity:string|null;tradeName:string|null;
  establishment:string|null;city:string|null;postalCode:string|null};
-export type SalesRejection='NOT_A_PURCHASE'|'NOT_A_LEGAL_ENTITY'|'NO_BUYER_IDENTITY'|'INVALID_NOTICE';
+export type SalesRejection='NOT_A_PURCHASE'|'FORCED_SALE'|'NOT_A_LEGAL_ENTITY'|'NO_BUYER_IDENTITY'|'INVALID_NOTICE';
 // One notice → the purchase it announces, or why it is not kept. Pure.
 export function readSalesNotice(rec:unknown):{notice:SalesNotice}|{reject:SalesRejection}{
  const r=rec as Record<string,unknown>|null;
  if(!r||typeof r!=='object')return {reject:'INVALID_NOTICE'};
- const acte=parse(r.acte) as {vente?:{categorieVente?:unknown}}|null;
- const category=str(acte?.vente?.categorieVente,200);
- if(!category||!PURCHASE_CATEGORY.test(category))return {reject:'NOT_A_PURCHASE'};
+ // The shared rule (src/domain/bodacc-purchase.ts): category of the sale and origin of the business, never the act's text.
+ const verdict=purchaseOf(r.acte,r.listeetablissements);
+ if(!verdict.purchase)return {reject:verdict.reason};
+ const category=str(saleCategory(r.acte),200);
+ if(!category)return {reject:'NOT_A_PURCHASE'};
  const people=list((parse(r.listepersonnes) as {personne?:unknown}|null)?.personne) as Array<Record<string,unknown>>;
  if(!people.length)return {reject:'NO_BUYER_IDENTITY'};
  const buyer=people[0]!;

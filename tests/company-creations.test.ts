@@ -201,27 +201,37 @@ test('department figures — an incomplete, failed or malformed answer is an err
 });
 
 // A "Ventes et cessions" notice as the export returns it: the category inside the act, and a text full of names never read.
-const sale=(category:string,dep='31')=>({numerodepartement:dep,acte:JSON.stringify({descriptif:'Société absorbante : EXEMPLE SAS, 1 rue X 31000 Toulouse.',vente:{categorieVente:category}})});
+const sale=(category:string,dep='31',o:{siren?:string;cp?:string;origin?:string}={})=>({numerodepartement:dep,registre:o.siren?[o.siren]:undefined,
+ acte:JSON.stringify({descriptif:'Société absorbante : EXEMPLE SAS, 1 rue X 31000 Toulouse.',vente:{categorieVente:category}}),
+ listeetablissements:o.cp||o.origin?JSON.stringify({etablissement:{origineFonds:o.origin,adresse:{codePostal:o.cp}}}):undefined});
 
 test('reprises — only purchases of a business are counted, from initial "vente" notices of the month, never names',async()=>{
  const u=new URL(purchasesExportUrl(['31'],'2026-09'));
  assert.equal(u.origin+u.pathname,`${BODACC_DATASET}/exports/json`);
  // 2 nov. 2026 (France map): the department of publication is exported too, for the per-department totals.
- assert.equal(u.searchParams.get('select'),'numerodepartement,acte','only the department and the act: no trader name, no register number, no people');
+ // Owner decision (25 nov. 2026): the register number and the establishments are read too — the origin of the business tells
+ // a purchase from a contribution, the register number and postal code count a purchase announced twice once. Still no
+ // trader name and no people; nothing of them is kept (see the keys of the result below).
+ assert.equal(u.searchParams.get('select'),'numerodepartement,registre,acte,listeetablissements','no trader name, no people');
  assert.equal(u.searchParams.get('where'),`familleavis="vente" and (numerodepartement="31") and dateparution>=date'2026-09-01' and dateparution<date'2026-10-01' and typeavis="annonce"`);
  assert.match(new URL(purchasesExportUrl(null,'2026-09')).searchParams.get('where')!,/^familleavis="vente" and numerodepartement is not null and /);
  assert.throws(()=>purchasesExportUrl(['31" or "1"="1'],'2026-09'),CreationsUnavailableError);
  for(const c of ["Achat d'un fonds par une personne morale (insertion provisoire)","Achat d'un fonds par une personne physique (insertion provisoire)","Achat d’un établissement secondaire ou complémentaire par une personne morale","Achat d'un établissement principal par une personne physique (immatriculation)","Achat d'un fonds par le locataire-gérant personne morale"])
   assert.equal(isPurchase(sale(c).acte),true,c);
- for(const c of ["Autre achat, apport, attribution (immatriculation d'une personne morale, uniquement)","Mise en activité d'une société suite à achat","Apport d'un établissement principal (immatriculation d'une personne morale, uniquement)","Attribution d'un fonds suite à donation avec délai d'oppositions (Immatriculation d'une personne physique)"])
+ // Owner decision (25 nov. 2026): « Mise en activité d'une société suite à achat » is the company created to take a business
+ // over — a purchase (640 of its 684 notices, 26 Oct.–24 Nov. 2026, had no other notice); the catch-all counts when the
+ // origin of the business says « achat » (src/domain/bodacc-purchase.ts).
+ assert.equal(isPurchase(sale('Mise en activité d\'une société suite à achat').acte),true);
+ assert.equal(isPurchase(sale("Autre achat, apport, attribution (immatriculation d'une personne morale, uniquement)").acte,JSON.stringify({etablissement:{origineFonds:'Fonds acquis par achat au prix stipulé de 60000,00 euros.'}})),true);
+ for(const c of ["Autre achat, apport, attribution (immatriculation d'une personne morale, uniquement)","Apport d'un établissement principal (immatriculation d'une personne morale, uniquement)","Attribution d'un fonds suite à donation avec délai d'oppositions (Immatriculation d'une personne physique)"])
   assert.equal(isPurchase(sale(c).acte),false,c);
  assert.equal(isPurchase('{not json'),false);assert.equal(isPurchase(null),false);assert.equal(isPurchase(JSON.stringify({vente:{}})),false);
- const {fetchImpl}=register({sales:[sale("Achat d'un fonds par une personne morale (insertion provisoire)"),sale('Mise en activité d\'une société suite à achat'),sale("Autre achat, apport, attribution (immatriculation d'une personne morale, uniquement)"),{acte:null}]});
+ const {fetchImpl}=register({sales:[sale("Achat d'un fonds par une personne morale (insertion provisoire)",'31',{siren:'900 000 001',cp:'31000'}),sale('Mise en activité d\'une société suite à achat','31',{siren:'900000001',cp:'31000'}),sale("Autre achat, apport, attribution (immatriculation d'une personne morale, uniquement)"),{acte:null}]});
  const p=await fetchPurchases(['31'],'2026-09',{fetchImpl});
- assert.deepEqual([p.month,p.count,p.notices],['2026-09',1,4]);
+ assert.deepEqual([p.month,p.count,p.notices],['2026-09',1,4],'the same buyer in the same postal code: one purchase announced twice, counted once');
  assert.deepEqual(Object.keys(p).sort(),['byDepartment','count','month','notices','query'],'nothing from the notice text is kept');
  assert.deepEqual(p.byDepartment,{'31':1},'per-department totals count purchases only');
- const fr=await fetchPurchases(null,'2026-09',{fetchImpl:register({sales:[sale("Achat d'un fonds par une personne morale (insertion provisoire)",'75'),sale("Achat d'un fonds par une personne morale (insertion provisoire)",'75'),sale("Achat d'un fonds par une personne morale (insertion provisoire)",'2A'),sale("Achat d'un fonds par une personne morale (insertion provisoire)",'x" or 1'),sale('Mise en activité d\'une société suite à achat','13')]}).fetchImpl});
+ const fr=await fetchPurchases(null,'2026-09',{fetchImpl:register({sales:[sale("Achat d'un fonds par une personne morale (insertion provisoire)",'75'),sale("Achat d'un fonds par une personne morale (insertion provisoire)",'75'),sale("Achat d'un fonds par une personne morale (insertion provisoire)",'2A'),sale("Achat d'un fonds par une personne morale (insertion provisoire)",'x" or 1'),sale('Apport d\'un établissement principal (immatriculation d\'une personne morale, uniquement)','13')]}).fetchImpl});
  assert.deepEqual(fr.byDepartment,{'75':2,'2A':1},'an unknown department code is counted in the total, never as a department');
  assert.equal(fr.count,4);
  await assert.rejects(fetchPurchases(['31'],'2026-09',{fetchImpl:register({sales:{oops:1}}).fetchImpl}),/MALFORMED/);

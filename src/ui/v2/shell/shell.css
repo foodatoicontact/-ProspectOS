@@ -51,7 +51,7 @@
 .pos-ui .pos-app__toolbar{display:flex;flex-wrap:wrap;justify-content:flex-end;gap:var(--pos-space-2);padding:var(--pos-space-3) var(--pos-space-4) 0}
 /* The existing screens keep their own look in every theme until they are migrated (UI-3 / UI-5): their legacy paper,
    ink and type, never the v2 colours (the base rules of foundations.css skip .pos-legacy). */
-.pos-ui .pos-legacy{color:var(--ink);background:var(--paper);font-family:'DM Sans',sans-serif;font-size:14px;line-height:normal;
+.pos-ui .pos-legacy{color:var(--ink);background:var(--paper);font-family:var(--font-dm-sans,'DM Sans'),sans-serif;font-size:14px;line-height:normal;
  -webkit-font-smoothing:auto;-moz-osx-font-smoothing:auto;min-width:0}
 
 /* Tablet: a bit more air around the workspace. */

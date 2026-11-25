@@ -135,7 +135,7 @@ export const THEMES:Record<ThemeName,Theme>={light,dark};
 export const scales={
  space:{1:'4px',2:'8px',3:'12px',4:'16px',5:'20px',6:'24px',7:'32px',8:'40px',9:'48px',10:'64px'},
  radius:{sm:'8px',md:'12px',lg:'16px',xl:'20px',sheet:'24px',shell:'26px',pill:'999px'},
- font:{ui:"'DM Sans', system-ui, -apple-system, 'Segoe UI', sans-serif",display:"'Manrope', 'DM Sans', system-ui, sans-serif",
+ font:{ui:"var(--font-dm-sans,'DM Sans'), system-ui, -apple-system, 'Segoe UI', sans-serif",display:"var(--font-manrope,'Manrope'), var(--font-dm-sans,'DM Sans'), system-ui, sans-serif",
   mono:"ui-monospace, SFMono-Regular, Menlo, Consolas, monospace"},
  text:{xs:'12px',sm:'13px',base:'14px',md:'15px',lg:'17px',xl:'19px','2xl':'21px','3xl':'26px','4xl':'32px'},
  leading:{tight:'1.2',snug:'1.4',normal:'1.5'},

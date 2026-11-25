@@ -51,8 +51,9 @@ test('B — capital social is explicitly stated as not applicable (EI has no sha
  assert.match(EDITOR.capital,/[Nn]on applicable/);
  assert.doesNotMatch(EDITOR.capital,/^\d/,'must never be a bare invented amount');
 });
-test('B — VAT status is left as an explicit "to confirm" — never asserted as "non applicable" merely because the regime is micro-entreprise, and never a fabricated intracommunity VAT number',()=>{
- assert.equal(EDITOR.vatStatus,TO_CONFIRM);
+test('B — VAT status: the statutory franchise wording decided by the owner, never a fabricated intracommunity VAT number',()=>{
+ // Owner decision (25 nov. 2026, external audit): « TVA non applicable, article 293 B du CGI » (franchise en base, confirmed).
+ assert.equal(EDITOR.vatStatus,'TVA non applicable, article 293 B du CGI');
  assert.doesNotMatch(EDITOR.vatStatus,/^FR\d/,'must never look like a fabricated FR-prefixed VAT number');
 });
 test('B — the mentions légales page states the confirmed VAT regime (franchise en base) without inventing a VAT number or quoting a fiscal article',async()=>{
@@ -147,7 +148,9 @@ test('C — the CGV state the real offers from plans.ts, the free trial, monthly
 });
 test('C — VAT: the franchise regime is stated, no rate, no fiscal article, no TTC/HT price, no invented VAT number',async()=>{
  assert.equal(VAT_REGIME,'Franchise en base de TVA');assert.equal(VAT_PRICE_NOTE,'TVA non applicable (franchise en base)');
- assert.equal(EDITOR.vatStatus,TO_CONFIRM,'no intracommunity VAT number until the owner provides one');
+ // Owner decision (25 nov. 2026, external audit): the mentions légales quote article 293 B through EDITOR.vatStatus only;
+ // the pages listed below still quote no fiscal article themselves.
+ assert.equal(EDITOR.vatStatus,'TVA non applicable, article 293 B du CGI','the franchise wording, no intracommunity VAT number');
  const files=['../app/cgv/page.tsx','../app/cgu/page.tsx','../app/mentions-legales/page.tsx','../app/confidentialite/page.tsx','../src/domain/seo-content.ts','../src/domain/geo.ts','../src/domain/seo.ts','../src/components/PricingPage.tsx','../src/components/PricingPlans.tsx','../src/components/BillingSection.tsx','../src/i18n/fr.ts','../src/i18n/en.ts'];
  for(const f of files){
   const src=await readFile(new URL(f,import.meta.url),'utf8');

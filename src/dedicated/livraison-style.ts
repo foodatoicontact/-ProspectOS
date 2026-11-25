@@ -4,7 +4,7 @@
 export const LIVRAISON_CSS=`@page{size:A4;margin:0}
 *{box-sizing:border-box;margin:0;padding:0}
 html,body{background:#f6f7fb}
-body{font-family:"Inter",-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;color:#141826;-webkit-print-color-adjust:exact;print-color-adjust:exact;font-size:9.6pt;line-height:1.45}
+body{font-family:var(--font-inter,"Inter"),-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;color:#141826;-webkit-print-color-adjust:exact;print-color-adjust:exact;font-size:9.6pt;line-height:1.45}
 a{text-decoration:none;color:inherit}
 .page{width:210mm;min-height:297mm;padding:16mm 15mm;position:relative;page-break-after:always;overflow:hidden}
 .cover{background:#0b0f24;color:#eef0ff;display:flex;flex-direction:column;justify-content:space-between}

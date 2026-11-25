@@ -6,6 +6,7 @@
 //   POST leads/assignments/<id>/release
 //   GET  leads/companies/<siren>                       one company, its whole history
 //   POST leads/contracts/<id>/deliver                  {client_name} — the reserved leads become the client's next delivery
+//   GET  leads/review                                  the sale notices no rule could sort (INDETERMINE, migration 055), to read by hand
 import {z} from 'zod';
 import type {SupabaseClient} from '@supabase/supabase-js';
 import {LEAD_KINDS,tradeKey,buildLeadDelivery,type LeadPool} from './model.ts';
@@ -65,5 +66,6 @@ export async function handleLeads(request:Request,path:string[],db:SupabaseClien
  }
  if(a==='assignments'&&b&&uuid.safeParse(b).success&&c==='release'&&request.method==='POST')return call('admin_release_lead',{p_assignment_id:b});
  if(a==='companies'&&b&&/^\d{9}$/.test(b)&&request.method==='GET')return call('admin_company',{p_siren:b});
+ if(a==='review'&&!b&&request.method==='GET')return call('admin_events_to_review',{p_limit:200});
  return json({error:'Route ou action non disponible'},404);
 }

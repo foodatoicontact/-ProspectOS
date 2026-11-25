@@ -3,6 +3,7 @@ import type {SignalProvider,SignalSearchInput,RawSignal,SignalTarget} from '../p
 import type {SignalType} from '../types.ts';
 import {fold} from '../extract.ts';
 import {purchaseOf,buyerSiren,DUPLICATE_WINDOW_DAYS} from '../../domain/bodacc-purchase.ts';
+import {previousNoticeId} from '../../domain/bodacc-notice.ts';
 // Signal Engine S10 — legal announcements (provider bodacc): the BODACC published by the DILA, read through its public
 // open-data API (Opendatasoft, dataset "annonces-commerciales", Licence Ouverte / Etalab). Searched by SIREN only, and
 // every announcement is checked to carry that exact SIREN: no homonym is possible. The publication date is official.
@@ -103,10 +104,14 @@ export class BodaccSignalProvider implements SignalProvider{
   const body=await response.text();if(body.length>2000000)throw Error('BODACC_RESPONSE_TOO_LARGE');
   const parsed=z.object({results:z.array(z.unknown()).default([])}).passthrough().parse(JSON.parse(body));
   const out:RawSignal[]=[];const purchases=new Map<string,number>();
+  // Migration 055 (owner decision, 25 nov. 2026): a notice cancelled by a later notice of the same company is never a signal.
+  const cancelled=new Set(parsed.results.flatMap(x=>{const o=x as Record<string,unknown>;
+   return /annulation/i.test(String(o?.typeavis??''))?[previousNoticeId(o.parutionavisprecedent)].filter((v):v is string=>!!v):[]}));
   for(const raw of parsed.results){
    const r=Record_.safeParse(raw);if(!r.success){this.reject('INVALID_SIGNAL');continue}
    const rec=r.data;
    if(!sirenMatches(rec,siren)){this.reject('SIREN_MISMATCH');continue}
+   if(rec.id&&cancelled.has(rec.id)){this.reject('CANCELLED');continue}
    const c=classifyAnnouncement(rec);
    if('reject' in c){if(c.reject==='COLLECTIVE_PROCEDURE')this.lastReport.collective_procedures++;this.reject(c.reject);continue}
    // The same purchase announced twice (« Achat… » then « Mise en activité… »): one signal per buyer within

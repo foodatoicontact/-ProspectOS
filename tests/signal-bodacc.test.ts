@@ -114,3 +114,16 @@ test('one buyer, one « rachat » signal within 30 days: the newest notice (owne
  assert.deepEqual(out.map(s=>s.metadata?.bodacc_id),['B3','B1'],'B2 (18 days before B3) is the same purchase; B1, months earlier, is another one');
  assert.equal(p.takeRejections().DUPLICATE_PURCHASE,1);
 });
+
+test('a notice cancelled by a later notice of the same company is never a signal (migration 055, 25 nov. 2026)',async()=>{
+ const sale=rec({id:'A202602204824',dateparution:'2026-09-17',familleavis:'vente',familleavis_lib:'Ventes et cessions',modificationsgenerales:undefined,
+  url_complete:'https://www.bodacc.fr/pages/annonces-commerciales-detail/?q.id=id:A202602204824',acte:JSON.stringify({vente:{categorieVente:"Achat d'un fonds par une personne morale (insertion provisoire)"}}),
+  listeetablissements:JSON.stringify({etablissement:{origineFonds:'Achat au prix stipulé de 60000,00 euros.',adresse:{codePostal:'35000'}}})});
+ const cancel=rec({id:'A202602233148',dateparution:'2026-09-20',typeavis:'annulation',typeavis_lib:'Avis d’annulation',familleavis:'vente',familleavis_lib:'Ventes et cessions',modificationsgenerales:undefined,
+  parutionavisprecedent:JSON.stringify({nomPublication:'BODACC A',numeroParution:'20260220',dateParution:'2026-09-17',numeroAnnonce:'4824'})});
+ const p=new BodaccSignalProvider(api([cancel,sale]).request);
+ assert.deepEqual(await p.searchSignals({target:T,types:[],now:NOW}),[]);
+ assert.deepEqual(p.takeRejections(),{CORRECTION:1,CANCELLED:1});
+ const alone=new BodaccSignalProvider(api([sale]).request);
+ assert.equal((await alone.searchSignals({target:T,types:[],now:NOW})).length,1,'without its cancellation the sale is a signal');
+});

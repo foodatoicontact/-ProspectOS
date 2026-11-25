@@ -3,7 +3,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
-import {exportUrl,parseBodacc} from '../src/collect/bodacc.ts';
+import {exportUrl,parseBodacc,previousNoticeId} from '../src/collect/bodacc.ts';
 import {parseCompany} from '../src/collect/enrich.ts';
 import {runCollection,enrichCompanies,ENRICH_PRIORITY} from '../src/collect/run.ts';
 import {collectConfigFrom,enrichConfigFrom,enrichDepartments,publicEventsEnabled} from '../src/collect/config.ts';
@@ -39,7 +39,10 @@ test('BODACC parsing: legal persons only (a natural person is dropped and counte
  const buy=row({acte:JSON.stringify({vente:{categorieVente:"Achat d'un fonds par une personne morale (insertion provisoire)"}})});
  const merger=row({id:'A5',acte:JSON.stringify({vente:{categorieVente:"Autre achat, apport, attribution (immatriculation d'une personne morale, uniquement)"}}),listeetablissements:JSON.stringify({etablissement:{origineFonds:'Apport fusion'}})});
  const v=parseBodacc([buy,merger,row({id:'A6'})],'vente');
- assert.deepEqual(v.events.map(e=>[e.source_id,e.kind]),[['A1','VENTE_FONDS']]);assert.equal(v.skippedNotPurchase,2);
+ // Owner decision (25 nov. 2026, migration 055): every sale notice is stored with its category and rule — only VENTE_FONDS
+ // is ever proposed to a client; FUSION, APPORT, VENTE_JUDICIAIRE and INDETERMINE stay in the base (INDETERMINE: to read).
+ assert.deepEqual(v.events.map(e=>[e.source_id,e.kind,e.sale_rule]),[['A1','VENTE_FONDS','category_purchase'],['A5','FUSION','origin_merger'],['A6','INDETERMINE','no_rule']]);
+ assert.equal(v.skippedNotPurchase,2,'the sale notices stored under another kind than VENTE_FONDS');
  // Migration 054: each vente batch carries how many notices each rule decided — ids and counts only.
  assert.deepEqual(v.saleRules,{category_purchase:1,origin_merger:1,no_rule:1});
  assert.deepEqual(parseBodacc([row({})],'creation').saleRules,{},'other families count no sale rule');
@@ -138,4 +141,25 @@ test('signals of a followed company: « Nouveau siège » and a head-office addr
  const {classifyAnnouncement}=await import('../src/signals/providers/bodacc.ts');
  for(const d of ['Nouveau siège.','modification survenue sur l\'adresse du siège','Modification survenue sur l\'activité, transfert du siège social.'])
   assert.equal((classifyAnnouncement({familleavis:'modification',familleavis_lib:'Modifications diverses',modificationsgenerales:JSON.stringify({descriptif:d})} as any) as any).type,'new_site',d);
+});
+
+test('cancellations and corrections (migration 055): a cancellation is never stored and marks its notice; a correction marks it and is stored',()=>{
+ const prev=(issue:string,num:string,pub='BODACC A')=>JSON.stringify({nomPublication:pub,numeroParution:issue,dateParution:'2026-11-17',numeroAnnonce:num});
+ const sale=JSON.stringify({vente:{categorieVente:"Achat d'un fonds par une personne morale (insertion provisoire)"}});
+ const r=parseBodacc([
+  row({id:'A20260223148',typeavis:'annulation',parutionavisprecedent:prev('20260220','4824'),url_complete:'https://www.bodacc.fr/pages/annonces-commerciales-detail/?q.id=id:A20260223148'}),
+  row({id:'A20260223200',typeavis:'rectificatif',acte:sale,parutionavisprecedent:prev('20260219','77'),url_complete:'https://www.bodacc.fr/pages/annonces-commerciales-detail/?q.id=id:A20260223200'}),
+  row({id:'A20260223300',typeavis:'annulation',parutionavisprecedent:'{oops'}),
+  row({id:'A20260223400',typeavis:'annulation',parutionavisprecedent:prev('20260219','78'),listepersonnes:JSON.stringify({personne:{typePersonne:'pp',nom:'DUPONT'}}),url_complete:'https://www.bodacc.fr/x'}),
+ ],'vente');
+ assert.deepEqual(r.events.map(e=>[e.source_id,e.kind]),[['A20260223200','VENTE_FONDS']],'the correction is the event to use; no cancellation is ever an event');
+ assert.deepEqual(r.supersessions,[
+  {target_source_id:'A202602204824',status:'ANNULEE',by_source_id:'A20260223148',by_url:'https://www.bodacc.fr/pages/annonces-commerciales-detail/?q.id=id:A20260223148'},
+  {target_source_id:'A2026021977',status:'RECTIFIEE',by_source_id:'A20260223200',by_url:'https://www.bodacc.fr/pages/annonces-commerciales-detail/?q.id=id:A20260223200'},
+  {target_source_id:'A2026021978',status:'ANNULEE',by_source_id:'A20260223400',by_url:'https://www.bodacc.fr/x'}],
+  'an unreadable target marks nothing; the cancellation of a sole trader\'s notice still applies (its target may be a company)');
+ assert.equal(previousNoticeId(prev('20260205','362','BODACC B')),'B20260205362');
+ assert.equal(previousNoticeId(prev('2026','1')),null);assert.equal(previousNoticeId(null),null);
+ assert.match(exportUrl('2026-11-20','vente'),/typeavis%2Cparutionavisprecedent/,'the export asks for the type and the target');
+ assert.doesNotMatch(exportUrl('2026-11-20','vente'),/where=[^&]*typeavis/,'every type is read: the cancellations and corrections are needed');
 });

@@ -212,7 +212,8 @@ test('reprises — only purchases of a business are counted, from initial "vente
  // Owner decision (25 nov. 2026): the register number and the establishments are read too — the origin of the business tells
  // a purchase from a contribution, the register number and postal code count a purchase announced twice once. Still no
  // trader name and no people; nothing of them is kept (see the keys of the result below).
- assert.equal(u.searchParams.get('select'),'numerodepartement,registre,acte,listeetablissements','no trader name, no people');
+ // Owner decision (25 nov. 2026, second step): the publication date too — one buyer is one reprise within 30 days.
+ assert.equal(u.searchParams.get('select'),'dateparution,numerodepartement,registre,acte,listeetablissements','no trader name, no people');
  assert.equal(u.searchParams.get('where'),`familleavis="vente" and (numerodepartement="31") and dateparution>=date'2026-09-01' and dateparution<date'2026-10-01' and typeavis="annonce"`);
  assert.match(new URL(purchasesExportUrl(null,'2026-09')).searchParams.get('where')!,/^familleavis="vente" and numerodepartement is not null and /);
  assert.throws(()=>purchasesExportUrl(['31" or "1"="1'],'2026-09'),CreationsUnavailableError);

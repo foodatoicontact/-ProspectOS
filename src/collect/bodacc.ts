@@ -6,7 +6,8 @@
 //   vente         → VENTE_FONDS (the buyer of a business), only a purchase by the shared rule (src/domain/bodacc-purchase.ts,
 //                   25 nov. 2026): contributions, mergers and sales ordered in a collective proceeding are dropped and counted
 // Only legal persons are kept: an announcement about a natural person is dropped and only counted (no name is stored).
-import {purchaseOf} from '../domain/bodacc-purchase.ts';
+import {purchaseOf,type SaleRule} from '../domain/bodacc-purchase.ts';
+import {countRules} from './sale-quality.ts';
 export type EventKind='CREATION'|'ETABLISSEMENT'|'TRANSFERT_SIEGE'|'VENTE_FONDS';
 export type PublicEvent={source_id:string;kind:EventKind;siren:string;name:string|null;published_on:string;department:string|null;commune:string|null;
  postal_code:string|null;activity:string|null;source_url:string};
@@ -30,8 +31,10 @@ const str=(v:unknown)=>typeof v==='string'?v.trim():'';
 const fold=(s:string)=>s.normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase();
 // The person the announcement is about: "pm" = legal person, "pp" = natural person. Unknown → not kept.
 function person(r:Raw):Raw{const p=obj(r.listepersonnes).personne;return Array.isArray(p)?obj(p[0]):obj(p)}
-export function parseBodacc(rows:Raw[],family:Family):{events:PublicEvent[];skippedPersons:number;skippedNotPurchase:number}{
- const events:PublicEvent[]=[];let skippedPersons=0,skippedNotPurchase=0;
+// saleRules: for the « vente » family, how many notices of legal persons each rule of the shared sort decided (migration 054,
+// the weekly check) — rule ids and counts only.
+export function parseBodacc(rows:Raw[],family:Family):{events:PublicEvent[];skippedPersons:number;skippedNotPurchase:number;saleRules:Record<string,number>}{
+ const events:PublicEvent[]=[];let skippedPersons=0,skippedNotPurchase=0;const rules:SaleRule[]=[];
  for(const r of rows){
   const p=person(r);
   if(str(p.typePersonne)!=='pm'){skippedPersons++;continue}
@@ -43,12 +46,12 @@ export function parseBodacc(rows:Raw[],family:Family):{events:PublicEvent[];skip
   const etab=obj(obj(r.listeetablissements).etablissement);
   let kind:EventKind;
   if(family==='creation')kind=/secondaire/.test(fold(str(etab.qualiteEtablissement)+' '+JSON.stringify(obj(r.acte))))?'ETABLISSEMENT':'CREATION';
-  else if(family==='vente'){if(!purchaseOf(r.acte,r.listeetablissements).purchase){skippedNotPurchase++;continue}kind='VENTE_FONDS'}
+  else if(family==='vente'){const v=purchaseOf(r.acte,r.listeetablissements);rules.push(v.rule);if(!v.purchase){skippedNotPurchase++;continue}kind='VENTE_FONDS'}
   else{if(!HEAD_OFFICE_MOVE.test(fold(str(obj(r.modificationsgenerales).descriptif))))continue;kind='TRANSFERT_SIEGE'}
   const dep=str(r.numerodepartement).toUpperCase(),cp=str(r.cp);
   events.push({source_id:id,kind,siren,name:(str(p.denomination)||str(r.commercant)).slice(0,200)||null,published_on:day,
    department:/^(\d{2,3}|2[AB])$/.test(dep)?dep:null,commune:str(r.ville).slice(0,120)||null,postal_code:/^\d{5}$/.test(cp)?cp:null,
    activity:(str(etab.activite)||str(p.activite)).replace(/\s+/g,' ').slice(0,500)||null,source_url:url.slice(0,500)});
  }
- return {events,skippedPersons,skippedNotPurchase};
+ return {events,skippedPersons,skippedNotPurchase,saleRules:countRules(rules)};
 }

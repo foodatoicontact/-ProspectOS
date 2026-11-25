@@ -7,12 +7,13 @@
 //  - initial notices (typeavis "annonce") that announce a purchase of a business by the shared rule
 //    (src/domain/bodacc-purchase.ts): « Achat d'un fonds / d'un établissement… », « Mise en activité d'une société suite
 //    à achat » (the company created to take a business over — added 25 nov. 2026) and the catch-all « Autre achat, apport,
-//    attribution » when the origin of the business says « achat »; contributions, mergers, attributions and sales ordered
-//    in a collective proceeding are not purchases. The same buyer twice is one candidate (its newest notice);
+//    attribution » when the origin of the business or the act's text says the business was sold; contributions, mergers,
+//    attributions and sales ordered in a collective proceeding are not purchases. The same buyer twice is one candidate
+//    (its newest notice);
 //  - the BUYER only, and only a legal entity (typePersonne "pm") whose RCS number is one of the notice's registered
-//    numbers: a sole trader's notice names a person and is never kept. The seller is never read: the trader field
-//    (commercant) and the act's free text can name a private person, they are not even requested (commercant) or read
-//    (descriptif);
+//    numbers: a sole trader's notice names a person and is never kept. The seller is never kept: the trader field
+//    (commercant) is not even requested, and the act's free text (descriptif), which can name a private person, is only
+//    matched against fixed patterns by the shared rule (owner decision, 25 nov. 2026) — nothing of it is kept;
 //  - the place, activity and trade name of the business bought, the publication date and the official notice URL.
 // Fixed host, bounded size and time, redirects refused, the zone and the period are built here from validated codes.
 import {CandidateSchema,type Candidate,type DiscoveryInput,type DiscoveryProvider,type ProviderSearchReport} from '../types.ts';

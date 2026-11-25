@@ -40,6 +40,9 @@ test('BODACC parsing: legal persons only (a natural person is dropped and counte
  const merger=row({id:'A5',acte:JSON.stringify({vente:{categorieVente:"Autre achat, apport, attribution (immatriculation d'une personne morale, uniquement)"}}),listeetablissements:JSON.stringify({etablissement:{origineFonds:'Apport fusion'}})});
  const v=parseBodacc([buy,merger,row({id:'A6'})],'vente');
  assert.deepEqual(v.events.map(e=>[e.source_id,e.kind]),[['A1','VENTE_FONDS']]);assert.equal(v.skippedNotPurchase,2);
+ // Migration 054: each vente batch carries how many notices each rule decided — ids and counts only.
+ assert.deepEqual(v.saleRules,{category_purchase:1,origin_merger:1,no_rule:1});
+ assert.deepEqual(parseBodacc([row({})],'creation').saleRules,{},'other families count no sale rule');
 });
 test('company record: activity, size, legal form, active, objection; a sole trader keeps no name',()=>{
  const body=(o:Record<string,unknown>)=>({results:[{siren:'900000001',nom_complet:'EXEMPLE SAS',nom_raison_sociale:'EXEMPLE SAS',nature_juridique:'5710',activite_principale:'52.10B',

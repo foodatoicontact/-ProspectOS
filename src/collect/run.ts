@@ -14,8 +14,10 @@ export async function runCollection(rpc:Rpc,fetchJson:Fetcher,c:CollectConfig):P
   try{
    const rows=await fetchJson(exportUrl(day,family),20000);
    if(!Array.isArray(rows))throw Error('UNEXPECTED_BODY');
-   const {events,skippedPersons}=parseBodacc(rows as Record<string,unknown>[],family);
-   const r=await rpc('ingest_public_events',{p_source:'bodacc',p_day:day,p_events:events,p_fetched:rows.length,p_skipped_persons:skippedPersons}) as {inserted:number};
+   const {events,skippedPersons,saleRules}=parseBodacc(rows as Record<string,unknown>[],family);
+   // Migration 054: the vente runs also carry their rule counts (the weekly check); other families send none.
+   const r=await rpc('ingest_public_events',{p_source:'bodacc',p_day:day,p_events:events,p_fetched:rows.length,p_skipped_persons:skippedPersons,
+    ...(family==='vente'?{p_sale_rules:saleRules}:{})}) as {inserted:number};
    report.days.push({day,family,fetched:rows.length,inserted:r.inserted,skippedPersons});
   }catch(e){report.days.push({day,family,fetched:0,inserted:0,skippedPersons:0,error:e instanceof Error?e.message.slice(0,120):'ERROR'})}
  }

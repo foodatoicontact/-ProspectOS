@@ -2,7 +2,7 @@ import {z} from 'zod';
 import type {SignalProvider,SignalSearchInput,RawSignal,SignalTarget} from '../provider.ts';
 import type {SignalType} from '../types.ts';
 import {fold} from '../extract.ts';
-import {purchaseOf,buyerSiren,postalCodeOf,purchaseKey} from '../../domain/bodacc-purchase.ts';
+import {purchaseOf,buyerSiren,DUPLICATE_WINDOW_DAYS} from '../../domain/bodacc-purchase.ts';
 // Signal Engine S10 — legal announcements (provider bodacc): the BODACC published by the DILA, read through its public
 // open-data API (Opendatasoft, dataset "annonces-commerciales", Licence Ouverte / Etalab). Searched by SIREN only, and
 // every announcement is checked to carry that exact SIREN: no homonym is possible. The publication date is official.
@@ -102,16 +102,19 @@ export class BodaccSignalProvider implements SignalProvider{
   if(!response.ok)throw Error(`BODACC_HTTP_${response.status}`);
   const body=await response.text();if(body.length>2000000)throw Error('BODACC_RESPONSE_TOO_LARGE');
   const parsed=z.object({results:z.array(z.unknown()).default([])}).passthrough().parse(JSON.parse(body));
-  const out:RawSignal[]=[];const purchases=new Set<string>();
+  const out:RawSignal[]=[];const purchases=new Map<string,number>();
   for(const raw of parsed.results){
    const r=Record_.safeParse(raw);if(!r.success){this.reject('INVALID_SIGNAL');continue}
    const rec=r.data;
    if(!sirenMatches(rec,siren)){this.reject('SIREN_MISMATCH');continue}
    const c=classifyAnnouncement(rec);
    if('reject' in c){if(c.reject==='COLLECTIVE_PROCEDURE')this.lastReport.collective_procedures++;this.reject(c.reject);continue}
-   // The same purchase announced twice (« Achat… » then « Mise en activité… »): one signal, the newest notice.
-   if(c.type==='acquisition'){const key=purchaseKey(buyerSiren(rec.registre),postalCodeOf(rec.listeetablissements));
-    if(key&&purchases.has(key)){this.reject('DUPLICATE_PURCHASE');continue}if(key)purchases.add(key)}
+   // The same purchase announced twice (« Achat… » then « Mise en activité… »): one signal per buyer within
+   // DUPLICATE_WINDOW_DAYS, the newest notice (results come newest first).
+   if(c.type==='acquisition'){const buyer=buyerSiren(rec.registre),at=Date.parse(`${(rec.dateparution??'').slice(0,10)}T00:00:00Z`);
+    if(buyer&&Number.isFinite(at)){const kept=purchases.get(buyer);
+     if(kept!==undefined&&Math.abs(kept-at)<DUPLICATE_WINDOW_DAYS*86_400_000){this.reject('DUPLICATE_PURCHASE');continue}
+     purchases.set(buyer,at)}}
    const day=/^\d{4}-\d{2}-\d{2}/.test(rec.dateparution??'')?rec.dateparution!.slice(0,10):null;
    if(!day){this.reject('INVALID_SIGNAL');continue}
    const label=(rec.familleavis_lib??rec.familleavis??'Annonce BODACC').trim();

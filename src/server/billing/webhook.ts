@@ -5,6 +5,7 @@ import {verifyStripeSignature} from './signature.ts';
 import type {StripeApi,StripePrice,StripeSubscription} from './stripe-client.ts';
 import type {BillingStore,SubscriptionState} from './store.ts';
 import type {BillingResult} from './checkout.ts';
+import {handlePartnerEvent,type PartnerDeps} from './partners.ts';
 // Stripe webhook. The only path by which a paid plan is granted, extended or ended.
 //  1. The signature is verified on the raw body (a forged or altered request is refused with 400).
 //  2. The event only says WHICH subscription changed: its state is re-read from the Stripe API, so events
@@ -13,7 +14,8 @@ import type {BillingResult} from './checkout.ts';
 //     delivered event has no second effect.
 // A browser landing on success_url proves nothing and is never consulted.
 export const HANDLED_EVENTS=new Set(['checkout.session.completed','customer.subscription.created','customer.subscription.updated','customer.subscription.deleted','invoice.paid','invoice.payment_failed']);
-export type WebhookDeps={config:BillingConfig|null;stripe:StripeApi;store:BillingStore;log?:(message:string)=>void};
+// partners: the partner programme (052), only when NEXT_PUBLIC_PARTNERS_ENABLED is on — absent, nothing changes below.
+export type WebhookDeps={config:BillingConfig|null;stripe:StripeApi;store:BillingStore;log?:(message:string)=>void;partners?:PartnerDeps|null};
 const ok=(body:Record<string,unknown>):BillingResult=>({status:200,body:{received:true,...body}});
 const str=(v:unknown)=>typeof v==='string'?v:null;
 const iso=(seconds:unknown)=>typeof seconds==='number'&&Number.isFinite(seconds)?new Date(seconds*1000).toISOString():null;
@@ -59,6 +61,8 @@ export async function handleStripeWebhook(rawBody:string,signature:string|null,d
  if(typeof event?.id!=='string'||!/^evt_[A-Za-z0-9]+$/.test(event.id)||typeof event.type!=='string')return {status:400,body:{error:'Invalid payload'}};
  // A TEST event can never change a LIVE deployment, and the reverse.
  if(event.livemode!==(config.mode==='live'))return {status:400,body:{error:'Livemode mismatch'}};
+ // A refund only concerns the partner programme (a negative commission line); the subscription is not re-read for it.
+ if(event.type==='charge.refunded')return deps.partners?ok({partner:(await handlePartnerEvent(event,config.mode==='live',deps.partners)).outcome}):ok({ignored:true});
  if(!HANDLED_EVENTS.has(event.type))return ok({ignored:true});
  const subscriptionId=subscriptionIdOf(event);
  if(!subscriptionId)return ok({ignored:true});
@@ -71,5 +75,8 @@ export async function handleStripeWebhook(rawBody:string,signature:string|null,d
  const state=subscriptionState(sub,config,event,teamPrice);
  const result=await deps.store.applyState(state);
  if(['unknown_customer','unknown_price','stale_subscription'].includes(result.outcome))deps.log?.(`billing webhook ${event.id} (${event.type}): ${result.outcome}`);
+ // After the subscription state: a failure here returns 5xx, Stripe retries, and the replayed subscription event has no
+ // second effect (017) while the commission is recorded once (052).
+ if(event.type==='invoice.paid'&&deps.partners)return ok({outcome:result.outcome,partner:(await handlePartnerEvent(event,config.mode==='live',deps.partners)).outcome});
  return ok({outcome:result.outcome});
 }

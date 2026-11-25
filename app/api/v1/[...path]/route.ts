@@ -15,6 +15,8 @@ import {dedicatedTrackingEnabled} from '../../../../src/dedicated/flag';
 import {notifyAcceptance} from '../../../../src/dedicated/send';
 import {handleNotifications} from '../../../../src/notifications/api';
 import {handleLeads} from '../../../../src/leads/api';
+import {handlePartners} from '../../../../src/partners/api';
+import {partnersEnabledIn} from '../../../../src/partners/flag';
 import {analyzeCompanyGuarded} from '../../../../src/server/ai-guard';
 import {checked as checkedRpc} from '../../../../src/discovery/repository';
 import {CriterionContextSchema,normalizeCriteriaInput,criteriaIssueMessage} from '../../../../src/discovery/types';
@@ -123,6 +125,10 @@ async function handler(request:Request,context:{params:Promise<{path:string[]}>}
  // Base entreprises de la veille (migration 049, src/leads/api.ts): administrator only, checked by the database.
  const leadsResponse=await handleLeads(request,path,db,json,{enabled:dedicatedTrackingEnabled(process.env)});
  if(leadsResponse)return leadsResponse;
+ // Programme partenaires (migration 052, src/partners/api.ts): the partner space and the administrator's dashboard, behind
+ // NEXT_PUBLIC_PARTNERS_ENABLED; the database checks the partner and the administrator.
+ const partnersResponse=await handlePartners(request,path,db,json,{enabled:partnersEnabledIn(process.env),origin:appOrigin(request)});
+ if(partnersResponse)return partnersResponse;
  // Notification centre (migration 044): the bell of the v2 shell. The administrator flag is the caller's OWN active INTERNAL
  // entitlement, read under RLS (the database still decides what each one may read).
  if(path[0]==='notifications'){

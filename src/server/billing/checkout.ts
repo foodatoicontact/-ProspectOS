@@ -9,7 +9,8 @@ import type {BillingStore} from './store.ts';
 // linked itself. For TEAM the number of accounts is chosen on the Stripe page, within 2–5 set by the server.
 // Paying on the Stripe page grants nothing by itself: the plan is granted by the webhook (webhook.ts).
 export type BillingResult={status:number;body:Record<string,unknown>};
-export type BillingDeps={config:BillingConfig|null;stripe:StripeApi;store:BillingStore;log?:(message:string)=>void};
+// partnerOf: the partner programme (052), only when its flag is on — the referring partner, copied into the Stripe metadata.
+export type BillingDeps={config:BillingConfig|null;stripe:StripeApi;store:BillingStore;log?:(message:string)=>void;partnerOf?:(userId:string)=>Promise<string|null>};
 // Strict: a price_id, amount, currency, customer_id or any other key is refused, never ignored silently.
 const CheckoutBody=z.object({plan:z.string()}).strict();
 const PortalBody=z.object({}).strict();
@@ -49,8 +50,11 @@ export async function startCheckout(input:{userId:string;email:string|null;body:
  if(account?.subscription_status&&BLOCKING.has(account.subscription_status))return fail(409,'SUBSCRIPTION_EXISTS','Vous avez déjà un abonnement. Gérez-le depuis « Gérer mon abonnement ».');
  // One Stripe customer per user, even for two checkouts started at the same moment: the idempotency key makes
  // Stripe return the same customer, and link_stripe_customer keeps the first one stored.
- const customerId=account?.stripe_customer_id??await store.linkCustomer(input.userId,(await stripe.createCustomer({email:input.email,userId:input.userId},`prospectos-customer-${input.userId}`)).id);
- const metadata={prospectos_user_id:input.userId,prospectos_plan:plan};
+ const partnerId=deps.partnerOf?await deps.partnerOf(input.userId):null;
+ const customerId=account?.stripe_customer_id??await store.linkCustomer(input.userId,(await stripe.createCustomer({email:input.email,userId:input.userId,...(partnerId?{partnerId}:{})},`prospectos-customer-${input.userId}`)).id);
+ // An existing customer gets the partner id too (best effort: the commission is decided by the database, not by this field).
+ if(partnerId&&account?.stripe_customer_id&&stripe.updateCustomerMetadata)await stripe.updateCustomerMetadata(customerId,{prospectos_partner_id:partnerId}).catch(()=>deps.log?.('billing: partner metadata not copied to the customer'));
+ const metadata={prospectos_user_id:input.userId,prospectos_plan:plan,...(partnerId?{prospectos_partner_id:partnerId}:{})};
  // Same user + offer within 5 minutes (double click, retry) → Stripe returns the same session.
  const bucket=Math.floor((input.now??Date.now())/300000);
  const session=await stripe.createCheckoutSession({

@@ -104,7 +104,9 @@ test('route and schedule: GET only, only the Authorization header is read; daily
  // — the BODACC of 17 nov. left 300 Île-de-France companies unenriched; nothing runs unless PUBLIC_EVENTS_COLLECT_ENABLED.
  // 18 nov. 2026 (owner decision, RGPD): the nightly retention job (migration 048) — 3 years without activity for contact
  // details, and the purges already written (signals, BODACC announcements, référentiel lists) finally scheduled.
- assert.deepEqual(vercel.crons.map((c:any)=>c.path).sort(),['/api/cron/collect','/api/cron/dedicated-statements','/api/cron/enrich/1','/api/cron/enrich/2','/api/cron/enrich/3','/api/cron/morning-digest','/api/cron/retention','/api/cron/self-outreach','/api/cron/signals']);
+ // 25 nov. 2026 (owner request): the partner statements job (migration 052) — the previous month's statement of every
+ // partner, on the 1st; nothing runs unless NEXT_PUBLIC_PARTNERS_ENABLED (tests/partner-program.test.ts).
+ assert.deepEqual(vercel.crons.map((c:any)=>c.path).sort(),['/api/cron/collect','/api/cron/dedicated-statements','/api/cron/enrich/1','/api/cron/enrich/2','/api/cron/enrich/3','/api/cron/morning-digest','/api/cron/partner-statements','/api/cron/retention','/api/cron/self-outreach','/api/cron/signals']);
  const src=await readFile(new URL('../src/signals/monitor.ts',import.meta.url),'utf8');
  assert.doesNotMatch(src,/linkedin|anthropic|openai/i);
 });

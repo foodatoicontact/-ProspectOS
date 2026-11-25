@@ -36,6 +36,10 @@
     {
       "path": "/api/cron/retention",
       "schedule": "29 2 * * *"
+    },
+    {
+      "path": "/api/cron/partner-statements",
+      "schedule": "47 6 * * *"
     }
   ]
 }

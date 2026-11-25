@@ -1,4 +1,4 @@
-// Minimal Stripe REST client (server only): the five calls ProspectOS needs, no SDK dependency. The API
+// Minimal Stripe REST client (server only): the five calls ProspectOS needs (four more for the partner programme, 052), no SDK dependency. The API
 // version is pinned so the shapes parsed in webhook.ts never change underneath us; the parsing still accepts
 // both locations of the billing period (subscription level before 2025-03-31.basil, item level after).
 // The secret key only ever goes into the Authorization header of a request to api.stripe.com.
@@ -16,12 +16,26 @@ export type StripeSubscription={
  items:{data:{price:{id:string}&Partial<StripePrice>;quantity?:number;current_period_start?:number;current_period_end?:number}[]};
  latest_invoice:string|StripeInvoice|null;metadata?:Record<string,string>;
 };
+// Programme partenaires (052): an invoice and a charge as re-read from Stripe, never as sent in a webhook body.
+export type StripeInvoiceFull={id:string;status:string|null;customer:string|null;currency:string;livemode:boolean;amount_paid:number;total:number;
+ total_excluding_tax:number|null;status_transitions?:{paid_at?:number|null}};
+export type StripeCharge={id:string;livemode:boolean;currency:string;amount:number;amount_refunded:number;customer:string|null;
+ payment_intent:string|null;invoice?:string|null};
+export interface PartnerStripeApi{
+ retrieveInvoice(id:string):Promise<StripeInvoiceFull>;
+ retrieveCharge(id:string):Promise<StripeCharge>;
+ // The invoice a payment belongs to (API 2025-03-31.basil: charges no longer name it; the invoice payments do).
+ invoiceForPaymentIntent(paymentIntentId:string):Promise<string|null>;
+ updateCustomerMetadata(customerId:string,metadata:Record<string,string>):Promise<unknown>;
+}
 export interface StripeApi{
  retrievePrice(id:string,withTiers?:boolean):Promise<StripePrice>;
- createCustomer(params:{email:string|null;userId:string},idempotencyKey:string):Promise<{id:string}>;
+ createCustomer(params:{email:string|null;userId:string;partnerId?:string|null},idempotencyKey:string):Promise<{id:string}>;
  createCheckoutSession(params:Record<string,unknown>,idempotencyKey:string):Promise<{id:string;url:string|null}>;
  createPortalSession(params:Record<string,unknown>):Promise<{url:string}>;
  retrieveSubscription(id:string):Promise<StripeSubscription>;
+ // Programme partenaires only (absent from test doubles that do not need it).
+ updateCustomerMetadata?(customerId:string,metadata:Record<string,string>):Promise<unknown>;
 }
 export class StripeRequestError extends Error{
  readonly status:number;readonly type:string|null;
@@ -41,7 +55,7 @@ export function formEncode(params:Record<string,unknown>,prefix=''):string{
  return out.filter(Boolean).join('&');
 }
 
-export function createStripeClient(secretKey:string,fetchImpl:typeof fetch=fetch):StripeApi{
+export function createStripeClient(secretKey:string,fetchImpl:typeof fetch=fetch):StripeApi&PartnerStripeApi{
  async function call<T>(method:'GET'|'POST',path:string,params?:Record<string,unknown>,idempotencyKey?:string):Promise<T>{
   const body=params?formEncode(params):'';
   const url=method==='GET'&&body?`${STRIPE_API}${path}?${body}`:`${STRIPE_API}${path}`;
@@ -57,9 +71,16 @@ export function createStripeClient(secretKey:string,fetchImpl:typeof fetch=fetch
  const id=(v:string,prefix:string)=>{if(!new RegExp(`^${prefix}_[A-Za-z0-9]+$`).test(v))throw Error('INVALID_STRIPE_ID');return v};
  return {
   retrievePrice:async(priceId,withTiers)=>call('GET',`/prices/${id(priceId,'price')}`,withTiers?{expand:['tiers']}:undefined),
-  createCustomer:({email,userId},key)=>call('POST','/customers',{...(email?{email}:{}),metadata:{prospectos_user_id:userId}},key),
+  createCustomer:({email,userId,partnerId},key)=>call('POST','/customers',{...(email?{email}:{}),metadata:{prospectos_user_id:userId,...(partnerId?{prospectos_partner_id:partnerId}:{})}},key),
   createCheckoutSession:(params,key)=>call('POST','/checkout/sessions',params,key),
   createPortalSession:params=>call('POST','/billing_portal/sessions',params),
   retrieveSubscription:async subId=>call('GET',`/subscriptions/${id(subId,'sub')}`,{expand:['latest_invoice']}),
+  retrieveInvoice:async invId=>call('GET',`/invoices/${id(invId,'in')}`),
+  retrieveCharge:async chId=>call('GET',`/charges/${/^py_/.test(chId)?id(chId,'py'):id(chId,'ch')}`),
+  invoiceForPaymentIntent:async pi=>{
+   const r=await call<{data?:Array<{invoice?:unknown}>}>('GET','/invoice_payments',{payment:{type:'payment_intent',payment_intent:id(pi,'pi')},limit:1});
+   const inv=r.data?.[0]?.invoice;return typeof inv==='string'&&/^in_[A-Za-z0-9]+$/.test(inv)?inv:null;
+  },
+  updateCustomerMetadata:(cusId,metadata)=>call('POST',`/customers/${id(cusId,'cus')}`,{metadata}),
  };
 }

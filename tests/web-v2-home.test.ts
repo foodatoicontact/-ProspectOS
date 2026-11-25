@@ -11,6 +11,7 @@ import {HOME_COPY,demoCompanies,HERO_DEMO_ID} from '../src/ui/v2/home/copy.ts';
 import {light,dark} from '../src/ui/v2/tokens.ts';
 import {composite,contrastRatio} from '../src/ui/v2/color.ts';
 import {legacyWelcome} from './welcome-screen.ts';
+import {withoutPartners} from './self-outreach-strip.ts';
 
 const read=(p:string)=>readFileSync(new URL(p,import.meta.url),'utf8');
 const page=read('../app/page.tsx');
@@ -28,7 +29,9 @@ test('page — a build-time choice: the v2 homepage is in the prerendered HTML w
 });
 test('flag OFF parity — the legacy welcome screen is byte-for-byte the one of main (119bb30)',()=>{
  const blk=page.slice(page.indexOf(" if(mode==='welcome'){"));
- assert.equal(createHash('sha256').update(legacyWelcome(page)).digest('hex'),'6e51c117bc0c9eed5ba4382d70ceb16446ec0675be672bacf1202f323a11405e');
+ // Owner request (25 nov. 2026, programme partenaires, migration 052): the optional « Code partenaire » field of the sign-up
+ // card, behind NEXT_PUBLIC_PARTNERS_ENABLED, is set aside (tests/self-outreach-strip.ts); the rest of the screen is main's.
+ assert.equal(createHash('sha256').update(legacyWelcome(withoutPartners(page))).digest('hex'),'6e51c117bc0c9eed5ba4382d70ceb16446ec0675be672bacf1202f323a11405e');
  assert.match(blk,/\n  if\(HomeV2\)return <HomeV2 /,'the v2 homepage replaces the screen only in a site built with the flag');
 });
 test('commercial behaviour — CTA, sign-up card, demo link and footer come unchanged from app/page.tsx',()=>{

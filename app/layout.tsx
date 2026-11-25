@@ -1,5 +1,6 @@
 import type {Metadata} from 'next';
 import {SITE_URL,siteMetadata,softwareApplicationJsonLd,webSiteJsonLd,organizationJsonLd} from '../src/domain/seo';
+import {PartnerRefCapture} from '../src/partners/RefCapture';
 import './globals.css';
 
 export const metadata:Metadata={
@@ -30,6 +31,7 @@ export default function Layout({children}:{children:React.ReactNode}){
   const jsonLd=JSON.stringify([softwareApplicationJsonLd,webSiteJsonLd,organizationJsonLd]).replace(/</g,'\\u003c');
   return <html lang="fr"><body>
     {children}
+    <PartnerRefCapture/>
     <script type="application/ld+json" dangerouslySetInnerHTML={{__html:jsonLd}}/>
   </body></html>;
 }

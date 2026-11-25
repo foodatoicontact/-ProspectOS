@@ -24,13 +24,30 @@ const DEDICATED_FRAGMENTS=[
  "dedicated:mode==='live'&&dedicatedAccess.client?()=>{setV2Nav(null);setView('dedicated');setFromList(false)}:null,dedicatedPending:dedicatedAccess.proposals+dedicatedAccess.statements,dedicatedAdmin:mode==='live'&&dedicatedAccess.enabled&&entitlementPlan==='INTERNAL'?()=>{setV2Nav(null);setView('dedicated-admin');setFromList(false)}:null,",
  "   :view==='dedicated'&&mode==='live'&&dedicatedAccess.client?<v2.DedicatedClient api={api} token={token}/>\n   :view==='dedicated-admin'&&mode==='live'&&dedicatedAccess.enabled&&entitlementPlan==='INTERNAL'?<v2.DedicatedAdmin api={api}/>\n",
 ];
+// Programme partenaires (migration 052, owner request 25 nov. 2026) is set aside the same way: the flag and helper imports,
+// the field state, the optional code sent with the sign-up, and the « Code partenaire » field of the sign-up card — all
+// behind NEXT_PUBLIC_PARTNERS_ENABLED (off: the card and the sign-up call are exactly main's).
+const PARTNER_FRAGMENTS=[
+ "import {PARTNERS} from '../src/partners/flag.ts';\nimport {partnerSignupData} from '../src/partners/model.ts';\nimport {SignupCode} from '../src/partners/SignupCode';\n",
+ "const [partnerCode,setPartnerCode]=useState('');",
+ ",...(PARTNERS?partnerSignupData(partnerCode):{})",
+ "{PARTNERS&&authView==='signup'&&<SignupCode value={partnerCode} onChange={setPartnerCode} locale={locale}/>}",
+];
 const I18N_KEYS=/^ '(?:nav\.selfOutreach|so\.[A-Za-z.]+)':.*\n/gm;
 export function withoutSelfOutreach(src:string):string{
  let out=src;
+ for(const f of PARTNER_FRAGMENTS)out=out.split(f).join('');
+ if(/PARTNERS|partnerCode|SignupCode|partnerSignupData/.test(out))throw Error('a programme partenaires fragment outside the known ones');
  for(const f of DEDICATED_FRAGMENTS)out=out.split(f).join('');
  if(/dedicatedAccess|DedicatedClient|DedicatedAdmin|DedicatedNotice|dedicated_tracking/.test(out))throw Error('a veille dédiée fragment outside the known ones');
  for(const f of PAGE_FRAGMENTS)out=out.split(f).join('');
  out=out.replace(I18N_KEYS,'');
  if(/SelfOutreach|selfOutreach|soOn|setSoOn|self_outreach|'so\./.test(out))throw Error('a Self-Outreach fragment outside the known ones');
+ return out;
+}
+// The programme partenaires fragments alone (for pins that only cover the sign-up card, e.g. the welcome screen).
+export function withoutPartners(src:string):string{
+ let out=src;for(const f of PARTNER_FRAGMENTS)out=out.split(f).join('');
+ if(/PARTNERS|partnerCode|SignupCode|partnerSignupData/.test(out))throw Error('a programme partenaires fragment outside the known ones');
  return out;
 }

@@ -288,7 +288,9 @@ test('G — login() re-checks acceptance server-request-side (not just via the d
 // including the historical INTERNAL one, is never affected).
 // ------------------------------------------------------------
 test('H — signUp records terms_version/privacy_version/terms_accepted_at via Supabase Auth\'s own options.data (user_metadata) — no new table, no new migration',()=>{
- assert.match(page,/auth\.auth\.signUp\(\{email,password,options:\{emailRedirectTo:confirmationRedirect\(window\.location\.origin\),data:\{terms_accepted_at:new Date\(\)\.toISOString\(\),terms_version:TERMS_VERSION,privacy_version:PRIVACY_VERSION\}\}\}\)/);
+ // Owner request (25 nov. 2026, programme partenaires, migration 052): the optional partner code travels in the same
+ // user_metadata, only with NEXT_PUBLIC_PARTNERS_ENABLED; the three acceptance fields are unchanged and still never read.
+ assert.match(page,/auth\.auth\.signUp\(\{email,password,options:\{emailRedirectTo:confirmationRedirect\(window\.location\.origin\),data:\{terms_accepted_at:new Date\(\)\.toISOString\(\),terms_version:TERMS_VERSION,privacy_version:PRIVACY_VERSION,\.\.\.\(PARTNERS\?partnerSignupData\(partnerCode\):\{\}\)\}\}\}\)/);
 });
 test('H — TERMS_VERSION and PRIVACY_VERSION are non-empty version strings, single source of truth shared by the pages and the signup call',()=>{
  assert.match(TERMS_VERSION,/^\d{4}-\d{2}-\d{2}$/);

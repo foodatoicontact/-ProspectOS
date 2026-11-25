@@ -55,6 +55,7 @@ jobs:
       - run: npm run test:prospect-siren-db
       - run: npm run test:bodacc-sale-signal-db
       - run: npm run test:partner-program-db
+      - run: npm run test:partner-retention-db
       - run: npm run test:db
       - run: npm run test:icp-import-db
       - run: npm run test:icp-rollback-db

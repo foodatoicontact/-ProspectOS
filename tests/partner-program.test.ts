@@ -245,3 +245,16 @@ test('figures: the 30 %, 12 months and 50 € shown come from the constants the 
  for(const f of ['../src/ui/v2/partners/PartnerViews.tsx','../src/ui/v2/partners/PartnerAdminView.tsx','../src/partners/api.ts','../app/partenaires/page.tsx'])
   assert.doesNotMatch(read(f),/\b12 premiers mois|\b50 €|\b30 %/,`${f}: figures from the constants`);
 });
+test('privacy policy: section 13 states what the programme keeps, and the 6-month deletion is the one migration 053 applies',()=>{
+ const page=read('../app/confidentialite/page.tsx');
+ assert.match(page,/<h2>13\. Programme partenaires<\/h2>/);
+ assert.match(page,/nom, entreprise, SIRET, adresse e-mail, message de candidature et, pour les partenaires retenus, coordonnées de versement/);
+ assert.match(page,/exécution du contrat \(les conditions du programme partenaires\) et respect des obligations comptables/);
+ assert.match(page,/supprimée automatiquement au plus tard 6 mois après son envoi/);
+ assert.match(page,/uniquement pour calculer la commission du partenaire/);
+ assert.match(page,/Le partenaire ne reçoit que des montants/);
+ assert.match(page,/Ce n’est pas un cookie/);
+ const m=read('../db/migrations/053_partner_applications_retention.sql');
+ assert.match(m,/a\.created_at<now\(\)-interval '6 months'/);
+ assert.match(m,/'partner_applications',public\.purge_partner_applications\(\)/);
+});

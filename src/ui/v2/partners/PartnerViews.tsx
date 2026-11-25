@@ -3,14 +3,14 @@
 // commissions of the month and the balance, then each line and each monthly statement. A client is only ever an
 // anonymous reference (C-XXXXXX) and an amount: never a name, an e-mail or a company — the database sends nothing else.
 import {useState} from 'react';
-import {euros,monthLabel,dayLabel} from '../../../partners/model.ts';
+import {euros,monthLabel,dayLabel,COMMISSION_MONTHS} from '../../../partners/model.ts';
 import {statementState,STATE_LABEL,type SpaceData} from './model.ts';
 export function PartnerSpaceView({data,onCopy}:{data:SpaceData;onCopy?:(text:string)=>Promise<void>|void}){
  const [copied,setCopied]=useState('');
  const copy=async(what:string,text:string)=>{try{await onCopy?.(text);setCopied(what);setTimeout(()=>setCopied(''),2000)}catch{}};
  const p=data.partner;
  return <div className="pos-ded" aria-labelledby="pos-partner-title">
-  <div><h2 id="pos-partner-title">Espace partenaire</h2><p className="pos-ded__muted">{p.company} · {p.rate_percent.toLocaleString('fr-FR')} % du montant HT payé par chaque client apporté, pendant ses 12 premiers mois.</p></div>
+  <div><h2 id="pos-partner-title">Espace partenaire</h2><p className="pos-ded__muted">{p.company} · {p.rate_percent.toLocaleString('fr-FR')} % du montant HT payé par chaque client apporté, pendant ses {COMMISSION_MONTHS} premiers mois.</p></div>
   {p.status==='SUSPENDED'&&<p className="pos-ded__note pos-ded__note--error" role="status">Votre partenariat est suspendu : les nouvelles inscriptions ne vous sont plus attribuées. Vos commissions déjà acquises restent dues.</p>}
   <section className="pos-ded__card pos-ded__card--accent" aria-label="Votre lien">
    <h3>Votre lien de recommandation</h3>

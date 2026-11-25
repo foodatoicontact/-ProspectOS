@@ -3,7 +3,7 @@
 // reference, no automatic transfer), every partner with their balance, the creation of a partner (prefilled from an
 // application), and the applications received from /partenaires. Every refusal is the server's sentence.
 import {useState} from 'react';
-import {euros,monthLabel,dayLabel,normalizePartnerCode,siretValid} from '../../../partners/model.ts';
+import {euros,monthLabel,dayLabel,normalizePartnerCode,siretValid,PAYOUT_THRESHOLD_CENTS} from '../../../partners/model.ts';
 import type {AdminData,Application} from './model.ts';
 export type AdminActions={
  markPaid:(statementId:string,paidOn:string,reference:string)=>Promise<void>;
@@ -30,7 +30,7 @@ export function PartnerAdminView({data,actions,busy=false}:{data:AdminData;actio
     </div>
     <div className="pos-ded__actions"><button type="button" className="pos-ded__btn pos-ded__btn--primary" disabled={busy||v.ref.trim().length<3||!v.date}
      onClick={()=>{if(window.confirm(`Marquer payé : ${euros(t.balance_cents)} à ${t.partner} (virement ${v.ref.trim()} du ${v.date}) ?`))actions.markPaid(t.id,v.date,v.ref.trim())}}>Marquer payé</button></div>
-   </li>})}</ul>:<p className="pos-ded__muted">Aucun relevé à payer. Les relevés sont établis le 1er du mois ; un solde inférieur à 50 € est reporté.</p>}
+   </li>})}</ul>:<p className="pos-ded__muted">Aucun relevé à payer. Les relevés sont établis le 1er du mois ; un solde inférieur à {euros(PAYOUT_THRESHOLD_CENTS)} est reporté.</p>}
   </section>
   <section className="pos-ded__card" aria-label="Partenaires">
    <div className="pos-ded__row"><h3>Partenaires</h3><button type="button" className="pos-ded__btn" aria-expanded={open} onClick={()=>setOpen(!open)}>{open?'Fermer':'Nouveau partenaire'}</button></div>

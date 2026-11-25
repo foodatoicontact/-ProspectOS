@@ -170,7 +170,8 @@ test('routes: 404 with the flag off; the database answers the rest (the partner 
  assert.equal((await handlePartners(new Request('http://x/api/v1/partners/admin'),['partners','admin'],deny,json,{enabled:true,origin:'https://p.test'}))!.status,403);
 });
 test('pages and job: behind the flag; the public page through the legal envelope with its form; the job on the 1st only',()=>{
- for(const f of ['../app/partenaires/page.tsx','../app/partenaires/espace/page.tsx','../app/partenaires/admin/page.tsx'])assert.match(read(f),/if\(!PARTNERS\)notFound\(\)/,f);
+ for(const f of ['../app/partenaires/espace/page.tsx','../app/partenaires/admin/page.tsx'])assert.match(read(f),/if\(!PARTNERS\)notFound\(\)/,f);
+ assert.match(read('../app/partenaires/page.tsx'),/if\(!PARTNERS\|\|!PARTNER_TERMS_VERSION_DATE\)notFound\(\)/,'the public page needs the flag AND a version date');
  assert.match(read('../app/partenaires/page.tsx'),/<LegalPage /);assert.match(read('../app/partenaires/page.tsx'),/<PartnerApplicationForm/);
  for(const f of ['../app/partenaires/espace/page.tsx','../app/partenaires/admin/page.tsx'])assert.match(read(f),/robots:\{index:false,follow:false\}/,f);
  const cron=read('../app/api/cron/partner-statements/route.ts');
@@ -183,4 +184,64 @@ test('pages and job: behind the flag; the public page through the legal envelope
 test('space: no client name or e-mail is ever rendered — anonymous references and amounts only',()=>{
  const views=read('../src/ui/v2/partners/PartnerViews.tsx');
  assert.match(views,/l\.client/);assert.doesNotMatch(views,/organization|\.email\b(?!\})|client_name/i);
+});
+
+// ── conditions (owner's text, 25 nov. 2026) ────────────────────────────────────────────────────────────────────────────
+// The text exactly as provided by the owner. Only « [date de mise en ligne] » is a constant (PARTNER_TERMS_VERSION_DATE).
+const OWNER_TEXT=`CONDITIONS DU PROGRAMME PARTENAIRES PROSPECTOS
+Version du [date de mise en ligne]
+
+1. Objet
+Le programme partenaires permet à des professionnels de recommander ProspectOS et de percevoir une commission sur les abonnements payés par les clients qu'ils apportent.
+
+2. Partenaires éligibles
+Le programme est ouvert aux professionnels immatriculés (numéro SIRET obligatoire). Chaque candidature est examinée par ProspectOS, qui peut l'accepter ou la refuser sans avoir à se justifier. Le partenaire reçoit un code et un lien personnels.
+
+3. Client apporté
+Est considéré comme apporté un client qui crée un nouveau compte ProspectOS en utilisant le lien ou le code du partenaire. Le code doit être renseigné au moment de l'inscription et ne peut pas être ajouté après coup. Un compte existant, ou un compte créé par le partenaire pour lui-même, n'ouvre droit à aucune commission.
+
+4. Commission
+Le partenaire perçoit 30 % du montant hors taxes effectivement encaissé par ProspectOS au titre de l'abonnement du client apporté, pendant les 12 mois qui suivent son premier paiement. Les périodes d'essai gratuites ne donnent lieu à aucune commission. En cas de remboursement, la commission correspondante est déduite du solde du partenaire.
+
+5. Relevé et versement
+Un relevé mensuel est disponible dans l'espace partenaire. Le versement intervient par virement, sur facture du partenaire du montant du relevé, dans les 30 jours suivant sa réception, dès que le solde atteint 50 € HT. En dessous de ce seuil, le solde est reporté au mois suivant.
+
+6. Engagements du partenaire
+Le partenaire recommande ProspectOS de façon loyale et exacte. Sont interdits : l'envoi de messages non sollicités en masse, l'automatisation de la prospection sur LinkedIn, l'achat de publicités sur le nom ProspectOS, toute promesse de résultat ou de fonctionnalité que l'outil ne propose pas, et toute pratique contraire au RGPD. Le partenaire agit en toute indépendance : il n'est ni salarié ni mandataire de ProspectOS et ne peut prendre aucun engagement en son nom.
+
+7. Manquement
+En cas de manquement à ces conditions ou de fraude, ProspectOS peut suspendre le partenaire et annuler les commissions liées aux clients concernés.
+
+8. Durée, résiliation et modification
+Chaque partie peut mettre fin à sa participation à tout moment, avec un préavis de 30 jours. Les commissions sur les paiements encaissés avant la date de fin restent dues. ProspectOS peut modifier ces conditions en prévenant les partenaires 30 jours à l'avance ; les nouvelles conditions ne s'appliquent qu'aux clients apportés après leur entrée en vigueur.
+
+9. Données personnelles
+Les données du partenaire (nom, entreprise, SIRET, e-mail) sont utilisées uniquement pour gérer le programme et les versements. Le partenaire ne reçoit aucune donnée personnelle sur les clients qu'il apporte, seulement des montants. Voir la politique de confidentialité.
+
+10. Droit applicable
+Ces conditions sont soumises au droit français. Tout litige relève des tribunaux de Toulouse.`;
+test('conditions: the owner\'s text word for word, only the version date is a constant (empty: the public page stays hidden)',async()=>{
+ const t=await import('../src/partners/terms.ts');
+ const rendered=[t.PARTNER_CONDITIONS_TITLE,t.partnerConditionsVersion('[date de mise en ligne]'),...t.PARTNER_CONDITIONS.map(c=>`\n${c.title}\n${c.text}`)].join('\n');
+ assert.equal(rendered,OWNER_TEXT);
+ assert.equal(t.PARTNER_TERMS_VERSION_DATE,'','no date until the owner switches the programme back on');
+});
+test('figures: the 30 %, 12 months and 50 € shown come from the constants the commissions are computed with — and match migration 052',async()=>{
+ const m=await import('../src/partners/model.ts');const t=await import('../src/partners/terms.ts');
+ const sql=read('../db/migrations/052_partner_program.sql');
+ // The database computes with these values: the partner's default rate, the 12-month window, the payout threshold.
+ assert.match(sql,new RegExp(`rate_percent numeric\\(5,2\\) not null default ${m.DEFAULT_RATE_PERCENT} `));
+ assert.match(sql,new RegExp(`p_paid_at>=first_at\\+interval '${m.COMMISSION_MONTHS} months'`));
+ assert.match(sql,new RegExp(`threshold_cents bigint not null check\\(threshold_cents=${m.PAYOUT_THRESHOLD_CENTS}\\)`));
+ assert.match(sql,new RegExp(`bal,${m.PAYOUT_THRESHOLD_CENTS},bal>=${m.PAYOUT_THRESHOLD_CENTS}`));
+ assert.match(sql,new RegExp(`'threshold_cents',${m.PAYOUT_THRESHOLD_CENTS},`));
+ assert.equal(m.DEFAULT_RATE_PERCENT,30);assert.equal(m.COMMISSION_MONTHS,12);assert.equal(m.PAYOUT_THRESHOLD_CENTS,5000);
+ // The page writes them from the constants: changing a constant changes the page; no figure is typed in the text.
+ const src=read('../src/partners/terms.ts');
+ assert.doesNotMatch(src.replace(/^\/\/.*$/gm,''),/\b30 %|\b12 (premiers )?mois|\b50 €/,'no hand-typed figure in terms.ts');
+ const page=[...t.PARTNER_SUMMARY,...t.PARTNER_CONDITIONS.map(c=>c.text)].join('\n');
+ assert.ok(page.includes(`${m.DEFAULT_RATE_PERCENT} %`)&&page.includes(`${m.COMMISSION_MONTHS} mois`)&&page.includes(`${m.PAYOUT_THRESHOLD_CENTS/100} € HT`));
+ assert.equal(m.commissionOf(9900,m.DEFAULT_RATE_PERCENT),2970,'30 % of 99,00 € HT, as the database computes it (tests/partner-program-db.mjs)');
+ for(const f of ['../src/ui/v2/partners/PartnerViews.tsx','../src/ui/v2/partners/PartnerAdminView.tsx','../src/partners/api.ts','../app/partenaires/page.tsx'])
+  assert.doesNotMatch(read(f),/\b12 premiers mois|\b50 €|\b30 %/,`${f}: figures from the constants`);
 });

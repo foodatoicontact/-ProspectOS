@@ -9,7 +9,7 @@
 //   POST partners/admin/organizations/<id>/referral   administrator: {partner_id|null,reason} (journaled)
 import {z} from 'zod';
 import type {SupabaseClient} from '@supabase/supabase-js';
-import {normalizePartnerCode,siretValid,referralLink,DEFAULT_RATE_PERCENT} from './model.ts';
+import {normalizePartnerCode,siretValid,referralLink,euros,DEFAULT_RATE_PERCENT,PAYOUT_THRESHOLD_CENTS} from './model.ts';
 type Json=(value:unknown,status?:number)=>Response;
 export type PartnerApiDeps={enabled:boolean;origin:string};
 const uuid=z.string().uuid();
@@ -27,7 +27,7 @@ const KNOWN:Record<string,[string,number]>={
  partner_siret_invalid:['SIRET invalide.',422],
  partner_statement_not_found:['Relevé introuvable.',404],
  partner_statement_already_paid:['Ce relevé est déjà marqué payé.',409],
- partner_statement_below_threshold:['Solde inférieur au seuil de 50 € : il est reporté au relevé suivant.',409],
+ partner_statement_below_threshold:[`Solde inférieur au seuil de ${euros(PAYOUT_THRESHOLD_CENTS)} : il est reporté au relevé suivant.`,409],
  partner_statement_superseded:['Un relevé plus récent reprend ce solde : marquez celui-là comme payé.',409],
  partner_paid_on_invalid:['Date de virement invalide : après la fin du mois du relevé, et pas dans le futur.',422],
  partner_reference_invalid:['Référence de virement requise (3 à 80 caractères).',422],

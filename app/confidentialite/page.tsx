@@ -102,6 +102,7 @@ export default function Page(){
   <section>
    <h2>7. Cookies et traceurs</h2>
    <p>ProspectOS n’utilise aucun cookie ou traceur de mesure d’audience, publicitaire ou marketing. Le seul mécanisme de stockage navigateur utilisé pour l’espace connecté est celui, strictement nécessaire, de la bibliothèque d’authentification Supabase, qui conserve votre session (jeton de connexion) dans le stockage local de votre navigateur afin de vous maintenir connecté — jamais transmis à un tiers, jamais utilisé à des fins de suivi ou de profilage.</p>
+   <p>Lien d’un partenaire (<code>?ref=</code>) : le code du partenaire est gardé dans le stockage de session de l’onglet, jusqu’à sa fermeture, pour pré-remplir le champ « Code partenaire » de l’inscription. Ce n’est pas un cookie ; il n’est transmis qu’avec votre inscription, si le code figure encore dans le champ (section 13).</p>
    <p>Le mode « démo » (sans compte) conserve les projets et prospects de démonstration que vous créez localement sur votre appareil, pour la durée de votre visite — jamais transmis à un serveur.</p>
    <p>Ces mécanismes étant strictement nécessaires au fonctionnement du service demandé par l’utilisateur, ils ne requièrent pas de recueil de consentement préalable au sens de l’article 82 de la loi Informatique et Libertés. Aucune bannière de consentement n’est donc affichée.</p>
   </section>
@@ -162,7 +163,24 @@ export default function Page(){
   </section>
 
   <section>
-   <h2>13. Contact</h2>
+   <h2>13. Programme partenaires</h2>
+   <h3>13.1 Candidats et partenaires</h3>
+   <ul>
+    <li><b>Données</b> : nom, entreprise, SIRET, adresse e-mail, message de candidature et, pour les partenaires retenus, coordonnées de versement.</li>
+    <li><b>Finalités</b> : examen de la candidature, gestion du programme (code et lien personnels, espace partenaire, relevés mensuels) et versement des commissions.</li>
+    <li><b>Bases légales</b> : exécution du contrat (les conditions du programme partenaires) et respect des obligations comptables.</li>
+    <li><b>Conservation</b> : pendant toute la durée du partenariat, puis pendant les délais comptables légaux. Une candidature qui n’est pas retenue est supprimée automatiquement au plus tard 6 mois après son envoi.</li>
+   </ul>
+   <h3>13.2 Clients inscrits avec un code partenaire</h3>
+   <ul>
+    <li>Le code partenaire utilisé à l’inscription (saisi, ou venu du lien d’un partenaire) est enregistré sur votre compte, uniquement pour calculer la commission du partenaire.</li>
+    <li>Aucun cookie de suivi n’est utilisé (voir section 7).</li>
+    <li>Le partenaire ne reçoit que des montants, rattachés à une référence anonyme : jamais votre nom, celui de votre entreprise ni vos coordonnées.</li>
+   </ul>
+  </section>
+
+  <section>
+   <h2>14. Contact</h2>
    <p>Pour toute question relative à cette politique de confidentialité : {EDITOR.legalEmail} · {EDITOR.phone}.</p>
   </section>
 

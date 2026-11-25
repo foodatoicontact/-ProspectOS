@@ -68,11 +68,14 @@ test('freeze — legal text, SEO content, prices, quotas, trial, plans, i18n and
   'app/cgv/page.tsx':'49c80e19478f219668144f1c4039fca7464a15d5003584193db990bfb0269208',
   // 1 nov. 2026 (migration 040): the privacy policy also describes the opt-in morning recap (sections 3.7, 5, 6, 8).
   // Owner decision (18 nov. 2026, RGPD): section 8 states the retention applied by migration 048 — contact details 3 years without activity, signals, BODACC announcements.
-  'app/confidentialite/page.tsx':'951ee66dfeacfe1311305be13e0b6a97381d193bf50774ac0d5f237ae16b709a',
+  // Owner decision (25 nov. 2026, RGPD): section 13 « Programme partenaires » (candidates and partners, clients signed up with a
+  // code; applications not accepted deleted within 6 months, migration 053), the ?ref= session storage in section 7, contact → 14.
+  'app/confidentialite/page.tsx':'c2ae37970bde0ea41a645cadd402fd20b3f1bc22dc2e89aef3802e5816e56042',
   'app/mentions-legales/page.tsx':'2efbad023e459aa36de624415f119b61f8372d80cecd1c60722f1a9f23b0f65e',
   // Owner decision (14 nov. 2026): ACTIVITY_FORMALITY.filedAt corrected to 13/11/2026, the date the INPI formality was signed.
   // Owner decision (18 nov. 2026, RGPD): PRIVACY_VERSION 2026-11-18 for the retention lines above; terms unchanged.
-  'src/domain/legal.ts':'bd2bc49498a2c6c2a9f2fd837835b11b3908a604fead4ba0d0ebe420c192c2a8',
+  // Owner decision (25 nov. 2026, RGPD): PRIVACY_VERSION 2026-11-25 for section 13 above; terms unchanged.
+  'src/domain/legal.ts':'da9e79a4dbc7ecd4313c4d3cd46fb607642854c66c633dc4c94d0b519ce03212',
   // WEB-2.1 / 2.2: the /a-propos entry (demo wording, recommendation instead of score, its date) and the /prospection-b2b
   // closing call to action only; every other page is main's text.
   // Owner decision (11 nov. 2026, SEO): the /tarifs and /a-propos titles, descriptions and dates rewritten.

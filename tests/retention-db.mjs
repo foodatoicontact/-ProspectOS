@@ -84,7 +84,9 @@ try {
     await refused(() => as(undefined, `select public.run_retention()`), /permission denied/i, 'an anonymous run');
     await refused(() => as(A, `select public.purge_inactive_contacts(10)`), /permission denied/i, 'a signed-in contact purge');
     report = (await asService(`select public.run_retention() r`)).rows[0].r;
-    assert.deepEqual(Object.keys(report).sort(), ['inactive_contacts', 'prospect_lists', 'public_events', 'signals']);
+    // Owner decision (25 nov. 2026, RGPD, migration 053): the nightly job also deletes the partner applications not accepted
+    // within 6 months (tests/partner-retention-db.mjs); every other purge is unchanged.
+    assert.deepEqual(Object.keys(report).sort(), ['inactive_contacts', 'partner_applications', 'prospect_lists', 'public_events', 'signals']);
   });
   await check('CONTACTS: after 3 years without activity, people\'s details go; the company website, the record and its evidence stay', async () => {
     assert.deepEqual(report.inactive_contacts, { prospects: 1, channels: 2, contacts: 1 });

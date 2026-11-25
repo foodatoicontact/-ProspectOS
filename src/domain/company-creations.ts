@@ -1,12 +1,15 @@
 // Company-creation barometer: monthly counts of the creation notices published in the BODACC (Bulletin officiel des
 // annonces civiles et commerciales, DILA — Licence Ouverte 2.0) for every French department, region and the whole country.
 //  - Only TOTALS are ever published: never a name, an address or a registration number. The export asks for neither the
-//    trader's name nor the register number; the activity text and the address are read in memory to count, then dropped.
+//    trader's name nor the register number — except the reprises export, whose register number and postal code are read
+//    in memory to count a purchase announced twice once, then dropped; the activity text and the address are read in
+//    memory to count, then dropped.
 //  - A commune is shown only when it gathers at least MIN_COMMUNE_NOTICES notices, so no row points at one person.
 //  - The activity split is a deterministic keyword classification of the declared activity (first establishment), a
 //    closed table published on the page itself: it is labelled "indicative", never presented as an official NAF code.
 //  - One fixed host, bounded time and size, redirects refused. An unanswered or malformed answer is an error, never "0".
 import {DEPARTMENTS} from '../discovery/geo-fr.ts';
+import {purchaseOf,buyerSiren,postalCodeOf,purchaseKey} from './bodacc-purchase.ts';
 
 export const BODACC_DATASET='https://bodacc-datadila.opendatasoft.com/api/explore/v2.1/catalog/datasets/annonces-commerciales';
 export const BODACC_PUBLIC_PAGE='https://www.bodacc.fr/';
@@ -242,32 +245,36 @@ export function monthlySeries(rows:Record<string,unknown>[],from:string,to:strin
 
 // ── Reprises: purchases of a business (BODACC "Ventes et cessions") ────────────────────────────────────────────────────
 // The family mixes real purchases of a business (fonds de commerce, établissement) with contributions, mergers and
-// attributions, and announces a company's start of activity "suite à achat" as a second notice of the same purchase. Only
-// the first kind is counted: the category of the sale (acte.vente.categorieVente) starts with « Achat d'un fonds » or
-// « Achat d'un établissement ». The category is not a field the register can group on, so the month is exported and
-// classified here; only the category and the department are read, the notice text (names, addresses) is never kept. Initial notices only:
-// corrections and cancellations repeat a notice already counted.
-export const PURCHASE_CATEGORY=/^Achat d['’]un (?:fonds|établissement)/i;
+// attributions. What is a purchase is decided by the rule shared with the search, the signals and the collection
+// (src/domain/bodacc-purchase.ts, 25 nov. 2026): the category of the sale and the origin of the business. The category is
+// not a field the register can group on, so the month is exported and classified here. A purchase announced twice (the
+// « Achat… » notice, then the « Mise en activité… » of the company created for it) is counted once: same register number
+// and same postal code. Read in memory and dropped: the category, the origin, the register number and the postal code;
+// never the act's text, never a name — only totals are kept. Initial notices only: corrections and cancellations repeat a
+// notice already counted.
+export {PURCHASE_CATEGORY} from './bodacc-purchase.ts';
+// The export of one month for all of France with the establishments' origin is ~9 MB (4 893 notices, 26 Oct.–24 Nov. 2026).
+const MAX_PURCHASES_EXPORT_BYTES=24_000_000;
 // byDepartment: the same purchases counted per department of publication (the France map); totals only, never a name.
 export type Purchases={month:string;count:number;notices:number;byDepartment:Record<string,number>;query:string};
 export function purchasesExportUrl(codes:readonly string[]|null,month:string):string{
  const u=new URL(`${BODACC_DATASET}/exports/json`);
- u.searchParams.set('select','numerodepartement,acte');
+ u.searchParams.set('select','numerodepartement,registre,acte,listeetablissements');
  u.searchParams.set('where',`${noticeWhere('vente',codes?`(${codes.map(deptScope).join(' or ')})`:'numerodepartement is not null',month,addMonths(month,1))} and typeavis="annonce"`);
  return u.href;
 }
-export function isPurchase(acte:unknown):boolean{
- if(typeof acte!=='string')return false;
- try{const c=(JSON.parse(acte) as {vente?:{categorieVente?:unknown}})?.vente?.categorieVente;return typeof c==='string'&&PURCHASE_CATEGORY.test(c.trim())}
- catch{return false}
+export function isPurchase(acte:unknown,establishments?:unknown):boolean{
+ return typeof acte==='string'&&purchaseOf(acte,establishments).purchase;
 }
 export async function fetchPurchases(codes:readonly string[]|null,month:string,{fetchImpl=fetch}:{fetchImpl?:Fetch}={}):Promise<Purchases>{
  const query=purchasesExportUrl(codes,month);
- const rows=await getBodaccJson(query,fetchImpl,{timeoutMs:EXPORT_TIMEOUT_MS,maxBytes:MAX_EXPORT_BYTES});
+ const rows=await getBodaccJson(query,fetchImpl,{timeoutMs:EXPORT_TIMEOUT_MS,maxBytes:MAX_PURCHASES_EXPORT_BYTES});
  if(!Array.isArray(rows))throw new CreationsUnavailableError('MALFORMED');
- let count=0;const byDepartment:Record<string,number>={};
- for(const r of rows as {acte?:unknown;numerodepartement?:unknown}[]){
-  if(!isPurchase(r?.acte))continue;
+ let count=0;const byDepartment:Record<string,number>={};const seen=new Set<string>();
+ for(const r of rows as {acte?:unknown;listeetablissements?:unknown;registre?:unknown;numerodepartement?:unknown}[]){
+  if(!isPurchase(r?.acte,r?.listeetablissements))continue;
+  const key=purchaseKey(buyerSiren(r.registre),postalCodeOf(r.listeetablissements));
+  if(key){if(seen.has(key))continue;seen.add(key)}
   count++;
   if(typeof r.numerodepartement==='string'&&DEPT.test(r.numerodepartement))byDepartment[r.numerodepartement]=(byDepartment[r.numerodepartement]??0)+1;
  }

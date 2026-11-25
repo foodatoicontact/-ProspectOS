@@ -2,6 +2,7 @@ import {z} from 'zod';
 import type {SignalProvider,SignalSearchInput,RawSignal,SignalTarget} from '../provider.ts';
 import type {SignalType} from '../types.ts';
 import {fold} from '../extract.ts';
+import {purchaseOf,buyerSiren,postalCodeOf,purchaseKey} from '../../domain/bodacc-purchase.ts';
 // Signal Engine S10 — legal announcements (provider bodacc): the BODACC published by the DILA, read through its public
 // open-data API (Opendatasoft, dataset "annonces-commerciales", Licence Ouverte / Etalab). Searched by SIREN only, and
 // every announcement is checked to carry that exact SIREN: no homonym is possible. The publication date is official.
@@ -66,7 +67,9 @@ export function classifyAnnouncement(rec:Rec):{type:SignalType;detail:string}|{r
  if(/radiation|depot|dpc|comptes/.test(family))return {reject:'NOT_A_SIGNAL'};
  const detail=texts(rec.modificationsgenerales).concat(texts(rec.listeetablissements),texts(rec.acte)).join(' — ');
  const d=fold(detail);
- if(/vente|cession/.test(family))return {type:'acquisition',detail};
+ // 25 nov. 2026: a « Ventes et cessions » notice is a purchase only by the shared rule (src/domain/bodacc-purchase.ts) —
+ // contributions, mergers and sales ordered in a collective proceeding were all shown as « rachat » until then.
+ if(/vente|cession/.test(family))return purchaseOf(rec.acte,rec.listeetablissements).purchase?{type:'acquisition',detail}:{reject:'NOT_A_SIGNAL'};
  if(/creation|immatriculation/.test(family))return {type:'new_site',detail};
  if(/modification/.test(family)){
   const people=executiveChanges(rec.listepersonnes),moved=/transfert du siege hors ressort/.test(d);
@@ -99,13 +102,16 @@ export class BodaccSignalProvider implements SignalProvider{
   if(!response.ok)throw Error(`BODACC_HTTP_${response.status}`);
   const body=await response.text();if(body.length>2000000)throw Error('BODACC_RESPONSE_TOO_LARGE');
   const parsed=z.object({results:z.array(z.unknown()).default([])}).passthrough().parse(JSON.parse(body));
-  const out:RawSignal[]=[];
+  const out:RawSignal[]=[];const purchases=new Set<string>();
   for(const raw of parsed.results){
    const r=Record_.safeParse(raw);if(!r.success){this.reject('INVALID_SIGNAL');continue}
    const rec=r.data;
    if(!sirenMatches(rec,siren)){this.reject('SIREN_MISMATCH');continue}
    const c=classifyAnnouncement(rec);
    if('reject' in c){if(c.reject==='COLLECTIVE_PROCEDURE')this.lastReport.collective_procedures++;this.reject(c.reject);continue}
+   // The same purchase announced twice (« Achat… » then « Mise en activité… »): one signal, the newest notice.
+   if(c.type==='acquisition'){const key=purchaseKey(buyerSiren(rec.registre),postalCodeOf(rec.listeetablissements));
+    if(key&&purchases.has(key)){this.reject('DUPLICATE_PURCHASE');continue}if(key)purchases.add(key)}
    const day=/^\d{4}-\d{2}-\d{2}/.test(rec.dateparution??'')?rec.dateparution!.slice(0,10):null;
    if(!day){this.reject('INVALID_SIGNAL');continue}
    const label=(rec.familleavis_lib??rec.familleavis??'Annonce BODACC').trim();

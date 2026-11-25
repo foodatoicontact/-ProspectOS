@@ -28,7 +28,14 @@ test('query: by SIREN, last 12 months, newest first, one request; no key needed'
 test('mapping: executive change, new establishment, sale of a business, head-office transfer, capital increase',()=>{
  assert.equal((classifyAnnouncement(rec()) as any).type,'leadership_change');
  assert.equal((classifyAnnouncement(rec({familleavis:'creation',familleavis_lib:'Créations',modificationsgenerales:undefined,listeetablissements:JSON.stringify({etablissement:{origineFonds:'Création d’un établissement secondaire',activite:'Conseil en systèmes informatiques'}})})) as any).type,'new_site');
- assert.equal((classifyAnnouncement(rec({familleavis:'vente',familleavis_lib:'Ventes et cessions'})) as any).type,'acquisition');
+ // Owner decision (25 nov. 2026): a sale is a signal only when it is a purchase by the shared rule (src/domain/bodacc-purchase.ts).
+ const sale=(category:string,origin='Fonds acquis par achat au prix stipulé de 60000,00 euros.')=>rec({familleavis:'vente',familleavis_lib:'Ventes et cessions',modificationsgenerales:undefined,
+  acte:JSON.stringify({vente:{categorieVente:category}}),listeetablissements:JSON.stringify({etablissement:{origineFonds:origin,adresse:{codePostal:'35000'}}})});
+ assert.equal((classifyAnnouncement(sale("Achat d'un fonds par une personne morale (insertion provisoire)")) as any).type,'acquisition');
+ assert.equal((classifyAnnouncement(sale("Mise en activité d'une société suite à achat")) as any).type,'acquisition');
+ assert.deepEqual(classifyAnnouncement(sale("Autre achat, apport, attribution (immatriculation d'une personne morale, uniquement)",'Apport fusion')),{reject:'NOT_A_SIGNAL'},'a merger is never a « rachat »');
+ assert.deepEqual(classifyAnnouncement(sale("Achat d'un fonds par une personne morale (insertion provisoire)",'Etablissement principal acquis par apport au montant évalué à 14000,00 euros.')),{reject:'NOT_A_SIGNAL'});
+ assert.deepEqual(classifyAnnouncement(rec({familleavis:'vente',familleavis_lib:'Ventes et cessions'})),{reject:'NOT_A_SIGNAL'},'no category: no signal, never a guess');
  assert.equal((classifyAnnouncement(rec({modificationsgenerales:JSON.stringify({descriptif:'Transfert du siège social au 12 rue des Lices, Rennes.'})})) as any).type,'new_site');
  assert.equal((classifyAnnouncement(rec({modificationsgenerales:JSON.stringify({descriptif:'Augmentation du capital social portée à 500 000 euros.'})})) as any).type,'funding');
 });

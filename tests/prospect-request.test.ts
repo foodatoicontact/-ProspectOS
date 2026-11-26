@@ -42,7 +42,8 @@ test('no header or log injection: one line, no control character, bounded',()=>{
  assert.equal(m.subject,'[ProspectOS] 3 prospects demandés : Sites Subject: piraté · Haute-Garonne (31)');
  assert.match(m.text,/Message :\nLigne 1\n\nLigne 2/);
  assert.match(m.text,/Email : kevin@agence-exemple\.fr\n/);
- assert.match(m.text,/n’est enregistrée nulle part ailleurs que dans cet email/);
+ // Owner decision (26 nov. 2026): the request is also stored for the administrator's cockpit (migration 056, 12 months).
+ assert.match(m.text,/Cette demande est aussi enregistrée dans le cockpit ProspectOS \(supprimée 12 mois après son envoi\)\./);
 });
 
 test('throttle — a burst from one address is slowed, others are not',()=>{
@@ -54,7 +55,7 @@ test('throttle — a burst from one address is slowed, others are not',()=>{
  assert.equal(allow('1.1.1.1',1500),true,'the window slides');
 });
 
-test('route — same origin, bounded body, the notification goes to ProspectOS only, never to the requester, nothing stored',()=>{
+test('route — same origin, bounded body, the notification goes to ProspectOS only, never to the requester, stored by the server function only',()=>{
  const route=read('app/api/public/demande-prospects/route.ts');
  assert.match(route,/new URL\(origin\)\.host!==host\)return json\(403/,'same-origin form posts only');
  assert.match(route,/if\(raw\.length>4000\)return json\(413/);
@@ -62,7 +63,10 @@ test('route — same origin, bounded body, the notification goes to ProspectOS o
  assert.equal(PROSPECT_REQUEST_TO,'contact@prospectos.fr','the founder\'s professional mailbox, not the old Gmail');
  assert.match(route,/transport\.send\(\{to:PROSPECT_REQUEST_TO,/,'the recipient is a constant');
  assert.equal((route.match(/\.send\(/g)??[]).length,1,'one email per request');
- assert.doesNotMatch(route,/to:parsed|to:request|request\.email|createClient|supabase|insert\(/i,'never sent to the requester, never stored');
+ // Owner decision (26 nov. 2026): the request is stored for the cockpit (migration 056) — through the server-only function
+ // submit_contact_request (kind PROSPECTS), never by a direct insert; it is still never sent to the requester.
+ assert.doesNotMatch(route,/to:parsed|to:request|request\.email|createClient\(|supabase|insert\(/i,'never sent to the requester, no direct write');
+ assert.match(route,/rpc\('submit_contact_request',\{p_kind:'PROSPECTS',/);
  assert.doesNotMatch(route,/createSmtpTransport/,'the prospecting transport (behind its two flags) is not used here');
 });
 

@@ -1,5 +1,7 @@
 import {handleStripeWebhook} from '../../../../../../src/server/billing/webhook';
 import {billingDeps} from '../../../../../../src/server/billing';
+import {createAdminClient} from '../../../../../../src/server/admin-client';
+import {sendPendingPush} from '../../../../../../src/cockpit/dispatch';
 // Stripe → ProspectOS. Unauthenticated by design (Stripe is the caller): the Stripe signature is the only
 // credential, verified on the raw body before anything is read or written. More specific than the
 // authenticated catch-all /api/v1/[...path], so it never goes through the user session gate.
@@ -11,6 +13,9 @@ export async function POST(request:Request){
  if(raw.length>512000)return Response.json({error:'Payload too large'},{status:413,headers});
  try{
   const result=await handleStripeWebhook(raw,request.headers.get('stripe-signature'),billingDeps());
+  // A payment failure or a cancellation queued a push for the administrator (migration 056): sent now, best effort, without
+  // any name or amount. Only after a processed event (200); never changes the answer given to Stripe.
+  if(result.status===200){try{await sendPendingPush(createAdminClient())}catch{}}
   return Response.json(result.body,{status:result.status,headers});
  }catch(error){
   // 5xx: Stripe retries later; nothing was recorded for this event.

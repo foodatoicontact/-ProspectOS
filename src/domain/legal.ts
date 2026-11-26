@@ -104,7 +104,7 @@ export const TRANSFERS = {
 // Auth's own user_metadata, see app/page.tsx's signUp() call) at the moment a new account accepts them,
 // so a specific version can always be tied to a specific acceptance timestamp without a new table.
 export const TERMS_VERSION = '2026-10-11';
-export const PRIVACY_VERSION = '2026-11-25';
+export const PRIVACY_VERSION = '2026-11-26';
 
 export const LEGAL_PAGES = [
  {href: '/mentions-legales', label: 'Mentions légales'},

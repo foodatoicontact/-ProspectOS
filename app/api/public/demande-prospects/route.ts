@@ -5,10 +5,12 @@ import {createAdminClient} from '../../../../src/server/admin-client';
 import {hitForAddress} from '../../../../src/server/rate-limit';
 import {smtpTransportFrom} from '../../../../src/self-outreach/transport';
 
-// "3 prospects de votre zone" (src/domain/prospect-request.ts). The request is emailed to ProspectOS's own mailbox
-// and nowhere else: the recipient is a constant, nothing is ever sent to the requester, nothing is stored. It reuses the
-// SMTP configuration of the self-outreach engine for this single internal notification; the prospecting transport itself
-// stays behind its two flags in the cron route. Same-origin form posts only, small bodies, a honeypot, a burst throttle.
+// "3 prospects de votre zone" (src/domain/prospect-request.ts). Owner decision (26 nov. 2026): the request is stored for the
+// administrator's cockpit (public.contact_requests through the server function submit_contact_request, migration 056;
+// deleted after 12 months) and emailed to ProspectOS's own mailbox: the recipient is a constant, nothing is ever sent to the
+// requester. It reuses the SMTP configuration of the self-outreach engine for this single internal notification; the
+// prospecting transport itself stays behind its two flags in the cron route. Same-origin form posts only, small bodies, a
+// honeypot, a burst throttle. Answered as received when it was stored or emailed (either is enough to answer it).
 export const dynamic='force-dynamic';
 export const runtime='nodejs';
 const throttle=createThrottle({max:5,windowMs:60*60*1000});
@@ -29,12 +31,16 @@ export async function POST(request:Request){
  let body:unknown;try{body=JSON.parse(raw)}catch{return json(400,{error:'INVALID_REQUEST'})}
  const parsed=parseProspectRequest(body);
  if(!parsed.ok)return parsed.error==='SPAM'?json(200,{ok:true}):json(400,{error:parsed.error});
+ const r=parsed.request;
+ const stored=await (async()=>{try{const {error}=await createAdminClient().rpc('submit_contact_request',{p_kind:'PROSPECTS',p_activity:r.activity,p_target:r.target,
+  p_department:r.department.code,p_email:r.email,p_company:'',p_message:r.message});return !error}catch{return false}})();
  const cfg=smtpConfig(process.env);
- if(!cfg)return json(503,{error:'UNAVAILABLE'});
- const mail=notificationMail(parsed.request,new Date());
- const transport=smtpTransportFrom(cfg,await import('nodemailer'));
- try{
-  const sent=await transport.send({to:PROSPECT_REQUEST_TO,subject:mail.subject,text:mail.text,messageId:`<demande-${randomUUID()}@${cfg.fromEmail.split('@')[1]}>`});
-  return sent.kind==='SENT'?json(200,{ok:true}):json(503,{error:'UNAVAILABLE'});
- }finally{await transport.close()}
+ let mailed=false;
+ if(cfg){
+  const mail=notificationMail(r,new Date());
+  const transport=smtpTransportFrom(cfg,await import('nodemailer'));
+  try{mailed=(await transport.send({to:PROSPECT_REQUEST_TO,subject:mail.subject,text:mail.text,messageId:`<demande-${randomUUID()}@${cfg.fromEmail.split('@')[1]}>`})).kind==='SENT'}
+  catch{mailed=false}finally{await transport.close()}
+ }
+ return stored||mailed?json(200,{ok:true}):json(503,{error:'UNAVAILABLE'});
 }

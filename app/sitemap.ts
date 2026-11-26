@@ -9,7 +9,9 @@ export const revalidate=86400;
 export default async function sitemap():Promise<MetadataRoute.Sitemap>{
   // The "3 prospects de votre zone" offer page (static; dated by its own last edit).
   const offer={url:`${SITE_URL}/prospects-de-votre-zone`,lastModified:'2026-11-01',changeFrequency:'monthly' as const,priority:.8};
+  // The veille dédiée quote form (26 nov. 2026).
+  const quote={url:`${SITE_URL}/demande-veille`,lastModified:'2026-11-26',changeFrequency:'monthly' as const,priority:.6};
   const now=new Date();
   const recent=await fetchRecent(null,{now}).catch(()=>null);
-  return [...sitemapEntries,offer,...creationsSitemapEntries(SITE_URL,now,recent)].map(entry=>({...entry,lastModified:new Date(entry.lastModified)}));
+  return [...sitemapEntries,offer,quote,...creationsSitemapEntries(SITE_URL,now,recent)].map(entry=>({...entry,lastModified:new Date(entry.lastModified)}));
 }

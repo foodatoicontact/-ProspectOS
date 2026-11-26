@@ -1,0 +1,13 @@
+/* Cockpit administrateur (migration 056). Scoped to .pos-ui .pos-cockpit, tokens only, on top of the .pos-ded cards of the
+   veille dédiée screens. Mobile first (390 px): filters, then one column of events; wider screens only widen the column. */
+.pos-ui .pos-cockpit__filters{display:grid;gap:var(--pos-space-3)}
+.pos-ui .pos-cockpit__dates{display:grid;grid-template-columns:1fr 1fr;gap:var(--pos-space-2)}
+.pos-ui .pos-cockpit__event{display:grid;gap:4px;min-width:0;padding:var(--pos-space-3);border:1px solid var(--pos-border);border-radius:var(--pos-radius-md);
+ background:var(--pos-surface-card)}
+.pos-ui .pos-cockpit__kind{display:inline-flex;align-items:center;min-height:24px;padding:1px 9px;border-radius:var(--pos-radius-pill);font-size:var(--pos-text-xs);
+ font-weight:var(--pos-weight-bold);background:var(--pos-surface-inset);color:var(--pos-text-2);border:1px solid var(--pos-border)}
+.pos-ui .pos-cockpit__kind--danger{border-color:var(--pos-status-excluded-fg);color:var(--pos-status-excluded-fg);background:transparent}
+.pos-ui .pos-cockpit__kind--success{background:var(--pos-status-contact-bg);color:var(--pos-status-contact-fg);border-color:transparent}
+.pos-ui .pos-cockpit__kind--accent{background:var(--pos-status-engage-bg,var(--pos-accent-soft));color:var(--pos-status-engage-fg,var(--pos-accent));border-color:transparent}
+.pos-ui .pos-cockpit__time{font-size:var(--pos-text-xs);color:var(--pos-text-3);font-variant-numeric:tabular-nums;white-space:nowrap}
+.pos-ui .pos-cockpit__summary{color:var(--pos-text-1);font-size:var(--pos-text-sm);overflow-wrap:anywhere}

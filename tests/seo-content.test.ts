@@ -4,7 +4,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {SITE_URL,seoPages,seoPageMetadata,sitemapEntries,relatedPages,socialImage,HOME_LAST_MODIFIED,type SeoPage} from '../src/domain/seo.ts';
 
-const PUBLIC_ROUTES=new Set(['/','/cgu','/cgv','/confidentialite','/mentions-legales',...seoPages.map(p=>`/${p.slug}`)]);
+// Owner decision (26 nov. 2026): /demande-veille, the veille dédiée quote form that replaces the mailto (its own page file).
+const PUBLIC_ROUTES=new Set(['/','/cgu','/cgv','/confidentialite','/mentions-legales','/demande-veille',...seoPages.map(p=>`/${p.slug}`)]);
 const LINK=/\[([^\]]+)\]\((\/[^)]*)\)/g;
 
 function allText(page:SeoPage):string[]{

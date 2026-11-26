@@ -5,7 +5,7 @@ import {creationsMetadata} from '../../src/components/CompanyCreations';
 import type {SeoPage} from '../../src/domain/seo';
 
 // "3 prospects de votre zone": the offer made visible (concierge test, 1 nov. 2026). The founder prepares each answer by hand
-// from public sources; the form only emails the request (app/api/public/demande-prospects). Static page, no data fetched.
+// from public sources; the form stores the request for the cockpit and emails it (app/api/public/demande-prospects, 26 nov. 2026). Static page, no data fetched.
 const page:SeoPage={
  slug:'prospects-de-votre-zone',navLabel:'3 prospects de votre zone',updated:'2026-11-01',
  keywords:{primary:'trouver des prospects dans sa zone',secondary:['prospects entreprises récemment créées','liste de prospects B2B locale']},
@@ -31,7 +31,7 @@ const page:SeoPage={
  faq:[
   {q:'Combien ça coûte ?',a:'Rien, et sans engagement. C’est la meilleure façon de juger la qualité de la méthode sur votre propre marché.'},
   {q:'Pourquoi seulement 3 entreprises ?',a:'Parce que je les vérifie une par une. Je préfère vous en donner 3 sourcées que 50 approximatives.'},
-  {q:'Que devient mon email ?',a:'Il sert uniquement à vous envoyer vos 3 prospects et à vous recontacter à ce sujet. Pas de newsletter, pas de revente. La demande n’est pas enregistrée en base : elle m’est transmise par email.'},
+  {q:'Que devient mon email ?',a:'Il sert uniquement à vous envoyer vos 3 prospects et à vous recontacter à ce sujet. Pas de newsletter, pas de revente. La demande est enregistrée par ProspectOS et supprimée 12 mois après son envoi.'},
   {q:'Et ensuite ?',a:'Si la méthode vous convient, ProspectOS fait la même recherche en continu sur votre cible : voir [les tarifs](/tarifs).'},
  ],
  cta:{title:'Vous préférez chercher vous-même ?',text:'Créez votre compte ProspectOS et décrivez votre cible : vos premières recommandations arrivent avec leurs sources.',href:'/',label:'Découvrir ProspectOS'},

@@ -1,7 +1,7 @@
 'use client';
 // The account menu behind the avatar (ZF-UI0 MOBILE_INFORMATION_ARCHITECTURE). Every entry opens what already exists:
 // the account dialog (account, team, data & privacy), the offer & target screen, the sources screen, the language and
-// theme choices, sign-out. Bêta Analytics only for an INTERNAL plan; Self-Outreach only when the server says this
+// theme choices, sign-out. Bêta Analytics and the Cockpit only for an INTERNAL plan; Self-Outreach only when the server says this
 // account's organization runs it (selfOutreach set). In the demo: language, theme, reset, exit.
 import {Chip,ChipGroup,Icon} from '../primitives.tsx';
 import {ThemeSwitcher} from '../ThemeSwitcher.tsx';
@@ -22,13 +22,13 @@ export type UserMenuProps={
 };
 
 export const MENU_TEXT:Record<Locale,{title:string;trigger:string;demo:string;account:string;team:string;offer:string;sources:string;
- language:string;theme:string;privacy:string;privacyPolicy:string;creations:string;beta:string;selfOutreach:string;dedicated:string;dedicatedAdmin:string;signOut:string;exitDemo:string;resetDemo:string}>={
+ language:string;theme:string;privacy:string;privacyPolicy:string;creations:string;beta:string;selfOutreach:string;dedicated:string;dedicatedAdmin:string;cockpit:string;signOut:string;exitDemo:string;resetDemo:string}>={
  fr:{title:'Compte',trigger:'Menu du compte : langue, thème, compte, déconnexion',demo:'Démo sur cet appareil',account:'Compte',
   team:'Organisation et équipe',offer:'Offre et cible',sources:'Sources',language:'Langue',theme:'Thème',privacy:'Données et confidentialité',
-  privacyPolicy:'Politique de confidentialité',creations:'Créations d’entreprises',beta:'Bêta Analytics',selfOutreach:'Outreach ProspectOS',dedicated:'Veille dédiée — suivi',dedicatedAdmin:'Veille dédiée — clients',signOut:'Se déconnecter',exitDemo:'Quitter la démo',resetDemo:'Réinitialiser la démo'},
+  privacyPolicy:'Politique de confidentialité',creations:'Créations d’entreprises',beta:'Bêta Analytics',selfOutreach:'Outreach ProspectOS',dedicated:'Veille dédiée — suivi',dedicatedAdmin:'Veille dédiée — clients',cockpit:'Cockpit',signOut:'Se déconnecter',exitDemo:'Quitter la démo',resetDemo:'Réinitialiser la démo'},
  en:{title:'Account',trigger:'Account menu: language, theme, account, sign out',demo:'Demo on this device',account:'Account',
   team:'Organization and team',offer:'Offer and target',sources:'Sources',language:'Language',theme:'Theme',privacy:'Data and privacy',
-  privacyPolicy:'Privacy policy',creations:'New businesses (France)',beta:'Beta Analytics',selfOutreach:'ProspectOS outreach',dedicated:'Dedicated watch — tracking',dedicatedAdmin:'Dedicated watch — clients',signOut:'Sign out',exitDemo:'Exit demo',resetDemo:'Reset demo'},
+  privacyPolicy:'Privacy policy',creations:'New businesses (France)',beta:'Beta Analytics',selfOutreach:'ProspectOS outreach',dedicated:'Dedicated watch — tracking',dedicatedAdmin:'Dedicated watch — clients',cockpit:'Cockpit',signOut:'Sign out',exitDemo:'Exit demo',resetDemo:'Reset demo'},
 };
 
 function Item({icon,label,onClick,disabled,danger}:{icon:IconName;label:string;onClick:()=>void;disabled?:boolean;danger?:boolean}){
@@ -54,6 +54,8 @@ export function UserMenuContent(p:UserMenuProps&{onDone:()=>void}){
     <Icon name="signal" size={18}/><span className="pos-menu__label">{t.creations}</span><Icon name="external" size={14}/></a></li>
    {live&&<Item icon="info" label={t.privacy} onClick={act(p.onPrivacy)}/>}
    {live&&p.internal&&<Item icon="activity" label={t.beta} onClick={act(p.onBetaAnalytics)}/>}
+   {/* Cockpit administrateur (migration 056): its own page; the database still checks the INTERNAL entitlement. */}
+   {live&&p.internal&&<li><a className="pos-menu__item" href="/cockpit" onClick={p.onDone}><Icon name="today" size={18}/><span className="pos-menu__label">{t.cockpit}</span></a></li>}
    {live&&p.selfOutreach&&<Item icon="contact" label={t.selfOutreach} onClick={act(p.selfOutreach)}/>}
    {live&&p.dedicated&&<Item icon="signal" label={p.dedicatedPending?`${t.dedicated} (${p.dedicatedPending})`:t.dedicated} onClick={act(p.dedicated)}/>}
    {live&&p.dedicatedAdmin&&<Item icon="activity" label={t.dedicatedAdmin} onClick={act(p.dedicatedAdmin)}/>}

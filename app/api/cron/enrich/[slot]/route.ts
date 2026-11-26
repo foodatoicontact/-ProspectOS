@@ -30,5 +30,8 @@ export async function GET(request:Request,context:{params:Promise<{slot:string}>
   await enrichCompanies(rpc,fetchJson,config,report);
   console.info(JSON.stringify({event:'public_events_enrich',slot,...report}));
   return json({slot,...report});
- }catch{return json({error:'Enrichissement momentanément indisponible.',code:'ENRICH_FAILED'},500)}
+ }catch{
+  // The cockpit's feed (migration 056): one COLLECT_FAILED row per job and day, best effort.
+  try{await admin.rpc('record_collect_failure',{p_job:`enrich-${slot}`,p_code:'ENRICH_FAILED'})}catch{}
+  return json({error:'Enrichissement momentanément indisponible.',code:'ENRICH_FAILED'},500)}
 }

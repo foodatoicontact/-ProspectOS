@@ -364,7 +364,7 @@ test('sitemap — France, 13 regions and 101 departments, dated by their newest 
  assert.throws(()=>recentCountsUrl(['69'],"2026-10-12' or 1=1"),/INVALID_DATE/);
  const sitemap=read('app/sitemap.ts');
  assert.match(sitemap,/const recent=await fetchRecent\(null,\{now\}\)\.catch\(\(\)=>null\);/,'an unanswered register never fails the sitemap');
- assert.match(sitemap,/\.\.\.sitemapEntries,offer,\.\.\.creationsSitemapEntries\(SITE_URL,now,recent\)/);
+ assert.match(sitemap,/\.\.\.sitemapEntries,offer,quote,\.\.\.creationsSitemapEntries\(SITE_URL,now,recent\)/);
  assert.match(sitemap,/url:`\$\{SITE_URL\}\/prospects-de-votre-zone`,lastModified:'2026-11-01'/,'the offer page, dated by its own last edit');
  assert.match(sitemap,/export const revalidate=86400;/);
 });

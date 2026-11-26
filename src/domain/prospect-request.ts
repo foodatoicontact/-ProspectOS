@@ -1,5 +1,6 @@
 // "3 prospects de votre zone": a visitor asks, without an account, for 3 companies of their zone that have a concrete reason
-// to be contacted now. The request is NOT stored: it is emailed to the founder, who prepares the 3 companies by hand from
+// to be contacted now. Owner decision (26 nov. 2026): the request is stored for the administrator's cockpit (migration 056,
+// deleted after 12 months) and emailed to the founder, who prepares the 3 companies by hand from
 // public sources (concierge test before any automation). Only what is needed to answer is collected: the activity sold,
 // the department, a professional email. Nothing is ever sent to the requester automatically (no relay for third parties).
 // Pure: validation, cleaning, throttling state and the notification text; app/api/public/demande-prospects sends it.
@@ -63,7 +64,7 @@ export function notificationMail(r:ProspectRequest,now:Date){
   '',
   `Reçue le ${new Intl.DateTimeFormat('fr-FR',{dateStyle:'full',timeStyle:'short',timeZone:'Europe/Paris'}).format(now)}.`,
   'Promesse affichée : 3 entreprises avec leur source officielle, sous 24 h ouvrées. Répondre depuis votre messagerie.',
-  'Cette demande n’est enregistrée nulle part ailleurs que dans cet email.',
+  'Cette demande est aussi enregistrée dans le cockpit ProspectOS (supprimée 12 mois après son envoi).',
  ].join('\n');
  return {subject:cleanLine(subject,180),text};
 }

@@ -16,6 +16,7 @@ import {notifyAcceptance} from '../../../../src/dedicated/send';
 import {handleNotifications} from '../../../../src/notifications/api';
 import {handleLeads} from '../../../../src/leads/api';
 import {handlePartners} from '../../../../src/partners/api';
+import {handleCockpit} from '../../../../src/cockpit/api';
 import {partnersEnabledIn} from '../../../../src/partners/flag';
 import {analyzeCompanyGuarded} from '../../../../src/server/ai-guard';
 import {checked as checkedRpc} from '../../../../src/discovery/repository';
@@ -129,6 +130,9 @@ async function handler(request:Request,context:{params:Promise<{path:string[]}>}
  // NEXT_PUBLIC_PARTNERS_ENABLED; the database checks the partner and the administrator.
  const partnersResponse=await handlePartners(request,path,db,json,{enabled:partnersEnabledIn(process.env),origin:appOrigin(request)});
  if(partnersResponse)return partnersResponse;
+ // Cockpit administrateur (migration 056, src/cockpit/api.ts): administrator only, checked by the database (INTERNAL + RLS).
+ const cockpitResponse=await handleCockpit(request,path,db,json);
+ if(cockpitResponse)return cockpitResponse;
  // Notification centre (migration 044): the bell of the v2 shell. The administrator flag is the caller's OWN active INTERNAL
  // entitlement, read under RLS (the database still decides what each one may read).
  if(path[0]==='notifications'){

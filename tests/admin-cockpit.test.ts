@@ -115,7 +115,8 @@ test('screen — /cockpit is never indexed, reads the feed through the API only;
  assert.match(page,/robots:\{index:false,follow:false\}/);
  const app=read('src/ui/v2/cockpit/CockpitApp.tsx');
  assert.match(app,/fetch\(`\/api\/v1\/\$\{path\}`,\{method,headers:\{Authorization:`Bearer \$\{token\}`/);
- assert.doesNotMatch(app+read('src/ui/v2/cockpit/CockpitFeed.tsx')+read('src/ui/v2/cockpit/CockpitClients.tsx'),/\.from\(|\.rpc\(|service_role|SUPABASE_SERVICE/,'no direct database read from the browser');
+ // Owner decision (26 nov. 2026): the Pipeline screen joins the screens that never read the database directly.
+ assert.doesNotMatch(app+read('src/ui/v2/cockpit/CockpitFeed.tsx')+read('src/ui/v2/cockpit/CockpitClients.tsx')+read('src/ui/v2/cockpit/CockpitPipeline.tsx'),/\.from\(|\.rpc\(|service_role|SUPABASE_SERVICE/,'no direct database read from the browser');
  assert.match(read('src/ui/v2/shell/UserMenu.tsx'),/\{live&&p\.internal&&<li><a className="pos-menu__item" href="\/cockpit"/);
  const css=read('src/ui/v2/cockpit/cockpit.css');
  assert.doesNotMatch(css.replace(/var\(--pos-[a-z0-9-]+(,[^)]*)?\)/g,''),/#[0-9a-f]{3,6}\b|rgb\(/i,'tokens only');
@@ -145,4 +146,35 @@ test('clients — the database refuses the sheet before Stripe is asked; invoice
  assert.equal(lines[0]!.url,'https://dashboard.stripe.com/test/invoices/in_1');assert.equal(stripeDashboard('live','customers/cus_X'),'https://dashboard.stripe.com/customers/cus_X');
  assert.equal(offerLine('TEAM','ACTIVE','2026-12-21T00:00:00Z'),'Équipe · actif · jusqu’au 21 déc. 2026');assert.equal(offerLine(null,null,null),'Aucune offre');
  assert.doesNotMatch(read('src/cockpit/clients.ts'),/hosted_invoice_url|invoice_pdf/,'never a public invoice link');
+});
+
+import {byStage,withStage,PIPELINE_STAGES,STAGE_LABEL,type PipelineItem} from '../src/cockpit/model.ts';
+test('pipeline — six columns in order; moves validated and versioned; a stale screen gets 409; the database decides who',async()=>{
+ assert.deepEqual(PIPELINE_STAGES.map(s=>STAGE_LABEL[s]),['Nouveau','Contacté','Démo','Devis','Signé','Perdu']);
+ const it=(id:string,stage:PipelineItem['stage']):PipelineItem=>({id,kind:'WATCH',activity:'a',target:'',department:'69',email:'x@y.fr',company:'',message:'',created_at:'2026-11-26T10:00:00Z',stage,version:0,moved_at:null,moved_by:null});
+ const cols=byStage([it('a','NEW'),it('b','DEMO'),it('c','DEMO')]);
+ assert.deepEqual(Object.keys(cols),[...PIPELINE_STAGES]);assert.equal(cols.DEMO.length,2);assert.equal(cols.SIGNED.length,0);
+ assert.equal(withStage([it('a','NEW')],'a',{stage:'LOST',version:3})[0]!.version,3);
+ const json=(v:unknown,status=200)=>new Response(JSON.stringify(v),{status});
+ const id='00000000-0000-4000-8000-0000000000c1';
+ const calls:[string,Record<string,unknown>][]=[];
+ const ok={rpc:async(fn:string,a:Record<string,unknown>)=>{calls.push([fn,a]);return {data:{items:[],total:0},error:null}}} as any;
+ const get=(q='')=>handleCockpit(new Request(`https://x/api/v1/cockpit/pipeline${q}`),['cockpit','pipeline'],ok,json);
+ assert.equal((await get())!.status,200);assert.deepEqual(calls.at(-1),['admin_pipeline',{p_kinds:null}]);
+ assert.equal((await get('?kinds=WATCH'))!.status,200);assert.deepEqual(calls.at(-1),['admin_pipeline',{p_kinds:['WATCH']}]);
+ assert.equal((await get('?kinds=OTHER'))!.status,422);
+ const post=(db:any,body:unknown,target=id)=>handleCockpit(new Request(`https://x/api/v1/cockpit/pipeline/${target}`,{method:'POST',body:JSON.stringify(body)}),['cockpit','pipeline',target],db,json);
+ assert.equal((await post(ok,{stage:'DEMO',version:2}))!.status,200);assert.deepEqual(calls.at(-1),['admin_pipeline_move',{p_request:id,p_stage:'DEMO',p_version:2}]);
+ assert.equal((await post(ok,{stage:'WON',version:0}))!.status,422);
+ assert.equal((await post(ok,{stage:'DEMO'}))!.status,422,'the version is required');
+ assert.equal((await post(ok,{stage:'DEMO',version:0,email:'x'}))!.status,422,'nothing but the stage and version');
+ assert.equal((await post(ok,{stage:'DEMO',version:0},'nope'))!.status,404);
+ const fail=(message:string,code:string)=>({rpc:async()=>({data:null,error:{message,code}})}) as any;
+ assert.equal((await post(fail('admin_pipeline_conflict','40001'),{stage:'DEMO',version:0}))!.status,409);
+ assert.equal((await post(fail('admin_request_not_found','P0002'),{stage:'DEMO',version:0}))!.status,404);
+ assert.equal((await post(fail('Admin access required','42501'),{stage:'DEMO',version:0}))!.status,403);
+ assert.equal((await handleCockpit(new Request('https://x/api/v1/cockpit/pipeline',{method:'DELETE'}),['cockpit','pipeline'],ok,json))!.status,404);
+ const screen=read('src/ui/v2/cockpit/CockpitPipeline.tsx');
+ assert.match(screen,/onDrop=/,'drag and drop on a computer');assert.match(screen,/<select value=\{item\.stage\}/,'a status selector on every card');
+ assert.match(screen,/version:before\.version/,'every move sends the version the screen showed');
 });

@@ -62,6 +62,7 @@ jobs:
       - run: npm run test:pwa-push-db
       - run: npm run test:bodacc-sale-sellers-db
       - run: npm run test:admin-clients-db
+      - run: npm run test:admin-pipeline-db
       - run: npm run test:db
       - run: npm run test:icp-import-db
       - run: npm run test:icp-rollback-db

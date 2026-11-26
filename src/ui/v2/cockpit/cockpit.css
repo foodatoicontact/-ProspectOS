@@ -16,3 +16,30 @@
 .pos-ui .pos-cockpit__row:hover{border-color:var(--pos-border-strong)}
 .pos-ui .pos-ded__form textarea.pos-cockpit__note{min-height:96px;font-family:inherit;font-size:16px}
 .pos-ui .pos-cockpit__notebody{white-space:pre-wrap}
+/* Écran Pipeline (migration 060): on a phone the six columns follow one another, each card with its status selector; from
+   1000 px they sit side by side (scrolling sideways if needed) and a card is dragged from one to another. */
+.pos-ui .pos-ded.pos-cockpit--wide{max-width:none}
+.pos-ui .pos-cockpit__board{display:grid;gap:var(--pos-space-4);min-width:0}
+.pos-ui .pos-cockpit__col{display:grid;align-content:start;gap:var(--pos-space-2);min-width:0;padding:var(--pos-space-3);border-radius:var(--pos-radius-md);
+ background:var(--pos-surface-inset);border:1px dashed transparent}
+.pos-ui .pos-cockpit__col--over{border-color:var(--pos-accent);background:var(--pos-accent-soft)}
+.pos-ui .pos-cockpit__colhead{display:flex;align-items:center;gap:var(--pos-space-2)}
+.pos-ui .pos-cockpit__empty{font-size:var(--pos-text-sm)}
+.pos-ui .pos-cockpit__card .pos-cockpit__kind{white-space:nowrap}
+.pos-ui .pos-cockpit__card{display:grid;gap:4px;min-width:0;padding:var(--pos-space-3);border:1px solid var(--pos-border);border-radius:var(--pos-radius-md);
+ background:var(--pos-surface-card)}
+.pos-ui .pos-cockpit__card[draggable=true]{cursor:grab}
+.pos-ui .pos-cockpit__card[draggable=true]:active{cursor:grabbing}
+.pos-ui .pos-cockpit__mail{font-size:var(--pos-text-sm)}
+.pos-ui .pos-cockpit__clamp{display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;color:var(--pos-text-2)}
+.pos-ui .pos-cockpit__stage{display:flex;align-items:center;justify-content:space-between;gap:var(--pos-space-2);margin-top:var(--pos-space-1);
+ font-size:var(--pos-text-xs);color:var(--pos-text-3)}
+.pos-ui .pos-cockpit__stage select{min-height:44px;font:inherit;font-size:16px;color:var(--pos-text-1);background:var(--pos-surface-card);
+ border:1px solid var(--pos-border);border-radius:var(--pos-radius-sm);padding:0 var(--pos-space-2)}
+.pos-ui .pos-cockpit__hint{display:none}
+.pos-ui .pos-cockpit__sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+@media (min-width:1000px){
+ .pos-ui .pos-cockpit__board{grid-template-columns:repeat(6,minmax(220px,1fr));overflow-x:auto;padding-bottom:var(--pos-space-2)}
+ .pos-ui .pos-cockpit__hint{display:block}
+ .pos-ui .pos-cockpit__stage select{min-height:32px;font-size:var(--pos-text-sm)}
+}

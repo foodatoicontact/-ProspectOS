@@ -1,6 +1,8 @@
 // Base entreprises de la veille — pure helpers shared by the API (src/leads/api.ts) and the administrator's panel.
 export const LEAD_KINDS=['VENTE_FONDS','TRANSFERT_SIEGE','ETABLISSEMENT','CREATION'] as const;
-export const KIND_LABEL:Record<string,string>={VENTE_FONDS:'Reprise de fonds',TRANSFERT_SIEGE:'Transfert de siège',ETABLISSEMENT:'Nouvel établissement',CREATION:'Création'};
+// FUSION, APPORT, VENTE_JUDICIAIRE and INDETERMINE (migration 055) are never a lead: labelled only for the company sheet.
+export const KIND_LABEL:Record<string,string>={VENTE_FONDS:'Reprise de fonds',TRANSFERT_SIEGE:'Transfert de siège',ETABLISSEMENT:'Nouvel établissement',CREATION:'Création',
+ FUSION:'Fusion ou restructuration',APPORT:'Apport',VENTE_JUDICIAIRE:'Vente judiciaire',INDETERMINE:'À relire'};
 // The trade's key: the label, lower case, without accents — « Sécurité incendie » → « securite-incendie ».
 export const tradeKey=(label:string)=>label.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'').slice(0,40);
 export type Lead={siren:string;name:string|null;naf:string|null;employee_band:string|null;department:string|null;commune:string|null;kind:string;event_on:string;

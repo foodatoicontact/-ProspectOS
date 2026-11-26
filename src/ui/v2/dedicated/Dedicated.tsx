@@ -4,6 +4,7 @@
 import {useCallback,useEffect,useState} from 'react';
 import {parisDate} from '../../../dedicated/model.ts';
 import {LeadBase} from './LeadBase.tsx';
+import {EventReview} from './EventReview.tsx';
 import {DedicatedClientView,DedicatedAdminView,type ClientData,type HistoryEntry,type StatusChange,type AdminView,type OrgHit} from './DedicatedViews.tsx';
 // A PDF chosen by the administrator → base64 for the JSON body (the server recomputes its SHA-256 from the bytes).
 async function fileBase64(f:File):Promise<string>{const b=new Uint8Array(await f.arrayBuffer());let s='';for(let i=0;i<b.length;i+=0x8000)s+=String.fromCharCode(...b.subarray(i,i+0x8000));return btoa(s)}
@@ -44,7 +45,7 @@ export function DedicatedAdmin({api}:{api:Api}){
  useEffect(()=>{load()},[load]);
  const run=async(fn:()=>Promise<string>)=>{setBusy(true);setError('');setNotice('');try{setNotice(await fn());await load()}catch(e){setError(message(e))}finally{setBusy(false)}};
  if(!rows)return <div className="pos-ded">{error?<p className="pos-ded__note pos-ded__note--error" role="alert">{error}</p>:<p className="pos-ded__muted">Chargement…</p>}</div>;
- return <DedicatedAdminView rows={rows} busy={busy} error={error} notice={notice}
+ return <><DedicatedAdminView rows={rows} busy={busy} error={error} notice={notice}
   onDelivery={(contract_id,scope,lines)=>run(async()=>{const r=await api('dedicated/admin/deliveries','POST',{contract_id,scope,lines});
    return `Livraison n° ${r.number} créée : ${r.items} fiche${r.items>1?'s':''}${r.skipped_sirens?.length?` (${r.skipped_sirens.length} déjà livrée${r.skipped_sirens.length>1?'s':''}, ignorée${r.skipped_sirens.length>1?'s':''})`:''}.`})}
   onDocDelivery={(contract_id,scope,importFile,pdf)=>run(async()=>{let imp:unknown;try{imp=JSON.parse(await importFile.text())}catch{throw Error('Le fichier d’import n’est pas un JSON lisible.')}
@@ -55,5 +56,6 @@ export function DedicatedAdmin({api}:{api:Api}){
    return `Veille proposée : le client la voit dans son espace avec le bouton « J’accepte la proposition ».`})}
   onReplace={(id,file)=>run(async()=>{const r=await api(`dedicated/admin/contracts/${id}/proposal`,'POST',{file_name:pdfName(file),pdf_base64:await fileBase64(file)});return `Version ${r.version} jointe.`})}
   leads={(contractId,prepare,clientName)=><LeadBase api={api} contractId={contractId} clientName={clientName} onPrepare={prepare} onDelivered={load}/>}
-  onTerminate={id=>run(async()=>{const r=await api(`dedicated/admin/contracts/${id}/terminate`,'POST',{});return `Veille résiliée. Accès client en lecture et mise à jour des statuts jusqu’au ${new Date(r.access_until).toLocaleDateString('fr-FR')}.`})}/>;
+  onTerminate={id=>run(async()=>{const r=await api(`dedicated/admin/contracts/${id}/terminate`,'POST',{});return `Veille résiliée. Accès client en lecture et mise à jour des statuts jusqu’au ${new Date(r.access_until).toLocaleDateString('fr-FR')}.`})}/>
+  <EventReview api={api}/></>;
 }

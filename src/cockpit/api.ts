@@ -4,9 +4,11 @@
 //   GET cockpit/clients?q=boulangerie&offset=0            the list of organizations (migration 059)
 //   GET cockpit/clients/<id>                              one sheet, with its latest Stripe invoices (read now, never stored)
 //   POST cockpit/clients/<id>/notes {body}                a timestamped note (append-only)
+//   GET cockpit/pipeline?kinds=WATCH                     the requests of the two public forms, by stage (migration 060)
+//   POST cockpit/pipeline/<id> {stage,version}           one move; a stale version → 409, the screen reloads
 import {z} from 'zod';
 import type {SupabaseClient} from '@supabase/supabase-js';
-import {FEED_KINDS} from './model.ts';
+import {FEED_KINDS,PIPELINE_STAGES} from './model.ts';
 import {stripeDashboard,type InvoiceReader} from './clients.ts';
 type Json=(value:unknown,status?:number)=>Response;
 const day=z.string().regex(/^\d{4}-\d{2}-\d{2}$/).refine(v=>!Number.isNaN(Date.parse(`${v}T00:00:00Z`)));
@@ -15,6 +17,8 @@ const Feed=z.object({kinds:z.array(z.enum(FEED_KINDS)).max(FEED_KINDS.length),fr
 function refusal(error:{message?:string;code?:string},json:Json):Response{
  if(/Admin access required/.test(String(error.message??'')))return json({error:'Accès administrateur requis.',code:'ADMIN_ACCESS_REQUIRED'},403);
  if(/admin_client_not_found/.test(String(error.message??'')))return json({error:'Organisation introuvable.',code:'NOT_FOUND'},404);
+ if(/admin_request_not_found/.test(String(error.message??'')))return json({error:'Demande introuvable (supprimée après 12 mois ?).',code:'NOT_FOUND'},404);
+ if(/admin_pipeline_conflict/.test(String(error.message??'')))return json({error:'Ce statut a changé entre-temps : le tableau est rechargé.',code:'CONFLICT'},409);
  if(error.code==='22023'||error.code==='22007'||error.code==='22008')return json({error:'Filtres invalides.',code:'INVALID'},422);
  throw Error('DATABASE_REQUEST_FAILED');
 }
@@ -25,6 +29,8 @@ export function parseFeedQuery(q:URLSearchParams){
 }
 const uuid=z.string().uuid();
 const Note=z.object({body:z.string().trim().min(1).max(2000)}).strict();
+const Move=z.object({stage:z.enum(PIPELINE_STAGES),version:z.number().int().min(0).max(1_000_000)}).strict();
+const REQUEST_KINDS=['PROSPECTS','WATCH'] as const;
 export async function handleCockpit(request:Request,path:string[],db:SupabaseClient,json:Json,deps:{invoices?:InvoiceReader}={}):Promise<Response|null>{
  if(path[0]!=='cockpit')return null;
  if(path[1]==='clients'){
@@ -50,6 +56,23 @@ export async function handleCockpit(request:Request,path:string[],db:SupabaseCli
    const p=Note.safeParse(body);if(!p.success)return json({error:'Note vide ou trop longue (2 000 caractères au plus).',code:'INVALID'},422);
    const {data,error}=await db.rpc('admin_add_note',{p_org:id,p_body:p.data.body});
    return error?refusal(error,json):json(data,201);
+  }
+  return json({error:'Route ou action non disponible'},404);
+ }
+ if(path[1]==='pipeline'){
+  if(request.method==='GET'&&path.length===2){
+   const kinds=(new URL(request.url).searchParams.get('kinds')??'').split(',').map(k=>k.trim()).filter(Boolean);
+   if(!z.array(z.enum(REQUEST_KINDS)).max(2).safeParse(kinds).success)return json({error:'Filtres invalides.',code:'INVALID'},422);
+   const {data,error}=await db.rpc('admin_pipeline',{p_kinds:kinds.length?kinds:null});
+   return error?refusal(error,json):json(data);
+  }
+  const id=path[2];
+  if(request.method==='POST'&&path.length===3){
+   if(!id||!uuid.safeParse(id).success)return json({error:'Demande introuvable.',code:'NOT_FOUND'},404);
+   let body:unknown;try{body=JSON.parse((await request.text())||'{}')}catch{return json({error:'JSON invalide'},400)}
+   const p=Move.safeParse(body);if(!p.success)return json({error:'Statut invalide.',code:'INVALID'},422);
+   const {data,error}=await db.rpc('admin_pipeline_move',{p_request:id,p_stage:p.data.stage,p_version:p.data.version});
+   return error?refusal(error,json):json(data);
   }
   return json({error:'Route ou action non disponible'},404);
  }

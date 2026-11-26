@@ -73,3 +73,20 @@ export function offerLine(plan:string|null,status:string|null,expires:string|nul
  return `${CLIENT_PLAN_LABEL[plan]??plan} · ${STATUS_LABEL[status??'']??status??'—'}${expires&&plan!=='INTERNAL'?` · jusqu’au ${clientDay(expires)}`:''}`;
 }
 
+
+// Écran Pipeline (migration 060): the requests of the two public forms, in six columns. Pure, shared by the screen and tests.
+export const PIPELINE_STAGES=['NEW','CONTACTED','DEMO','QUOTE','SIGNED','LOST'] as const;
+export type PipelineStage=typeof PIPELINE_STAGES[number];
+export const STAGE_LABEL:Record<PipelineStage,string>={NEW:'Nouveau',CONTACTED:'Contacté',DEMO:'Démo',QUOTE:'Devis',SIGNED:'Signé',LOST:'Perdu'};
+export const REQUEST_KIND_LABEL:Record<'PROSPECTS'|'WATCH',string>={PROSPECTS:'Prospects',WATCH:'Veille dédiée'};
+export type PipelineItem={id:string;kind:'PROSPECTS'|'WATCH';activity:string;target:string;department:string;email:string;company:string;message:string;
+ created_at:string;stage:PipelineStage;version:number;moved_at:string|null;moved_by:string|null};
+export type PipelineBoard={items:PipelineItem[];total:number};
+export function byStage(items:readonly PipelineItem[]):Record<PipelineStage,PipelineItem[]>{
+ const out=Object.fromEntries(PIPELINE_STAGES.map(s=>[s,[] as PipelineItem[]])) as Record<PipelineStage,PipelineItem[]>;
+ for(const i of items)(out[i.stage]??out.NEW).push(i);
+ return out;
+}
+// The optimistic move shown at once; the answer of the server then sets the version (or the board is reloaded).
+export const withStage=(items:readonly PipelineItem[],id:string,patch:Partial<Pick<PipelineItem,'stage'|'version'|'moved_at'>>)=>
+ items.map(i=>i.id===id?{...i,...patch}:i);

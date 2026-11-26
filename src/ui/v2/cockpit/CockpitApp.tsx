@@ -6,6 +6,7 @@ import {useCallback,useEffect,useRef,useState} from 'react';
 import {createClient} from '@supabase/supabase-js';
 import {CockpitFeed,type FeedFilters} from './CockpitFeed.tsx';
 import {CockpitClients} from './CockpitClients.tsx';
+import {CockpitPipeline} from './CockpitPipeline.tsx';
 import {Chip,ChipGroup} from '../primitives.tsx';
 import {FEED_GROUPS,type Feed,type FeedEvent} from '../../../cockpit/model.ts';
 const sbUrl=process.env.NEXT_PUBLIC_SUPABASE_URL,sbKey=process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
@@ -17,6 +18,9 @@ export function feedQuery(f:FeedFilters,before:number|null){
  if(kinds.length)q.set('kinds',kinds.join(','));if(f.from)q.set('from',f.from);if(f.to)q.set('to',f.to);if(before)q.set('before',String(before));
  return `cockpit/feed?${q}`;
 }
+type Tab='feed'|'clients'|'pipeline';
+const HASH:Record<Tab,string>={feed:'#fil',clients:'#clients',pipeline:'#pipeline'};
+const TAB_OF:Record<string,Tab>={'#fil':'feed','#clients':'clients','#pipeline':'pipeline'};
 export function CockpitApp(){
  const [token,setToken]=useState<string|null|undefined>(undefined);
  const [filters,setFilters]=useState<FeedFilters>({groups:[],from:'',to:''});
@@ -24,8 +28,8 @@ export function CockpitApp(){
  const [error,setError]=useState('');const [busy,setBusy]=useState(false);
  const seq=useRef(0);
  useEffect(()=>{if(!auth){setToken(null);return}auth.auth.getSession().then(({data})=>setToken(data.session?.access_token??null)).catch(()=>setToken(null))},[]);
- const [tab,setTab]=useState<'feed'|'clients'>(()=>typeof window!=='undefined'&&window.location.hash==='#clients'?'clients':'feed');
- const show=(t:'feed'|'clients')=>{setTab(t);try{history.replaceState(null,'',t==='clients'?'#clients':'#fil')}catch{}};
+ const [tab,setTab]=useState<Tab>(()=>typeof window!=='undefined'?TAB_OF[window.location.hash]??'feed':'feed');
+ const show=(t:Tab)=>{setTab(t);try{history.replaceState(null,'',HASH[t])}catch{}};
  const api=useCallback(async(path:string,method='GET',body?:unknown)=>{
   const res=await fetch(`/api/v1/${path}`,{method,headers:{Authorization:`Bearer ${token}`,...(body?{'Content-Type':'application/json'}:{})},body:body?JSON.stringify(body):undefined});
   const data=await res.json().catch(()=>({}));if(!res.ok)throw Error(typeof data?.error==='string'?data.error:'Action impossible pour le moment.');return data;
@@ -44,8 +48,10 @@ export function CockpitApp(){
   <div className="pos-ded__actions"><a className="pos-ded__btn pos-ded__btn--primary" href="/#inscription">Se connecter</a></div>
   <p className="pos-ded__muted">Une fois connecté, revenez sur cette page.</p></div>;
  const tabs=<nav className="pos-cockpit__tabs" aria-label="Écrans du cockpit"><ChipGroup label="Écrans du cockpit" variant="segmented">
-  <Chip pressed={tab==='feed'} onPressedChange={()=>show('feed')}>Fil</Chip><Chip pressed={tab==='clients'} onPressedChange={()=>show('clients')}>Clients</Chip></ChipGroup></nav>;
+  <Chip pressed={tab==='feed'} onPressedChange={()=>show('feed')}>Fil</Chip><Chip pressed={tab==='clients'} onPressedChange={()=>show('clients')}>Clients</Chip>
+  <Chip pressed={tab==='pipeline'} onPressedChange={()=>show('pipeline')}>Pipeline</Chip></ChipGroup></nav>;
  if(tab==='clients')return <>{tabs}<CockpitClients api={api}/></>;
+ if(tab==='pipeline')return <>{tabs}<CockpitPipeline api={api}/></>;
  if(error&&!events.length)return <>{tabs}<div className="pos-ded"><h2>Cockpit</h2><p className="pos-ded__note pos-ded__note--error" role="alert">{error}</p></div></>;
  return <>{tabs}
   {error&&<div className="pos-ded" style={{paddingBottom:0}}><p className="pos-ded__note pos-ded__note--error" role="alert">{error}</p></div>}

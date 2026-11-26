@@ -16,7 +16,9 @@ const row=(o:Record<string,unknown>)=>({id:'A1',dateparution:'2026-11-06',regist
 test('BODACC export: one request per family and day, transfers filtered at the source',()=>{
  const u=new URL(exportUrl('2026-11-06','modification'));
  assert.equal(u.origin+u.pathname,'https://bodacc-datadila.opendatasoft.com/api/explore/v2.1/catalog/datasets/annonces-commerciales/exports/json');
- assert.equal(u.searchParams.get('where'),`familleavis="modification" and dateparution=date'2026-11-06' and (search("transfert du siège") or search("nouveau siège") or search("adresse du siège"))`);
+ // Owner decision (26 nov. 2026): the cancellations and corrections of the modifications are read too — a cancellation of
+ // a move need not repeat its words.
+ assert.equal(u.searchParams.get('where'),`familleavis="modification" and dateparution=date'2026-11-06' and ((search("transfert du siège") or search("nouveau siège") or search("adresse du siège")) or typeavis="annulation" or typeavis="rectificatif")`);
  assert.doesNotMatch(new URL(exportUrl('2026-11-06','creation')).searchParams.get('where')!,/search/);
  assert.throws(()=>exportUrl('06/11/2026','creation'));
 });
@@ -162,4 +164,11 @@ test('cancellations and corrections (migration 055): a cancellation is never sto
  assert.equal(previousNoticeId(prev('2026','1')),null);assert.equal(previousNoticeId(null),null);
  assert.match(exportUrl('2026-11-20','vente'),/typeavis%2Cparutionavisprecedent/,'the export asks for the type and the target');
  assert.doesNotMatch(exportUrl('2026-11-20','vente'),/where=[^&]*typeavis/,'every type is read: the cancellations and corrections are needed');
+});
+
+test('a cancellation of a head-office move is read even without the words of a move (owner decision, 26 nov. 2026)',()=>{
+ const r=parseBodacc([row({id:'B20260226100',typeavis:'annulation',modificationsgenerales:JSON.stringify({descriptif:'Avis d’annulation de l’annonce précédente.'}),
+  parutionavisprecedent:JSON.stringify({nomPublication:'BODACC B',numeroParution:'20260220',numeroAnnonce:'4111'}),url_complete:'https://www.bodacc.fr/pages/annonces-commerciales-detail/?q.id=id:B20260226100'})],'modification');
+ assert.deepEqual(r.events,[]);
+ assert.deepEqual(r.supersessions.map(s=>[s.target_source_id,s.status]),[['B202602204111','ANNULEE']]);
 });

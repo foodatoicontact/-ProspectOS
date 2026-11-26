@@ -73,3 +73,18 @@ Le lundi, `/api/cron/bodacc-quality` compare la semaine aux 4 précédentes et a
 
 L'alerte est écrite dans les journaux Vercel (niveau warning) et envoyée par e-mail à `OPS_ALERT_EMAIL` si cette variable
 et la configuration SMTP sont présentes.
+
+## Annulations et rectificatifs
+
+- La collecte lit les avis d'annulation et de rectificatif de toutes les familles
+  (ventes, créations, modifications y compris les transferts de siège), pas
+  seulement ceux qui reprennent le libellé de la famille.
+- Une annulation passe l'annonce visée au statut « Annulée » (lien vers l'avis
+  qui l'annule) ; un rectificatif la passe à « Rectifiée ». Rien n'est supprimé.
+- La recherche de repreneurs et le chiffre public des rachats ignorent un rachat
+  annulé par un avis présent dans la même lecture.
+- Rattrapage du 26 nov. 2026 : 1 620 annulations et rectificatifs publiés depuis
+  mai relus ; 24 visaient une annonce en base, 6 statuts corrigés
+  (lot `5a1e0002-0055-4000-8000-0000000000a1`). Les 831 rachats antérieurs à la
+  règle partagée ont reçu leur règle de tri (lot `5a1e0003-…-0000000000a1`),
+  réversibles avec `revert_public_event_batch`.

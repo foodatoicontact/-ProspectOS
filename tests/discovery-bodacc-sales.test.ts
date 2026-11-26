@@ -58,7 +58,8 @@ test('query — fixed host, validated zone, 90-day window, newest first, no trad
  const u=salesUrl({kind:'department',code:'31',label:'Haute-Garonne'},NOW,2);
  assert.equal(u.origin+u.pathname,BODACC_RECORDS);
  assert.equal(SALES_WINDOW_DAYS,90);
- assert.equal(u.searchParams.get('where'),`familleavis="vente" and typeavis="annonce" and numerodepartement="31" and dateparution>=date'2026-08-03'`);
+ // Owner decision (26 nov. 2026): the notices of cancellation are read too, so a cancelled purchase is never a candidate.
+ assert.equal(u.searchParams.get('where'),`familleavis="vente" and (typeavis="annonce" or typeavis="annulation") and numerodepartement="31" and dateparution>=date'2026-08-03'`);
  assert.doesNotMatch(u.searchParams.get('select')!,/commercant/);
  assert.equal(u.searchParams.get('order_by'),'dateparution desc');
  assert.equal(u.searchParams.get('offset'),'100');
@@ -145,4 +146,13 @@ test('wiring — explicit factory, schema, replay, and the SIREN read by the BOD
  const m=read('db/migrations/039_discovery_bodacc_sales_provider.sql');
  assert.match(m,/check \(provider in \('fixture','brave','registry','bodacc_sales'\)\)/);
  assert.match(m,/p_provider not in \('fixture','bodacc_sales'\)/,'a reprise search is never served from an old run');
+});
+
+test('a purchase cancelled by a later notice is never a candidate (owner decision, 26 nov. 2026)',async()=>{
+ const cancel={id:'A202602233148',dateparution:'2026-11-20',typeavis:'annulation',registre:['106463037'],
+  parutionavisprecedent:JSON.stringify({nomPublication:'BODACC A',numeroParution:'20260220',dateParution:'2026-11-17',numeroAnnonce:'4824'})};
+ const page=[cancel,notice({id:'A202602204824',siren:'106463037',date:'2026-11-17'}),notice({id:'A3',siren:'529417271',name:'AUDITIA GESTION'})];
+ const p=new BodaccSalesProvider({fetch:bodacc([page]).fetchImpl,now:()=>NOW});
+ assert.deepEqual((await p.searchCompanies(input())).map(n=>n.id),['A3']);
+ assert.equal(p.lastSales!.rejected.CANCELLED,1);assert.equal(p.lastSales!.examined,2,'the notice of cancellation itself is not a notice examined');
 });

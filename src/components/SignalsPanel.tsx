@@ -5,6 +5,7 @@ import {scoreIntent,DEFAULT_INTENT_WEIGHTS,type IntentScore,type IntentSignal,ty
 import {SIGNAL_TYPES,signalConfidence,type SignalType,type SignalStatus} from '../signals/types';
 import {FixtureSignalProvider} from '../signals/providers/fixture';
 import {translate,type Locale,type TKey} from '../i18n';
+import {installMoment} from '../pwa/client';
 // Signal Engine S6 — "INTENT — pourquoi maintenant ?" on the prospect card. Dated, sourced public facts that may make
 // the company relevant to contact NOW. A signal is never evidence: it never changes the FIT score. It counts for the
 // verified INTENT only once a person verified it; until then it only feeds the estimate. Nothing here decides a
@@ -58,7 +59,7 @@ export function SignalsPanel({prospect,mode,api,locale,disabled,onBusyChange,onI
   if(mode==='demo'){const status:SignalStatus=decision==='verify'?'VERIFIED':decision==='reject'?'REJECTED':'PENDING_REVIEW';persistDemo(rows.map(r=>r.id===row.id?{...r,status}:r));return}
   await api(`signals/${row.id}/review`,'POST',{decision});await load();
  });
- const toggleMonitor=()=>execute(async()=>{await api(`prospects/${prospect.id}/monitor`,'POST',{enabled:!monitor});await load()});
+ const toggleMonitor=()=>execute(async()=>{const enabling=!monitor;await api(`prospects/${prospect.id}/monitor`,'POST',{enabled:enabling});await load();if(enabling)installMoment('monitoring')});
  const add=()=>execute(async()=>{
   const body={signal_type:form.signal_type,excerpt:form.excerpt.trim(),source_url:form.source_url.trim(),...(form.event_date?{event_date:form.event_date}:{})};
   if(mode==='demo'){

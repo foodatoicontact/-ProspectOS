@@ -17,6 +17,9 @@ import {handleNotifications} from '../../../../src/notifications/api';
 import {handleLeads} from '../../../../src/leads/api';
 import {handlePartners} from '../../../../src/partners/api';
 import {handleCockpit} from '../../../../src/cockpit/api';
+import {handleApp} from '../../../../src/pwa/api';
+import {vapidConfig} from '../../../../src/pwa/webpush';
+import {sendQueuedWebPush} from '../../../../src/pwa/send';
 import {partnersEnabledIn} from '../../../../src/partners/flag';
 import {analyzeCompanyGuarded} from '../../../../src/server/ai-guard';
 import {checked as checkedRpc} from '../../../../src/discovery/repository';
@@ -122,9 +125,12 @@ async function handler(request:Request,context:{params:Promise<{path:string[]}>}
  // limit below), behind DEDICATED_TRACKING_ENABLED; independent of the subscription (no entitlement check).
  const dedicatedResponse=await handleDedicated(request,path,db,json,{enabled:dedicatedTrackingEnabled(process.env),now:()=>new Date(),userEmail:user.email??null,
   notifyAccepted:notifyAcceptance});
+ // A veille delivery just created queued a web push for the client's members (migration 057): sent now, best effort.
+ if(dedicatedResponse&&request.method==='POST'&&dedicatedResponse.ok)await sendQueuedWebPush(createAdminClient());
  if(dedicatedResponse)return dedicatedResponse;
  // Base entreprises de la veille (migration 049, src/leads/api.ts): administrator only, checked by the database.
  const leadsResponse=await handleLeads(request,path,db,json,{enabled:dedicatedTrackingEnabled(process.env)});
+ if(leadsResponse&&request.method==='POST'&&leadsResponse.ok)await sendQueuedWebPush(createAdminClient());
  if(leadsResponse)return leadsResponse;
  // Programme partenaires (migration 052, src/partners/api.ts): the partner space and the administrator's dashboard, behind
  // NEXT_PUBLIC_PARTNERS_ENABLED; the database checks the partner and the administrator.
@@ -133,6 +139,9 @@ async function handler(request:Request,context:{params:Promise<{path:string[]}>}
  // Cockpit administrateur (migration 056, src/cockpit/api.ts): administrator only, checked by the database (INTERNAL + RLS).
  const cockpitResponse=await handleCockpit(request,path,db,json);
  if(cockpitResponse)return cockpitResponse;
+ // ProspectOS installable (migration 057, src/pwa/api.ts): the account's own notification settings and install invitation.
+ const appResponse=await handleApp(request,path,db,json,{vapidPublicKey:vapidConfig(process.env)?.publicKey??null});
+ if(appResponse)return appResponse;
  // Notification centre (migration 044): the bell of the v2 shell. The administrator flag is the caller's OWN active INTERNAL
  // entitlement, read under RLS (the database still decides what each one may read).
  if(path[0]==='notifications'){
@@ -512,6 +521,9 @@ async function handler(request:Request,context:{params:Promise<{path:string[]}>}
  }
  // Memberships are already gone at this point — the account is already unusable inside the app.
  // A failure here is reported plainly rather than silently claimed as a full success.
+ // Web push (migration 057): the account's devices stop receiving notifications (best effort: no notification is queued
+ // for an account without membership anyway).
+ try{await createAdminClient().rpc('drop_user_push_subscriptions',{p_user:user.id})}catch{}
  try{await anonymizeAuthUser(user.id)}catch{return json({error:'Vos accès ont été retirés, mais la fermeture définitive du compte a échoué. Contactez le support.'},500)}
  return json({deleted:true});
  }

@@ -20,7 +20,9 @@ test('S1 headers: no framing by another site, nosniff, referrer policy, permissi
  assert.doesNotMatch(h['Permissions-Policy']!,/clipboard/,'the app copies to the clipboard');
  assert.equal(nextConfig.poweredByHeader,false);
  const rules=await nextConfig.headers!();
- assert.equal(rules.length,1);
+ // Owner decision (26 nov. 2026, PWA, docs/PWA.md): a second rule, for /sw.js only — always re-checked, scope '/'.
+ assert.equal(rules.length,2);
+ assert.deepEqual(rules[1],{source:'/sw.js',headers:[{key:'Cache-Control',value:'no-cache, no-store, must-revalidate'},{key:'Service-Worker-Allowed',value:'/'}]});
  const re=new RegExp(`^${rules[0]!.source.replace('/((?!d/).*)','/((?!d/).*)')}$`);
  for(const p of ['/','/tarifs','/api/v1/prospects','/veille-entreprises','/dashboard'])assert.ok(re.test(p),p);
  assert.ok(!re.test('/d/abc123'),'the demo page keeps the stricter headers of its own route');

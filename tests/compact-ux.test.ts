@@ -153,7 +153,9 @@ test('Mobile — touch targets ≥ 44 px on the new controls; no new dependency'
  const pkg=JSON.parse(await readFile(new URL('../package.json',import.meta.url),'utf8'));
  // Later, documented additions (Self-Outreach, server-only mail transport: docs/SELF_OUTREACH.md; ICP import, server-only
  // PDF text extraction: docs/ICP_IMPORT.md) are not this bloc's.
- const later=(o:Record<string,string>)=>Object.fromEntries(Object.entries(o).filter(([k])=>!['nodemailer','imapflow','mailparser','@types/nodemailer','@types/mailparser','unpdf'].includes(k)));
+ const later=(o:Record<string,string>)=>Object.fromEntries(Object.entries(o).filter(([k])=>!['nodemailer','imapflow','mailparser','@types/nodemailer','@types/mailparser','unpdf',
+  // Owner decision (26 nov. 2026, PWA, docs/PWA.md): server-only Web Push encryption and VAPID signature.
+  'web-push','@types/web-push'].includes(k)));
  assert.deepEqual(later(pkg.dependencies),before.dependencies);assert.deepEqual(later(pkg.devDependencies),before.devDependencies);
 });
 

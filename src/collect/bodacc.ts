@@ -29,7 +29,9 @@ export const HEAD_OFFICE_SEARCH='(search("transfert du siège") or search("nouve
 export const HEAD_OFFICE_MOVE=/transfert (du|de) siege|nouveau siege|adresse du siege|siege social transfere/;
 export function exportUrl(day:string,family:Family):string{
  if(!/^\d{4}-\d{2}-\d{2}$/.test(day))throw Error('Invalid day');
- const where=`familleavis="${family}" and dateparution=date'${day}'`+(family==='modification'?` and ${HEAD_OFFICE_SEARCH}`:'');
+ // The modifications are filtered on the head-office move at the source — and, since 26 nov. 2026 (owner decision), the
+ // cancellations and corrections of that family are read too: a cancellation of a move need not repeat its words.
+ const where=`familleavis="${family}" and dateparution=date'${day}'`+(family==='modification'?` and (${HEAD_OFFICE_SEARCH} or typeavis="annulation" or typeavis="rectificatif")`:'');
  return `${BODACC_EXPORT}?${new URLSearchParams({where,select:SELECT})}`;
 }
 type Raw=Record<string,unknown>;

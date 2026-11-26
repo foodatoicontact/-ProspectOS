@@ -10,6 +10,7 @@
 //  - One fixed host, bounded time and size, redirects refused. An unanswered or malformed answer is an error, never "0".
 import {DEPARTMENTS} from '../discovery/geo-fr.ts';
 import {purchaseOf,buyerSiren,dedupePurchases} from './bodacc-purchase.ts';
+import {previousNoticeId} from './bodacc-notice.ts';
 
 export const BODACC_DATASET='https://bodacc-datadila.opendatasoft.com/api/explore/v2.1/catalog/datasets/annonces-commerciales';
 export const BODACC_PUBLIC_PAGE='https://www.bodacc.fr/';
@@ -259,8 +260,9 @@ const MAX_PURCHASES_EXPORT_BYTES=24_000_000;
 export type Purchases={month:string;count:number;notices:number;byDepartment:Record<string,number>;query:string};
 export function purchasesExportUrl(codes:readonly string[]|null,month:string):string{
  const u=new URL(`${BODACC_DATASET}/exports/json`);
- u.searchParams.set('select','dateparution,numerodepartement,registre,acte,listeetablissements');
- u.searchParams.set('where',`${noticeWhere('vente',codes?`(${codes.map(deptScope).join(' or ')})`:'numerodepartement is not null',month,addMonths(month,1))} and typeavis="annonce"`);
+ u.searchParams.set('select','id,dateparution,typeavis,parutionavisprecedent,numerodepartement,registre,acte,listeetablissements');
+ // 26 nov. 2026 (owner decision): the notices of cancellation of the month are read too — a cancelled purchase is not counted.
+ u.searchParams.set('where',`${noticeWhere('vente',codes?`(${codes.map(deptScope).join(' or ')})`:'numerodepartement is not null',month,addMonths(month,1))} and (typeavis="annonce" or typeavis="annulation")`);
  return u.href;
 }
 export function isPurchase(acte:unknown,establishments?:unknown):boolean{
@@ -271,13 +273,15 @@ export async function fetchPurchases(codes:readonly string[]|null,month:string,{
  const rows=await getBodaccJson(query,fetchImpl,{timeoutMs:EXPORT_TIMEOUT_MS,maxBytes:MAX_PURCHASES_EXPORT_BYTES});
  if(!Array.isArray(rows))throw new CreationsUnavailableError('MALFORMED');
  let count=0;const byDepartment:Record<string,number>={};
- type Row={dateparution?:unknown;acte?:unknown;listeetablissements?:unknown;registre?:unknown;numerodepartement?:unknown};
- const bought=(rows as Row[]).filter(r=>isPurchase(r?.acte,r?.listeetablissements));
+ type Row={id?:unknown;typeavis?:unknown;parutionavisprecedent?:unknown;dateparution?:unknown;acte?:unknown;listeetablissements?:unknown;registre?:unknown;numerodepartement?:unknown};
+ const cancelled=new Set((rows as Row[]).filter(r=>r?.typeavis==='annulation').map(r=>previousNoticeId(r.parutionavisprecedent)).filter((x):x is string=>!!x));
+ const initial=(rows as Row[]).filter(r=>r?.typeavis!=='annulation');
+ const bought=initial.filter(r=>!(typeof r.id==='string'&&cancelled.has(r.id))&&isPurchase(r?.acte,r?.listeetablissements));
  for(const r of dedupePurchases(bought,x=>buyerSiren(x.registre),x=>typeof x.dateparution==='string'?x.dateparution.slice(0,10):null)){
   count++;
   if(typeof r.numerodepartement==='string'&&DEPT.test(r.numerodepartement))byDepartment[r.numerodepartement]=(byDepartment[r.numerodepartement]??0)+1;
  }
- return {month,count,notices:rows.length,byDepartment,query};
+ return {month,count,notices:initial.length,byDepartment,query};
 }
 // The purchases figure is a complement: if the register fails to answer it, the creation figures are still published
 // without it (null — shown as absent, never as zero).

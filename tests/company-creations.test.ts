@@ -213,8 +213,9 @@ test('reprises — only purchases of a business are counted, from initial "vente
  // a purchase from a contribution, the register number and postal code count a purchase announced twice once. Still no
  // trader name and no people; nothing of them is kept (see the keys of the result below).
  // Owner decision (25 nov. 2026, second step): the publication date too — one buyer is one reprise within 30 days.
- assert.equal(u.searchParams.get('select'),'dateparution,numerodepartement,registre,acte,listeetablissements','no trader name, no people');
- assert.equal(u.searchParams.get('where'),`familleavis="vente" and (numerodepartement="31") and dateparution>=date'2026-09-01' and dateparution<date'2026-10-01' and typeavis="annonce"`);
+ // Owner decision (26 nov. 2026): the id, type and target too — a purchase cancelled by a notice of the month is not counted.
+ assert.equal(u.searchParams.get('select'),'id,dateparution,typeavis,parutionavisprecedent,numerodepartement,registre,acte,listeetablissements','no trader name, no people');
+ assert.equal(u.searchParams.get('where'),`familleavis="vente" and (numerodepartement="31") and dateparution>=date'2026-09-01' and dateparution<date'2026-10-01' and (typeavis="annonce" or typeavis="annulation")`);
  assert.match(new URL(purchasesExportUrl(null,'2026-09')).searchParams.get('where')!,/^familleavis="vente" and numerodepartement is not null and /);
  assert.throws(()=>purchasesExportUrl(['31" or "1"="1'],'2026-09'),CreationsUnavailableError);
  for(const c of ["Achat d'un fonds par une personne morale (insertion provisoire)","Achat d'un fonds par une personne physique (insertion provisoire)","Achat d’un établissement secondaire ou complémentaire par une personne morale","Achat d'un établissement principal par une personne physique (immatriculation)","Achat d'un fonds par le locataire-gérant personne morale"])
@@ -390,4 +391,11 @@ test('structured data — the nested BODACC source is a valid Dataset (descripti
  assert.match(based,/description:'[^']{50,}'/,'Google requires a description of at least 50 characters on every Dataset');
  assert.match(based,/publisher:\{'@type':'Organization'/);
  assert.doesNotMatch(src.split('\n').filter(l=>!l.trim().startsWith('//')).join('\n'),/'GovernmentOrganization'/,'refused by Google for publisher');
+});
+
+test('reprises — a purchase cancelled by a notice of cancellation of the month is not counted (owner decision, 26 nov. 2026)',async()=>{
+ const buy=(id:string,siren:string)=>({...sale("Achat d'un fonds par une personne morale (insertion provisoire)",'31',{siren}),id,typeavis:'annonce',dateparution:'2026-09-10'});
+ const cancel={id:'A202601903000',typeavis:'annulation',numerodepartement:'31',parutionavisprecedent:JSON.stringify({nomPublication:'BODACC A',numeroParution:'20260180',numeroAnnonce:'12'})};
+ const p=await fetchPurchases(['31'],'2026-09',{fetchImpl:register({sales:[buy('A2026018012','900000001'),buy('A2026018013','900000002'),cancel]}).fetchImpl});
+ assert.deepEqual([p.count,p.notices],[1,2],'the cancelled purchase is not counted; the notice of cancellation is not a notice of the month');
 });

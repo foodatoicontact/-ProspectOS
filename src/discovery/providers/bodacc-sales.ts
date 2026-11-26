@@ -19,6 +19,7 @@
 import {CandidateSchema,type Candidate,type DiscoveryInput,type DiscoveryProvider,type ProviderSearchReport} from '../types.ts';
 import {resolveRegistryZone,type RegistryZone} from '../registry/zone.ts';
 import {purchaseOf,saleCategory} from '../../domain/bodacc-purchase.ts';
+import {previousNoticeId} from '../../domain/bodacc-notice.ts';
 
 export const BODACC_RECORDS='https://bodacc-datadila.opendatasoft.com/api/explore/v2.1/catalog/datasets/annonces-commerciales/records';
 export const BODACC_SALES_PROVENANCE={source:'BODACC — annonces commerciales, Ventes et cessions (DILA)',licence:'Licence Ouverte 2.0 (Etalab)'};
@@ -43,6 +44,17 @@ async function readBounded(res:Response):Promise<unknown>{
 }
 
 const day=(d:Date)=>d.toISOString().slice(0,10);
+// Initial notices, and the notices of cancellation (owner decision, 26 nov. 2026): a purchase cancelled by a later notice
+// is never a candidate. Newest first, a cancellation is read before the notice it cancels.
+export const NOTICE_TYPES='(typeavis="annonce" or typeavis="annulation")';
+export type CancellationRead={cancelled:Set<string>};
+// A notice of cancellation → the id it cancels is remembered, and true (it is not a notice to read). Pure on the set.
+export function readCancellation(rec:unknown,state:CancellationRead):boolean{
+ const r=rec as Record<string,unknown>|null;
+ if(!r||String(r.typeavis??'')!=='annulation')return false;
+ const target=previousNoticeId(r.parutionavisprecedent);if(target)state.cancelled.add(target);
+ return true;
+}
 // The zone as the BODACC codes it: the department number, or the INSEE region code (an integer field there).
 export function salesZoneClause(zone:RegistryZone):string{
  if(zone.kind==='department'){if(!DEPT.test(zone.code))throw new SalesRequestError('ZONE_INVALID');return `numerodepartement="${zone.code}"`}
@@ -54,8 +66,8 @@ export function salesUrl(zone:RegistryZone,now:Date,page:number):URL{
  const u=new URL(BODACC_RECORDS);
  const from=new Date(now.getTime()-SALES_WINDOW_DAYS*86_400_000);
  // Only the fields needed: no trader name (commercant), whose seller part can be a private person.
- u.searchParams.set('select','id,dateparution,url_complete,registre,acte,listeetablissements,listepersonnes');
- u.searchParams.set('where',`familleavis="vente" and typeavis="annonce" and ${salesZoneClause(zone)} and dateparution>=date'${day(from)}'`);
+ u.searchParams.set('select','id,dateparution,typeavis,parutionavisprecedent,url_complete,registre,acte,listeetablissements,listepersonnes');
+ u.searchParams.set('where',`familleavis="vente" and ${NOTICE_TYPES} and ${salesZoneClause(zone)} and dateparution>=date'${day(from)}'`);
  u.searchParams.set('order_by','dateparution desc');
  u.searchParams.set('limit',String(PAGE_SIZE));u.searchParams.set('offset',String((page-1)*PAGE_SIZE));
  return u;
@@ -66,8 +78,8 @@ export function salesUrl(zone:RegistryZone,now:Date,page:number):URL{
 export function salesBySirenUrl(siren:string,now:Date):URL{
  if(!/^\d{9}$/.test(siren))throw new SalesRequestError('SIREN_INVALID');
  const u=new URL(BODACC_RECORDS);const from=new Date(now.getTime()-730*86_400_000);
- u.searchParams.set('select','id,dateparution,url_complete,registre,acte,listeetablissements,listepersonnes');
- u.searchParams.set('where',`familleavis="vente" and typeavis="annonce" and registre like "${siren}" and dateparution>=date'${day(from)}'`);
+ u.searchParams.set('select','id,dateparution,typeavis,parutionavisprecedent,url_complete,registre,acte,listeetablissements,listepersonnes');
+ u.searchParams.set('where',`familleavis="vente" and ${NOTICE_TYPES} and registre like "${siren}" and dateparution>=date'${day(from)}'`);
  u.searchParams.set('order_by','dateparution desc');u.searchParams.set('limit','10');
  return u;
 }
@@ -75,7 +87,12 @@ export async function fetchSalesBySiren(siren:string,request:typeof fetch,now=ne
  const res=await request(salesBySirenUrl(siren,now),{headers:{accept:'application/json'},signal:AbortSignal.timeout(SALES_REQUEST_TIMEOUT_MS),redirect:'error'});
  if(!res.ok){await res.body?.cancel().catch(()=>{});throw new SalesRequestError(`HTTP_${res.status}`)}
  const body=await readBounded(res) as {results?:unknown[]};
- return (Array.isArray(body?.results)?body.results:[]).map(readSalesNotice).flatMap(r=>'notice' in r&&r.notice.siren===siren?[r.notice]:[]);
+ const state:CancellationRead={cancelled:new Set()};const out:SalesNotice[]=[];
+ for(const rec of Array.isArray(body?.results)?body.results:[]){
+  if(readCancellation(rec,state))continue;
+  const r=readSalesNotice(rec);if('notice' in r&&r.notice.siren===siren&&!state.cancelled.has(r.notice.id))out.push(r.notice);
+ }
+ return out;
 }
 const parse=(v:unknown):unknown=>{if(typeof v!=='string')return v;try{return JSON.parse(v)}catch{return null}};
 const str=(v:unknown,max:number)=>typeof v==='string'&&v.trim()?v.replace(/\s+/g,' ').trim().slice(0,max):null;
@@ -84,7 +101,7 @@ const list=(v:unknown):unknown[]=>Array.isArray(v)?v:v==null?[]:[v];
 
 export type SalesNotice={id:string;published:string;url:string;category:string;siren:string;buyer:string;activity:string|null;tradeName:string|null;
  establishment:string|null;city:string|null;postalCode:string|null};
-export type SalesRejection='NOT_A_PURCHASE'|'FORCED_SALE'|'NOT_A_LEGAL_ENTITY'|'NO_BUYER_IDENTITY'|'INVALID_NOTICE';
+export type SalesRejection='CANCELLED'|'NOT_A_PURCHASE'|'FORCED_SALE'|'NOT_A_LEGAL_ENTITY'|'NO_BUYER_IDENTITY'|'INVALID_NOTICE';
 // One notice → the purchase it announces, or why it is not kept. Pure.
 export function readSalesNotice(rec:unknown):{notice:SalesNotice}|{reject:SalesRejection}{
  const r=rec as Record<string,unknown>|null;
@@ -142,7 +159,7 @@ export class BodaccSalesProvider implements DiscoveryProvider {
   if(!zone){report.failure_codes.push('BODACC_ZONE_UNMAPPED');return []}
   report.queries_planned=1;
   const started=Date.now(),now=this.now();let answered=0;
-  const out:SalesNotice[]=[];const seen=new Set<string>();
+  const out:SalesNotice[]=[];const seen=new Set<string>();const cancellations:CancellationRead={cancelled:new Set()};
   for(let page=1;page<=this.maxPages&&out.length<input.max_results;page++){
    if(Date.now()-started>=this.budgetMs){report.failure_codes.push('TIME_BUDGET_REACHED');break}
    let body:{results?:unknown[]};
@@ -157,8 +174,10 @@ export class BodaccSalesProvider implements DiscoveryProvider {
     report.requests_failed++;report.failure_codes.push(error instanceof SalesRequestError?error.message:name==='TimeoutError'||name==='AbortError'?'TIMEOUT':'NETWORK_ERROR');break}
    const results=body.results!;
    for(const rec of results){
+    if(readCancellation(rec,cancellations))continue;
     sales.examined++;
     const read=readSalesNotice(rec);
+    if('notice' in read&&cancellations.cancelled.has(read.notice.id)){sales.rejected.CANCELLED=(sales.rejected.CANCELLED??0)+1;continue}
     if('reject' in read){sales.rejected[read.reject]=(sales.rejected[read.reject]??0)+1;continue}
     if(!matchesActivity(read.notice,stems)){sales.rejected.OTHER_ACTIVITY=(sales.rejected.OTHER_ACTIVITY??0)+1;continue}
     // One company, one candidate: its most recent purchase (notices come newest first).

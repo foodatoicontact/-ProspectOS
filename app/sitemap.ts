@@ -11,7 +11,9 @@ export default async function sitemap():Promise<MetadataRoute.Sitemap>{
   const offer={url:`${SITE_URL}/prospects-de-votre-zone`,lastModified:'2026-11-01',changeFrequency:'monthly' as const,priority:.8};
   // The veille dédiée quote form (26 nov. 2026).
   const quote={url:`${SITE_URL}/demande-veille`,lastModified:'2026-11-26',changeFrequency:'monthly' as const,priority:.6};
+  // The help page of the installable app (26 nov. 2026).
+  const install={url:`${SITE_URL}/installer-application`,lastModified:'2026-11-26',changeFrequency:'monthly' as const,priority:.4};
   const now=new Date();
   const recent=await fetchRecent(null,{now}).catch(()=>null);
-  return [...sitemapEntries,offer,quote,...creationsSitemapEntries(SITE_URL,now,recent)].map(entry=>({...entry,lastModified:new Date(entry.lastModified)}));
+  return [...sitemapEntries,offer,quote,install,...creationsSitemapEntries(SITE_URL,now,recent)].map(entry=>({...entry,lastModified:new Date(entry.lastModified)}));
 }

@@ -13,6 +13,8 @@ export const SECURITY_HEADERS=[
 ];
 const nextConfig:NextConfig={
  poweredByHeader:false,
- async headers(){return [{source:'/((?!d/).*)',headers:SECURITY_HEADERS}]},
+ async headers(){return [{source:'/((?!d/).*)',headers:SECURITY_HEADERS},
+  // PWA (docs/PWA.md): the service worker is always re-checked, so a new version reaches every device at its next visit.
+  {source:'/sw.js',headers:[{key:'Cache-Control',value:'no-cache, no-store, must-revalidate'},{key:'Service-Worker-Allowed',value:'/'}]}]},
 };
 export default nextConfig;

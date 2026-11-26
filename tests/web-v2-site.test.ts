@@ -33,7 +33,8 @@ test('flag — one build-time switch for the whole public site',()=>{
 
 test('inventory — every public page renders through one of the three envelopes',()=>{
  // Owner decision (26 nov. 2026): /cockpit is the administrator's page (migration 056), never indexed — not a public page.
- const routes=readdirSync(new URL('app',root),{withFileTypes:true}).filter(d=>d.isDirectory()&&!['api','ui-v2','cockpit'].includes(d.name)&&existsSync(new URL(`app/${d.name}/page.tsx`,root))).map(d=>d.name);
+ // Owner decision (26 nov. 2026, PWA): /app is the start page of the installed app (the application itself), never indexed.
+ const routes=readdirSync(new URL('app',root),{withFileTypes:true}).filter(d=>d.isDirectory()&&!['api','ui-v2','cockpit','app'].includes(d.name)&&existsSync(new URL(`app/${d.name}/page.tsx`,root))).map(d=>d.name);
  assert.ok(routes.length>=13,routes.join(','));
  for(const r of routes){
   const src=read(`app/${r}/page.tsx`);
@@ -73,7 +74,9 @@ test('freeze — legal text, SEO content, prices, quotas, trial, plans, i18n and
   // code; applications not accepted deleted within 6 months, migration 053), the ?ref= session storage in section 7, contact → 14.
   // Owner decision (26 nov. 2026, RGPD, admin cockpit — migration 056): section 3.6 covers both forms, now stored (12 months),
   // and the quote form; section 5 its legal basis; section 6 ntfy (push without any personal data); section 8 the 12 months.
-  'app/confidentialite/page.tsx':'df0e91b6b8f5371448c29b385f596a1846ab54ae33f76b0f5b0b597349918eb6',
+  // Owner decision (26 nov. 2026, RGPD, PWA — migration 057): section 3.8 (installed app and notifications, the four measured
+  // facts), section 6 the browsers' push services, section 7 the local storage and cache of the installed app, section 8.
+  'app/confidentialite/page.tsx':'b25b3883ff30b0a7e2ff0e40ad0abd994110939bb776a83dd7a4e3835c0e7b04',
   'app/mentions-legales/page.tsx':'2efbad023e459aa36de624415f119b61f8372d80cecd1c60722f1a9f23b0f65e',
   // Owner decision (14 nov. 2026): ACTIVITY_FORMALITY.filedAt corrected to 13/11/2026, the date the INPI formality was signed.
   // Owner decision (18 nov. 2026, RGPD): PRIVACY_VERSION 2026-11-18 for the retention lines above; terms unchanged.

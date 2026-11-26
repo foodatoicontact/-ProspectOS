@@ -9,6 +9,7 @@ import {STATUS_LABEL,DEDICATED_STATUSES,PROOF_KINDS,PROOF_LABEL,ATTESTATION,eur,
  type DedicatedStatus,type Counters,type Alert,firstStatementIssue,firstStatementDate} from '../../../dedicated/model.ts';
 import './dedicated.css';
 import {DeliveryDocument,LivraisonStyle} from './DeliveryView.tsx';
+import {installMoment} from '../../../pwa/client.ts';
 
 export type ContractStatus='PROPOSED'|'ACTIVE'|'TERMINATED';
 export type Contract={id:string;label:string;minimum_ht_cents:number;commission_ht_cents:number;known_client_days:number;first_statement_month:string;
@@ -94,7 +95,7 @@ export function DedicatedClientView(p:{data:ClientData;today:string;busy:boolean
     </div>
     {pending.map(s=><StatementCard key={s.id} s={s} busy={p.busy} onValidate={p.onValidate}/>)}
     {dels.map((d,n)=><DeliveryDocument key={d.id} d={d} items={items.filter(i=>i.delivery_id===d.id)} contract={c} today={p.today} busy={p.busy}
-      open={(openDel[d.id]??n===0)} onToggle={()=>setOpenDel({...openDel,[d.id]:!(openDel[d.id]??n===0)})}
+      open={(openDel[d.id]??n===0)} onToggle={()=>{const next=!(openDel[d.id]??n===0);setOpenDel({...openDel,[d.id]:next});if(next)installMoment('delivery_opened')}}
       onOpen={p.onOpen} onStatus={p.onStatus} onExport={f=>p.onExport(c.id,d.id,f)}/>)}
     {done.length>0&&<div className="pos-ded__card"><h3>Relevés validés</h3><table className="pos-ded__table"><tbody>{done.map(s=><tr key={s.id}><td>{monthLabel(s.month)}<br/><span className="pos-ded__meta">{plural(s.signed_count,'signature','signatures')} · validé le {dateFr(s.validated_at)}</span></td><td>{eur(s.amount_ht_cents)} HT</td></tr>)}</tbody></table></div>}
    </section>;

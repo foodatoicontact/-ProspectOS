@@ -28,6 +28,8 @@ export type AppShellProps={
  bell?:(variant:'top'|'side')=>ReactNode;
  // A screen already migrated to v2 (UI-3: Today 2.0) replaces the legacy region for that view.
  screen?:ReactNode;
+ // ProspectOS installable (migration 057): the install invitation, notification offer and settings; absent = nothing.
+ pwa?:ReactNode;
 };
 // Actions that belong to the current screen (e.g. Prospects: export, add) — no longer global buttons of the envelope.
 export type ShellAction={key:string;label:string;onClick:()=>void;primary?:boolean;disabled?:boolean;icon?:IconName};
@@ -110,7 +112,7 @@ export function SideNav({locale,current,onNavigate,project,account,projectOpen,m
  </aside>;
 }
 
-export function AppShell({locale,current,onNavigate,project,account,title,actions,debug,notice,bell,children,screen}:AppShellProps){
+export function AppShell({locale,current,onNavigate,project,account,title,actions,debug,notice,bell,children,screen,pwa}:AppShellProps){
  const desktop=useIsDesktop();
  const [projectOpen,setProjectOpen]=useState(false);
  const [menuOpen,setMenuOpen]=useState(false);
@@ -134,6 +136,7 @@ export function AppShell({locale,current,onNavigate,project,account,title,action
    {screen??<div className="pos-legacy">{children}</div>}
   </main>
   <BottomNav locale={locale} current={current} onNavigate={navigate}/>
+  {pwa}
   <Sheet open={projectOpen&&!desktop} onClose={()=>setProjectOpen(false)} title={PROJECT_TEXT[locale].title} locale={locale}>
    <ProjectList {...project} locale={locale} onDone={()=>setProjectOpen(false)}/>
   </Sheet>
@@ -157,5 +160,7 @@ export {ActivityV2,ActionsNative,ActivityOverview} from '../activity/ActivityV2.
 // Veille dédiée — suivi (migration 043): the client's space and the administrator's dashboard, behind DEDICATED_TRACKING_ENABLED.
 export {DedicatedClient,DedicatedAdmin} from '../dedicated/Dedicated.tsx';
 export {DedicatedNotice} from '../dedicated/DedicatedNotice.tsx';
+// ProspectOS installable (migration 057): install invitation, notification offer and settings — signed-in app only.
+export {PwaLayer} from '../pwa/PwaLayer.tsx';
 // The notification centre (migration 044).
 export {NotificationBell} from './NotificationBell.tsx';

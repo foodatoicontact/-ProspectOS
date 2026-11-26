@@ -5,6 +5,7 @@ import {createPolicyFetcher} from '../../../../src/discovery/website-analysis';
 import {dynamicAnalysisEnabled} from '../../../../src/discovery/analysis-authorization';
 import {safeFetch} from '../../../../src/discovery/safe-fetch';
 import {BodaccSignalProvider,bodaccEnabled} from '../../../../src/signals/providers/bodacc';
+import {sendQueuedWebPush} from '../../../../src/pwa/send';
 // Signal Engine S9 — daily monitoring (vercel.json crons). Vercel Cron calls this route with
 // "Authorization: Bearer <CRON_SECRET>"; nothing else is read from the request. Without CRON_SECRET configured the
 // route does nothing (503); a wrong or missing secret is 401. The work itself is runMonitorBatch (src/signals/monitor.ts).
@@ -25,6 +26,8 @@ export async function GET(request:Request){
    sitePageFetcher:policy=>url=>fetchPage(url,policy),bodaccProvider:()=>new BodaccSignalProvider(),
    audit:userId=>createSupabaseAnalysisAudit(admin,userId),
    log:event=>console.info(JSON.stringify(event))});
+  // New signals found by monitoring queued one web push per person and day (migration 057): sent now, best effort.
+  await sendQueuedWebPush(admin);
   return json(summary);
  }catch{return json({error:'Surveillance momentanément indisponible.',code:'MONITOR_FAILED'},500)}
 }

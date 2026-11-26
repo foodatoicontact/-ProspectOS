@@ -16,6 +16,9 @@ import {searchDoneNote,runDateLabel,runCountsLabel,resultsSummaryLabel,noveltySu
  deepPassLine,newActorsFoundLabel,type TKey} from '../../../i18n/index.ts';
 import type {Locale} from '../../../i18n/locale.ts';
 import {Button,Icon} from '../primitives.tsx';
+// ProspectOS installable (docs/PWA.md): tells the install invitation that a search just finished with results; it acts on
+// nothing (no search, no add, no ignore) and renders nothing.
+import {SearchMoment} from '../pwa/SearchMoment.tsx';
 import {verificationOf,scoreText,shortReasons,priorityChip,type VerificationKind} from './model.ts';
 
 export const NATIVE_TEXT:Record<Locale,{settings:string;searchSummary:(q:string,l:string)=>string;edit:string;searching:string;results:(n:number)=>string;
@@ -238,6 +241,7 @@ export function SearchNative({m,onEditTargeting}:{m:DiscoveryView;onEditTargetin
  const {tr}=m;const t=NATIVE_TEXT[m.locale];
  return <div className="pos-snative" data-testid="search-native">
   {m.mode==='demo'&&<p className="pos-snote">{tr('discovery.demoNote')}</p>}
+  <SearchMoment m={m}/>
   <Form m={m}/>
   <details className="pos-sdetails pos-sdetails--context">
    <summary><span>{t.targeting} · {m.projectName}</span><Icon name="chevron-down" size={16}/></summary>

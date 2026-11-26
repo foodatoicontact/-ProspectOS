@@ -1,17 +1,21 @@
 // Cockpit administrateur — the feed's vocabulary (migration 056). Pure: labels, filters, one line per event. Shared by the
 // API (validation of the filters) and the screen.
 export const FEED_KINDS=['SIGNUP','TRIAL_ENDED','INVOICE_PAID','PLAN_CHANGED','CANCELLATION','PAYMENT_FAILED','WATCH_REQUEST',
- 'PROSPECT_REQUEST','PARTNER_APPLIED','PARTNER_CREATED','COMMISSION_DUE','COLLECT_FAILED'] as const;
+ 'PROSPECT_REQUEST','PARTNER_APPLIED','PARTNER_CREATED','COMMISSION_DUE','COLLECT_FAILED',
+ // ProspectOS installable (migration 057).
+ 'INSTALL_PROMPT_SHOWN','INSTALL_PROMPT_REFUSED','APP_INSTALLED','PUSH_ENABLED'] as const;
 export type FeedKind=typeof FEED_KINDS[number];
 export const KIND_LABEL:Record<FeedKind,string>={
  SIGNUP:'Inscription',TRIAL_ENDED:'Fin d’essai',INVOICE_PAID:'Facture payée',PLAN_CHANGED:'Changement d’offre',CANCELLATION:'Résiliation',
  PAYMENT_FAILED:'Paiement échoué',WATCH_REQUEST:'Demande de veille',PROSPECT_REQUEST:'Demande « 3 prospects »',PARTNER_APPLIED:'Candidature partenaire',
  PARTNER_CREATED:'Partenaire inscrit',COMMISSION_DUE:'Commission due',COLLECT_FAILED:'Échec de collecte',
+ INSTALL_PROMPT_SHOWN:'Invitation affichée',INSTALL_PROMPT_REFUSED:'Invitation refusée',APP_INSTALLED:'App installée',PUSH_ENABLED:'Notifications activées',
 };
 // Tone of the badge: what needs action now (danger), money in (success), the rest (neutral).
 export const KIND_TONE:Record<FeedKind,'danger'|'success'|'accent'|'neutral'>={
  SIGNUP:'accent',TRIAL_ENDED:'neutral',INVOICE_PAID:'success',PLAN_CHANGED:'accent',CANCELLATION:'danger',PAYMENT_FAILED:'danger',
  WATCH_REQUEST:'accent',PROSPECT_REQUEST:'accent',PARTNER_APPLIED:'neutral',PARTNER_CREATED:'neutral',COMMISSION_DUE:'danger',COLLECT_FAILED:'danger',
+ INSTALL_PROMPT_SHOWN:'neutral',INSTALL_PROMPT_REFUSED:'neutral',APP_INSTALLED:'success',PUSH_ENABLED:'success',
 };
 // The filter chips: a few groups rather than twelve chips on a phone.
 export const FEED_GROUPS:readonly {key:string;label:string;kinds:readonly FeedKind[]}[]=[
@@ -20,11 +24,13 @@ export const FEED_GROUPS:readonly {key:string;label:string;kinds:readonly FeedKi
  {key:'billing',label:'Facturation',kinds:['INVOICE_PAID','PLAN_CHANGED','CANCELLATION','PAYMENT_FAILED']},
  {key:'partners',label:'Partenaires',kinds:['PARTNER_APPLIED','PARTNER_CREATED','COMMISSION_DUE']},
  {key:'ops',label:'Collecte',kinds:['COLLECT_FAILED']},
+ {key:'app',label:'Application',kinds:['INSTALL_PROMPT_SHOWN','INSTALL_PROMPT_REFUSED','APP_INSTALLED','PUSH_ENABLED']},
 ];
 export type FeedEvent={id:number;kind:FeedKind;occurred_at:string;organization_id:string|null;organization:string|null;source_table:string;source_id:string;
  detail:Record<string,unknown>;source:Record<string,unknown>|null};
 export type Feed={events:FeedEvent[];has_more:boolean};
 
+const PLATFORM_LABEL:Record<string,string>={ios:'iPhone',android:'Android',desktop:'ordinateur',other:'autre appareil'};
 const PLAN_LABEL:Record<string,string>={PAID:'Solo',PRO:'Pro',TEAM:'Équipe'};
 const STRIPE_STATUS:Record<string,string>={active:'actif',past_due:'paiement en retard',unpaid:'impayé',canceled:'terminé',incomplete:'incomplet',incomplete_expired:'expiré',trialing:'essai',paused:'en pause'};
 const plan=(v:unknown)=>typeof v==='string'?PLAN_LABEL[v]??v:'—';
@@ -47,6 +53,8 @@ export function eventSummary(e:FeedEvent):string{
   case 'PARTNER_CREATED':return src?`${s(src.company)??'—'} (code ${s(src.code)??'—'})`:'—';
   case 'COMMISSION_DUE':return src?`${s(src.company)??'—'} — solde ${euros(src.balance_cents)}${src.paid?' · payé':''}`:'—';
   case 'COLLECT_FAILED':return `Tâche ${s(e.detail.job)??'—'} — ${s(e.detail.code)??'erreur'}`;
+  case 'INSTALL_PROMPT_SHOWN':case 'INSTALL_PROMPT_REFUSED':case 'APP_INSTALLED':case 'PUSH_ENABLED':
+   return `${org} — ${PLATFORM_LABEL[String(e.detail.platform)]??'appareil inconnu'}`;
  }
 }
 // Paris date and time, short.

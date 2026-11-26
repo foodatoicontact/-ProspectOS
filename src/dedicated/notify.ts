@@ -1,5 +1,6 @@
 import type {MailTransport} from '../self-outreach/transport.ts';
 import {eur,monthLabel} from './model.ts';
+import {EMAIL_INSTALL_LINE} from '../pwa/copy.ts';
 // Monthly job of the veille dédiée (migration 043): on the 1st (and every day after, idempotent) the statements of the
 // previous month are generated; from the 5th, every statement still not validated by its client is announced ONCE to the
 // administrator by e-mail. Without SMTP configuration the statements are still generated and the dashboard shows the
@@ -42,7 +43,7 @@ export function acceptanceEmails(a:AcceptedMail,siteUrl:string):{admin:{subject:
   admin:{subject:`Proposition acceptée — ${clean(a.organization)}`,
    text:`Bonjour,\n\nLa proposition « ${clean(a.label)} » a été acceptée par ${a.userEmail??'un membre de l’organisation'} (${clean(a.organization)}).\n\nVersion acceptée : ${a.version}\nEmpreinte SHA-256 du PDF : ${a.sha256}\nDébut de la période d’essai : ${frDate(a.trial_starts_on)}\n\nL’acceptation est inscrite au journal de la veille. Les livraisons peuvent commencer :\n${siteUrl}\n\nProspectOS`},
   client:{subject:'Votre espace de veille est ouvert',
-   text:`Bonjour,\n\nMerci, votre acceptation de la proposition « ${clean(a.label)} » est enregistrée.\n\nVotre espace de suivi est ouvert. La période d’essai commence le ${frDate(a.trial_starts_on)}. Vous y trouverez chaque livraison, le statut de chaque entreprise et le relevé du mois :\n${siteUrl}\n(menu du compte, « Veille dédiée — suivi »)\n\nProspectOS`}};
+   text:`Bonjour,\n\nMerci, votre acceptation de la proposition « ${clean(a.label)} » est enregistrée.\n\nVotre espace de suivi est ouvert. La période d’essai commence le ${frDate(a.trial_starts_on)}. Vous y trouverez chaque livraison, le statut de chaque entreprise et le relevé du mois :\n${siteUrl}\n(menu du compte, « Veille dédiée — suivi »)\n\n${EMAIL_INSTALL_LINE}\n\nProspectOS`}};
 }
 export async function sendAcceptanceEmails(o:{accepted:AcceptedMail;adminTo:string;siteUrl:string;messageDomain:string;transport:()=>Promise<MailTransport>;id:()=>string}):Promise<{admin:boolean;client:boolean}>{
  const mails=acceptanceEmails(o.accepted,o.siteUrl);const out={admin:false,client:false};

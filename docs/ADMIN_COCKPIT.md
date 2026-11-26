@@ -90,3 +90,30 @@ Sans `NTFY_TOPIC`, rien n'est envoyé : la file attend.
 ## Retour arrière
 
 Le retour arrière est décrit dans l'en-tête de `db/migrations/056_admin_cockpit.sql`.
+
+## Écran Clients (migration 059)
+
+L'onglet « Clients » de `/cockpit` présente une fiche par organisation. La liste se cherche par nom d'organisation ou par
+e-mail du propriétaire. La fiche contient :
+
+- **Offre** : plan, statut, début et fin, sièges.
+- **Usage** :
+  - projets et prospects ;
+  - recherches et analyses IA sur 30 jours ;
+  - recherches en tout ;
+  - dernière activité.
+- **Facturation Stripe** :
+  - état de l'abonnement tel que stocké (`billing_accounts`) ;
+  - résiliation demandée ou non ;
+  - lien vers le client dans le tableau de bord Stripe ;
+  - les 12 dernières factures, lues dans Stripe au moment de l'affichage et jamais stockées, chacune avec un lien vers le
+    tableau de bord. Jamais de lien public de facture.
+- **Veille dédiée** : contrats, livraisons, dernière livraison.
+- **Partenaire d'origine** : partenaire et date de l'attribution.
+- **Notes de l'administrateur** (`admin_notes`) : horodatées, avec leur auteur, en ajout seul. On ne les modifie ni ne les
+  supprime : on ajoute une nouvelle note pour corriger.
+- **Derniers événements** : ceux du Fil pour l'organisation.
+
+Accès : `admin_clients`, `admin_client` et `admin_add_note` vérifient le droit `INTERNAL`, et RLS cache les notes à tout autre
+compte. La base refuse la fiche avant que Stripe ne soit interrogé. Le test `tests/admin-clients-db.mjs` vérifie qu'un compte
+client, même propriétaire de l'organisation, et un visiteur anonyme ne lisent, n'appellent et n'écrivent rien.

@@ -21,6 +21,9 @@ export type StripeInvoiceFull={id:string;status:string|null;customer:string|null
  total_excluding_tax:number|null;status_transitions?:{paid_at?:number|null}};
 export type StripeCharge={id:string;livemode:boolean;currency:string;amount:number;amount_refunded:number;customer:string|null;
  payment_intent:string|null;invoice?:string|null};
+// The cockpit's client sheet (migration 059): the latest invoices of a customer, read-only, never stored.
+export type StripeInvoiceSummary={id:string;number:string|null;status:string|null;currency:string;total:number;amount_paid:number;created:number;livemode:boolean};
+export interface AdminStripeApi{listInvoices(customerId:string,limit:number):Promise<{data?:StripeInvoiceSummary[]}>}
 export interface PartnerStripeApi{
  retrieveInvoice(id:string):Promise<StripeInvoiceFull>;
  retrieveCharge(id:string):Promise<StripeCharge>;
@@ -55,7 +58,7 @@ export function formEncode(params:Record<string,unknown>,prefix=''):string{
  return out.filter(Boolean).join('&');
 }
 
-export function createStripeClient(secretKey:string,fetchImpl:typeof fetch=fetch):StripeApi&PartnerStripeApi{
+export function createStripeClient(secretKey:string,fetchImpl:typeof fetch=fetch):StripeApi&PartnerStripeApi&AdminStripeApi{
  async function call<T>(method:'GET'|'POST',path:string,params?:Record<string,unknown>,idempotencyKey?:string):Promise<T>{
   const body=params?formEncode(params):'';
   const url=method==='GET'&&body?`${STRIPE_API}${path}?${body}`:`${STRIPE_API}${path}`;
@@ -82,5 +85,6 @@ export function createStripeClient(secretKey:string,fetchImpl:typeof fetch=fetch
    const inv=r.data?.[0]?.invoice;return typeof inv==='string'&&/^in_[A-Za-z0-9]+$/.test(inv)?inv:null;
   },
   updateCustomerMetadata:(cusId,metadata)=>call('POST',`/customers/${id(cusId,'cus')}`,{metadata}),
+  listInvoices:(cusId,limit)=>call('GET','/invoices',{customer:id(cusId,'cus'),limit:Math.max(1,Math.min(limit,24))}),
  };
 }

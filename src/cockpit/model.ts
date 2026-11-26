@@ -60,3 +60,16 @@ export function eventSummary(e:FeedEvent):string{
 // Paris date and time, short.
 export const when=(iso:string)=>new Intl.DateTimeFormat('fr-FR',{dateStyle:'medium',timeStyle:'short',timeZone:'Europe/Paris'}).format(new Date(iso));
 export const stripeLink=(e:FeedEvent)=>e.source_table==='stripe_webhook_events'&&/^evt_[A-Za-z0-9]+$/.test(e.source_id)?`https://dashboard.stripe.com/events/${e.source_id}`:null;
+
+// Écran Clients (migration 059): labels of a client sheet.
+export const CLIENT_PLAN_LABEL:Record<string,string>={BETA:'Essai',PAID:'Solo',PRO:'Pro',TEAM:'Équipe',ENTERPRISE:'Entreprise',INTERNAL:'Interne'};
+export const STATUS_LABEL:Record<string,string>={ACTIVE:'actif',EXPIRED:'terminé',REVOKED:'retiré'};
+export const SUB_LABEL:Record<string,string>={active:'active',past_due:'paiement en retard',unpaid:'impayée',canceled:'résiliée',incomplete:'incomplète',incomplete_expired:'expirée',trialing:'essai',paused:'en pause'};
+export const INVOICE_LABEL:Record<string,string>={paid:'payée',open:'à payer',draft:'brouillon',void:'annulée',uncollectible:'irrécouvrable'};
+export const DED_LABEL:Record<string,string>={PROPOSED:'proposée',ACTIVE:'active',TERMINATED:'résiliée'};
+export const clientDay=(iso:string|null|undefined)=>iso?new Intl.DateTimeFormat('fr-FR',{dateStyle:'medium',timeZone:'Europe/Paris'}).format(new Date(iso)):'—';
+export function offerLine(plan:string|null,status:string|null,expires:string|null){
+ if(!plan)return 'Aucune offre';
+ return `${CLIENT_PLAN_LABEL[plan]??plan} · ${STATUS_LABEL[status??'']??status??'—'}${expires&&plan!=='INTERNAL'?` · jusqu’au ${clientDay(expires)}`:''}`;
+}
+

@@ -11,3 +11,8 @@
 .pos-ui .pos-cockpit__kind--accent{background:var(--pos-status-engage-bg,var(--pos-accent-soft));color:var(--pos-status-engage-fg,var(--pos-accent));border-color:transparent}
 .pos-ui .pos-cockpit__time{font-size:var(--pos-text-xs);color:var(--pos-text-3);font-variant-numeric:tabular-nums;white-space:nowrap}
 .pos-ui .pos-cockpit__summary{color:var(--pos-text-1);font-size:var(--pos-text-sm);overflow-wrap:anywhere}
+.pos-ui .pos-cockpit__tabs{display:flex;gap:var(--pos-space-2);padding:var(--pos-space-4) var(--pos-space-4) 0;max-width:880px}
+.pos-ui .pos-cockpit__row{width:100%;text-align:left;font:inherit;color:inherit;cursor:pointer}
+.pos-ui .pos-cockpit__row:hover{border-color:var(--pos-border-strong)}
+.pos-ui .pos-ded__form textarea.pos-cockpit__note{min-height:96px;font-family:inherit;font-size:16px}
+.pos-ui .pos-cockpit__notebody{white-space:pre-wrap}

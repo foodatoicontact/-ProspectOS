@@ -155,12 +155,15 @@ export function matchesActivity(n:Pick<SalesNotice,'activity'|'tradeName'>,stems
 }
 
 export type SalesReport={examined:number;kept:number;rejected:Partial<Record<SalesRejection|'OTHER_ACTIVITY',number>>;duplicates:number;stems:string[]};
-// The sellers' search reads the database (migration 058, public.sale_sellers) with the server's privileged client; injected
-// in the tests.
+// The sellers' search reads the database (migration 058, public.sale_sellers) with the server's privileged client. This
+// module is also part of the browser's bundle (providerSpecificFilters), so it never imports that client: the server
+// registers the reader (src/discovery/sellers-reader.server.ts, imported by the API route); the tests inject theirs.
 export type SellersReader=(args:{p_departments:string[];p_since:string;p_naf_prefixes:string[];p_limit:number})=>Promise<unknown>;
+let registeredReader:SellersReader|null=null;
+export function registerSellersReader(fn:SellersReader){registeredReader=fn}
 async function defaultSellersReader(args:Parameters<SellersReader>[0]):Promise<unknown>{
- const {createAdminClient}=await import('../../server/admin-client.ts');
- const {data,error}=await createAdminClient().rpc('sale_sellers',args);if(error)throw Error('SELLERS_UNAVAILABLE');return data;
+ if(!registeredReader)throw Error('SELLERS_UNAVAILABLE');
+ return registeredReader(args);
 }
 export type SellerRow={role:'seller';siren:string;name:string;naf:string|null;department:string|null;commune:string|null;active:boolean;
  sale:{notice_id:string;published:string;url:string;activity:string|null;department:string|null;commune:string|null}};

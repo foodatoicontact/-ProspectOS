@@ -17,6 +17,8 @@ import {handleNotifications} from '../../../../src/notifications/api';
 import {handleLeads} from '../../../../src/leads/api';
 import {handlePartners} from '../../../../src/partners/api';
 import {handleCockpit} from '../../../../src/cockpit/api';
+// « Entreprises ayant cédé un fonds » (migration 058): the server registers the sellers' reader (never in a browser's bundle).
+import '../../../../src/discovery/sellers-reader.server';
 import {handleApp} from '../../../../src/pwa/api';
 import {vapidConfig} from '../../../../src/pwa/webpush';
 import {sendQueuedWebPush} from '../../../../src/pwa/send';

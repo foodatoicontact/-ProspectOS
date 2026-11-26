@@ -105,3 +105,10 @@ test('screen — the options of the BODACC source and the seller line; « person
  assert.match(nat,/\{f\.provider==='bodacc_sales'&&<SaleOptions locale=\{m\.locale\}\/>\}/);
  assert.match(nat,/<SellerLine meta=\{f\.meta as Record<string,unknown>\} locale=\{locale\}\/>/);
 });
+
+test('bundle — the privileged client never reaches the browser: the provider (also bundled for the browser) does not import it',()=>{
+ const provider=read('src/discovery/providers/bodacc-sales.ts');
+ assert.doesNotMatch(provider,/admin-client|createAdminClient|SUPABASE_SERVICE_ROLE_KEY/,'the server registers the reader');
+ assert.match(read('src/discovery/sellers-reader.server.ts'),/registerSellersReader\(async args=>\{/);
+ assert.match(read('app/api/v1/[...path]/route.ts'),/import '\.\.\/\.\.\/\.\.\/\.\.\/src\/discovery\/sellers-reader\.server';/);
+});

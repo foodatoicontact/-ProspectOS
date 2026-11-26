@@ -8,6 +8,7 @@ import {EDITOR} from '../../../../src/domain/legal';
 import {dedicatedNotifyEmail} from '../../../../src/dedicated/flag';
 import {previousMonth} from '../../../../src/dedicated/model';
 import {partnersEnabledIn} from '../../../../src/partners/flag';
+import {sendPendingPush} from '../../../../src/cockpit/dispatch';
 // Programme partenaires (migration 052) — daily (vercel.json crons): generates the previous month's statement of every
 // partner (idempotent: the run of the 1st does the work, later runs find nothing new) and, when some were generated, tells
 // the administrator once by e-mail (best effort). No transfer is ever made: the administrator pays by hand, then marks the
@@ -37,6 +38,8 @@ export async function GET(request:Request){
    notified=sent.kind==='SENT';
   }catch{}finally{await transport.close()}
  }
+ // A payable statement queues a push « Commission à verser » (migration 056): sent now, without any amount or name.
+ if(generated>0)await sendPendingPush(admin);
  console.info(JSON.stringify({event:'partner_statements',month,generated,notified}));
  return json({month,generated,notified});
 }

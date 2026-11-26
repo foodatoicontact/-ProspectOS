@@ -1,5 +1,5 @@
 'use client';
-// The "3 prospects de votre zone" form (src/domain/prospect-request.ts, app/api/public/demande-prospects). Plain fields, a
+// The "3 prospects de votre zone" form (src/domain/prospect-request.ts, app/api/public/demande-prospects; stored since 26 nov. 2026). Plain fields, a
 // native <select> of the 101 departments, a hidden honeypot, a consent box that states exactly what the email is used for.
 // On success the visitor is told what happens next; if the notification cannot be sent, the contact address is shown.
 import {useState,type FormEvent} from 'react';
@@ -66,7 +66,7 @@ export function ProspectRequestForm(){
    <textarea name="message" maxLength={REQUEST_LIMITS.message}/></label>
   <div className="pos-request__trap" aria-hidden="true"><label>Ne pas remplir<input name="website" tabIndex={-1} autoComplete="off"/></label></div>
   <label className="pos-request__consent"><input type="checkbox" name="consent" required/>
-   <span>J’accepte que mon email serve uniquement à recevoir ces 3 prospects et à être recontacté à ce sujet. Pas de newsletter, pas de revente. La demande n’est pas enregistrée en base : elle m’est transmise par email.</span></label>
+   <span>J’accepte que mon email serve uniquement à recevoir ces 3 prospects et à être recontacté à ce sujet. Pas de newsletter, pas de revente. La demande est enregistrée par ProspectOS et supprimée 12 mois après l’envoi.</span></label>
   {state.kind==='error'&&<p className="pos-request__status pos-request__status--error" role="alert">{state.message}{state.fallback&&<> Écrivez-moi directement à <a href={`mailto:${PROSPECT_REQUEST_TO}`}>{PROSPECT_REQUEST_TO}</a>.</>}</p>}
   <button type="submit" className="pos-pbtn pos-pbtn--primary pos-pbtn--lg" disabled={state.kind==='sending'}>{state.kind==='sending'?'Envoi…':'Recevoir mes 3 prospects'}</button>
  </form>;

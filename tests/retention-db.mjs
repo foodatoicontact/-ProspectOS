@@ -86,7 +86,9 @@ try {
     report = (await asService(`select public.run_retention() r`)).rows[0].r;
     // Owner decision (25 nov. 2026, RGPD, migration 053): the nightly job also deletes the partner applications not accepted
     // within 6 months (tests/partner-retention-db.mjs); every other purge is unchanged.
-    assert.deepEqual(Object.keys(report).sort(), ['inactive_contacts', 'partner_applications', 'prospect_lists', 'public_events', 'signals']);
+    // Owner decision (26 nov. 2026, RGPD, migration 056): it also deletes the requests of the two public forms 12 months after
+    // they were sent (tests/admin-cockpit-db.mjs).
+    assert.deepEqual(Object.keys(report).sort(), ['contact_requests', 'inactive_contacts', 'partner_applications', 'prospect_lists', 'public_events', 'signals']);
   });
   await check('CONTACTS: after 3 years without activity, people\'s details go; the company website, the record and its evidence stay', async () => {
     assert.deepEqual(report.inactive_contacts, { prospects: 1, channels: 2, contacts: 1 });

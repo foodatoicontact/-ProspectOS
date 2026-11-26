@@ -23,5 +23,8 @@ export async function GET(request:Request){
   const report=await runCollection(rpc,fetchJson,collectConfigFrom(process.env,new Date(),{deadline:started+55000,now:Date.now,sleep:ms=>new Promise(r=>setTimeout(r,ms))}));
   console.info(JSON.stringify({event:'public_events_collect',...report}));
   return json(report);
- }catch{return json({error:'Collecte momentanément indisponible.',code:'COLLECT_FAILED'},500)}
+ }catch{
+  // The cockpit's feed (migration 056): one COLLECT_FAILED row per job and day, best effort.
+  try{await admin.rpc('record_collect_failure',{p_job:'collect',p_code:'COLLECT_FAILED'})}catch{}
+  return json({error:'Collecte momentanément indisponible.',code:'COLLECT_FAILED'},500)}
 }

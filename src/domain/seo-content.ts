@@ -394,7 +394,7 @@ export const seoPages:SeoPage[]=[
       {q:'Combien coûte ProspectOS ?',a:`ProspectOS Solo coûte ${SOLO_EUR} € par mois et ProspectOS Pro ${PRO_EUR} € par mois, pour 1 compte. ProspectOS Équipe coûte ${TEAM_EUR} € par mois pour ${TEAM_INCL} comptes, + ${TEAM_EXTRA_EUR} € par compte supplémentaire, jusqu’à ${TEAM_MAX} comptes. Chaque compte commence par un essai gratuit de 7 jours, sans carte bancaire.`},
       {q:'Que se passe-t-il à la fin de l’essai gratuit ?',a:'Aucun abonnement n’est souscrit automatiquement et rien ne vous est facturé. Vos données restent consultables et exportables ; pour relancer des recherches et des analyses, vous choisissez une offre depuis votre compte.'},
       {q:'Quelle différence entre un abonnement et la veille dédiée ?',a:'Avec un abonnement, vous utilisez le logiciel vous-même, au prix affiché. Avec la veille dédiée, ProspectOS prépare et met à jour la liste pour vous, sur devis.'},
-      {q:'Comment est fixé le prix de la veille dédiée ?',a:'Sur devis, après un échange sur votre cible. Le devis indique le prix, la durée, la fréquence de mise à jour et les conditions d’arrêt avant tout engagement. Écrivez à contact@prospectos.fr.'},
+      {q:'Comment est fixé le prix de la veille dédiée ?',a:'Sur devis, après un échange sur votre cible. Le devis indique le prix, la durée, la fréquence de mise à jour et les conditions d’arrêt avant tout engagement. Demandez-le depuis le [formulaire de devis](/demande-veille).'},
       {q:'Que se passe-t-il quand un quota est atteint ?',a:'L’action concernée est refusée jusqu’au renouvellement mensuel ou jusqu’au passage à une offre supérieure. Vos prospects, vos preuves et vos exports restent accessibles.'},
       {q:'Puis-je exporter mes données ?',a:'Oui, dans toutes les offres : export CSV des prospects et export complet des données du compte. La suppression du compte se fait aussi en libre-service.'},
     ],
@@ -512,7 +512,7 @@ export const seoPages:SeoPage[]=[
       {q:'Puis-je arrêter quand je veux ?',a:'Oui. Au mois, la veille est résiliable avec un préavis de 30 jours ; le premier mois peut être offert et renonçable sans frais.'},
       {q:'Est-ce conforme au RGPD ?',a:'La veille ne livre que des entreprises, à partir de données publiques officielles. Les entrepreneurs individuels et les entreprises opposées à la prospection commerciale sont retirés avant livraison.'},
     ],
-    cta:{title:'Recevoir un échantillon sur votre zone',text:'Écrivez à contact@prospectos.fr avec votre métier et vos départements : vous recevez un échantillon de la liste avant toute décision.',href:'/tarifs',label:'Voir les tarifs'},
+    cta:{title:'Recevoir un échantillon sur votre zone',text:'Indiquez votre métier et vos départements dans le formulaire de devis : vous recevez un échantillon de la liste avant toute décision.',href:'/demande-veille',label:'Demander un devis'},
     related:['logiciel-prospection-b2b','tarifs','prospection-b2b'],
   },
   {

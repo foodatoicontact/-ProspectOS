@@ -32,7 +32,8 @@ test('flag — one build-time switch for the whole public site',()=>{
 });
 
 test('inventory — every public page renders through one of the three envelopes',()=>{
- const routes=readdirSync(new URL('app',root),{withFileTypes:true}).filter(d=>d.isDirectory()&&!['api','ui-v2'].includes(d.name)&&existsSync(new URL(`app/${d.name}/page.tsx`,root))).map(d=>d.name);
+ // Owner decision (26 nov. 2026): /cockpit is the administrator's page (migration 056), never indexed — not a public page.
+ const routes=readdirSync(new URL('app',root),{withFileTypes:true}).filter(d=>d.isDirectory()&&!['api','ui-v2','cockpit'].includes(d.name)&&existsSync(new URL(`app/${d.name}/page.tsx`,root))).map(d=>d.name);
  assert.ok(routes.length>=13,routes.join(','));
  for(const r of routes){
   const src=read(`app/${r}/page.tsx`);
@@ -70,14 +71,17 @@ test('freeze — legal text, SEO content, prices, quotas, trial, plans, i18n and
   // Owner decision (18 nov. 2026, RGPD): section 8 states the retention applied by migration 048 — contact details 3 years without activity, signals, BODACC announcements.
   // Owner decision (25 nov. 2026, RGPD): section 13 « Programme partenaires » (candidates and partners, clients signed up with a
   // code; applications not accepted deleted within 6 months, migration 053), the ?ref= session storage in section 7, contact → 14.
-  'app/confidentialite/page.tsx':'c2ae37970bde0ea41a645cadd402fd20b3f1bc22dc2e89aef3802e5816e56042',
+  // Owner decision (26 nov. 2026, RGPD, admin cockpit — migration 056): section 3.6 covers both forms, now stored (12 months),
+  // and the quote form; section 5 its legal basis; section 6 ntfy (push without any personal data); section 8 the 12 months.
+  'app/confidentialite/page.tsx':'df0e91b6b8f5371448c29b385f596a1846ab54ae33f76b0f5b0b597349918eb6',
   'app/mentions-legales/page.tsx':'2efbad023e459aa36de624415f119b61f8372d80cecd1c60722f1a9f23b0f65e',
   // Owner decision (14 nov. 2026): ACTIVITY_FORMALITY.filedAt corrected to 13/11/2026, the date the INPI formality was signed.
   // Owner decision (18 nov. 2026, RGPD): PRIVACY_VERSION 2026-11-18 for the retention lines above; terms unchanged.
   // Owner decision (25 nov. 2026, RGPD): PRIVACY_VERSION 2026-11-25 for section 13 above; terms unchanged.
   // Owner decision (25 nov. 2026, external audit): EDITOR.vatStatus « TVA non applicable, article 293 B du CGI »; the Stripe
   // transfer text prepared behind STRIPE_SCC_CONFIRMED (false: the policy is unchanged); RCS untouched.
-  'src/domain/legal.ts':'3a8ed60e43990a51d5e164320b2b29732cd7778cf7eebb6eca243cd89046b630',
+  // Owner decision (26 nov. 2026, RGPD): PRIVACY_VERSION 2026-11-26 for the forms stored above; terms unchanged.
+  'src/domain/legal.ts':'4c8a91314b8b8326f07b1be1c74ff80165415d3c66a33f3462abc8784447a384',
   // WEB-2.1 / 2.2: the /a-propos entry (demo wording, recommendation instead of score, its date) and the /prospection-b2b
   // closing call to action only; every other page is main's text.
   // Owner decision (11 nov. 2026, SEO): the /tarifs and /a-propos titles, descriptions and dates rewritten.
@@ -87,14 +91,17 @@ test('freeze — legal text, SEO content, prices, quotas, trial, plans, i18n and
   // Owner request (15 nov. 2026, SEO): a /veille-entreprises page for the veille dédiée, linked from /tarifs (one sentence).
   // Owner request (18 nov. 2026, SEO): page /prospection-agences-consultants (frozen real counts with their date, prices from plans.ts), linked from /logiciel-prospection-b2b.
   // Owner request (19 nov. 2026): /veille-entreprises no longer lists « nouveaux établissements » (the BODACC publishes almost none).
-  'src/domain/seo-content.ts':'cc1a66f83f479808fd0b19131ff58cf680b696f2a83020bcec86e328caa1a7a2',
+  // Owner decision (26 nov. 2026, admin cockpit): the veille dédiée FAQ answer and the /veille-entreprises call to action point to
+  // the quote form /demande-veille instead of « écrivez à contact@… »; nothing else changed.
+  'src/domain/seo-content.ts':'0159d0acb5ab1ca9ec0ef958ef30db2fcbd1d16dd4cd785537c604a06d4c5195',
   // Owner decision (11 nov. 2026, SEO): prospectos.fr as the default site address, robots closing the connected and
   // technical routes, the LinkedIn pages of ProspectOS and of its founder as sameAs.
   // Owner request (13 nov. 2026, demo links, migration 042): robots also closes /d/ (private demo pages) — that one entry only.
   // Owner request (18 nov. 2026, SEO): the « table » block type (métier → signal correspondences).
   'src/domain/seo.ts':'cbcc121af8e9d32328bfe84e6dc0ed1fed0967b447e2b4f76fc0ba5e8214a880',
   // Owner decision (14 nov. 2026, /tarifs): the « Veille dédiée, sur devis » service is stated next to the self-service plans.
-  'src/components/PricingPage.tsx':'aebf6157aefd8a5a24058707932f7b0b6fca909bfd2e06ceb0199c2851b65010',
+  // Owner decision (26 nov. 2026, admin cockpit): « Demander un devis » links to the quote form /demande-veille, not a mailto.
+  'src/components/PricingPage.tsx':'d97e34a033d4afd1c001cc3757b80060bf17fb25b0dcb62dcbc5819f6ccd0477',
   'src/components/PricingPlans.tsx':'fc49929e18df6b472f2b70bb36c80bd53dcfb4c85b9f86192b1e142ddb691773',
   'src/domain/plans.ts':'cf5e701c415bb9cfbadf4caf1d60e3e9b6d80822de5d30ed3648b7d1c2e60a02',
   'src/i18n/fr.ts':'812d1fd6093bbe5050efcf4baad844087903aea58a69773e78f8a0dee1264441',

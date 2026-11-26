@@ -48,6 +48,14 @@
     {
       "path": "/api/cron/cockpit",
       "schedule": "37 7 * * *"
+    },
+    {
+      "path": "/api/cron/sales-backfill/1",
+      "schedule": "23 1 * * *"
+    },
+    {
+      "path": "/api/cron/sales-backfill/2",
+      "schedule": "53 1 * * *"
     }
   ]
 }

@@ -10,16 +10,23 @@
 //    attribution » when the origin of the business or the act's text says the business was sold; contributions, mergers,
 //    attributions and sales ordered in a collective proceeding are not purchases. The same buyer twice is one candidate
 //    (its newest notice);
-//  - the BUYER only, and only a legal entity (typePersonne "pm") whose RCS number is one of the notice's registered
-//    numbers: a sole trader's notice names a person and is never kept. The seller is never kept: the trader field
-//    (commercant) is not even requested, and the act's free text (descriptif), which can name a private person, is only
-//    matched against fixed patterns by the shared rule (owner decision, 25 nov. 2026) — nothing of it is kept;
+//  - the BUYER, and only a legal entity (typePersonne "pm") whose RCS number is one of the notice's registered
+//    numbers: a sole trader's notice names a person and is never kept. The trader field (commercant) is not even requested,
+//    and the act's free text (descriptif), which can name a private person, is only matched against fixed patterns by the
+//    shared rules (owner decisions, 25 and 26 nov. 2026) — nothing of it is kept;
+//  - the SELLER (owner decision, 26 nov. 2026, src/domain/bodacc-seller.ts): its SIREN when it is a company, otherwise
+//    only « personne physique, non affiché » — never a name, an address or a number of a natural person;
+//  - « Entreprises ayant cédé un fonds » (sale_party 'seller'): the companies that SOLD a business in the zone and period,
+//    of the NAF codes asked (56 = restauration), read from the collected sales and the company register (migration 058,
+//    public.sale_sellers): companies only, never a sole trader, never a company that objects to prospecting;
 //  - the place, activity and trade name of the business bought, the publication date and the official notice URL.
 // Fixed host, bounded size and time, redirects refused, the zone and the period are built here from validated codes.
 import {CandidateSchema,type Candidate,type DiscoveryInput,type DiscoveryProvider,type ProviderSearchReport} from '../types.ts';
 import {resolveRegistryZone,type RegistryZone} from '../registry/zone.ts';
 import {purchaseOf,saleCategory} from '../../domain/bodacc-purchase.ts';
 import {previousNoticeId} from '../../domain/bodacc-notice.ts';
+import {sellerOf} from '../../domain/bodacc-seller.ts';
+import {zoneDepartments} from '../registry/zone.ts';
 
 export const BODACC_RECORDS='https://bodacc-datadila.opendatasoft.com/api/explore/v2.1/catalog/datasets/annonces-commerciales/records';
 export const BODACC_SALES_PROVENANCE={source:'BODACC — annonces commerciales, Ventes et cessions (DILA)',licence:'Licence Ouverte 2.0 (Etalab)'};
@@ -62,11 +69,12 @@ export function salesZoneClause(zone:RegistryZone):string{
  if(!REGION.test(zone.code))throw new SalesRequestError('ZONE_INVALID');
  return `region_code=${Number(zone.code)}`;
 }
-export function salesUrl(zone:RegistryZone,now:Date,page:number):URL{
+export function salesUrl(zone:RegistryZone,now:Date,page:number,days:number=SALES_WINDOW_DAYS):URL{
  const u=new URL(BODACC_RECORDS);
- const from=new Date(now.getTime()-SALES_WINDOW_DAYS*86_400_000);
- // Only the fields needed: no trader name (commercant), whose seller part can be a private person.
- u.searchParams.set('select','id,dateparution,typeavis,parutionavisprecedent,url_complete,registre,acte,listeetablissements,listepersonnes');
+ const from=new Date(now.getTime()-days*86_400_000);
+ // Only the fields needed: no trader name (commercant), whose seller part can be a private person. The previous owners are
+ // read in memory by src/domain/bodacc-seller.ts: a company's SIREN, or the fact that it is a natural person — nothing else.
+ u.searchParams.set('select','id,dateparution,typeavis,parutionavisprecedent,url_complete,registre,acte,listeetablissements,listepersonnes,listeprecedentproprietaire');
  u.searchParams.set('where',`familleavis="vente" and ${NOTICE_TYPES} and ${salesZoneClause(zone)} and dateparution>=date'${day(from)}'`);
  u.searchParams.set('order_by','dateparution desc');
  u.searchParams.set('limit',String(PAGE_SIZE));u.searchParams.set('offset',String((page-1)*PAGE_SIZE));
@@ -78,7 +86,7 @@ export function salesUrl(zone:RegistryZone,now:Date,page:number):URL{
 export function salesBySirenUrl(siren:string,now:Date):URL{
  if(!/^\d{9}$/.test(siren))throw new SalesRequestError('SIREN_INVALID');
  const u=new URL(BODACC_RECORDS);const from=new Date(now.getTime()-730*86_400_000);
- u.searchParams.set('select','id,dateparution,typeavis,parutionavisprecedent,url_complete,registre,acte,listeetablissements,listepersonnes');
+ u.searchParams.set('select','id,dateparution,typeavis,parutionavisprecedent,url_complete,registre,acte,listeetablissements,listepersonnes,listeprecedentproprietaire');
  u.searchParams.set('where',`familleavis="vente" and ${NOTICE_TYPES} and registre like "${siren}" and dateparution>=date'${day(from)}'`);
  u.searchParams.set('order_by','dateparution desc');u.searchParams.set('limit','10');
  return u;
@@ -99,8 +107,9 @@ const str=(v:unknown,max:number)=>typeof v==='string'&&v.trim()?v.replace(/\s+/g
 const digits=(v:unknown)=>typeof v==='string'?v.replace(/\D/g,''):'';
 const list=(v:unknown):unknown[]=>Array.isArray(v)?v:v==null?[]:[v];
 
+export type SaleSeller={kind:'PM';siren:string}|{kind:'PP'}|{kind:'UNKNOWN'};
 export type SalesNotice={id:string;published:string;url:string;category:string;siren:string;buyer:string;activity:string|null;tradeName:string|null;
- establishment:string|null;city:string|null;postalCode:string|null};
+ establishment:string|null;city:string|null;postalCode:string|null;seller:SaleSeller};
 export type SalesRejection='CANCELLED'|'NOT_A_PURCHASE'|'FORCED_SALE'|'NOT_A_LEGAL_ENTITY'|'NO_BUYER_IDENTITY'|'INVALID_NOTICE';
 // One notice → the purchase it announces, or why it is not kept. Pure.
 export function readSalesNotice(rec:unknown):{notice:SalesNotice}|{reject:SalesRejection}{
@@ -123,8 +132,10 @@ export function readSalesNotice(rec:unknown):{notice:SalesNotice}|{reject:SalesR
  if(!url||!NOTICE_URL.test(url)||!id||!published||!/^\d{4}-\d{2}-\d{2}$/.test(published))return {reject:'INVALID_NOTICE'};
  const site=list((parse(r.listeetablissements) as {etablissement?:unknown}|null)?.etablissement)[0] as Record<string,unknown>|undefined;
  const address=site?.adresse as Record<string,unknown>|undefined;
+ const sv=sellerOf(r.listeprecedentproprietaire,r.acte,r.listeetablissements);
+ const seller:SaleSeller=sv.kind==='PM'?{kind:'PM',siren:sv.siren}:{kind:sv.kind};
  return {notice:{id,published,url,category,siren,buyer:name,activity:str(site?.activite,300),tradeName:str(site?.enseigne,120),establishment:str(site?.qualiteEtablissement,80),
-  city:str(address?.ville,120),postalCode:/^\d{5}$/.test(String(address?.codePostal??''))?String(address!.codePostal):null}};
+  city:str(address?.ville,120),postalCode:/^\d{5}$/.test(String(address?.codePostal??''))?String(address!.codePostal):null,seller}};
 }
 
 // The brief's activity words, against the activity and trade name of the business bought. Words that only say
@@ -144,15 +155,52 @@ export function matchesActivity(n:Pick<SalesNotice,'activity'|'tradeName'>,stems
 }
 
 export type SalesReport={examined:number;kept:number;rejected:Partial<Record<SalesRejection|'OTHER_ACTIVITY',number>>;duplicates:number;stems:string[]};
-type Options={fetch?:typeof fetch;now?:()=>Date;timeoutMs?:number;timeBudgetMs?:number;maxPages?:number};
+// The sellers' search reads the database (migration 058, public.sale_sellers) with the server's privileged client; injected
+// in the tests.
+export type SellersReader=(args:{p_departments:string[];p_since:string;p_naf_prefixes:string[];p_limit:number})=>Promise<unknown>;
+async function defaultSellersReader(args:Parameters<SellersReader>[0]):Promise<unknown>{
+ const {createAdminClient}=await import('../../server/admin-client.ts');
+ const {data,error}=await createAdminClient().rpc('sale_sellers',args);if(error)throw Error('SELLERS_UNAVAILABLE');return data;
+}
+export type SellerRow={role:'seller';siren:string;name:string;naf:string|null;department:string|null;commune:string|null;active:boolean;
+ sale:{notice_id:string;published:string;url:string;activity:string|null;department:string|null;commune:string|null}};
+const NAF=/^\d{2}\.\d{2}[A-Z]$/;
+// One row of public.sale_sellers → a seller, or null when anything is off (never a guess).
+export function readSellerRow(v:unknown):SellerRow|null{
+ const r=v as Record<string,any>|null;const sale=r?.sale as Record<string,any>|undefined;
+ if(!r||!/^\d{9}$/.test(String(r.siren))||typeof r.name!=='string'||!r.name.trim()||!sale)return null;
+ const url=String(sale.url??''),published=String(sale.published??'');
+ if(!NOTICE_URL.test(url)||!/^\d{4}-\d{2}-\d{2}$/.test(published)||!str(sale.notice_id,40))return null;
+ return {role:'seller',siren:String(r.siren),name:r.name.trim().slice(0,200),naf:NAF.test(String(r.naf))?String(r.naf):null,
+  department:typeof r.department==='string'?r.department:null,commune:str(r.commune,120),active:r.active!==false,
+  sale:{notice_id:str(sale.notice_id,40)!,published,url,activity:str(sale.activity,300),department:typeof sale.department==='string'?sale.department:null,commune:str(sale.commune,120)}};
+}
+type Options={fetch?:typeof fetch;now?:()=>Date;timeoutMs?:number;timeBudgetMs?:number;maxPages?:number;sellers?:SellersReader};
 
 export class BodaccSalesProvider implements DiscoveryProvider {
  id='bodacc_sales';mode='live' as const;lastSearch?:ProviderSearchReport;lastSales?:SalesReport;
- private request:typeof fetch;private now:()=>Date;private timeoutMs:number;private budgetMs:number;private maxPages:number;
- constructor(o:Options={}){this.request=o.fetch??fetch;this.now=o.now??(()=>new Date());this.timeoutMs=o.timeoutMs??SALES_REQUEST_TIMEOUT_MS;this.budgetMs=o.timeBudgetMs??SALES_TIME_BUDGET_MS;this.maxPages=o.maxPages??MAX_PAGES}
+ private sellers:SellersReader;private request:typeof fetch;private now:()=>Date;private timeoutMs:number;private budgetMs:number;private maxPages:number;
+ constructor(o:Options={}){this.sellers=o.sellers??defaultSellersReader;this.request=o.fetch??fetch;this.now=o.now??(()=>new Date());this.timeoutMs=o.timeoutMs??SALES_REQUEST_TIMEOUT_MS;this.budgetMs=o.timeBudgetMs??SALES_TIME_BUDGET_MS;this.maxPages=o.maxPages??MAX_PAGES}
 
- async searchCompanies(input:DiscoveryInput):Promise<SalesNotice[]>{
+ // « Entreprises ayant cédé un fonds »: companies only (the register says so), of the NAF codes asked, in the zone and period.
+ private async searchSellers(input:DiscoveryInput,report:ProviderSearchReport):Promise<SellerRow[]>{
+  const departments=zoneDepartments(input.location);
+  if(!departments?.length){report.failure_codes.push('BODACC_ZONE_UNMAPPED');return []}
+  const days=input.optional_filters.period_days??SALES_WINDOW_DAYS;
+  const since=new Date(this.now().getTime()-days*86_400_000).toISOString().slice(0,10);
+  report.queries_planned=1;report.requests_sent=1;
+  let rows:unknown;
+  try{rows=await this.sellers({p_departments:departments,p_since:since,p_naf_prefixes:input.optional_filters.naf_prefixes??[],p_limit:input.max_results})}
+  catch{report.requests_failed=1;report.failure_codes.push('SELLERS_UNAVAILABLE');throw Error('BODACC_UNAVAILABLE')}
+  report.requests_answered=1;
+  const out=(Array.isArray(rows)?rows:[]).map(readSellerRow).filter((x):x is SellerRow=>!!x).slice(0,input.max_results);
+  this.lastSales={examined:Array.isArray(rows)?rows.length:0,kept:out.length,rejected:{},duplicates:0,stems:[]};
+  return out;
+ }
+ async searchCompanies(input:DiscoveryInput):Promise<Array<SalesNotice|SellerRow>>{
   const report:ProviderSearchReport={queries_planned:0,requests_sent:0,requests_failed:0,failure_codes:[],country:'FR',country_reason:'bodacc_fr'};this.lastSearch=report;
+  if(input.optional_filters.sale_party==='seller')return this.searchSellers(input,report);
+  const days=input.optional_filters.period_days??SALES_WINDOW_DAYS;
   const stems=activityStems([...input.categories,input.query]);
   const sales:SalesReport={examined:0,kept:0,rejected:{},duplicates:0,stems};this.lastSales=sales;
   const zone=resolveRegistryZone(input.location);
@@ -165,7 +213,7 @@ export class BodaccSalesProvider implements DiscoveryProvider {
    let body:{results?:unknown[]};
    try{
     report.requests_sent++;
-    const res=await this.request(salesUrl(zone,now,page),{headers:{accept:'application/json'},signal:AbortSignal.timeout(this.timeoutMs),redirect:'error'});
+    const res=await this.request(salesUrl(zone,now,page,days),{headers:{accept:'application/json'},signal:AbortSignal.timeout(this.timeoutMs),redirect:'error'});
     if(!res.ok){await res.body?.cancel().catch(()=>{});report.requests_failed++;report.failure_codes.push(`HTTP_${res.status}`);break}
     body=await readBounded(res) as typeof body;
     if(!Array.isArray(body?.results))throw new SalesRequestError('INVALID_RESPONSE');
@@ -195,6 +243,7 @@ export class BodaccSalesProvider implements DiscoveryProvider {
  }
  async fetchCompanyDetails(candidate:Candidate){return candidate}
  normalizeResult(raw:unknown):Candidate{
+  if((raw as SellerRow)?.role==='seller')return this.normalizeSeller(raw as SellerRow);
   const n=raw as SalesNotice;
   if(!n||!/^\d{9}$/.test(n.siren??'')||!n.buyer||!NOTICE_URL.test(n.url??''))throw Error('BODACC_SALES_RESULT_INVALID');
   const date=new Intl.DateTimeFormat('fr-FR',{dateStyle:'long',timeZone:'Europe/Paris'}).format(new Date(`${n.published}T12:00:00Z`));
@@ -204,8 +253,22 @@ export class BodaccSalesProvider implements DiscoveryProvider {
    source_url:n.url,source_title:`Reprise publiée au BODACC le ${date}${what?` : ${what}`:''}`.slice(0,300),discovery_timestamp:now,confidence:1,
    raw_metadata:{source_class:'COMPANY_CANDIDATE',source_type:'legal_announcement',entity_type:'COMPANY',company_name:n.buyer,company_name_status:'RESOLVED',company_domain_status:'UNKNOWN',siren:n.siren,
     admissibility:{admissible:true,reason_code:'ADMISSIBLE',rule:'bodacc_purchase_by_legal_entity'},
-    bodacc_sale:{notice_id:n.id,published:n.published,category:n.category,activity:n.activity,trade_name:n.tradeName,establishment:n.establishment,city:n.city,postal_code:n.postalCode},
+    bodacc_sale:{notice_id:n.id,published:n.published,category:n.category,activity:n.activity,trade_name:n.tradeName,establishment:n.establishment,city:n.city,postal_code:n.postalCode,
+     seller:n.seller},
     provenance:{...BODACC_SALES_PROVENANCE,endpoint:BODACC_RECORDS,retrieved_at:now}},
+   deduplication_key:`siren:${n.siren}`});
+ }
+ private normalizeSeller(n:SellerRow):Candidate{
+  if(!readSellerRow(n))throw Error('BODACC_SALES_RESULT_INVALID');
+  const date=new Intl.DateTimeFormat('fr-FR',{dateStyle:'long',timeZone:'Europe/Paris'}).format(new Date(`${n.sale.published}T12:00:00Z`));
+  const now=new Date().toISOString();
+  return CandidateSchema.parse({name:n.name,canonical_url:null,website:null,city:n.commune,address:null,phone:null,discovered_source:this.id,
+   source_url:n.sale.url,source_title:`A cédé un fonds, annonce publiée au BODACC le ${date}${n.sale.activity?` : ${n.sale.activity}`:''}`.slice(0,300),discovery_timestamp:now,confidence:1,
+   raw_metadata:{source_class:'COMPANY_CANDIDATE',source_type:'legal_announcement',entity_type:'COMPANY',company_name:n.name,company_name_status:'RESOLVED',company_domain_status:'UNKNOWN',siren:n.siren,
+    naf:n.naf,company_active:n.active,
+    admissibility:{admissible:true,reason_code:'ADMISSIBLE',rule:'bodacc_sale_by_legal_entity_seller'},
+    bodacc_sale:{role:'seller',notice_id:n.sale.notice_id,published:n.sale.published,activity:n.sale.activity,department:n.sale.department,city:n.sale.commune},
+    provenance:{...BODACC_SALES_PROVENANCE,register:'API Recherche d’entreprises (DINUM)',retrieved_at:now}},
    deduplication_key:`siren:${n.siren}`});
  }
 }

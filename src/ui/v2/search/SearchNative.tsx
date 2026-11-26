@@ -19,6 +19,8 @@ import {Button,Icon} from '../primitives.tsx';
 // ProspectOS installable (docs/PWA.md): tells the install invitation that a search just finished with results; it acts on
 // nothing (no search, no add, no ignore) and renders nothing.
 import {SearchMoment} from '../pwa/SearchMoment.tsx';
+// BODACC sales: buyers or sellers, seller's NAF code, period (owner decision, 26 nov. 2026) — and the seller of a result.
+import {SaleOptions,SellerLine,saleNote,saleCompaniesLabel} from './SaleOptions.tsx';
 import {verificationOf,scoreText,shortReasons,priorityChip,type VerificationKind} from './model.ts';
 
 export const NATIVE_TEXT:Record<Locale,{settings:string;searchSummary:(q:string,l:string)=>string;edit:string;searching:string;results:(n:number)=>string;
@@ -63,7 +65,7 @@ const TABS=['ALL','NEW','SEEN','ADDED','IGNORED','CURRENT_RUN_DUPLICATE'] as con
 
 function Form({m}:{m:DiscoveryView}){
  const {tr,form:f,mode}=m;const t=NATIVE_TEXT[m.locale];const id=useId();
- const sourceNote=f.provider==='fixture'?FIXTURE_LABEL:f.provider==='registry'?tr('discovery.registryNote'):f.provider==='bodacc_sales'?t.salesNote:tr('discovery.braveNote');
+ const sourceNote=f.provider==='fixture'?FIXTURE_LABEL:f.provider==='registry'?tr('discovery.registryNote'):f.provider==='bodacc_sales'?saleNote(m.locale):tr('discovery.braveNote');
  // After a search, the form folds into one line; "Modifier la recherche" opens it again (same state as the legacy details).
  if(m.current&&!f.formOpen)return <div className="pos-sform pos-sform--folded" data-testid="search-folded">
   <p className="pos-sform__summary"><Icon name="search" size={18}/><span><b>{t.searchSummary(m.current.query,m.current.location)}</b></span></p>
@@ -101,6 +103,7 @@ function Form({m}:{m:DiscoveryView}){
       <option value="brave" disabled={mode==='demo'||!f.available}>Brave Search {f.available&&mode==='live'?tr('discovery.braveConfigured'):tr('discovery.braveNotConfigured')}</option>
       <option value="registry" disabled={mode==='demo'||!f.registryAvailable}>{tr('discovery.providerRegistry')}</option>
       <option value="bodacc_sales" disabled={mode==='demo'||!f.registryAvailable}>{t.salesOption}</option></select></label>
+    {f.provider==='bodacc_sales'&&<SaleOptions locale={m.locale}/>}
     {f.provider==='registry'&&<fieldset className="pos-sfield pos-sfield--range"><legend>{tr('discovery.headcountLabel')}</legend>
      <label><span>{tr('discovery.headcountMin')}</span><input name="employee_min" type="number" min={0} max={1000000} step={1} inputMode="numeric" value={f.headcount.min} onChange={e=>f.typeHeadcount({...f.headcount,min:e.target.value})}/></label>
      <label><span>{tr('discovery.headcountMax')}</span><input name="employee_max" type="number" min={1} max={1000000} step={1} inputMode="numeric" value={f.headcount.max} onChange={e=>f.typeHeadcount({...f.headcount,max:e.target.value})}/></label>
@@ -132,6 +135,7 @@ function ResultCard({m,r}:{m:DiscoveryView;r:DiscoveryResult}){
    {stateTag&&<span className={`pos-stag pos-stag--state-${f.state}`}>{tr(STATE_KEY[f.state])}</span>}
   </p>}
   <p className="pos-sres__why"><span className="pos-visually-hidden">{t.why} : </span>{why}</p>
+  <SellerLine meta={f.meta as Record<string,unknown>} locale={locale}/>
   <p className="pos-sres__verify"><span className="pos-visually-hidden">{t.verification} : </span><span className={`pos-sverify pos-sverify--${v.kind}`} data-verification={v.kind}><Icon name={VERIFY_ICON[v.kind]} size={14}/>{v.label}</span>
    {v.hint&&<small className="pos-sres__hint">{v.hint}</small>}</p>
   {r.status==='pending'&&r.dedupe_status!=='unique'&&<p className="pos-snote pos-snote--warn">{r.reason??tr('discovery.possibleDuplicate')} · {r.dedupe_status==='duplicate_candidate'?tr('discovery.existingProspect'):tr('discovery.noAutoMerge')}</p>}
@@ -190,7 +194,7 @@ function Results({m}:{m:DiscoveryView}){
  return <section className="pos-sresults" aria-labelledby="pos-sresults-title" data-testid="search-results">
   <header className="pos-sresults__head">
    <h3 id="pos-sresults-title" className="pos-sresults__title">{t.results(m.candidates.length)}</h3>
-   <p className="pos-sres__muted">{resultsSummaryLabel(locale,m.results.length,m.counts.added,m.counts.ignored,m.counts.unresolved)} — {searchDoneNote(locale,m.results.length,m.form.provider==='fixture'?tr('discovery.fixtureIndependent'):m.form.provider==='registry'?tr('discovery.registryCompanies'):m.form.provider==='bodacc_sales'?NATIVE_TEXT[locale].salesCompanies:tr('discovery.candidatePages'))}</p>
+   <p className="pos-sres__muted">{resultsSummaryLabel(locale,m.results.length,m.counts.added,m.counts.ignored,m.counts.unresolved)} — {searchDoneNote(locale,m.results.length,m.form.provider==='fixture'?tr('discovery.fixtureIndependent'):m.form.provider==='registry'?tr('discovery.registryCompanies'):m.form.provider==='bodacc_sales'?saleCompaniesLabel(locale):tr('discovery.candidatePages'))}</p>
   </header>
   {c?.source_total!=null&&c.source_total>m.results.length&&<p className="pos-snote" data-testid="search-source-total">{t.sourceTotal(m.results.length,c.source_total)}</p>}
   {c?.reused&&<p role="status" className="pos-snote">{tr('discovery.reusedNote').replace('{email}',c.reused.by_email??tr('discovery.reusedTeammate')).replace('{date}',runDateLabel(locale,c.reused.started_at))}</p>}

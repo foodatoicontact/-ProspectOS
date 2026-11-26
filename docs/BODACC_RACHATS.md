@@ -88,3 +88,41 @@ et la configuration SMTP sont présentes.
   (lot `5a1e0002-0055-4000-8000-0000000000a1`). Les 831 rachats antérieurs à la
   règle partagée ont reçu leur règle de tri (lot `5a1e0003-…-0000000000a1`),
   réversibles avec `revert_public_event_batch`.
+
+## Cédants (décision du propriétaire du 26 nov. 2026, migration 058)
+
+Pour chaque vente, ProspectOS identifie aussi l'entreprise qui vend. Cas d'usage : les recruteurs de franchise qui cherchent
+des restaurateurs ayant récemment cédé leur affaire. La règle partagée est `src/domain/bodacc-seller.ts`.
+
+**Lecture, en mémoire seulement.** L'annonce est lue en mémoire, rien n'est stocké ni journalisé :
+- d'abord la liste structurée des précédents propriétaires (`listeprecedentproprietaire`) : seulement le type de personne et, pour
+  une société, son numéro d'immatriculation, avec une clé SIREN valide ;
+- à défaut, le texte de l'acte, avec la même règle que la PR #105. Un SIREN n'est retenu que s'il suit « précédent / ancien
+  propriétaire », « vendeur » ou « cédant » ET que le texte intermédiaire nomme une forme de société.
+
+**Ce qui est conservé.** Uniquement :
+- le SIREN du cédant société (`seller_siren`) ;
+- sinon `PP` (personne physique : rien d'autre, la fiche dit « cédant : personne physique, non affiché ») ou `UNKNOWN`.
+
+Le lien BODACC est celui de la vente.
+
+**Enrichissement.** Le cédant est enrichi comme toute entreprise (`sirens_to_enrich`, dans tous les départements) : dénomination,
+NAF, département. Une « société » que le registre connaît comme entrepreneur individuel n'est jamais affichée.
+
+**Recherche « Entreprises ayant cédé un fonds ».** Source « Reprises de commerces (BODACC) », option « Qui chercher ». Les filtres
+se combinent :
+- secteur NAF du cédant (56 = restauration) ;
+- zone ;
+- période (30, 90, 180 ou 365 jours).
+
+Seules les ventes ACTIVE de type VENTE_FONDS sont lues (règles de la migration 055) : fusions, apports, ventes judiciaires,
+indéterminées et annonces annulées sont exclues. Jamais une société opposée à la prospection.
+
+**Historique.** La tâche `/api/cron/sales-backfill/1` et `/2` relit chaque nuit quelques jours ouvrés de ventes, sur les 180 derniers
+jours, jusqu'à les avoir tous lus. Une vente déjà stockée ne gagne que son cédant.
+
+**Mesures**
+- Échantillon de 50 annonces annotées (`tests/fixtures/bodacc-sellers-sample50.json`, personnes et dénominations masquées) :
+  **50/50** SIREN cédants corrects, aucune personne physique exposée.
+- Sur 90 jours d'achats en Île-de-France et en Auvergne-Rhône-Alpes : 96 % des annonces ont la liste structurée. Quand elle
+  manque, le texte ne donne que l'adresse de l'ancien propriétaire, jamais un SIREN (cette adresse n'est jamais lue ni gardée).

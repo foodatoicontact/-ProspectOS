@@ -30,7 +30,10 @@ test('notice reading — a purchase by a legal entity is kept with its official 
  const r=readSalesNotice(notice());
  assert.ok('notice' in r);
  assert.deepEqual(r.notice,{id:'A20260208360',published:'2026-10-29',url:'https://www.bodacc.fr/pages/annonces-commerciales-detail/?q.id=id:A20260208360',category:PURCHASE,
-  siren:'106463037',buyer:'NB2M',activity:"Exploitation d'un commerce de détail d'alimentation générale.",tradeName:'VIVAL',establishment:'Etablissement principal',city:"L'Isle-en-Dodon",postalCode:'31230'});
+  siren:'106463037',buyer:'NB2M',activity:"Exploitation d'un commerce de détail d'alimentation générale.",tradeName:'VIVAL',establishment:'Etablissement principal',city:"L'Isle-en-Dodon",postalCode:'31230',
+  // Owner decision (26 nov. 2026, src/domain/bodacc-seller.ts): the seller's kind is kept — here the act names a person and
+  // the notice has no structured previous owner: « unknown », and nothing of the text.
+  seller:{kind:'UNKNOWN'}});
  assert.doesNotMatch(JSON.stringify(r.notice),/VENDEUR|demeurant|70000/,'the seller, an address and the price are never kept');
 });
 

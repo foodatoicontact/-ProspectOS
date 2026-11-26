@@ -5,6 +5,7 @@ import {BraveProvider} from './brave.ts';
 import {FixtureProvider} from './fixture.ts';
 import {RegistryProvider} from './registry.ts';
 import {BodaccSalesProvider,BODACC_SALES_LABEL} from './bodacc-sales.ts';
+import {getSaleSearch,saleSearchFilters,type SaleParty,type SalePeriod} from '../sale-search.ts';
 
 export type DiscoveryProviderId='fixture'|'brave'|'registry'|'bodacc_sales';
 type Env=Record<string,string|undefined>;
@@ -48,6 +49,10 @@ export function isMeteredSearchProvider(id:string|undefined):boolean{return id==
 
 // Filters that only one provider reads. The headcount range is a structured filter of the register; it is never
 // sent with another provider (it never becomes Brave search words, a criterion, a weight or evidence).
-export function providerSpecificFilters(id:string|undefined,employeeRange:{min:number;max:number}|null|undefined):{employee_range?:{min:number;max:number}}{
+// The BODACC sales source sends its own options (buyers or sellers, sellers' NAF codes, period: src/discovery/sale-search.ts),
+// chosen on the v2 search screen.
+export function providerSpecificFilters(id:string|undefined,employeeRange:{min:number;max:number}|null|undefined):{employee_range?:{min:number;max:number};
+ sale_party?:SaleParty;period_days?:SalePeriod;naf_prefixes?:string[]}{
+ if(id==='bodacc_sales')return saleSearchFilters(getSaleSearch());
  return id==='registry'&&employeeRange?{employee_range:{min:employeeRange.min,max:employeeRange.max}}:{};
 }

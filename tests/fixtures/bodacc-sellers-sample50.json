@@ -1,0 +1,1617 @@
+[
+{
+"id": "A202602102645",
+"acte": {
+"vente": {
+"categorieVente": "Achat d'un établissement principal par une personne physique (immatriculation)",
+"dateEffet": "2026-10-26",
+"opposition": "sans oppositions"
+},
+"descriptif": "Acte en date du ... (texte masqué)"
+},
+"listeetablissements": {
+"etablissement": {
+"origineFonds": "",
+"activite": "Livraison de repas en vélo éléctrique"
+}
+},
+"listeprecedentproprietaire": {
+"personne": {
+"typePersonne": "pm",
+"numeroImmatriculation": {
+"numeroIdentification": "990 000 002"
+},
+"denomination": "SOCIETE-MASQUEE-1"
+}
+},
+"expected": {
+"kind": "PM",
+"siren": "990000002",
+"register": "individual"
+}
+},
+{
+"id": "A202602091644",
+"acte": {
+"vente": {
+"categorieVente": "Autre achat, apport, attribution (immatriculation d'une personne morale, uniquement)",
+"dateEffet": "2026-08-06",
+"publiciteLegale": {
+"titre": "Affiches Parisiennes",
+"date": "2026-10-05"
+},
+"opposition": "au fonds vendu 4 rue Claude Debussy 75017 Paris pour la validité, Cabinet Vallantin & Associés 91 rue de Courcelles Maitre Jean-Baptiste le Jariel 75017 Paris pour la correspondance."
+},
+"descriptif": "Adresse de l'ancien propriétaire : 1 rue Exemple 75000 Paris"
+},
+"listeetablissements": {
+"etablissement": {
+"origineFonds": "Fonds acquis par achat au prix stipulé de 365000,00 euros.",
+"activite": "Café restaurant"
+}
+},
+"listeprecedentproprietaire": {
+"personne": [
+{
+"typePersonne": "pm",
+"numeroImmatriculation": {
+"numeroIdentification": "990 000 010"
+},
+"denomination": "SOCIETE-MASQUEE-2"
+},
+{
+"typePersonne": "pm",
+"numeroImmatriculation": {
+"numeroIdentification": "990 000 028"
+},
+"denomination": "SOCIETE-MASQUEE-3"
+}
+]
+},
+"expected": {
+"kind": "PM",
+"siren": "990000010",
+"register": "individual"
+}
+},
+{
+"id": "A202602262958",
+"acte": {
+"vente": {
+"categorieVente": "Achat d'un fonds par une personne morale (insertion provisoire)",
+"publiciteLegale": {
+"titre": "Le Parisien.fr (Web)",
+"date": "2026-11-19"
+},
+"opposition": "cabinet de Maître Louis Varaut, Avocat 6 rue Anatole De La Forge 75017 Paris pour la validité et la correspondance."
+},
+"descriptif": "Adresse de l'ancien propriétaire : 1 rue Exemple 75000 Paris"
+},
+"listeetablissements": {
+"etablissement": {
+"origineFonds": "Fonds acquis par achat au prix stipulé de 530000,00 euros.",
+"activite": "RESTAURANT"
+}
+},
+"listeprecedentproprietaire": {
+"personne": {
+"typePersonne": "pm",
+"numeroImmatriculation": {
+"numeroIdentification": "949 853 204"
+},
+"denomination": "SOCIETE-MASQUEE-4"
+}
+},
+"expected": {
+"kind": "PM",
+"siren": "949853204",
+"register": "company"
+}
+},
+{
+"id": "A202601701511",
+"acte": {
+"vente": {
+"categorieVente": "Achat d'un fonds par une personne morale (insertion provisoire)",
+"publiciteLegale": {
+"titre": "Liti.fr",
+"date": "2026-09-04"
+},
+"opposition": "Cabinet B. Pottier 18 rue de La Michodière 75002 Paris pour la validité et la correspondance."
+},
+"descriptif": "Adresse de l'ancien propriétaire : 1 rue Exemple 75000 Paris"
+},
+"listeetablissements": {
+"etablissement": {
+"origineFonds": "Fonds acquis par achat au prix stipulé de 150000,00 euros.",
+"activite": "COIFFURE"
+}
+},
+"listeprecedentproprietaire": {
+"personne": {
+"typePersonne": "pm",
+"numeroImmatriculation": {
+"numeroIdentification": "450 998 430"
+},
+"denomination": "SOCIETE-MASQUEE-5"
+}
+},
+"expected": {
+"kind": "PM",
+"siren": "450998430",
+"register": "company"
+}
+},
+{
+"id": "A202601942221",
+"acte": {
+"vente": {
+"categorieVente": "Achat d'un établissement principal par une personne morale lors de l'immatriculation",
+"publiciteLegale": {
+"titre": "www.liti.fr",
+"date": "2026-09-30"
+},
+"opposition": "Election de domicile au fonds vendu pour la correspondance : 122 Boulevard Haussmann 75008 Paris 8e Arrondissement Opposition dans les 10 jours suivant la dernière en date des publications prévues à l'article L141-12 du Code de Commerce."
+},
+"descriptif": "Adresse de l'ancien propriétaire : 1 rue Exemple 75000 Paris"
+},
+"listeetablissements": {
+"etablissement": {
+"origineFonds": "siège et établissement principal acquis par achat au prix stipulé de 6000.00 euros",
+"activite": "prestations de bien-être, relaxation et entretien corporel. - vente de produits de beauté et accessoires liés à ces acti"
+}
+},
+"listeprecedentproprietaire": {
+"personne": {
+"typePersonne": "pm",
+"numeroImmatriculation": {
+"numeroIdentification": "904 095 924"
+},
+"denomination": "SOCIETE-MASQUEE-6"
+}
+},
+"expected": {
+"kind": "PM",
+"siren": "904095924",
+"register": "company"
+}
+},
+{
+"id": "A202602132060",
+"acte": {
+"vente": {
+"categorieVente": "Achat d'un établissement principal par une personne morale lors de l'immatriculation",
+"publiciteLegale": {
+"titre": "MESINFOS.FR",
+"date": "2026-11-02"
+},
+"opposition": "Société MJ SYNERGIE-MANDATAIRES JUDICIAIRES 136 Cours Lafayette 69003 LYON"
+},
+"descriptif": "Adresse de l'ancien propriétaire : 1 rue Exemple 75000 Paris"
+},
+"listeetablissements": {
+"etablissement": {
+"origineFonds": "Etablissement principal acquis par achat au prix stipulé de 12000 EUR",
+"activite": "Restauration sur place et à emporter - Livraison de plats à emporter"
+}
+},
+"listeprecedentproprietaire": {
+"personne": {
+"typePersonne": "pm",
+"numeroImmatriculation": {
+"numeroIdentification": "952 412 724"
+},
+"denomination": "SOCIETE-MASQUEE-7"
+}
+},
+"expected": {
+"kind": "PM",
+"siren": "952412724",
+"register": "company"
+}
+},
+{
+"id": "A20260217439",
+"acte": {
+"vente": {
+"categorieVente": "Achat d'un établissement principal par une personne morale lors de l'immatriculation",
+"publiciteLegale": {
+"titre": "Mesinfos.fr",
+"date": "2026-11-09"
+},
+"opposition": "Au siège social de la société SARL MARBRERIE REY 2 rue du repos 42800 RIVE DE GIER et pour correspondance au cabinet IDEOJ AVOCATS 30 avenue Gnl Leclerc Imm Swing 38200 VIENNE"
+},
+"descriptif": "Adresse de l'ancien propriétaire : 1 rue Exemple 75000 Paris"
+},
+"listeetablissements": {
+"etablissement": {
+"origineFonds": "Etablissement principal acquis par achat au prix stipulé de 12001 EUR",
+"activite": "Travaux funéraires, marbrerie en tous genres, sculptures"
+}
+},
+"listeprecedentproprietaire": {
+"personne": {
+"typePersonne": "pm",
+"numeroImmatriculation": {
+"numeroIdentification": "340 670 546"
+},
+"denomination": "SOCIETE-MASQUEE-8"
+}
+},
+"expected": {
+"kind": "PM",
+"siren": "340670546",
+"register": "company"
+}
+},
+{
+"id": "A202602262953",
+"acte": {
+"vente": {
+"categorieVente": "Autre achat, apport, attribution (immatriculation d'une personne morale, uniquement)",
+"dateEffet": "2026-11-01",
+"publiciteLegale": {
+"titre": "liti.fr",
+"date": "2026-11-21"
+},
+"opposition": "Au fonds cédé 6 rue Clapeyron 75008 Paris pour la validité, Maître Joseph Cheunet, avocat au Barreau de Paris 122 boulevard Haussmann 75008 Paris pour la correspondance."
+},
+"descriptif": "Adresse de l'ancien propriétaire : 1 rue Exemple 75000 Paris"
+},
+"listeetablissements": {
+"etablissement": {
+"origineFonds": "Fonds acquis par achat au prix stipulé de 10000,00 euros.",
+"activite": "Entretien corporel, pose de faux ongles, application de vernis, centre de relaxation. - Vente de produits cosmétiques et"
+}
+},
+"listeprecedentproprietaire": {
+"personne": {
+"typePersonne": "pm",
+"numeroImmatriculation": {
+"numeroIdentification": "948 023 882"
+},
+"denomination": "SOCIETE-MASQUEE-9"
+}
+},
+"expected": {
+"kind": "PM",
+"siren": "948023882",
+"register": "company"
+}
+},
+{
+"id": "A20260202274",
+"acte": {
+"vente": {
+"categorieVente": "Achat d'un établissement principal par une personne morale lors de l'immatriculation",
+"publiciteLegale": {
+"titre": "Mesinfos.fr",
+"date": "2026-10-19"
+},
+"opposition": "CABINET SEJEF 15 rue Honoré de Balzac BP 50025 42271 ST PRIEST EN JAREZ CDX"
+},
+"descriptif": "Adresse de l'ancien propriétaire : 1 rue Exemple 75000 Paris"
+},
+"listeetablissements": {
+"etablissement": {
+"origineFonds": "Etablissement principal acquis par achat au prix stipulé de 100000 EUR",
+"activite": "Fabrication et commercialisation de menuiserie en aluminium; la prestation de services se rapportant à la menuiserie"
+}
+},
+"listeprecedentproprietaire": {
+"personne": {
+"typePersonne": "pm",
+"numeroImmatriculation": {
+"numeroIdentification": "790 151 583"
+},
+"denomination": "SOCIETE-MASQUEE-10"
+}
+},
+"expected": {
+"kind": "PM",
+"siren": "790151583",
+"register": "company"
+}
+},
+{
+"id": "A202601814655",
+"acte": {
+"vente": {
+"categorieVente": "Achat d'un fonds par une personne morale (insertion provisoire)",
+"publiciteLegale": {
+"titre": "mesinfos.fr/affiches-parisiennes",
+"date": "2026-09-15"
+},
+"opposition": "Election de domicile au fonds vendu pour la correspondance : Cabinet de Maître Xavier PICARD 33 Avenue Mac Mahon 75017 Paris 17e Arrondissement Opposition dans les 10 jours suivant la dernière en date des publications prévues à l'article L141-12 du Code de Commerce."
+},
+"descriptif": "Adresse de l'ancien propriétaire : 1 rue Exemple 75000 Paris"
+},
+"listeetablissements": {
+"etablissement": {
+"origineFonds": "établissement principal acquis par achat au prix stipulé de 209980.00 euros",
+"activite": "restauration traditionnelle, asiatique, et thaïlandaise, vente sur place et à emporter."
+}
+},
+"listeprecedentproprietaire": {
+"personne": {
+"typePersonne": "pm",
+"numeroImmatriculation": {
+"numeroIdentification": "920 875 440"
+},
+"denomination": "SOCIETE-MASQUEE-11"
+}
+},
+"expected": {
+"kind": "PM",
+"siren": "920875440",
+"register": "company"
+}
+},
+{
+"id": "A202601702219",
+"acte": {
+"vente": {
+"categorieVente": "Achat d'un établissement secondaire ou complémentaire par une personne morale",
+"publiciteLegale": {
+"titre": "mesinfos.fr",
+"date": "2026-08-18"
+},
+"opposition": "Election de domicile : Me ROUXEL 5 Allée Rosa Luxembourg (Immeuble Minnesota) Bp 60082 95612 Eragny Cedex pour la validité et Opposition dans les 10 jours suivant la dernière en date des publications prévues à l'article L141-12 du Code de Commerce."
+},
+"descriptif": "Adresse de l'ancien propriétaire : 1 rue Exemple 75000 Paris"
+},
+"listeetablissements": {
+"etablissement": {
+"origineFonds": "établissement secondaire acquis par achat au prix stipulé de 100000.00 euros",
+"activite": "impression numérique, reprographique et marquage sur supports."
+}
+},
+"listeprecedentproprietaire": {
+"personne": {
+"typePersonne": "pm",
+"numeroImmatriculation": {
+"numeroIdentification": "818 279 184"
+},
+"denomination": "SOCIETE-MASQUEE-12"
+}
+},
+"expected": {
+"kind": "PM",
+"siren": "818279184",
+"register": "company"
+}
+},
+{
+"id": "A20260215976",
+"acte": {
+"vente": {
+"categorieVente": "Mise en activité d'une société suite à achat",
+"publiciteLegale": {
+"titre": "Leveil.fr",
+"date": "2026-11-06"
+},
+"opposition": "A l'adresse du fonds cédé sis 32 Rue Francheterre, 430000 LE-PUY-EN-VELAY."
+},
+"descriptif": "Adresse de l'ancien propriétaire : 1 rue Exemple 75000 Paris"
+},
+"listeetablissements": {
+"etablissement": {
+"origineFonds": "Etablissement principal acquis par achat au prix stipulé de 230000 EUR",
+"activite": "La restauration traditionnelle, bar et vente de plats à emporter."
+}
+},
+"listeprecedentproprietaire": {
+"personne": {
+"typePersonne": "pm",
+"numeroImmatriculation": {
+"numeroIdentification": "850 075 326"
+},
+"denomination": "SOCIETE-MASQUEE-13"
+}
+},
+"expected": {
+"kind": "PM",
+"siren": "850075326",
+"register": "company"
+}
+},
+{
+"id": "A202601701510",
+"acte": {
+"vente": {
+"categorieVente": "Achat d'un établissement principal par une personne morale lors de l'immatriculation",
+"dateEffet": "2026-04-30",
+"publiciteLegale": {
+"titre": "Actu.fr",
+"date": "2026-08-10"
+},
+"opposition": "Maître Gaëlle Ollivier-Belbol 16 avenue du Président Kennedy 75016 Paris pour la validité et la correspondance."
+},
+"descriptif": "Adresse de l'ancien propriétaire : 1 rue Exemple 75000 Paris"
+},
+"listeetablissements": {
+"etablissement": {
+"origineFonds": "Fonds acquis par achat au prix stipulé de 130000,00 euros.",
+"activite": "Activité de fleuriste et notamment la vente au détail de fleurs naturelles, artificielles, plantes en pot, compositions "
+}
+},
+"listeprecedentproprietaire": {
+"personne": {
+"typePersonne": "pm",
+"numeroImmatriculation": {
+"numeroIdentification": "447 979 972"
+},
+"denomination": "SOCIETE-MASQUEE-14"
+}
+},
+"expected": {
+"kind": "PM",
+"siren": "447979972",
+"register": "company"
+}
+},
+{
+"id": "A20260170807",
+"acte": {
+"vente": {
+"categorieVente": "Autre achat, apport, attribution (immatriculation d'une personne morale, uniquement)",
+"publiciteLegale": {
+"titre": "TL7",
+"date": "2026-08-24"
+},
+"opposition": "CABINET ME PHILIPPE POMEON 12-14 rue Jean Snella 42000 ST ETIENNE"
+},
+"descriptif": "Adresse de l'ancien propriétaire : 1 rue Exemple 75000 Paris"
+},
+"listeetablissements": {
+"etablissement": {
+"origineFonds": "Etablissement principal acquis par achat au prix stipulé de 52000 EUR",
+"activite": "Exploitation d'un commerce de détail non spécialisé à prédominance alimentaire, supérette, presse, rôtisserie"
+}
+},
+"listeprecedentproprietaire": {
+"personne": {
+"typePersonne": "pm",
+"numeroImmatriculation": {
+"numeroIdentification": "850 133 299"
+},
+"denomination": "SOCIETE-MASQUEE-15"
+}
+},
+"expected": {
+"kind": "PM",
+"siren": "850133299",
+"register": "company"
+}
+},
+{
+"id": "A20260195827",
+"acte": {
+"vente": {
+"categorieVente": "Achat d'un établissement principal par une personne morale lors de l'immatriculation",
+"publiciteLegale": {
+"titre": "Les Affiches de Grenoble et du Dauphiné",
+"date": "2026-10-09"
+},
+"opposition": "À l'adresse de Maître Christophe MOLINA, avocat domicilié en cette qualité, sis 43 avenue Alsace Lorraine, 38000 Grenoble."
+},
+"descriptif": "Adresse de l'ancien propriétaire : 1 rue Exemple 75000 Paris"
+},
+"listeetablissements": {
+"etablissement": {
+"origineFonds": "Etablissement principal acquis par achat au prix stipulé de 90000 EUR",
+"activite": "Presse gratuite dans l'annonce immobilère et l'art de vivre."
+}
+},
+"listeprecedentproprietaire": {
+"personne": {
+"typePersonne": "pm",
+"numeroImmatriculation": {
+"numeroIdentification": "829 684 398"
+},
+"denomination": "SOCIETE-MASQUEE-16"
+}
+},
+"expected": {
+"kind": "PM",
+"siren": "829684398",
+"register": "company"
+}
+},
+{
+"id": "A202601902577",
+"acte": {
+"vente": {
+"categorieVente": "Mise en activité d'une société suite à achat",
+"publiciteLegale": {
+"titre": "www.liti.fr",
+"date": "2026-08-28"
+},
+"opposition": "Election de domicile au fonds vendu pour la correspondance : 11 Place de la Nation 75011 Paris 11e Arrondissement Opposition dans les 10 jours suivant la dernière en date des publications prévues à l'article L141-12 du Code de Commerce."
+},
+"descriptif": "Adresse de l'ancien propriétaire : 1 rue Exemple 75000 Paris"
+},
+"listeetablissements": {
+"etablissement": {
+"origineFonds": "siège et établissement principal acquis par achat au prix stipulé de 350000.00 euros",
+"activite": "restauration rapide, sans vente de boissons alcoolisées."
+}
+},
+"listeprecedentproprietaire": {
+"personne": {
+"typePersonne": "pm",
+"numeroImmatriculation": {
+"numeroIdentification": "948 013 016"
+},
+"denomination": "SOCIETE-MASQUEE-17"
+}
+},
+"expected": {
+"kind": "PM",
+"siren": "948013016",
+"register": "company"
+}
+},
+{
+"id": "A20260192964",
+"acte": {
+"vente": {
+"categorieVente": "Autre achat, apport, attribution (immatriculation d'une personne morale, uniquement)",
+"dateEffet": "2026-08-07",
+"publiciteLegale": {
+"titre": "Centrepresseaveyron.fr",
+"date": "2026-09-22"
+},
+"opposition": "Maître Valérie du Treuilh 13-15 rue des Sablons 75116 Paris pour la validité et la correspondance."
+},
+"descriptif": "Adresse de l'ancien propriétaire : 1 rue Exemple 75000 Paris"
+},
+"listeetablissements": {
+"etablissement": {
+"origineFonds": "Fonds acquis par achat au prix stipulé de 680000,00 euros.",
+"activite": "Restaurant. Bar à vins."
+}
+},
+"listeprecedentproprietaire": {
+"personne": {
+"typePersonne": "pm",
+"numeroImmatriculation": {
+"numeroIdentification": "530 465 335"
+},
+"denomination": "SOCIETE-MASQUEE-18"
+}
+},
+"expected": {
+"kind": "PM",
+"siren": "530465335",
+"register": "company"
+}
+},
+{
+"id": "A202601791954",
+"acte": {
+"vente": {
+"categorieVente": "Achat d'un fonds par une personne morale (insertion provisoire)",
+"publiciteLegale": {
+"titre": "mesinfos.fr/affiches-parisiennes",
+"date": "2026-09-09"
+},
+"opposition": "Election de domicile au fonds vendu pour la correspondance : Maître Olivier GROC 10 Rue Royale 75008 Paris 8e Arrondissement Opposition dans les 10 jours suivant la dernière en date des publications prévues à l'article L141-12 du Code de Commerce."
+},
+"descriptif": "Adresse de l'ancien propriétaire : 1 rue Exemple 75000 Paris"
+},
+"listeetablissements": {
+"etablissement": {
+"origineFonds": "établissement principal acquis par achat au prix stipulé de 50000.00 euros",
+"activite": "restauration type rapide."
+}
+},
+"listeprecedentproprietaire": {
+"personne": {
+"typePersonne": "pm",
+"numeroImmatriculation": {
+"numeroIdentification": "979 497 302"
+},
+"denomination": "SOCIETE-MASQUEE-19"
+}
+},
+"expected": {
+"kind": "PM",
+"siren": "979497302",
+"register": "company"
+}
+},
+{
+"id": "A202601841642",
+"acte": {
+"vente": {
+"categorieVente": "Achat d'un fonds par une personne morale (insertion provisoire)",
+"publiciteLegale": {
+"titre": "lefigaro.fr",
+"date": "2026-09-25"
+},
+"opposition": "Election de domicile au fonds vendu pour la correspondance : Cabinet TaxLens 187 Rue Grande 77300 Fontainebleau Opposition dans les 10 jours suivant la dernière en date des publications prévues à l'article L141-12 du Code de Commerce."
+},
+"descriptif": "Adresse de l'ancien propriétaire : 1 rue Exemple 75000 Paris"
+},
+"listeetablissements": {
+"etablissement": {
+"origineFonds": "établissement principal acquis par achat au prix stipulé de 125000.00 euros",
+"activite": "coiffure mixte homme et femme"
+}
+},
+"listeprecedentproprietaire": {
+"personne": {
+"typePersonne": "pm",
+"numeroImmatriculation": {
+"numeroIdentification": "483 494 951"
+},
+"denomination": "SOCIETE-MASQUEE-20"
+}
+},
+"expected": {
+"kind": "PM",
+"siren": "483494951",
+"register": "company"
+}
+},
+{
+"id": "A202601663329",
+"acte": {
+"vente": {
+"categorieVente": "Achat d'un fonds par une personne morale (insertion provisoire)",
+"publiciteLegale": {
+"titre": "Affiches Parisiennes",
+"date": "2026-08-26"
+},
+"opposition": "Election de domicile au fonds vendu pour la correspondance : FIDAL, Société d’Avocat, 3 Cours de la Gondoire Immeuble Carré Haussmann 77600 Jossigny Opposition dans les 10 jours suivant la dernière en date des publications prévues à l'article L141-12 du Code de Commerce."
+},
+"descriptif": "Adresse de l'ancien propriétaire : 1 rue Exemple 75000 Paris"
+},
+"listeetablissements": {
+"etablissement": {
+"origineFonds": "siège et établissement principal acquis par achat au prix stipulé de 366665.81 euros",
+"activite": "toutes transactions immobilières, vente terrains, appartements, pavillons, fonds de commerce et gestion d'immeubles"
+}
+},
+"listeprecedentproprietaire": {
+"personne": {
+"typePersonne": "pm",
+"numeroImmatriculation": {
+"numeroIdentification": "306 388 042"
+},
+"denomination": "SOCIETE-MASQUEE-21"
+}
+},
+"expected": {
+"kind": "PM",
+"siren": "306388042",
+"register": "company"
+}
+},
+{
+"id": "A20260207234",
+"acte": {
+"vente": {
+"categorieVente": "Mise en activité d'une société suite à achat",
+"publiciteLegale": {
+"titre": "Affiches.fr",
+"date": "2026-10-23"
+},
+"opposition": "Les oppositions seront reçues dans les 10 jours de la dernière en date des publications à l’adresse du fonds pour la validité et, pour la correspondance, au cabinet CAP SAVOIE AVOCATS, 5, av. Charles de Gaulle, 73100 AIX LES BAINS"
+},
+"descriptif": "Adresse de l'ancien propriétaire : 1 rue Exemple 75000 Paris"
+},
+"listeetablissements": {
+"etablissement": {
+"origineFonds": "Etablissement principal acquis par achat au prix stipulé de 41000 EUR",
+"activite": "Institut de beauté."
+}
+},
+"listeprecedentproprietaire": {
+"personne": {
+"typePersonne": "pm",
+"numeroImmatriculation": {
+"numeroIdentification": "904 520 921"
+},
+"denomination": "SOCIETE-MASQUEE-22"
+}
+},
+"expected": {
+"kind": "PM",
+"siren": "904520921",
+"register": "company"
+}
+},
+{
+"id": "A20260200924",
+"acte": {
+"vente": {
+"categorieVente": "Achat d'un établissement principal par une personne physique (immatriculation)",
+"publiciteLegale": {
+"titre": "L'Essor-Affiches",
+"date": "2026-10-23"
+},
+"opposition": "CABINET ANCHOR LEGAL Maître Yanis DJABALLAH AVOCAT 4 rue Tournefort 42000 SAINT ETIENNE"
+},
+"descriptif": "Adresse de l'ancien propriétaire : 1 rue Exemple 75000 Paris"
+},
+"listeetablissements": {
+"etablissement": {
+"origineFonds": "Etablissement principal acquis par achat au prix stipulé de 155000 EUR",
+"activite": "Débit de tabac, presse, loto, PMU, jeux, bimbeloterie et confiserie. Bar, restaurant."
+}
+},
+"listeprecedentproprietaire": {
+"personne": {
+"typePersonne": "pm",
+"numeroImmatriculation": {
+"numeroIdentification": "513 612 291"
+},
+"denomination": "SOCIETE-MASQUEE-23"
+}
+},
+"expected": {
+"kind": "PM",
+"siren": "513612291",
+"register": "company"
+}
+},
+{
+"id": "A202601814471",
+"acte": {
+"vente": {
+"categorieVente": "Achat d'un établissement secondaire ou complémentaire par une personne morale",
+"publiciteLegale": {
+"titre": "leparisien.fr",
+"date": "2026-10-07"
+},
+"opposition": "Election de domicile au fonds vendu pour la correspondance : 20 Rue de Verdun 92220 Bagneux Opposition dans les 10 jours suivant la dernière en date des publications prévues à l'article L141-12 du Code de Commerce."
+},
+"descriptif": "Adresse de l'ancien propriétaire : 1 rue Exemple 75000 Paris"
+},
+"listeetablissements": {
+"etablissement": {
+"origineFonds": "siège et établissement principal acquis par achat au prix stipulé de 230000.00 euros",
+"activite": "vente de fruits et légumes, alimentation générale, et vente de tous produits alimentaires en boutique"
+}
+},
+"listeprecedentproprietaire": {
+"personne": {
+"typePersonne": "pm",
+"numeroImmatriculation": {
+"numeroIdentification": "832 872 345"
+},
+"denomination": "SOCIETE-MASQUEE-24"
+}
+},
+"expected": {
+"kind": "PM",
+"siren": "832872345",
+"register": "company"
+}
+},
+{
+"id": "A202601731052",
+"acte": {
+"vente": {
+"categorieVente": "Achat d'un établissement principal par une personne morale lors de l'immatriculation",
+"publiciteLegale": {
+"titre": "MESINFOS.FR",
+"date": "2026-09-04"
+},
+"opposition": "Maître Séverine BRAVARD, 11 quai André Lassagne 69001 LYON pour la correspondance et 8 chemin des Cuers 69570 DARDILLY pour la validité."
+},
+"descriptif": "Adresse de l'ancien propriétaire : 1 rue Exemple 75000 Paris"
+},
+"listeetablissements": {
+"etablissement": {
+"origineFonds": "Etablissement principal acquis par achat au prix stipulé de 100000 EUR",
+"activite": "Micro-crêche"
+}
+},
+"listeprecedentproprietaire": {
+"personne": {
+"typePersonne": "pm",
+"numeroImmatriculation": {
+"numeroIdentification": "850 669 581"
+},
+"denomination": "SOCIETE-MASQUEE-25"
+}
+},
+"expected": {
+"kind": "PM",
+"siren": "850669581",
+"register": "company"
+}
+},
+{
+"id": "A202601731226",
+"acte": {
+"vente": {
+"categorieVente": "Achat d'un établissement secondaire ou complémentaire par une personne morale",
+"publiciteLegale": {
+"titre": "Hebdo des Savoie",
+"date": "2026-08-27"
+},
+"opposition": "Oppositions seront reçues au siège du fond cédé soit au 7 Faubourg Sainte-Claire 74000 Annecy et pour la correspondance à la SELARL MALAVAL & DESILLE-BECKER 13 rue Jean Jaurès 74000 Annecy"
+},
+"descriptif": "Adresse de l'ancien propriétaire : 1 rue Exemple 75000 Paris"
+},
+"listeetablissements": {
+"etablissement": {
+"origineFonds": "Etablissement complémentaire acquis par achat au prix stipulé de 140000 EUR",
+"activite": "Fonds de commerce de vente de produits alimentaires gastronomiques et du terroir."
+}
+},
+"listeprecedentproprietaire": {
+"personne": {
+"typePersonne": "pm",
+"numeroImmatriculation": {
+"numeroIdentification": "791 002 215"
+},
+"denomination": "SOCIETE-MASQUEE-26"
+}
+},
+"expected": {
+"kind": "PM",
+"siren": "791002215",
+"register": "company"
+}
+},
+{
+"id": "A202601852",
+"acte": {
+"vente": {
+"categorieVente": "Mise en activité d'une société suite à achat",
+"publiciteLegale": {
+"titre": "La Voix De L'Ain",
+"date": "2026-08-07"
+},
+"opposition": "Au siège du fonds cédé pour la validité, et pout toutes correspondances, à l'office notarial JEAN-MICHEL MATHIEU - NICOLAS PONS, 10 Rue Gabriel Vicaire 01000 Bourg en Bresse"
+},
+"descriptif": "Adresse de l'ancien propriétaire : 1 rue Exemple 75000 Paris"
+},
+"listeetablissements": {
+"etablissement": {
+"origineFonds": "Etablissement principal acquis par achat au prix stipulé de 30000 EUR",
+"activite": "Café, bar, pub."
+}
+},
+"listeprecedentproprietaire": {
+"personne": {
+"typePersonne": "pm",
+"numeroImmatriculation": {
+"numeroIdentification": "532 239 829"
+},
+"denomination": "SOCIETE-MASQUEE-27"
+}
+},
+"expected": {
+"kind": "PM",
+"siren": "532239829",
+"register": "company"
+}
+},
+{
+"id": "A202602033",
+"acte": {
+"vente": {
+"categorieVente": "Mise en activité d'une société suite à achat",
+"publiciteLegale": {
+"titre": "Mesinfos.fr",
+"date": "2026-09-18"
+},
+"opposition": "Au lieu du fonds vendu : le Bourg 01120 Sainte-Croix"
+},
+"descriptif": "Adresse de l'ancien propriétaire : 1 rue Exemple 75000 Paris"
+},
+"listeetablissements": {
+"etablissement": {
+"origineFonds": "Etablissement principal acquis par achat au prix stipulé de 20000 EUR",
+"activite": "Restauration traditionnelle, débit de boissons, bar, lounge bar, café, snack, préparation et vente d'aliments et de plat"
+}
+},
+"listeprecedentproprietaire": {
+"personne": {
+"typePersonne": "pm",
+"numeroImmatriculation": {
+"numeroIdentification": "353 432 941"
+},
+"denomination": "SOCIETE-MASQUEE-28"
+}
+},
+"expected": {
+"kind": "PM",
+"siren": "353432941",
+"register": "company"
+}
+},
+{
+"id": "A202602272290",
+"acte": {
+"vente": {
+"categorieVente": "Achat d'un établissement secondaire ou complémentaire par une personne morale",
+"publiciteLegale": {
+"titre": "lefigaro.fr",
+"date": "2026-11-02"
+},
+"opposition": "Opposition dans les 10 jours suivant la dernière en date des publications prévues à l'article L141-12 du Code de Commerce."
+},
+"descriptif": "Adresse de l'ancien propriétaire : 1 rue Exemple 75000 Paris"
+},
+"listeetablissements": {
+"etablissement": {
+"origineFonds": "établissement principal acquis par achat au prix stipulé de 110000.00 euros",
+"activite": "création, acquisition, propriété, exploitation, prise à bail, location gérance, vente, gestion commerciale et administra"
+}
+},
+"listeprecedentproprietaire": {
+"personne": {
+"typePersonne": "pm",
+"numeroImmatriculation": {
+"numeroIdentification": "353 344 286"
+},
+"denomination": "SOCIETE-MASQUEE-29"
+}
+},
+"expected": {
+"kind": "PM",
+"siren": "353344286",
+"register": "company"
+}
+},
+{
+"id": "A202601951455",
+"acte": {
+"vente": {
+"categorieVente": "Mise en activité d'une société suite à achat",
+"dateEffet": "2026-09-24",
+"publiciteLegale": {
+"titre": "mesinfos.fr",
+"date": "2026-10-12"
+},
+"opposition": "au cabinet de Maître Thierry David 7 rue Jean Mermoz 75008 Paris pour la validité et la correspondance."
+},
+"descriptif": "Adresse de l'ancien propriétaire : 1 rue Exemple 75000 Paris"
+},
+"listeetablissements": {
+"etablissement": {
+"origineFonds": "Fonds acquis par achat au prix stipulé de 150000,00 euros.",
+"activite": "Restauration sur place, plats à emporter."
+}
+},
+"listeprecedentproprietaire": {
+"personne": {
+"typePersonne": "pm",
+"numeroImmatriculation": {
+"numeroIdentification": "851 562 140"
+},
+"denomination": "SOCIETE-MASQUEE-30"
+}
+},
+"expected": {
+"kind": "PM",
+"siren": "851562140",
+"register": "company"
+}
+},
+{
+"id": "A202602062516",
+"acte": {
+"vente": {
+"categorieVente": "Achat d'un établissement secondaire ou complémentaire par une personne morale",
+"publiciteLegale": {
+"titre": "La Montagne",
+"date": "2026-08-05"
+},
+"opposition": "Election de domicile : RP FRANCE JG Impasse des Gardelles 63200 Malauzat pour la validité et Opposition dans les 10 jours suivant la dernière en date des publications prévues à l'article L141-12 du Code de Commerce."
+},
+"descriptif": "Adresse de l'ancien propriétaire : 1 rue Exemple 75000 Paris"
+},
+"listeetablissements": {
+"etablissement": {
+"origineFonds": "établissement secondaire acquis par achat au prix stipulé de 210000.00 euros",
+"activite": "les travaux de toitures et les travaux sur les murs extérieurs de toute construction et notamment: l'application de prod"
+}
+},
+"listeprecedentproprietaire": {
+"personne": {
+"typePersonne": "pm",
+"numeroImmatriculation": {
+"numeroIdentification": "850 136 250"
+},
+"denomination": "SOCIETE-MASQUEE-31"
+}
+},
+"expected": {
+"kind": "PM",
+"siren": "850136250",
+"register": "company"
+}
+},
+{
+"id": "A20260179650",
+"acte": {
+"vente": {
+"categorieVente": "Achat d'un établissement principal par une personne morale lors de l'immatriculation",
+"publiciteLegale": {
+"titre": "Mesinfos.fr",
+"date": "2026-09-23"
+},
+"opposition": "Au fonds vendu"
+},
+"descriptif": "Adresse de l'ancien propriétaire : 1 rue Exemple 75000 Paris"
+},
+"listeetablissements": {
+"etablissement": {
+"origineFonds": "Etablissement principal acquis par achat au prix stipulé de 53000 EUR",
+"activite": "Restauration rapide"
+}
+},
+"listeprecedentproprietaire": {
+"personne": {
+"typePersonne": "pp",
+"nom": "NOM-MASQUE",
+"prenom": "Prenom-masque",
+"numeroImmatriculation": {
+"numeroIdentification": "123 456 782"
+}
+}
+},
+"expected": {
+"kind": "PP"
+}
+},
+{
+"id": "A202601911",
+"acte": {
+"vente": {
+"categorieVente": "Achat d'un établissement principal par une personne morale lors de l'immatriculation",
+"publiciteLegale": {
+"titre": "Le Pays Gessien",
+"date": "2026-10-08"
+},
+"opposition": "En l'office notarial de Lagnieu (01150) 56 Avenue de l'Etraz."
+},
+"descriptif": "Adresse de l'ancien propriétaire : 1 rue Exemple 75000 Paris"
+},
+"listeetablissements": {
+"etablissement": {
+"origineFonds": "Etablissement principal acquis par achat au prix stipulé de 30000 EUR",
+"activite": "Vente de véhicules neufs et d'occasion. L'entretien et la réparation de tout véhicule motorisé. La carrosserie et la pei"
+}
+},
+"listeprecedentproprietaire": {
+"personne": {
+"typePersonne": "pp",
+"nom": "NOM-MASQUE",
+"prenom": "Prenom-masque",
+"numeroImmatriculation": {
+"numeroIdentification": "123 456 782"
+}
+}
+},
+"expected": {
+"kind": "PP"
+}
+},
+{
+"id": "A202601863378",
+"acte": {
+"vente": {
+"categorieVente": "Autre achat, apport, attribution (immatriculation d'une personne morale, uniquement)",
+"dateEffet": "2025-11-05",
+"publiciteLegale": {
+"titre": "leparisien.fr",
+"date": "2025-11-13"
+},
+"opposition": "au fonds cédé 12 rue de la Plage 94500 Champigny-sur-Marne pour la validité et la correspondance."
+},
+"descriptif": "Adresse de l'ancien propriétaire : 1 rue Exemple 75000 Paris"
+},
+"listeetablissements": {
+"etablissement": {
+"origineFonds": "Fonds acquis par achat au prix stipulé de 14500,00 euros.",
+"activite": "Conseil et services en sécurité et réseaux informatiques (Cyber-sécurité)"
+}
+},
+"listeprecedentproprietaire": {
+"personne": {
+"typePersonne": "pp",
+"nom": "NOM-MASQUE",
+"prenom": "Prenom-masque",
+"numeroImmatriculation": {
+"numeroIdentification": "123 456 782"
+}
+}
+},
+"expected": {
+"kind": "PP"
+}
+},
+{
+"id": "A20260215977",
+"acte": {
+"vente": {
+"categorieVente": "Autre achat, apport, attribution (immatriculation d'une personne morale, uniquement)",
+"publiciteLegale": {
+"titre": "Haute-loire-paysanne.fr.",
+"date": "2026-11-06"
+},
+"opposition": "En l'office de la SCP Olivier BONNICHON, Jean-Baptiste GROUSSON et Elsa CHARROIN, notaires associés sis 39 Avenue des Belges, 43000 LE-PUY-EN-VELAY."
+},
+"descriptif": "Adresse de l'ancien propriétaire : 1 rue Exemple 75000 Paris"
+},
+"listeetablissements": {
+"etablissement": {
+"origineFonds": "Etablissement principal acquis par achat au prix stipulé de 160000 EUR",
+"activite": "Pâtisserie. Chocolaterie."
+}
+},
+"listeprecedentproprietaire": {
+"personne": {
+"typePersonne": "pp",
+"nom": "NOM-MASQUE",
+"prenom": "Prenom-masque",
+"numeroImmatriculation": {
+"numeroIdentification": "123 456 782"
+}
+}
+},
+"expected": {
+"kind": "PP"
+}
+},
+{
+"id": "A202602252807",
+"acte": {
+"vente": {
+"categorieVente": "Achat d'un établissement secondaire ou complémentaire par une personne morale",
+"publiciteLegale": {
+"titre": "leparisien.fr",
+"date": "2026-12-22"
+},
+"opposition": "Election de domicile au fonds vendu pour la correspondance : 8 Rue Sully 94480 Ablon-sur-Seine Opposition dans les 10 jours suivant la dernière en date des publications prévues à l'article L141-12 du Code de Commerce."
+},
+"descriptif": "Adresse de l'ancien propriétaire : 1 rue Exemple 75000 Paris"
+},
+"listeetablissements": {
+"etablissement": {
+"origineFonds": "siège et établissement principal acquis par achat au prix stipulé de 52597.33 euros",
+"activite": "conseil en gestion de patrimoine - conseil en investissement financier (cif) - intermédiaire en assurance (ias) - interm"
+}
+},
+"listeprecedentproprietaire": {
+"personne": {
+"typePersonne": "pp",
+"nom": "NOM-MASQUE",
+"prenom": "Prenom-masque",
+"numeroImmatriculation": {
+"numeroIdentification": "123 456 782"
+}
+}
+},
+"expected": {
+"kind": "PP"
+}
+},
+{
+"id": "A20260188155",
+"acte": {
+"vente": {
+"categorieVente": "Autre achat, apport, attribution (immatriculation d'une personne morale, uniquement)",
+"publiciteLegale": {
+"titre": "Le Journal du Diois",
+"date": "2026-04-23"
+},
+"opposition": "Maître Gaëlle MAURIN Notaire, 72 route de la Coucourde 26740 SAUZET"
+},
+"descriptif": "Adresse de l'ancien propriétaire : 1 rue Exemple 75000 Paris"
+},
+"listeetablissements": {
+"etablissement": {
+"origineFonds": "Etablissement principal acquis par achat au prix stipulé de 825000 EUR",
+"activite": "La confection et vente de production de gâteaux, de biscuits de préparation culinaire, de viennoiserie, glaces et chocol"
+}
+},
+"listeprecedentproprietaire": {
+"personne": {
+"typePersonne": "pp",
+"nom": "NOM-MASQUE",
+"prenom": "Prenom-masque",
+"numeroImmatriculation": {
+"numeroIdentification": "123 456 782"
+}
+}
+},
+"expected": {
+"kind": "PP"
+}
+},
+{
+"id": "A202601791956",
+"acte": {
+"vente": {
+"categorieVente": "Achat d'un fonds par une personne morale (insertion provisoire)",
+"publiciteLegale": {
+"titre": "mesinfos.fr/affiches-parisiennes",
+"date": "2026-09-11"
+},
+"opposition": "Election de domicile : SCP OCHOA - ASPROMONTE - HARANT 77 Rue Jean Jaurès Commissaires de Justice 93000 Bobigny pour la validité et pour la correspondance : FLG AVOCATS 30 Avenue de Messine 75008 Paris 8e Arrondissement Opposition dans les 10 jours suivant la dernière en date des publications prévues à l'article L141-12 du Code de Commerce."
+},
+"descriptif": "Adresse de l'ancien propriétaire : 1 rue Exemple 75000 Paris"
+},
+"listeetablissements": {
+"etablissement": {
+"origineFonds": "établissement principal acquis par achat au prix stipulé de 260000.00 euros",
+"activite": "officine de pharmacie."
+}
+},
+"listeprecedentproprietaire": {
+"personne": {
+"typePersonne": "pp",
+"nom": "NOM-MASQUE",
+"prenom": "Prenom-masque",
+"numeroImmatriculation": {
+"numeroIdentification": "123 456 782"
+}
+}
+},
+"expected": {
+"kind": "PP"
+}
+},
+{
+"id": "A202601813811",
+"acte": {
+"vente": {
+"categorieVente": "Achat d'un fonds par une personne morale (insertion provisoire)",
+"publiciteLegale": {
+"titre": "lesechos.fr",
+"date": "2026-09-03"
+},
+"opposition": "Election de domicile au fonds vendu Opposition dans les 10 jours suivant la dernière en date des publications prévues à l'article L141-12 du Code de Commerce."
+},
+"descriptif": "Adresse de l'ancien propriétaire : 1 rue Exemple 75000 Paris"
+},
+"listeetablissements": {
+"etablissement": {
+"origineFonds": "établissement principal acquis par achat au prix stipulé de 21000.00 euros",
+"activite": "un fonds de commerce de vente en ligne d'articles et accessoires de mode, sacs à main, chaussures et bijoux fantaisie, c"
+}
+},
+"listeprecedentproprietaire": {
+"personne": {
+"typePersonne": "pp",
+"nom": "NOM-MASQUE",
+"prenom": "Prenom-masque",
+"numeroImmatriculation": {
+"numeroIdentification": "123 456 782"
+}
+}
+},
+"expected": {
+"kind": "PP"
+}
+},
+{
+"id": "A202602241104",
+"acte": {
+"vente": {
+"categorieVente": "Mise en activité d'une société suite à achat",
+"publiciteLegale": {
+"titre": "TL7",
+"date": "2026-11-17"
+},
+"opposition": "Au siège du fonds cédé et pour la correspondance au cabinet BERTHEAS VITROLLES DRUENNE SASTRES ET ASSOCIES 145 rue de la montat 42000 ST ETIENNE"
+},
+"descriptif": "Adresse de l'ancien propriétaire : 1 rue Exemple 75000 Paris"
+},
+"listeetablissements": {
+"etablissement": {
+"origineFonds": "Etablissement principal acquis par achat au prix stipulé de 23000 EUR",
+"activite": "Bien-être de l'enfant: spa bébé, bain enveloppé, massages"
+}
+},
+"listeprecedentproprietaire": {
+"personne": {
+"typePersonne": "pp",
+"nom": "NOM-MASQUE",
+"prenom": "Prenom-masque",
+"numeroImmatriculation": {
+"numeroIdentification": "123 456 782"
+}
+}
+},
+"expected": {
+"kind": "PP"
+}
+},
+{
+"id": "A2026022261",
+"acte": {
+"vente": {
+"categorieVente": "Achat d'un fonds par une personne physique (insertion provisoire)",
+"publiciteLegale": {
+"titre": "Le Journal du Diois",
+"date": "2026-11-19"
+},
+"opposition": "Au siège du mandataire-judiciaire, la SELARL BERTHELOT&ASSOCIES, 46 avenue Duchesne, 26100 ROMANS-SUR-ISERE"
+},
+"descriptif": "Adresse de l'ancien propriétaire : 1 rue Exemple 75000 Paris"
+},
+"listeetablissements": {
+"etablissement": {
+"origineFonds": "Etablissement principal acquis par achat au prix stipulé de 50000 EUR",
+"activite": "Fonds de commerce de Tabac, presse, articles pour fumeurs, jeux de la Française des Jeux, cigarettes électroniques, timb"
+}
+},
+"listeprecedentproprietaire": {
+"personne": {
+"typePersonne": "pp",
+"nom": "NOM-MASQUE",
+"prenom": "Prenom-masque",
+"numeroImmatriculation": {
+"numeroIdentification": "123 456 782"
+}
+}
+},
+"expected": {
+"kind": "PP"
+}
+},
+{
+"id": "A20260169804",
+"acte": {
+"vente": {
+"categorieVente": "Achat d'un établissement principal par une personne physique (immatriculation)",
+"publiciteLegale": {
+"titre": "Le Progrès",
+"date": "2026-07-30"
+},
+"opposition": "Office notarial de SAINT MARTIN EN HAUT (69850) 11 Route de Lyon"
+},
+"descriptif": "Adresse de l'ancien propriétaire : 1 rue Exemple 75000 Paris"
+},
+"listeetablissements": {
+"etablissement": {
+"origineFonds": "Etablissement principal acquis par achat au prix stipulé de 63000 EUR",
+"activite": "Bar. Tabac. Française des jeux."
+}
+},
+"listeprecedentproprietaire": {
+"personne": {
+"typePersonne": "pp",
+"nom": "NOM-MASQUE",
+"prenom": "Prenom-masque",
+"numeroImmatriculation": {
+"numeroIdentification": "123 456 782"
+}
+}
+},
+"expected": {
+"kind": "PP"
+}
+},
+{
+"id": "A202602201879",
+"acte": {
+"vente": {
+"categorieVente": "Mise en activité d'une société suite à achat",
+"publiciteLegale": {
+"titre": "L'éveil de la Haute-Loire",
+"date": "2026-11-04"
+},
+"opposition": "En l'Office Notarial Les Portes du Velay sis 13 Rue de Bonneville, 43000 AIGUILHE."
+},
+"descriptif": "Adresse de l'ancien propriétaire : 1 rue Exemple 75000 Paris"
+},
+"listeetablissements": {
+"etablissement": {
+"origineFonds": "Etablissement principal acquis par achat au prix stipulé de 80000 EUR",
+"activite": "L'activité de tannerie, mégisserie, pelleterie et parcheminerie. Le tannage, le traitement, la transformation, la fabric"
+}
+},
+"listeprecedentproprietaire": {
+"personne": {
+"typePersonne": "pp",
+"nom": "NOM-MASQUE",
+"prenom": "Prenom-masque",
+"numeroImmatriculation": {
+"numeroIdentification": "123 456 782"
+}
+}
+},
+"expected": {
+"kind": "PP"
+}
+},
+{
+"id": "A20260177867",
+"acte": {
+"vente": {
+"categorieVente": "Achat d'un établissement principal par une personne physique (immatriculation)",
+"dateEffet": "2026-09-02",
+"opposition": "sans oppositions"
+},
+"descriptif": "Acte en date du ... (texte masqué)"
+},
+"listeetablissements": {
+"etablissement": {
+"origineFonds": "",
+"activite": "Livraison de repas à domicile"
+}
+},
+"listeprecedentproprietaire": null,
+"expected": {
+"kind": "UNKNOWN"
+}
+},
+{
+"id": "A202602141735",
+"acte": {
+"vente": {
+"categorieVente": "Achat d'un établissement secondaire ou complémentaire par une personne morale",
+"publiciteLegale": {
+"titre": "www.liti.fr",
+"date": "2026-09-16"
+},
+"opposition": "Election de domicile au fonds vendu pour la correspondance : Maître Melissa HAS – Avocate, 5 Place du Général de Gaulle 95300 Pontoise Opposition dans les 10 jours suivant la dernière en date des publications prévues à l'article L141-12 du Code de Commerce."
+},
+"descriptif": "Adresse de l'ancien propriétaire : 1 rue Exemple 75000 Paris"
+},
+"listeetablissements": {
+"etablissement": {
+"origineFonds": "siège et établissement principal acquis par achat au prix stipulé de 65000.00 euros",
+"activite": "ventes alimentation pour animaux domestiques - toilettage accessoires"
+}
+},
+"listeprecedentproprietaire": null,
+"expected": {
+"kind": "UNKNOWN"
+}
+},
+{
+"id": "A202601764359",
+"acte": {
+"vente": {
+"categorieVente": "Achat d'un établissement secondaire ou complémentaire par une personne morale",
+"publiciteLegale": {
+"titre": "leparisien.fr",
+"date": "2026-08-10"
+},
+"opposition": "Election de domicile au fonds vendu pour la correspondance : Me Nathalie Kilo 10 Rue Charles Dordain 93600 Aulnay-sous-Bois Opposition dans les 10 jours suivant la dernière en date des publications prévues à l'article L141-12 du Code de Commerce."
+},
+"descriptif": "Adresse de l'ancien propriétaire : 1 rue Exemple 75000 Paris"
+},
+"listeetablissements": {
+"etablissement": {
+"origineFonds": "établissement principal acquis par achat au prix stipulé de 240000.00 euros",
+"activite": "restauration sans vente de boissons alcoolisées sur place de type rapide. la préparation, la livraison à domicile et ven"
+}
+},
+"listeprecedentproprietaire": null,
+"expected": {
+"kind": "UNKNOWN"
+}
+},
+{
+"id": "A202602132236",
+"acte": {
+"vente": {
+"categorieVente": "Achat d'un établissement principal par une personne physique (immatriculation)",
+"dateEffet": "2026-11-01",
+"publiciteLegale": {
+"titre": "Dauphiné Libéré /Editions Grand Val",
+"date": "2026-11-01"
+},
+"opposition": "sans oppositions"
+},
+"descriptif": "Acte en date du ... (texte masqué)"
+},
+"listeetablissements": {
+"etablissement": {
+"origineFonds": "",
+"activite": "Création, édition et vente en ligne de produits numériques divers (E-Books, guides, modèles) et de prestations de format"
+}
+},
+"listeprecedentproprietaire": null,
+"expected": {
+"kind": "UNKNOWN"
+}
+},
+{
+"id": "A202601863707",
+"acte": {
+"vente": {
+"categorieVente": "Achat d'un établissement secondaire ou complémentaire par une personne morale",
+"publiciteLegale": {
+"titre": "mesinfos.fr/tpbm",
+"date": "2026-09-23"
+},
+"opposition": "Election de domicile : O'TOMAT 8 Avenue de L Europe 78590 Noisy-le-Roi pour la validité et pour la correspondance : O'TOMAT 8 Avenue de L Europe 78590 Noisy-le-Roi Opposition dans les 10 jours suivant la dernière en date des publications prévues à l'article L141-12 du Code de Commerce."
+},
+"descriptif": "Adresse de l'ancien propriétaire : 1 rue Exemple 75000 Paris"
+},
+"listeetablissements": {
+"etablissement": {
+"origineFonds": "établissement secondaire acquis par achat au prix stipulé de 380000.00 euros",
+"activite": "location de machines et de vente par automates de produits de détails hors magasin."
+}
+},
+"listeprecedentproprietaire": null,
+"expected": {
+"kind": "UNKNOWN"
+}
+},
+{
+"id": "A202602164328",
+"acte": {
+"vente": {
+"categorieVente": "Mise en activité d'une société suite à achat",
+"publiciteLegale": {
+"titre": "Les Echos",
+"date": "2026-09-22"
+},
+"opposition": "Election de domicile au fonds vendu et pour la correspondance : AB COURTABOEUF 55 Deguigand 92300 Levallois-Perret"
+},
+"descriptif": "Acte en date du ... (texte masqué)"
+},
+"listeetablissements": {
+"etablissement": {
+"origineFonds": "siège social acquis par achat au prix stipulé de 1100000.00 euros",
+"activite": ""
+}
+},
+"listeprecedentproprietaire": null,
+"expected": {
+"kind": "UNKNOWN"
+}
+},
+{
+"id": "A202601992003",
+"acte": {
+"vente": {
+"categorieVente": "Autre achat, apport, attribution (immatriculation d'une personne morale, uniquement)",
+"dateEffet": "2026-09-28",
+"opposition": "sans oppositions"
+},
+"descriptif": "Acte en date du ... (texte masqué)"
+},
+"listeetablissements": {
+"etablissement": {
+"origineFonds": "Achat d'un fonds libéral au prix stipulé de 55000,00 euros.",
+"activite": "Exercice de la profession de Pédicure-Podologue"
+}
+},
+"listeprecedentproprietaire": null,
+"expected": {
+"kind": "UNKNOWN"
+}
+},
+{
+"id": "A202601992056",
+"acte": {
+"vente": {
+"categorieVente": "Achat d'un établissement principal par une personne morale lors de l'immatriculation",
+"publiciteLegale": {
+"titre": "mesinfos.fr/tpbm",
+"date": "2026-10-12"
+},
+"opposition": "Election de domicile : L'étude de la SCP BLANC GRASSIN 20/22 Place Charles de Gaulle 78100 Saint-Germain-en-Laye pour la validité et pour la correspondance : QUADRA PHARM 5 Avenue Ingres 75016 Paris 16e Arrondissement Opposition dans les 10 jours suivant la dernière en date des publications prévues à l'article L141-12 du Code de Commerce."
+},
+"descriptif": "Adresse de l'ancien propriétaire : 1 rue Exemple 75000 Paris"
+},
+"listeetablissements": {
+"etablissement": {
+"origineFonds": "siège et établissement principal acquis par achat au prix stipulé de 900000.00 euros",
+"activite": "la société a pour objet l'exercice de la profession de pharmacien d'officine (r 5125-14) par l'intermédiaire de ses asso"
+}
+},
+"listeprecedentproprietaire": null,
+"expected": {
+"kind": "UNKNOWN"
+}
+}
+]

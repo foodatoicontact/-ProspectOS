@@ -76,7 +76,7 @@ test('feed API — filters validated before the database; the refusal of a non-a
  assert.deepEqual(args[0],{p_kinds:['CANCELLATION'],p_from:null,p_to:null,p_before:null,p_limit:50});
  assert.equal((await handleCockpit(new Request('https://x/api/v1/cockpit/feed?from=2026-11-26&to=2026-11-01'),['cockpit','feed'],db,json))!.status,422);
  assert.equal(await handleCockpit(new Request('https://x/api/v1/leads'),['leads'],db,json),null);
- assert.match(read('app/api/v1/[...path]/route.ts'),/const cockpitResponse=await handleCockpit\(request,path,db,json\);/,'behind the signed-in session and its rate limit');
+ assert.match(read('app/api/v1/[...path]/route.ts'),/const cockpitResponse=await handleCockpit\(request,path,db,json,\{invoices:stripeInvoiceReader\(\)\}\);/,'behind the signed-in session and its rate limit');
 });
 
 test('quote form — the same validation as the "3 prospects" form, plus the company; a robot is answered like a success',()=>{
@@ -114,9 +114,35 @@ test('screen — /cockpit is never indexed, reads the feed through the API only;
  const page=read('app/cockpit/page.tsx');
  assert.match(page,/robots:\{index:false,follow:false\}/);
  const app=read('src/ui/v2/cockpit/CockpitApp.tsx');
- assert.match(app,/fetch\(`\/api\/v1\/\$\{path\}`,\{headers:\{Authorization:`Bearer \$\{token\}`\}\}\)/);
- assert.doesNotMatch(app+read('src/ui/v2/cockpit/CockpitFeed.tsx'),/\.from\(|\.rpc\(|service_role|SUPABASE_SERVICE/,'no direct database read from the browser');
+ assert.match(app,/fetch\(`\/api\/v1\/\$\{path\}`,\{method,headers:\{Authorization:`Bearer \$\{token\}`/);
+ assert.doesNotMatch(app+read('src/ui/v2/cockpit/CockpitFeed.tsx')+read('src/ui/v2/cockpit/CockpitClients.tsx'),/\.from\(|\.rpc\(|service_role|SUPABASE_SERVICE/,'no direct database read from the browser');
  assert.match(read('src/ui/v2/shell/UserMenu.tsx'),/\{live&&p\.internal&&<li><a className="pos-menu__item" href="\/cockpit"/);
  const css=read('src/ui/v2/cockpit/cockpit.css');
  assert.doesNotMatch(css.replace(/var\(--pos-[a-z0-9-]+(,[^)]*)?\)/g,''),/#[0-9a-f]{3,6}\b|rgb\(/i,'tokens only');
+});
+
+import {invoiceLines,stripeDashboard} from '../src/cockpit/clients.ts';
+import {offerLine} from '../src/cockpit/model.ts';
+test('clients — the database refuses the sheet before Stripe is asked; invoices as dashboard links; notes validated',async()=>{
+ const json=(v:unknown,status=200)=>new Response(JSON.stringify(v),{status});
+ let asked=0;const invoices=async()=>{asked++;return {mode:'test' as const,invoices:[]}};
+ const refuse={rpc:async()=>({data:null,error:{message:'Admin access required',code:'42501'}})} as any;
+ const id='00000000-0000-4000-8000-0000000000c1';
+ assert.equal((await handleCockpit(new Request(`https://x/api/v1/cockpit/clients/${id}`),['cockpit','clients',id],refuse,json,{invoices}))!.status,403);
+ assert.equal(asked,0,'Stripe is never asked for a non-administrator');
+ const calls:[string,Record<string,unknown>][]=[];
+ const ok={rpc:async(fn:string,a:Record<string,unknown>)=>{calls.push([fn,a]);return {data:fn==='admin_client'?{organization:{id},billing:{customer_id:'cus_ABC'}}:{id:1},error:null}}} as any;
+ const r=await (await handleCockpit(new Request(`https://x/api/v1/cockpit/clients/${id}`),['cockpit','clients',id],ok,json,{invoices}))!.json() as any;
+ assert.equal(asked,1);assert.equal(r.stripe.customer_url,'https://dashboard.stripe.com/test/customers/cus_ABC');
+ assert.equal((await handleCockpit(new Request('https://x/api/v1/cockpit/clients/not-a-uuid'),['cockpit','clients','not-a-uuid'],ok,json,{invoices}))!.status,404);
+ const post=(body:unknown)=>handleCockpit(new Request(`https://x/api/v1/cockpit/clients/${id}/notes`,{method:'POST',body:JSON.stringify(body)}),['cockpit','clients',id,'notes'],ok,json,{});
+ assert.equal((await post({body:'Relancer lundi'}))!.status,201);assert.deepEqual(calls.at(-1),['admin_add_note',{p_org:id,p_body:'Relancer lundi'}]);
+ assert.equal((await post({body:'   '}))!.status,422);assert.equal((await post({body:'x'.repeat(2001)}))!.status,422);
+ assert.equal((await post({body:'x',author:'quelqu’un'}))!.status,422,'nothing but the text');
+ const lines=invoiceLines([{id:'in_1',number:'F-0001',status:'paid',currency:'eur',total:4900,amount_paid:4900,created:1795600000,livemode:false},
+  {id:'in_2',number:'F-0002',status:'paid',currency:'eur',total:4900,amount_paid:4900,created:1795600000,livemode:true}] as never,'test');
+ assert.equal(lines.length,1,'an invoice of the other mode is never shown');
+ assert.equal(lines[0]!.url,'https://dashboard.stripe.com/test/invoices/in_1');assert.equal(stripeDashboard('live','customers/cus_X'),'https://dashboard.stripe.com/customers/cus_X');
+ assert.equal(offerLine('TEAM','ACTIVE','2026-12-21T00:00:00Z'),'Équipe · actif · jusqu’au 21 déc. 2026');assert.equal(offerLine(null,null,null),'Aucune offre');
+ assert.doesNotMatch(read('src/cockpit/clients.ts'),/hosted_invoice_url|invoice_pdf/,'never a public invoice link');
 });

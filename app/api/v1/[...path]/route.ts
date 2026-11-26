@@ -17,6 +17,7 @@ import {handleNotifications} from '../../../../src/notifications/api';
 import {handleLeads} from '../../../../src/leads/api';
 import {handlePartners} from '../../../../src/partners/api';
 import {handleCockpit} from '../../../../src/cockpit/api';
+import {stripeInvoiceReader} from '../../../../src/cockpit/clients';
 // « Entreprises ayant cédé un fonds » (migration 058): the server registers the sellers' reader (never in a browser's bundle).
 import '../../../../src/discovery/sellers-reader.server';
 import {handleApp} from '../../../../src/pwa/api';
@@ -139,7 +140,7 @@ async function handler(request:Request,context:{params:Promise<{path:string[]}>}
  const partnersResponse=await handlePartners(request,path,db,json,{enabled:partnersEnabledIn(process.env),origin:appOrigin(request)});
  if(partnersResponse)return partnersResponse;
  // Cockpit administrateur (migration 056, src/cockpit/api.ts): administrator only, checked by the database (INTERNAL + RLS).
- const cockpitResponse=await handleCockpit(request,path,db,json);
+ const cockpitResponse=await handleCockpit(request,path,db,json,{invoices:stripeInvoiceReader()});
  if(cockpitResponse)return cockpitResponse;
  // ProspectOS installable (migration 057, src/pwa/api.ts): the account's own notification settings and install invitation.
  const appResponse=await handleApp(request,path,db,json,{vapidPublicKey:vapidConfig(process.env)?.publicKey??null});

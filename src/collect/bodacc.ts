@@ -7,21 +7,27 @@
 //                   purchase: the buyer of a business), FUSION, APPORT, VENTE_JUDICIAIRE or INDETERMINE (migration 055) — each
 //                   with the id of the rule that decided; only VENTE_FONDS is ever proposed to a client
 // Only legal persons are kept: an announcement about a natural person is dropped and only counted (no name is stored).
+// The seller of a sale (migration 058): its SIREN when it is a company, otherwise only « natural person » or « unknown ».
 // Cancellations and corrections (migration 055): a notice of cancellation (typeavis « annulation ») is never stored; it
 // marks the notice it cancels ANNULEE. A correction (« rectificatif ») marks the notice it corrects RECTIFIEE and is itself
 // stored as the event to use. The notice targeted is read from « parutionavisprecedent » (publication, issue, number).
 import {classifySale,type SaleRule,type SaleKind} from '../domain/bodacc-purchase.ts';
 import {countRules} from './sale-quality.ts';
 import {previousNoticeId} from '../domain/bodacc-notice.ts';
+import {sellerOf} from '../domain/bodacc-seller.ts';
 export type EventKind='CREATION'|'ETABLISSEMENT'|'TRANSFERT_SIEGE'|'VENTE_FONDS'|'FUSION'|'APPORT'|'VENTE_JUDICIAIRE'|'INDETERMINE';
 export const SALE_KIND_EVENT:Record<SaleKind,EventKind>={PURCHASE:'VENTE_FONDS',MERGER:'FUSION',CONTRIBUTION:'APPORT',FORCED_SALE:'VENTE_JUDICIAIRE',UNDETERMINED:'INDETERMINE'};
 export type PublicEvent={source_id:string;kind:EventKind;siren:string;name:string|null;published_on:string;department:string|null;commune:string|null;
- postal_code:string|null;activity:string|null;source_url:string;sale_rule?:SaleRule};
+ postal_code:string|null;activity:string|null;source_url:string;sale_rule?:SaleRule;
+ // The seller of a sale (migration 058, src/domain/bodacc-seller.ts): 'PM' with its SIREN, 'PP' alone, or 'UNKNOWN'.
+ seller_kind?:'PM'|'PP'|'UNKNOWN';seller_siren?:string};
 export type Supersession={target_source_id:string;status:'ANNULEE'|'RECTIFIEE';by_source_id:string;by_url:string};
 export const BODACC_EXPORT='https://bodacc-datadila.opendatasoft.com/api/explore/v2.1/catalog/datasets/annonces-commerciales/exports/json';
 export const FAMILIES=['creation','modification','vente'] as const;
 export type Family=typeof FAMILIES[number];
-const SELECT='id,dateparution,typeavis,parutionavisprecedent,familleavis,registre,commercant,ville,cp,numerodepartement,url_complete,listeetablissements,acte,modificationsgenerales,listepersonnes';
+// listeprecedentproprietaire (owner decision, 26 nov. 2026): the sale's previous owners, read in memory by the shared rule
+// src/domain/bodacc-seller.ts — only a company's SIREN, or the fact that the seller is a natural person, is kept.
+const SELECT='id,dateparution,typeavis,parutionavisprecedent,familleavis,registre,commercant,ville,cp,numerodepartement,url_complete,listeetablissements,acte,modificationsgenerales,listepersonnes,listeprecedentproprietaire';
 // A head-office move is written three ways by the registries: « transfert du siège social », « Nouveau siège. » (Lyon, among
 // others) and « modification survenue sur l'adresse du siège ». Only the first was read until 19 nov. 2026: the Rhône showed 3
 // moves in 90 days instead of 854 (BODACC, 20 Aug.–17 Nov. 2026).
@@ -60,14 +66,15 @@ export function parseBodacc(rows:Raw[],family:Family):{events:PublicEvent[];supe
   const id=str(r.id),url=str(r.url_complete),day=str(r.dateparution);
   if(!siren||!id||!/^https:\/\//.test(url)||!/^\d{4}-\d{2}-\d{2}$/.test(day))continue;
   const etab=obj(obj(r.listeetablissements).etablissement);
-  let kind:EventKind;let saleRule:SaleRule|undefined;
+  let kind:EventKind;let saleRule:SaleRule|undefined;let seller:Pick<PublicEvent,'seller_kind'|'seller_siren'>={};
   if(family==='creation')kind=/secondaire/.test(fold(str(etab.qualiteEtablissement)+' '+JSON.stringify(obj(r.acte))))?'ETABLISSEMENT':'CREATION';
-  else if(family==='vente'){const v=classifySale(r.acte,r.listeetablissements);rules.push(v.rule);saleRule=v.rule;kind=SALE_KIND_EVENT[v.kind];if(v.kind!=='PURCHASE')skippedNotPurchase++}
+  else if(family==='vente'){const v=classifySale(r.acte,r.listeetablissements);rules.push(v.rule);saleRule=v.rule;kind=SALE_KIND_EVENT[v.kind];if(v.kind!=='PURCHASE')skippedNotPurchase++
+   const sv=sellerOf(r.listeprecedentproprietaire,r.acte,r.listeetablissements);seller=sv.kind==='PM'?{seller_kind:'PM',seller_siren:sv.siren}:{seller_kind:sv.kind}}
   else{if(!HEAD_OFFICE_MOVE.test(fold(str(obj(r.modificationsgenerales).descriptif))))continue;kind='TRANSFERT_SIEGE'}
   const dep=str(r.numerodepartement).toUpperCase(),cp=str(r.cp);
   events.push({source_id:id,kind,siren,name:(str(p.denomination)||str(r.commercant)).slice(0,200)||null,published_on:day,
    department:/^(\d{2,3}|2[AB])$/.test(dep)?dep:null,commune:str(r.ville).slice(0,120)||null,postal_code:/^\d{5}$/.test(cp)?cp:null,
-   activity:(str(etab.activite)||str(p.activite)).replace(/\s+/g,' ').slice(0,500)||null,source_url:url.slice(0,500),...(saleRule?{sale_rule:saleRule}:{})});
+   activity:(str(etab.activite)||str(p.activite)).replace(/\s+/g,' ').slice(0,500)||null,source_url:url.slice(0,500),...(saleRule?{sale_rule:saleRule}:{}),...seller});
  }
  return {events,supersessions,skippedPersons,skippedNotPurchase,saleRules:countRules(rules)};
 }

@@ -95,6 +95,7 @@
 .pos-ui .pos-search .pos-stag--run-failed,.pos-ui .pos-search .pos-stag--run-interrupted{background:var(--pos-status-excluded-bg);color:var(--pos-status-excluded-fg)}
 .pos-ui .pos-search .pos-stag--run-running{background:var(--pos-status-verify-bg);color:var(--pos-status-verify-fg)}
 .pos-ui .pos-search .pos-sres__why{margin:0;font-size:var(--pos-text-sm);color:var(--pos-text-1);line-height:var(--pos-leading-snug);overflow-wrap:anywhere}
+.pos-ui .pos-search .pos-sres__seller{margin:0;font-size:var(--pos-text-sm);color:var(--pos-text-2);overflow-wrap:anywhere}
 .pos-ui .pos-search .pos-sres__verify{display:flex;flex-wrap:wrap;align-items:baseline;gap:2px var(--pos-space-2);margin:0;font-size:var(--pos-text-sm)}
 .pos-ui .pos-search .pos-sres__hint{font-size:var(--pos-text-xs);color:var(--pos-text-3)}
 .pos-ui .pos-search .pos-sverify{display:inline-flex;align-items:center;gap:4px;font-weight:var(--pos-weight-bold)}

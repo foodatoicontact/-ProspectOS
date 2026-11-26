@@ -31,7 +31,11 @@ export const DiscoveryInputSchema=z.object({project_id:z.string().min(1).max(100
  // Search-Until-New (search-until-new.ts): the user's explicit choice, stored with the run (filters_json) for replay.
  search_mode:z.enum(['all','new_first','search_new']).optional(),
  // The headcount range the user wrote (onboarding parseEmployeeRange) — a structured filter of the company register, never search words.
- employee_range:z.object({min:z.number().int().min(0).max(1000000),max:z.number().int().min(1).max(1000000)}).strict().refine(r=>r.min<=r.max,'min ≤ max').optional(),desired_new_results:z.number().int().min(1).max(100).optional(),max_provider_calls:z.number().int().min(1).max(3).optional()}).strict().default({})}).strict();
+ employee_range:z.object({min:z.number().int().min(0).max(1000000),max:z.number().int().min(1).max(1000000)}).strict().refine(r=>r.min<=r.max,'min ≤ max').optional(),desired_new_results:z.number().int().min(1).max(100).optional(),max_provider_calls:z.number().int().min(1).max(3).optional(),
+ // BODACC sales (src/discovery/sale-search.ts, owner decision 26 nov. 2026): the buyers or the companies that sold a business,
+ // the sellers' activity (NAF codes, register) and the period.
+ sale_party:z.enum(['buyer','seller']).optional(),naf_prefixes:z.array(z.string().regex(/^\d{2}(\.\d{1,2}[A-Z]?)?$/)).min(1).max(20).optional(),
+ period_days:z.union([z.literal(30),z.literal(90),z.literal(180),z.literal(365)]).optional()}).strict().default({})}).strict();
 export type DiscoveryInput=z.infer<typeof DiscoveryInputSchema>;
 export const CandidateSchema=z.object({name:z.string().min(1).max(200),canonical_url:publicUrl.nullable(),website:publicUrl.nullable(),city:z.string().max(120).nullable(),address:z.string().max(400).nullable(),phone:z.string().max(60).nullable(),discovered_source:z.string().max(80),source_url:publicUrl,source_title:z.string().max(300),discovery_timestamp:z.string().datetime(),confidence:z.number().min(0).max(1),raw_metadata:z.record(z.string(),z.unknown()),deduplication_key:z.string().max(1000)}).strict();
 export type Candidate=z.infer<typeof CandidateSchema>;
